@@ -36,7 +36,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final textColor = Theme.of(context).colorScheme.onSurface;
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -45,6 +45,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
               child: SuperEditor(
                 editor: _editor,
                 documentLayoutKey: _docLayoutKey,
+                // ignore: deprecated_member_use
+                androidHandleColor: scheme.primary,
                 stylesheet: defaultStylesheet.copyWith(
                   addRulesAfter: [
                     StyleRule(
@@ -54,7 +56,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
                         Styles.padding:
                             const CascadingPadding.symmetric(horizontal: 16),
                         Styles.textStyle: TextStyle(
-                          color: textColor,
+                          color: scheme.onSurface,
                           fontSize: 16,
                           height: 1.4,
                         ),
