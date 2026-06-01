@@ -14,6 +14,5 @@ jobs:
     steps:
       - uses: googleapis/release-please-action@v4
         with:
-          release-type: dart
-          package-name: quki_notes
-          bump-minor-pre-major: true
+          config-file: .github/release-please/release-please-config.json
+          manifest-file: .github/release-please/.release-please-manifest.json
