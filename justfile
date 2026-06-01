@@ -20,6 +20,7 @@ lint:
 
 gen:
     dart run build_runner build --delete-conflicting-outputs
+    dart run drift_dev schema dump lib/core/database/app_database.dart test/db/schemas/
 
 build-android-debug:
     flutter build apk --debug
