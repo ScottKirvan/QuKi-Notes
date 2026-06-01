@@ -36,20 +36,42 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final textColor = Theme.of(context).colorScheme.onSurface;
     return Scaffold(
       body: SafeArea(
-        child: SuperEditor(
-          editor: _editor,
-          documentLayoutKey: _docLayoutKey,
-        ),
-      ),
-      bottomNavigationBar: SafeArea(
-        child: FormattingToolbar(
-          editor: _editor,
-          document: _document,
-          composer: _composer,
-          documentLayoutResolver: () =>
-              _docLayoutKey.currentState as DocumentLayout,
+        child: Column(
+          children: [
+            Expanded(
+              child: SuperEditor(
+                editor: _editor,
+                documentLayoutKey: _docLayoutKey,
+                stylesheet: defaultStylesheet.copyWith(
+                  addRulesAfter: [
+                    StyleRule(
+                      BlockSelector.all,
+                      (doc, node) => {
+                        Styles.maxWidth: double.infinity,
+                        Styles.padding:
+                            const CascadingPadding.symmetric(horizontal: 16),
+                        Styles.textStyle: TextStyle(
+                          color: textColor,
+                          fontSize: 16,
+                          height: 1.4,
+                        ),
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            FormattingToolbar(
+              editor: _editor,
+              document: _document,
+              composer: _composer,
+              documentLayoutResolver: () =>
+                  _docLayoutKey.currentState as DocumentLayout,
+            ),
+          ],
         ),
       ),
     );
