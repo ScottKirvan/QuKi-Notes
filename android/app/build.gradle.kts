@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "com.quki.quki_notes"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
