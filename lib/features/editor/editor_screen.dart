@@ -15,6 +15,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
   late final MutableDocument _document;
   late final MutableDocumentComposer _composer;
   late final Editor _editor;
+  late final SuperEditorAndroidControlsController _androidController;
   final _docLayoutKey = GlobalKey();
 
   @override
@@ -26,10 +27,14 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
       document: _document,
       composer: _composer,
     );
+    _androidController = SuperEditorAndroidControlsController(
+      controlsColor: Colors.white,
+    );
   }
 
   @override
   void dispose() {
+    _androidController.dispose();
     _editor.dispose();
     super.dispose();
   }
@@ -42,27 +47,28 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
         child: Column(
           children: [
             Expanded(
-              child: SuperEditor(
-                editor: _editor,
-                documentLayoutKey: _docLayoutKey,
-                // ignore: deprecated_member_use
-                androidHandleColor: Colors.white,
-                stylesheet: defaultStylesheet.copyWith(
-                  addRulesAfter: [
-                    StyleRule(
-                      BlockSelector.all,
-                      (doc, node) => {
-                        Styles.maxWidth: double.infinity,
-                        Styles.padding:
-                            const CascadingPadding.symmetric(horizontal: 16),
-                        Styles.textStyle: TextStyle(
-                          color: scheme.onSurface,
-                          fontSize: 16,
-                          height: 1.4,
-                        ),
-                      },
-                    ),
-                  ],
+              child: SuperEditorAndroidControlsScope(
+                controller: _androidController,
+                child: SuperEditor(
+                  editor: _editor,
+                  documentLayoutKey: _docLayoutKey,
+                  stylesheet: defaultStylesheet.copyWith(
+                    addRulesAfter: [
+                      StyleRule(
+                        BlockSelector.all,
+                        (doc, node) => {
+                          Styles.maxWidth: double.infinity,
+                          Styles.padding:
+                              const CascadingPadding.symmetric(horizontal: 16),
+                          Styles.textStyle: TextStyle(
+                            color: scheme.onSurface,
+                            fontSize: 16,
+                            height: 1.4,
+                          ),
+                        },
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
