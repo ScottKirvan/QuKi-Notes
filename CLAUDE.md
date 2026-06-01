@@ -90,13 +90,16 @@ Full layout in `notes/dev/design_spec.md` → Project Structure.
 
 ## Development Workflow
 
-Claude opens focused PRs (one logical unit each). Scott tests on device and merges.
+Claude works on a feature branch, tests iteratively with Scott on device, then opens a PR.
 
-1. Claude opens PR with conventional commit title + test instructions
-2. CI runs (`flutter analyze`, `flutter test`)
-3. Scott tests on Android, rebase merges
-4. release-please accumulates commits → opens Release PR when ready
-5. Scott merges Release PR → GitHub Release created → build workflows fire (APK + Windows + Linux)
+1. Claude creates branch, makes changes, tells Scott to test
+2. Scott tests on Android device (`just android`)
+3. Iterate (more changes, more testing) until feature works
+4. **Only then**: Claude commits final state, opens PR
+5. CI runs (`flutter analyze`, `flutter test`)
+6. Scott reviews diff, rebase merges
+7. release-please accumulates commits → opens Release PR when ready
+8. Scott merges Release PR → GitHub Release created → build workflows fire (APK + Windows + Linux)
 
 **Branch naming**: `feat/phase1-drift-schema`, `fix/toss-retry-network`
 **PR size**: one screen, one service, or one action type — small enough to test in a session
@@ -105,15 +108,21 @@ Claude opens focused PRs (one logical unit each). Scott tests on device and merg
 
 ## Development Pipeline Summary
 
-| Phase | Goal                                                              | Status      |
-| ----- | ----------------------------------------------------------------- | ----------- |
-| 0     | Bootstrap scaffold (project, CI, docs)                            | Not started |
-| 1     | Local QuKi capture on Android (editor + stream + drift)           | Not started |
-| 2     | Transport plugin loader + first built-in QuKi-Toss                | Not started |
-| 3     | Polish + share-in + Windows + Linux ports                         | Not started |
-| 4     | Sync plugin axis + first sync backend (likely GitHub)             | v1.1+       |
-| 5     | iPadOS / iOS / Mac builds                                         | Deferred    |
-| 6     | MCP plugin axis                                                   | v2.0+       |
+| Phase | Goal                                                              | Status                        |
+| ----- | ----------------------------------------------------------------- | ----------------------------- |
+| 0     | Bootstrap scaffold (project, CI, docs)                            | Complete (merged)             |
+| 1     | Local QuKi capture on Android (editor + stream + drift)           | In progress                   |
+|       | 1.1 Drift schema v1 (qukis + images tables, DAOs, providers)      | Complete (merged)             |
+|       | 1.2 Editor screen (super_editor + formatting toolbar)             | Complete (PR open, testing)   |
+|       | 1.3 Stream screen                                                 | Not started                   |
+|       | 1.4 Image paste                                                   | Not started (super_clipboard blocked — see deps note) |
+|       | 1.5 Auto-save controller                                          | Not started                   |
+|       | 1.6 Settings stub                                                 | Not started                   |
+| 2     | Transport plugin loader + first built-in QuKi-Toss                | Not started                   |
+| 3     | Polish + share-in + Windows + Linux ports                         | Not started                   |
+| 4     | Sync plugin axis + first sync backend (likely GitHub)             | v1.1+                         |
+| 5     | iPadOS / iOS / Mac builds                                         | Deferred                      |
+| 6     | MCP plugin axis                                                   | v2.0+                         |
 
 ---
 
@@ -169,7 +178,8 @@ Claude opens focused PRs (one logical unit each). Scott tests on device and merg
 
 - The manifesto is normative. If a request conflicts with the manifesto, push back before implementing.
 - Do not introduce vault-like features (folders, tags, backlinks). See manifesto "Is NOT" list.
-- Do not commit or push without explicit instruction from Scott
+- Do not open or update a PR until Scott has tested on device and confirmed it works
+- Never commit to `main` unless Scott explicitly instructs it
 - Open one PR per logical unit; include clear test instructions using `pr_template.md`
 - Use conventional commits on every commit; Scott will rebase merge
 - `just gen` must be run after any drift schema change; migration test required for version bumps
@@ -180,4 +190,4 @@ Claude opens focused PRs (one logical unit each). Scott tests on device and merg
 
 ---
 
-**Last Updated**: 2026-05-28
+**Last Updated**: 2026-06-01
