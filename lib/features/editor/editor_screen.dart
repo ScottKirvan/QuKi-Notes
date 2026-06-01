@@ -46,7 +46,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen> {
                 editor: _editor,
                 documentLayoutKey: _docLayoutKey,
                 // ignore: deprecated_member_use
-                androidHandleColor: scheme.primary,
+                androidHandleColor: Colors.white,
                 stylesheet: defaultStylesheet.copyWith(
                   addRulesAfter: [
                     StyleRule(
