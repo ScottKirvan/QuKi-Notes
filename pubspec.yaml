@@ -19,6 +19,7 @@ dependencies:
   # super_editor and super_clipboard deferred to Phase 1 — their transitive dep
   # irondash_engine_context bundles a CargoKit Gradle plugin that uses exec(),
   # which was removed in Gradle 9. Add them back at Phase 1 kickoff.
+  super_editor: ^0.3.0-dev.51
   shared_preferences: ^2.5.5
   logging: ^1.3.0
 

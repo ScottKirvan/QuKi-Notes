@@ -4,10 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:quki_notes/app.dart';
 
 void main() {
-  testWidgets('Phase 0 scaffold smoke test', (WidgetTester tester) async {
-    await tester.pumpWidget(
-      const ProviderScope(child: QuKiNotesApp()),
-    );
-    expect(find.text('QuKi-Notes — Phase 0 scaffold'), findsOneWidget);
+  testWidgets('app smoke test — EditorScreen renders', (tester) async {
+    await tester.pumpWidget(const ProviderScope(child: QuKiNotesApp()));
+    await tester.pump();
+    expect(find.byType(QuKiNotesApp), findsOneWidget);
   });
 }

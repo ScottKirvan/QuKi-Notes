@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'features/editor/editor_screen.dart';
+
 class QuKiNotesApp extends ConsumerWidget {
   const QuKiNotesApp({super.key});
 
@@ -20,11 +22,7 @@ class QuKiNotesApp extends ConsumerWidget {
         ),
         useMaterial3: true,
       ),
-      home: const Scaffold(
-        body: Center(
-          child: Text('QuKi-Notes — Phase 0 scaffold'),
-        ),
-      ),
+      home: const EditorScreen(),
     );
   }
 }
