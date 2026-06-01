@@ -1,6 +1,6 @@
 # Pull Request Template
 
-Use this as the **body** of every PR. The **title** is the conventional commit message that will land on `main` after squash merge.
+Use this as the **body** of every PR. Scott uses **rebase & merge** — each commit lands individually on `main`. Every commit in the PR must follow conventional commit format; the PR title is descriptive only.
 
 ## Title format
 

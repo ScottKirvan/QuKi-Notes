@@ -104,7 +104,7 @@ The regression test stays in the suite forever. **Never delete a regression test
 
 **Why two commits (failing test, then fix):** the diff explicitly shows the test catches the bug. If the test passed without the fix, it wouldn't be a valid regression test — it would be testing something the existing code already does, and a future regression could slip past it.
 
-You may squash the two commits into one when merging if Scott prefers — release-please only reads the squash commit title. But the dev-time discipline of "red test first" is non-negotiable.
+Keep the two commits separate — both land on `main` via rebase merge, and the dev-time discipline of "red test first" is non-negotiable.
 
 ---
 

@@ -33,7 +33,7 @@ What to do at the **start** and **end** of every implementation session, and the
 ## At session end
 
 1. Open a PR using `notes/dev/pr_template.md`.
-2. Title = conventional commit message; it will become the squash commit on merge.
+2. Every commit must follow conventional commit format — commits land individually on `main` via rebase merge. PR title is descriptive only.
 3. If you made a non-trivial implementation decision during the session (one of two viable approaches, novel pattern), add an entry to `decisions.md` and link it from the PR body.
 4. If you discovered a new open question (couldn't be resolved without more info from Scott), add it to `open_questions.md`.
 5. **Never** commit or push to `main`. **Never** force-push. **Never** use `--no-verify`.

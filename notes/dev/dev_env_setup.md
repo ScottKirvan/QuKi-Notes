@@ -235,10 +235,10 @@ just android                # smoke test on device
 If satisfied:
 
 ```powershell
-gh pr merge <pr-number> --squash --delete-branch
+gh pr merge <pr-number> --rebase --delete-branch
 ```
 
-The PR title becomes the squash commit message — release-please reads it to decide version bumps.
+Each commit lands individually on `main` — release-please reads every commit message to decide version bumps. All commits in a PR must follow conventional commit format.
 
 ### Reviewing the release-please PR
 
@@ -246,7 +246,7 @@ When phase work accumulates and release-please opens a "Release PR":
 
 ```powershell
 gh pr view <release-pr-number>    # eyeball the version bump + CHANGELOG
-gh pr merge <release-pr-number> --squash
+gh pr merge <release-pr-number> --rebase
 ```
 
 Merging triggers tag creation → build workflows fire → APK, Windows build, and Linux tarball uploaded to the GitHub Release.

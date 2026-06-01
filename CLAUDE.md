@@ -55,7 +55,7 @@ See `notes/dev/decisions.md` for full ADR rationale. Summary:
 | Theme / Logging / Privacy | Follow system theme; `logging` package (console in debug, in-memory ring buffer in release); **no analytics, no crash reporting**                                   |
 | Workflow JSON DSL         | **Dropped.** Replaced by transport plugins (Dart code). ADR-7 superseded by ADR-14.                                                                                 |
 | Versioning                | Semantic versioning via release-please (`dart` type)                                                                                                                |
-| Commits                   | Conventional commits; squash merge; PR title = commit message                                                                                                       |
+| Commits                   | Conventional commits; rebase & merge; every commit must follow conventional commit format                                                                           |
 | Task runner               | `just` (justfile)                                                                                                                                                   |
 | Docs                      | VitePress → GitHub Pages                                                                                                                                            |
 
@@ -94,7 +94,7 @@ Claude opens focused PRs (one logical unit each). Scott tests on device and merg
 
 1. Claude opens PR with conventional commit title + test instructions
 2. CI runs (`flutter analyze`, `flutter test`)
-3. Scott tests on Android, squash merges
+3. Scott tests on Android, rebase merges
 4. release-please accumulates commits → opens Release PR when ready
 5. Scott merges Release PR → GitHub Release created → build workflows fire (APK + Windows + Linux)
 
@@ -171,7 +171,7 @@ Claude opens focused PRs (one logical unit each). Scott tests on device and merg
 - Do not introduce vault-like features (folders, tags, backlinks). See manifesto "Is NOT" list.
 - Do not commit or push without explicit instruction from Scott
 - Open one PR per logical unit; include clear test instructions using `pr_template.md`
-- Use conventional commit PR titles; Scott will squash merge
+- Use conventional commits on every commit; Scott will rebase merge
 - `just gen` must be run after any drift schema change; migration test required for version bumps
 - `build-ios.yml` exists as a stub but must NOT be wired to trigger — macOS runner cost
 - No analytics, no crash reporting, no telemetry SDKs — ever (see ADR-12)
