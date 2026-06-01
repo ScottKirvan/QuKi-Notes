@@ -1,3 +1,23 @@
 # Changelog
 
+## 1.0.0 (2026-06-01)
+
+
+### Features
+
+* **database:** add drift schema v1 — qukis + images tables, DAOs, providers ([654cd14](https://github.com/ScottKirvan/QuKi-Notes/commit/654cd149c25098fcb427b82266ac938b00e30eeb))
+* **editor:** add editor screen with super_editor and formatting toolbar ([18a8f8a](https://github.com/ScottKirvan/QuKi-Notes/commit/18a8f8a41afc7993d015020f4c7261cdb9d42847))
+
+
+### Bug Fixes
+
+* **android:** force compileSdk 36 for all library subprojects ([bf77157](https://github.com/ScottKirvan/QuKi-Notes/commit/bf7715744424584fcd871a78661344c21fede405))
+* **android:** set compileSdk 36 for super_keyboard compatibility ([747f031](https://github.com/ScottKirvan/QuKi-Notes/commit/747f031eac97d8517d08efca07f935f7d3af12ad))
+* **editor:** force cursor white for testing ([d284ef8](https://github.com/ScottKirvan/QuKi-Notes/commit/d284ef81fe6d1d41e767051b5a77ef1e218f7fa8))
+* **editor:** set cursor color to colorScheme.primary for visibility ([77d360f](https://github.com/ScottKirvan/QuKi-Notes/commit/77d360fd5a3aa85f17ee418546821a5de1b698e8))
+* **editor:** theme-aware text color and toolbar above keyboard ([4afa539](https://github.com/ScottKirvan/QuKi-Notes/commit/4afa539d53399b0e3360a6fbb72dbe1a7b2da532))
+* **editor:** use SuperEditorAndroidControlsScope for visible cursor ([abfaaf8](https://github.com/ScottKirvan/QuKi-Notes/commit/abfaaf8de35f795cadf70b027286a3260241cfe9))
+
+## Changelog
+
 ## Unreleased
