@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'features/editor/editor_screen.dart';
+import 'features/stream/stream_screen.dart';
 
 class QuKiNotesApp extends ConsumerWidget {
   const QuKiNotesApp({super.key});
@@ -22,7 +23,12 @@ class QuKiNotesApp extends ConsumerWidget {
         ),
         useMaterial3: true,
       ),
-      home: const EditorScreen(),
+      home: EditorScreen(
+        onLeave: (ctx) => Navigator.push<void>(
+          ctx,
+          MaterialPageRoute(builder: (_) => const StreamScreen()),
+        ),
+      ),
     );
   }
 }
