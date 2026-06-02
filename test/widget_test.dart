@@ -8,7 +8,8 @@ import 'package:quki_notes/core/database/app_database.dart';
 import 'package:quki_notes/core/database/database_provider.dart';
 
 void main() {
-  testWidgets('app smoke test — EditorScreen renders on launch', (tester) async {
+  testWidgets('app smoke test — EditorScreen renders on launch',
+      (tester) async {
     final db = AppDatabase(NativeDatabase.memory());
     addTearDown(db.close);
 
