@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.3.0...v0.4.0) (2026-06-02)
+
+
+### Features
+
+* **settings:** Phase 1.6 settings stub + package_info_plus for version ([c5dddf5](https://github.com/ScottKirvan/QuKi-Notes/commit/c5dddf5d42722f3b3cbe5f1db47e3ccba47efea4))
+
 ## [0.3.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.2.0...v0.3.0) (2026-06-02)
 
 
