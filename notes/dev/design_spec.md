@@ -419,15 +419,15 @@ quki_notes/
 
 ## Development Phases
 
-| Phase | Goal                                                                                | Status      |
-| ----- | ----------------------------------------------------------------------------------- | ----------- |
-| 0     | Bootstrap scaffold (project, CI, docs)                                              | Not started |
-| 1     | Local QuKi capture on Android — editor, stream, drift, image paste                  | Not started |
-| 2     | Transport plugin loader + first built-in QuKi-Toss + Settings → Tosses              | Not started |
-| 3     | Polish + share-in + Windows + Linux desktop ports                                   | Not started |
-| 4     | Sync plugin axis (`core/sync/`) + first sync backend (probably GitHub)              | v1.1+       |
-| 5     | iPadOS / iOS / macOS builds (CI wiring + device QA)                                 | Deferred    |
-| 6     | MCP plugin axis                                                                     | v2.0+       |
+| Phase | Goal                                                                   | Status         |
+| ----- | ---------------------------------------------------------------------- | -------------- |
+| 0     | Bootstrap scaffold (project, CI, docs)                                 | Complete       |
+| 1     | Local QuKi capture on Android — editor, stream, drift, image paste     | In progress    |
+| 2     | Transport plugin loader + first built-in QuKi-Toss + Settings → Tosses | Not started    |
+| 3     | Polish + share-in + Windows + Linux desktop ports                      | Not started    |
+| 4     | Sync plugin axis (`core/sync/`) + first sync backend (probably GitHub) | v1.1+       |
+| 5     | iPadOS / iOS / macOS builds (CI wiring + device QA)                    | Deferred    |
+| 6     | MCP plugin axis                                                        | v2.0+       |
 
 ### Phase 0 — Bootstrap
 
@@ -437,11 +437,11 @@ See `notes/dev/bootstrap.md`. One PR, scaffold only, no features.
 
 Sub-PRs in order:
 
-1. **Drift schema v1**: `qukis` + `images` tables + repository providers + migration test scaffold (against an empty prior snapshot? — first version skips upgrade test; ADR-8 enforces upgrade tests from v2 onward).
-2. **Editor screen**: blank QuKi on launch, `super_editor`, formatting toolbar (no image button yet).
-3. **Stream screen**: list view with search; tap-to-edit; swipe-to-delete with undo.
-4. **Image paste**: `super_clipboard` integration; on-disk image store; markdown rewrite; image rendering in `super_editor` (OQ-2 covers integration shape).
-5. **Auto-save controller**: ADR-6 save semantics; lifecycle hooks; never blocks.
+1. **Drift schema v1**: `qukis` + `images` tables + repository providers + migration test scaffold. ✓ Complete (merged)
+2. **Editor screen**: blank QuKi on launch, `super_editor`, formatting toolbar (no image button yet). ✓ Complete (merged)
+3. **Stream screen**: list view with search; tap-to-edit; swipe-to-delete with undo. ✓ Complete (merged — PR #8)
+4. **Image paste**: `super_clipboard` integration; on-disk image store; markdown rewrite; image rendering in `super_editor` (OQ-2 covers integration shape). Blocked — `super_clipboard`/CargoKit archived 2026-03-26; deferred.
+5. **Auto-save controller**: ADR-6 save semantics; lifecycle hooks; never blocks. ← Next
 6. **Settings stub**: theme indicator (system), about page with version.
 
 ### Phase 2 — Transports
