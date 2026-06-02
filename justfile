@@ -3,8 +3,22 @@ set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
 default:
     @just --list
 
-android device='':
-    flutter run {{ if device != '' { '--device-id ' + device } else { '' } }}
+android:
+    #!pwsh -NoLogo
+    $devices = flutter devices --machine 2>$null | ConvertFrom-Json
+    $phone = $devices | Where-Object { $_.targetPlatform -match 'android' -and $_.id -notmatch 'emulator' } | Select-Object -First 1 -ExpandProperty id
+    $emu   = $devices | Where-Object { $_.id -match 'emulator' } | Select-Object -First 1 -ExpandProperty id
+    if ($phone) {
+        Write-Host "Using phone: $phone"
+        flutter run --device-id $phone
+    } elseif ($emu) {
+        Write-Host "Using emulator: $emu"
+        flutter run --device-id $emu
+    } else {
+        Write-Error "No Android device or emulator found."
+        exit 1
+    }
+
 windows:
     flutter run -d windows
 

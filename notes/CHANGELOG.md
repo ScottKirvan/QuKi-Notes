@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.1.0...v0.2.0) (2026-06-02)
+
+
+### Features
+
+* **editor:** add ← Stream nav, save-on-leave bridge, and paragraph restore ([6a0d7ba](https://github.com/ScottKirvan/QuKi-Notes/commit/6a0d7ba3a8e8346855792849f0baa83f9e140c26))
+* **stream:** add stream screen with list, search, swipe-delete, and undo ([b55178c](https://github.com/ScottKirvan/QuKi-Notes/commit/b55178c83607663c1f9baf32d31dd0c2eddec208))
+
 ## 0.1.0 (2026-06-01)
 
 

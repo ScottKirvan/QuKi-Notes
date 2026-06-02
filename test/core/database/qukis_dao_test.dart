@@ -1,4 +1,4 @@
-import 'package:drift/drift.dart' hide isNull;
+import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:quki_notes/core/database/app_database.dart';
@@ -61,6 +61,25 @@ void main() {
       ));
       final result = await db.qukisDao.watchById('q1').first;
       expect(result?.body, 'hello');
+    });
+  });
+
+  group('QukisDao.restoreQuki', () {
+    test('clears deletedAt so row reappears in watchAll', () async {
+      final now = DateTime(2026, 1, 1);
+      await db.qukisDao.insertQuki(QukisCompanion.insert(
+        id: 'r1',
+        createdAt: now,
+        modifiedAt: now,
+      ));
+      await db.qukisDao.softDelete('r1', now);
+      expect(await db.qukisDao.watchAll().first, isEmpty);
+
+      await db.qukisDao.restoreQuki('r1');
+      expect(await db.qukisDao.watchAll().first, hasLength(1));
+
+      final row = await db.qukisDao.watchById('r1').first;
+      expect(row?.deletedAt, isNull);
     });
   });
 
