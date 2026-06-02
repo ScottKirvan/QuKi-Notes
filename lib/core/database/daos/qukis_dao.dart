@@ -26,6 +26,10 @@ class QukisDao extends DatabaseAccessor<AppDatabase> with _$QukisDaoMixin {
       (update(qukis)..where((t) => t.id.equals(id)))
           .write(QukisCompanion(deletedAt: Value(at)));
 
+  Future<void> restoreQuki(String id) =>
+      (update(qukis)..where((t) => t.id.equals(id)))
+          .write(QukisCompanion(deletedAt: Value(null)));
+
   Future<int> hardDeleteBefore(DateTime threshold) => (delete(qukis)
         ..where((t) =>
             t.deletedAt.isNotNull() &
