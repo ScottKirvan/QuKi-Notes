@@ -40,4 +40,4 @@ coverage/
 docs/.vitepress/cache/
 docs/.vitepress/dist/
 docs/node_modules/
-android/.kotlin/errors/*.log
+*.log
