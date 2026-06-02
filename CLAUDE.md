@@ -113,8 +113,8 @@ Claude works on a feature branch, tests iteratively with Scott on device, then o
 | 0     | Bootstrap scaffold (project, CI, docs)                            | Complete (merged)             |
 | 1     | Local QuKi capture on Android (editor + stream + drift)           | In progress                   |
 |       | 1.1 Drift schema v1 (qukis + images tables, DAOs, providers)      | Complete (merged)             |
-|       | 1.2 Editor screen (super_editor + formatting toolbar)             | Complete (PR open, testing)   |
-|       | 1.3 Stream screen                                                 | Not started                   |
+|       | 1.2 Editor screen (super_editor + formatting toolbar)             | Complete (merged)             |
+|       | 1.3 Stream screen                                                 | In progress (branch open, device testing)  |
 |       | 1.4 Image paste                                                   | Not started (super_clipboard blocked — see deps note) |
 |       | 1.5 Auto-save controller                                          | Not started                   |
 |       | 1.6 Settings stub                                                 | Not started                   |
@@ -189,5 +189,15 @@ Claude works on a feature branch, tests iteratively with Scott on device, then o
 - `lib/core/` and `lib/shared/models/` must stay Flutter-free (ADR-16, for future CLI). Flutter imports go in `lib/ui/` or `lib/features/`.
 
 ---
+
+## Phase 1.3 Implementation Notes
+
+**Navigation**: `StreamScreen` is pushed from `EditorScreen` (stream is NOT the root). `app.dart` home = `EditorScreen(onLeave: push StreamScreen)`. The `onLeave` callback pattern avoids a circular import between editor and stream.
+
+**Save-on-leave bridge (ADR-20)**: `EditorScreen._saveIfNeeded()` fires when `← Stream` is tapped. First press on a new QuKi inserts a row; repeat presses update it (tracked via `_savedQukiId` state field). Hardware back button does NOT save — use `← Stream`. Phase 1.5 replaces this with full auto-save.
+
+**riverpod_generator 4.0.4-dev.1 + drift types**: `@riverpod` functions returning `Stream<List<Quki>>` fail with `InvalidTypeException` because `Quki` lives in a generated `part` file and the generator can't determine its import path. Workaround: `StreamScreen` calls the drift DAO directly via `StreamBuilder` (DB comes through `ref.watch(appDatabaseProvider)`). Revisit when riverpod_generator stable 4.x ships.
+
+**`flutter test` on Windows**: If `flutter test` crashes with `PathAccessException: sqlite3.dll Access is denied`, run `flutter clean` in a fresh terminal (close VS Code first). The DLL gets locked by the previous test process.
 
 **Last Updated**: 2026-06-01

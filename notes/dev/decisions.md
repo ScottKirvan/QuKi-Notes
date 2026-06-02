@@ -10,6 +10,17 @@ Normative framing in `manifesto.md` — read that first.
 
 ---
 
+## ADR-20: Save-on-leave bridge (Phase 1.3) → superseded by Phase 1.5 auto-save
+
+Phase 1.3 (stream screen) requires content to appear in the list after the user types something in the editor. Full auto-save (ADR-6 debounce + lifecycle) lands in Phase 1.5. A minimal "save when the user explicitly navigates away" bridge was added to `EditorScreen` for Phase 1.3 so the stream is testable.
+
+- **What**: `_saveIfNeeded()` fires when the user taps `← Stream`. First call on a new QuKi inserts a row; subsequent calls update it (tracked via `_savedQukiId` state).
+- **Not triggered by**: hardware back button (known limitation; Phase 1.5 fixes this).
+- **Superseded by**: Phase 1.5 auto-save controller (2s debounce + 30s periodic + lifecycle hooks). When Phase 1.5 lands, `_saveIfNeeded()` and `_savedQukiId` are removed and replaced by the controller.
+- **Rejected**: pre-creating an empty row in `_openNew()` — produces permanent `(empty)` entries when the user abandons without typing.
+
+---
+
 ## ADR-19: Privacy & device permissions — three-gate opt-in, capability-aware
 
 Device-backed enrichments (GPS, future: camera, microphone, contacts, calendar) are never requested unless ALL three gates are ON:
