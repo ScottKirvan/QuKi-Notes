@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.2.0...v0.3.0) (2026-06-02)
+
+
+### Features
+
+* **editor:** auto-save controller + sort stream by modifiedAt ([041192f](https://github.com/ScottKirvan/QuKi-Notes/commit/041192f43bc6cb55482ae19afcc69b9e70a20d38))
+
 ## [0.2.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.1.0...v0.2.0) (2026-06-02)
 
 
