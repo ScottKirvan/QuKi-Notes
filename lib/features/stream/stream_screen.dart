@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/database/app_database.dart';
 import '../../core/database/database_provider.dart';
 import '../editor/editor_screen.dart';
+import '../settings/settings_screen.dart';
 
 class StreamScreen extends ConsumerStatefulWidget {
   const StreamScreen({super.key});
@@ -33,6 +34,13 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     super.dispose();
+  }
+
+  Future<void> _openSettings() async {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+    );
   }
 
   Future<void> _openNew() async {
@@ -127,6 +135,11 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
                 icon: const Icon(Icons.add),
                 tooltip: 'New QuKi',
                 onPressed: _openNew,
+              ),
+              IconButton(
+                icon: const Icon(Icons.settings_outlined),
+                tooltip: 'Settings',
+                onPressed: _openSettings,
               ),
             ],
           ),

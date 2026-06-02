@@ -1,0 +1,60 @@
+import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+
+import '../../core/app_info.dart';
+
+class SettingsScreen extends StatelessWidget {
+  const SettingsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final labelStyle = Theme.of(context).textTheme.labelSmall?.copyWith(
+          color: Theme.of(context).colorScheme.primary,
+          letterSpacing: 1.1,
+        );
+
+    Widget sectionHeader(String title) => Padding(
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
+          child: Text(title.toUpperCase(), style: labelStyle),
+        );
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Settings')),
+      body: ListView(
+        children: [
+          sectionHeader('Appearance'),
+          const ListTile(
+            title: Text('Theme'),
+            trailing: Text('System'),
+          ),
+          const Divider(indent: 16, endIndent: 16),
+          sectionHeader('Tosses'),
+          const ListTile(
+            title: Text('No transports installed'),
+            subtitle: Text('Toss plugins land in Phase 2.'),
+            enabled: false,
+          ),
+          const Divider(indent: 16, endIndent: 16),
+          sectionHeader('Sync'),
+          const ListTile(
+            title: Text('No sync backends installed'),
+            subtitle: Text('Sync is opt-in — coming in v1.1+.'),
+            enabled: false,
+          ),
+          const Divider(indent: 16, endIndent: 16),
+          sectionHeader('About'),
+          FutureBuilder<PackageInfo>(
+            future: PackageInfo.fromPlatform(),
+            builder: (context, snapshot) {
+              final version = snapshot.data?.version ?? '…';
+              return ListTile(
+                title: const Text(kAppName),
+                trailing: Text('v$version'),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
