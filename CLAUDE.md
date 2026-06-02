@@ -114,7 +114,7 @@ Claude works on a feature branch, tests iteratively with Scott on device, then o
 | 1     | Local QuKi capture on Android (editor + stream + drift)           | In progress                   |
 |       | 1.1 Drift schema v1 (qukis + images tables, DAOs, providers)      | Complete (merged)             |
 |       | 1.2 Editor screen (super_editor + formatting toolbar)             | Complete (merged)             |
-|       | 1.3 Stream screen                                                 | In progress (branch open, device testing)  |
+|       | 1.3 Stream screen                                                 | Complete (merged)             |
 |       | 1.4 Image paste                                                   | Not started (super_clipboard blocked — see deps note) |
 |       | 1.5 Auto-save controller                                          | Not started                   |
 |       | 1.6 Settings stub                                                 | Not started                   |
