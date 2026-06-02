@@ -32,6 +32,29 @@ void main() {
       expect(result.map((q) => q.id).toList(), ['b', 'a']);
     });
 
+    test('edited quki rises to top by modifiedAt', () async {
+      final older = DateTime(2026, 1, 1);
+      final newer = DateTime(2026, 1, 2);
+      await db.qukisDao.insertQuki(QukisCompanion.insert(
+        id: 'a',
+        createdAt: older,
+        modifiedAt: older,
+      ));
+      await db.qukisDao.insertQuki(QukisCompanion.insert(
+        id: 'b',
+        createdAt: newer,
+        modifiedAt: newer,
+      ));
+      // 'a' was created first but is now edited — should move to top.
+      await db.qukisDao.updateQuki(QukisCompanion(
+        id: const Value('a'),
+        body: const Value('edited'),
+        modifiedAt: Value(newer.add(const Duration(seconds: 1))),
+      ));
+      final result = await db.qukisDao.watchAll().first;
+      expect(result.map((q) => q.id).toList(), ['a', 'b']);
+    });
+
     test('excludes soft-deleted qukis', () async {
       final now = DateTime(2026, 1, 1);
       await db.qukisDao.insertQuki(QukisCompanion.insert(
