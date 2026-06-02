@@ -6,7 +6,7 @@ class QukisDao extends DatabaseAccessor<AppDatabase> with _$QukisDaoMixin {
 
   Stream<List<Quki>> watchAll() => (select(qukis)
         ..where((t) => t.deletedAt.isNull())
-        ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
+        ..orderBy([(t) => OrderingTerm.desc(t.modifiedAt)]))
       .watch();
 
   Stream<Quki?> watchById(String id) =>
@@ -14,7 +14,7 @@ class QukisDao extends DatabaseAccessor<AppDatabase> with _$QukisDaoMixin {
 
   Stream<List<Quki>> search(String query) => (select(qukis)
         ..where((t) => t.deletedAt.isNull() & t.body.like('%$query%'))
-        ..orderBy([(t) => OrderingTerm.desc(t.createdAt)]))
+        ..orderBy([(t) => OrderingTerm.desc(t.modifiedAt)]))
       .watch();
 
   Future<void> insertQuki(QukisCompanion entry) => into(qukis).insert(entry);
