@@ -87,8 +87,18 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
     if (diff.inHours < 24) return '${diff.inHours}h ago';
     if (diff.inDays == 1) return 'Yesterday';
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     final m = months[dt.month - 1];
     final now = DateTime.now();
@@ -107,106 +117,107 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
     final scheme = Theme.of(context).colorScheme;
 
     return ScaffoldMessenger(
-      key: _messengerKey,
-      child: Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: const Text('QuKis'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            tooltip: 'New QuKi',
-            onPressed: _openNew,
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-            child: TextField(
-              controller: _searchController,
-              decoration: InputDecoration(
-                hintText: 'Search…',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon: _query.isNotEmpty
-                    ? IconButton(
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _searchController.clear();
-                          setState(() => _query = '');
-                        },
-                      )
-                    : null,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(28),
-                ),
-                filled: true,
-                isDense: true,
+        key: _messengerKey,
+        child: Scaffold(
+          appBar: AppBar(
+            automaticallyImplyLeading: false,
+            title: const Text('QuKis'),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.add),
+                tooltip: 'New QuKi',
+                onPressed: _openNew,
               ),
-            ),
+            ],
           ),
-          Expanded(
-            child: StreamBuilder<List<Quki>>(
-              stream: stream,
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                }
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                final qukis = snapshot.data!;
-                if (qukis.isEmpty) {
-                  return Center(
-                    child: Text(
-                      _query.isEmpty
-                          ? 'No QuKis yet.\nTap + to capture your first thought.'
-                          : 'No results for "$_query".',
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: scheme.onSurfaceVariant,
-                          ),
+          body: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+                child: TextField(
+                  controller: _searchController,
+                  decoration: InputDecoration(
+                    hintText: 'Search…',
+                    prefixIcon: const Icon(Icons.search),
+                    suffixIcon: _query.isNotEmpty
+                        ? IconButton(
+                            icon: const Icon(Icons.clear),
+                            onPressed: () {
+                              _searchController.clear();
+                              setState(() => _query = '');
+                            },
+                          )
+                        : null,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(28),
                     ),
-                  );
-                }
-                return ListView.builder(
-                  itemCount: qukis.length,
-                  itemBuilder: (context, index) {
-                    final quki = qukis[index];
-                    return Dismissible(
-                      key: ValueKey(quki.id),
-                      direction: DismissDirection.endToStart,
-                      background: Container(
-                        alignment: Alignment.centerRight,
-                        color: scheme.error,
-                        padding: const EdgeInsets.only(right: 20),
-                        child: Icon(
-                          Icons.delete_outline,
-                          color: scheme.onError,
+                    filled: true,
+                    isDense: true,
+                  ),
+                ),
+              ),
+              Expanded(
+                child: StreamBuilder<List<Quki>>(
+                  stream: stream,
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return Center(child: Text('Error: ${snapshot.error}'));
+                    }
+                    if (!snapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    final qukis = snapshot.data!;
+                    if (qukis.isEmpty) {
+                      return Center(
+                        child: Text(
+                          _query.isEmpty
+                              ? 'No QuKis yet.\nTap + to capture your first thought.'
+                              : 'No results for "$_query".',
+                          textAlign: TextAlign.center,
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: scheme.onSurfaceVariant,
+                                  ),
                         ),
-                      ),
-                      onDismissed: (_) => _delete(quki),
-                      child: ListTile(
-                        title: Text(
-                          _preview(quki.body),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        subtitle: Text(
-                          _relativeTime(quki.modifiedAt),
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                        onTap: () => _openExisting(quki),
-                      ),
+                      );
+                    }
+                    return ListView.builder(
+                      itemCount: qukis.length,
+                      itemBuilder: (context, index) {
+                        final quki = qukis[index];
+                        return Dismissible(
+                          key: ValueKey(quki.id),
+                          direction: DismissDirection.endToStart,
+                          background: Container(
+                            alignment: Alignment.centerRight,
+                            color: scheme.error,
+                            padding: const EdgeInsets.only(right: 20),
+                            child: Icon(
+                              Icons.delete_outline,
+                              color: scheme.onError,
+                            ),
+                          ),
+                          onDismissed: (_) => _delete(quki),
+                          child: ListTile(
+                            title: Text(
+                              _preview(quki.body),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Text(
+                              _relativeTime(quki.modifiedAt),
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            onTap: () => _openExisting(quki),
+                          ),
+                        );
+                      },
                     );
                   },
-                );
-              },
-            ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
-    ));
+        ));
   }
 }

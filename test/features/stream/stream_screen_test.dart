@@ -78,8 +78,10 @@ void main() {
     testWidgets('lists newest QuKi first', (tester) async {
       final older = DateTime(2026, 1, 1);
       final newer = DateTime(2026, 1, 2);
-      await insertQuki(db, id: 'a', body: 'Older note', createdAt: older, modifiedAt: older);
-      await insertQuki(db, id: 'b', body: 'Newer note', createdAt: newer, modifiedAt: newer);
+      await insertQuki(db,
+          id: 'a', body: 'Older note', createdAt: older, modifiedAt: older);
+      await insertQuki(db,
+          id: 'b', body: 'Newer note', createdAt: newer, modifiedAt: newer);
       await tester.pumpWidget(buildUnderTest());
       await tester.pump();
 
@@ -134,7 +136,8 @@ void main() {
       await tester.pump();
 
       await tester.enterText(find.byType(TextField), 'milk');
-      await tester.pumpAndSettle(); // wait for new stream to emit filtered results
+      await tester
+          .pumpAndSettle(); // wait for new stream to emit filtered results
 
       expect(find.text('buy milk'), findsOneWidget);
       expect(find.text('call dentist'), findsNothing);
