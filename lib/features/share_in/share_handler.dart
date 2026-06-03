@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 
@@ -15,6 +17,9 @@ class ShareHandler {
     return texts.isEmpty ? null : texts.join('\n\n');
   }
 }
+
+/// Overridable platform check. Override with false in tests to simulate non-Android.
+final isAndroidProvider = Provider<bool>((ref) => Platform.isAndroid);
 
 /// Emits shared text when another app shares into QuKi-Notes, then null after
 /// the intent is consumed. Null emissions are a reset signal — listeners should
