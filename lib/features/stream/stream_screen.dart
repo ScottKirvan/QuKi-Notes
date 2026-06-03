@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:flutter/material.dart';
@@ -19,6 +20,7 @@ class StreamScreen extends ConsumerStatefulWidget {
 class _StreamScreenState extends ConsumerState<StreamScreen> {
   final _searchController = TextEditingController();
   String _query = '';
+  Timer? _undoTimer;
 
   @override
   void initState() {
@@ -33,6 +35,7 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
 
   @override
   void dispose() {
+    _undoTimer?.cancel();
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     super.dispose();
@@ -64,18 +67,33 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
 
   Future<void> _delete(Quki quki) async {
     final db = ref.read(appDatabaseProvider);
+    // Capture messenger before async gap so context is never stale below.
+    final messenger = ScaffoldMessenger.of(context);
     await db.qukisDao.softDelete(quki.id, DateTime.now());
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    _undoTimer?.cancel();
+    messenger.clearSnackBars();
+    final controller = messenger.showSnackBar(
       SnackBar(
         content: Text('Deleted: ${_preview(quki.body)}'),
         duration: const Duration(seconds: 4),
         action: SnackBarAction(
           label: 'Undo',
-          onPressed: () => db.qukisDao.restoreQuki(quki.id),
+          onPressed: () {
+            _undoTimer?.cancel();
+            _undoTimer = null;
+            db.qukisDao.restoreQuki(quki.id);
+          },
         ),
       ),
     );
+    // Flutter 3.44 + Material 3: SnackBar with SnackBarAction does not reliably
+    // auto-dismiss via the internal timer when an action is present. Drive
+    // dismissal with an explicit Timer to guarantee the 4s timeout.
+    _undoTimer = Timer(const Duration(seconds: 4), () {
+      _undoTimer = null;
+      controller.close();
+    });
   }
 
   String _preview(String body) {
