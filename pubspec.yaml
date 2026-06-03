@@ -25,6 +25,7 @@ dependencies:
   package_info_plus: ^8.0.0
   share_plus: ^10.0.0
   receive_sharing_intent: ^1.8.1
+  window_manager: ^0.5.1
 
 dev_dependencies:
   flutter_test:
