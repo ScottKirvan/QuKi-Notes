@@ -17,7 +17,6 @@ class StreamScreen extends ConsumerStatefulWidget {
 }
 
 class _StreamScreenState extends ConsumerState<StreamScreen> {
-  final _messengerKey = GlobalKey<ScaffoldMessengerState>();
   final _searchController = TextEditingController();
   String _query = '';
 
@@ -67,7 +66,7 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
     final db = ref.read(appDatabaseProvider);
     await db.qukisDao.softDelete(quki.id, DateTime.now());
     if (!mounted) return;
-    _messengerKey.currentState?.showSnackBar(
+    ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Deleted: ${_preview(quki.body)}'),
         duration: const Duration(seconds: 4),
@@ -127,114 +126,111 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
         _query.isEmpty ? db.qukisDao.watchAll() : db.qukisDao.search(_query);
     final scheme = Theme.of(context).colorScheme;
 
-    final Widget screen = ScaffoldMessenger(
-        key: _messengerKey,
-        child: Scaffold(
-          appBar: AppBar(
-            automaticallyImplyLeading: false,
-            title: const Text('QuKis'),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.add),
-                tooltip: 'New QuKi',
-                onPressed: _openNew,
-              ),
-              IconButton(
-                icon: const Icon(Icons.settings_outlined),
-                tooltip: 'Settings',
-                onPressed: _openSettings,
-              ),
-            ],
+    final Widget screen = Scaffold(
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        title: const Text('QuKis'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            tooltip: 'New QuKi',
+            onPressed: _openNew,
           ),
-          body: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
-                child: TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    hintText: 'Search…',
-                    prefixIcon: const Icon(Icons.search),
-                    suffixIcon: _query.isNotEmpty
-                        ? IconButton(
-                            icon: const Icon(Icons.clear),
-                            onPressed: () {
-                              _searchController.clear();
-                              setState(() => _query = '');
-                            },
-                          )
-                        : null,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(28),
-                    ),
-                    filled: true,
-                    isDense: true,
-                  ),
+          IconButton(
+            icon: const Icon(Icons.settings_outlined),
+            tooltip: 'Settings',
+            onPressed: _openSettings,
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
+            child: TextField(
+              controller: _searchController,
+              decoration: InputDecoration(
+                hintText: 'Search…',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _query.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.clear),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _query = '');
+                        },
+                      )
+                    : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(28),
                 ),
+                filled: true,
+                isDense: true,
               ),
-              Expanded(
-                child: StreamBuilder<List<Quki>>(
-                  stream: stream,
-                  builder: (context, snapshot) {
-                    if (snapshot.hasError) {
-                      return Center(child: Text('Error: ${snapshot.error}'));
-                    }
-                    if (!snapshot.hasData) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
-                    final qukis = snapshot.data!;
-                    if (qukis.isEmpty) {
-                      return Center(
-                        child: Text(
-                          _query.isEmpty
-                              ? 'No QuKis yet.\nTap + to capture your first thought.'
-                              : 'No results for "$_query".',
-                          textAlign: TextAlign.center,
-                          style:
-                              Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: scheme.onSurfaceVariant,
-                                  ),
+            ),
+          ),
+          Expanded(
+            child: StreamBuilder<List<Quki>>(
+              stream: stream,
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(child: Text('Error: ${snapshot.error}'));
+                }
+                if (!snapshot.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                final qukis = snapshot.data!;
+                if (qukis.isEmpty) {
+                  return Center(
+                    child: Text(
+                      _query.isEmpty
+                          ? 'No QuKis yet.\nTap + to capture your first thought.'
+                          : 'No results for "$_query".',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                          ),
+                    ),
+                  );
+                }
+                return ListView.builder(
+                  itemCount: qukis.length,
+                  itemBuilder: (context, index) {
+                    final quki = qukis[index];
+                    return Dismissible(
+                      key: ValueKey(quki.id),
+                      direction: DismissDirection.endToStart,
+                      background: Container(
+                        alignment: Alignment.centerRight,
+                        color: scheme.error,
+                        padding: const EdgeInsets.only(right: 20),
+                        child: Icon(
+                          Icons.delete_outline,
+                          color: scheme.onError,
                         ),
-                      );
-                    }
-                    return ListView.builder(
-                      itemCount: qukis.length,
-                      itemBuilder: (context, index) {
-                        final quki = qukis[index];
-                        return Dismissible(
-                          key: ValueKey(quki.id),
-                          direction: DismissDirection.endToStart,
-                          background: Container(
-                            alignment: Alignment.centerRight,
-                            color: scheme.error,
-                            padding: const EdgeInsets.only(right: 20),
-                            child: Icon(
-                              Icons.delete_outline,
-                              color: scheme.onError,
-                            ),
-                          ),
-                          onDismissed: (_) => _delete(quki),
-                          child: ListTile(
-                            title: Text(
-                              _preview(quki.body),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            subtitle: Text(
-                              _relativeTime(quki.modifiedAt),
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                            onTap: () => _openExisting(quki),
-                          ),
-                        );
-                      },
+                      ),
+                      onDismissed: (_) => _delete(quki),
+                      child: ListTile(
+                        title: Text(
+                          _preview(quki.body),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        subtitle: Text(
+                          _relativeTime(quki.modifiedAt),
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        onTap: () => _openExisting(quki),
+                      ),
                     );
                   },
-                ),
-              ),
-            ],
+                );
+              },
+            ),
           ),
-        ));
+        ],
+      ),
+    );
 
     if (Platform.isWindows || Platform.isLinux) {
       return CallbackShortcuts(
