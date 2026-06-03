@@ -25,6 +25,8 @@ final isAndroidProvider = Provider<bool>((ref) => Platform.isAndroid);
 /// the intent is consumed. Null emissions are a reset signal — listeners should
 /// only act on non-null values.
 final shareStreamProvider = StreamProvider<String?>((ref) async* {
+  if (!ref.read(isAndroidProvider)) return;
+
   // Cold start: text shared while the app was not running.
   final initial = await ReceiveSharingIntent.instance.getInitialMedia();
   final initialText = ShareHandler.extractText(initial);
