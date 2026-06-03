@@ -35,7 +35,7 @@ class SettingsScreen extends ConsumerWidget {
             trailing: Text('System'),
           ),
           const Divider(indent: 16, endIndent: 16),
-          sectionHeader('Tosses'),
+          sectionHeader('Transports'),
           if (registry.plugins.isEmpty)
             const ListTile(
               title: Text('No transports installed'),

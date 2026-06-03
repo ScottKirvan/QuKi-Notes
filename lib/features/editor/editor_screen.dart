@@ -12,14 +12,14 @@ import '../../core/transports/transport_plugin.dart';
 import 'auto_save_controller.dart';
 import 'formatting_toolbar.dart';
 import 'toss_picker_sheet.dart';
+import '../settings/settings_screen.dart';
+import '../stream/stream_screen.dart';
 
 class EditorScreen extends ConsumerStatefulWidget {
   final String? qukiId;
   final String? initialBody;
-  // Used when the editor is the root (can't pop). Called after save.
-  final Future<void> Function(BuildContext)? onLeave;
 
-  const EditorScreen({super.key, this.qukiId, this.initialBody, this.onLeave});
+  const EditorScreen({super.key, this.qukiId, this.initialBody});
 
   @override
   ConsumerState<EditorScreen> createState() => _EditorScreenState();
@@ -97,6 +97,28 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   void _onDocumentChanged(DocumentChangeLog _) => _autoSave.notifyChanged();
 
+  Future<void> _openQuKisList() async {
+    await _autoSave.flush();
+    if (!mounted) return;
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(builder: (_) => const StreamScreen()),
+    );
+  }
+
+  Future<void> _openSettings() async {
+    await Navigator.push<void>(
+      context,
+      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+    );
+  }
+
+  Future<void> _onBack() async {
+    await _autoSave.flush();
+    if (!mounted) return;
+    Navigator.pop(context);
+  }
+
   Future<void> _onToss() async {
     final body = _extractBody();
     if (body.isEmpty) {
@@ -149,7 +171,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          result.message ?? (result.success ? 'Tossed!' : 'Toss failed.'),
+          result.message ?? (result.success ? 'Sent!' : 'Send failed.'),
         ),
         duration: result.success
             ? const Duration(seconds: 2)
@@ -159,16 +181,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
             : null,
       ),
     );
-  }
-
-  Future<void> _onLeave() async {
-    await _autoSave.flush();
-    if (!mounted) return;
-    if (Navigator.canPop(context)) {
-      Navigator.pop(context);
-    } else {
-      await widget.onLeave?.call(context);
-    }
   }
 
   String _extractBody() {
@@ -197,29 +209,48 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final isRoot = !Navigator.canPop(context);
+
     final Widget scaffold = Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        leadingWidth: 110,
-        leading: TextButton.icon(
-          style: TextButton.styleFrom(
-            padding: const EdgeInsets.only(left: 4),
-            foregroundColor: scheme.onSurface,
-          ),
-          onPressed: _onLeave,
-          icon: const Icon(Icons.arrow_back_ios, size: 16),
-          label: const Text('Stream'),
-        ),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-            child: OutlinedButton.icon(
-              onPressed: _onToss,
-              icon: const Icon(Icons.send_outlined, size: 14),
-              label: const Text('Toss ▼'),
-            ),
-          ),
-        ],
+        leading: isRoot
+            ? IconButton(
+                icon: const Icon(Icons.format_list_bulleted_outlined),
+                tooltip: 'QuKis',
+                onPressed: _openQuKisList,
+              )
+            : IconButton(
+                icon: const Icon(Icons.arrow_back),
+                tooltip: 'Back',
+                onPressed: _onBack,
+              ),
+        actions: isRoot
+            ? [
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.menu),
+                  tooltip: 'Menu',
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'send':
+                        _onToss();
+                        break;
+                      case 'qukis':
+                        _openQuKisList();
+                        break;
+                      case 'settings':
+                        _openSettings();
+                        break;
+                    }
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'send', child: Text('Send...')),
+                    PopupMenuItem(value: 'qukis', child: Text('QuKis')),
+                    PopupMenuItem(value: 'settings', child: Text('Settings')),
+                  ],
+                ),
+              ]
+            : [],
       ),
       body: SafeArea(
         child: Column(

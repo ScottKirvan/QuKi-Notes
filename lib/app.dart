@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'features/editor/editor_screen.dart';
 import 'features/share_in/share_handler.dart';
-import 'features/stream/stream_screen.dart';
 import 'features/window/window_state_scope.dart';
 
 class QuKiNotesApp extends ConsumerWidget {
@@ -55,11 +54,6 @@ class _ShareAwareHome extends ConsumerWidget {
       });
     });
 
-    return EditorScreen(
-      onLeave: (ctx) => Navigator.push<void>(
-        ctx,
-        MaterialPageRoute(builder: (_) => const StreamScreen()),
-      ),
-    );
+    return const EditorScreen();
   }
 }

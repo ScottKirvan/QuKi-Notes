@@ -17,7 +17,7 @@ class TossPickerSheet extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
             child: Text(
-              'Toss to…',
+              'Send this QuKi via...',
               style: Theme.of(context).textTheme.titleMedium,
             ),
           ),

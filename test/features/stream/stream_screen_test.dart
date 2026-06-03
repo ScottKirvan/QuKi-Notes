@@ -190,6 +190,30 @@ void main() {
       await cleanup(tester);
     });
 
+    testWidgets('app bar shows back button when pushed onto a navigator',
+        (tester) async {
+      await tester.pumpWidget(ProviderScope(
+        overrides: [appDatabaseProvider.overrideWithValue(db)],
+        child: MaterialApp(
+          home: Builder(
+            builder: (ctx) => TextButton(
+              onPressed: () => Navigator.push<void>(
+                ctx,
+                MaterialPageRoute(builder: (_) => const StreamScreen()),
+              ),
+              child: const Text('Push'),
+            ),
+          ),
+        ),
+      ));
+      await tester.pump();
+      await tester.tap(find.text('Push'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(BackButton), findsOneWidget);
+      await cleanup(tester);
+    });
+
     testWidgets('Ctrl+N opens new editor on desktop platforms', (tester) async {
       // This test only verifies the shortcut on platforms where it is registered.
       if (!Platform.isWindows && !Platform.isLinux) return;
