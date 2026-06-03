@@ -458,7 +458,7 @@ Delivered as a single PR:
 
 Sub-tasks in priority order:
 
-1. **Android share-in** — receive content shared from other Android apps via `receive_sharing_intent`. Text only (images still blocked — see dependencies.md CargoKit note). Multi-part shares (text + URL) are joined with `\n\n` into `initialBody`; the editor opens pre-populated. Both cold-start (app not running) and warm-start (app foregrounded via `onNewIntent`) must work.
+1. **Android share-in** — receive content shared from other Android apps via `receive_sharing_intent`. ✓ Complete (merged). Text only; multi-part shares joined with `\n\n`; cold-start and warm-start both handled. Images deferred (CargoKit still blocked).
 2. **Windows + Linux CI** — verify `build-windows.yml` and `build-linux.yml` produce working artifacts; wire OQ-NEW-3 resolution (Linux distribution format). DevOps session owns this.
 3. **Desktop keyboard shortcuts + window-state persistence** — keyboard shortcuts for common actions; remember window size/position across restarts.
 4. **Stream performance** — lazy loading / pagination for large QuKi counts. Defer until a real threshold is hit.

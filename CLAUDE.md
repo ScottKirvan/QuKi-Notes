@@ -208,39 +208,59 @@ Each implementation and DevOps session reads the docs below at start and follows
 
 > This section is maintained by the Spec session. Implementation Claude: read this first, then read the full doc list below.
 
-**Task**: Phase 3 — Android share-in
-**Branch**: `feat/phase3-android-share-in`
-**PR title**: `feat(share_in): Android text share-in via receive_sharing_intent`
+**Task**: Phase 3 — Windows + Linux build verification (DevOps session)
+**Branch**: `chore/phase3-desktop-ci`
+**PR title**: `chore(ci): verify and fix Windows + Linux release builds`
 
-### What to build
+> This is a **DevOps session** task. Do not touch app code (`lib/`, `test/`). Changes are confined to `.github/workflows/` and build configuration only.
 
-Other Android apps can share text into QuKi-Notes. The app opens a new editor pre-populated with the shared text. See `notes/dev/design_spec.md` → Phase 3 → Share-in behavior spec for full behavioral detail.
+### Context
 
-### Files to touch
+Both `build-windows.yml` and `build-linux.yml` have existed since Phase 0 but have never been validated against the current codebase. Since then, several packages have been added — most critically `receive_sharing_intent` (Android + iOS only), which may fail to compile on Windows or Linux.
 
-| File | Change |
-|---|---|
-| `pubspec.yaml` | Add `receive_sharing_intent: ^2.3.0` (verify latest on pub.dev before adding) |
-| `android/app/src/main/AndroidManifest.xml` | Add `ACTION_SEND` intent filters for `text/plain` and `text/*` to MainActivity |
-| `lib/features/share_in/share_handler.dart` | **New file.** Provider or plain class that reads `getInitialMedia()` + `getMediaStream()`, extracts `SharedMediaType.text` items, joins with `\n\n`, exposes as a `Stream<String?>` |
-| `lib/app.dart` | Listen to the share handler stream; push `EditorScreen(initialBody: text)` when non-null text arrives |
-| `test/features/share_in/share_handler_test.dart` | **New file.** Unit tests for text extraction and join logic |
+Current release: **v0.5.0**. A `feat(share_in):` commit has since landed on `main`, so release-please should have opened a v0.6.0 Release PR — check `gh pr list` and confirm.
 
-### Integration notes
+### Primary risk: `receive_sharing_intent` on non-Android
 
-- `EditorScreen` already accepts `initialBody` — no changes needed to the editor itself.
-- `android:launchMode="singleTop"` is already set in the manifest — `receive_sharing_intent` uses `onNewIntent` for warm-start shares automatically.
-- The share handler should reset (emit null) after the intent is consumed so the app does not re-open the editor on hot reload or subsequent launches.
-- `lib/features/share_in/` is a Flutter feature directory — Flutter imports are fine here.
+`receive_sharing_intent` supports Android and iOS only. When building for Windows or Linux, Flutter may either:
+- Compile fine but throw `MissingPluginException` at runtime (federated plugin with empty stubs), or
+- Fail to compile entirely.
 
-### Tests required
+**First thing to do**: attempt `flutter build windows --debug` and `flutter build linux --debug` locally (or push a test branch to trigger the workflows). If either fails due to `receive_sharing_intent`, the fix is platform-conditional code in `lib/features/share_in/share_handler.dart` — use `dart:io Platform.isAndroid` or Flutter's `defaultTargetPlatform` to no-op on non-Android. Co-ordinate with Scott if a code change is needed (that becomes an implementation session task, not a DevOps task).
 
-- Unit: `ShareHandler` with a mock list of `SharedMediaFile` objects → correct joined string, empty list → null, image-only list → null.
-- Widget: when handler emits a string, `app.dart` navigates to `EditorScreen` with correct `initialBody`.
+### Workflow audit checklist
 
-### Checklist reminder
+Review each workflow for correctness before triggering a real release build:
 
-Run `just lint` and `just test` before committing. No drift schema changes in this PR — `just gen` not needed.
+**`build-windows.yml`**
+- [ ] Confirm `flutter build windows --release` succeeds with current `pubspec.yaml`
+- [ ] Verify zip path `build\windows\x64\runner\Release\*` matches actual Flutter output location
+- [ ] Confirm `softprops/action-gh-release@v2` has permission to upload (needs `contents: write` permission block, or relies on the default `GITHUB_TOKEN` — check it matches `build-android.yml` pattern)
+
+**`build-linux.yml`**
+- [ ] Confirm `flutter build linux --release` succeeds with current `pubspec.yaml`
+- [ ] `libsecret-1-dev` is already in the apt install list ✓ — verify it's sufficient for `flutter_secure_storage`
+- [ ] Tarball path `build/linux/x64/release/bundle` — confirm this is the correct Flutter Linux output path
+- [ ] `softprops/action-gh-release@v2` permission check (same as Windows)
+
+**`build-android.yml`**
+- [ ] The APK step has `--dart-define=KEY_ALIAS` on a YAML continuation line — verify this is being parsed correctly by running a test build. If it isn't needed (keystore config flows through env vars anyway), remove it.
+
+**`ci.yml`**
+- No changes expected — runs on `ubuntu-latest`, tests only, no Flutter desktop compilation.
+
+**`build-ios.yml`**
+- Do NOT modify. Stub only; `workflow_dispatch` trigger; must never be wired to fire automatically.
+
+**`release-please.yml`**
+- Confirm it's still working: `gh run list --workflow=release-please.yml -L 5`. If the v0.6.0 Release PR exists and CI is green, merge it.
+
+### Definition of done
+
+- `flutter build windows --release` and `flutter build linux --release` both succeed (locally or in CI)
+- Both workflows upload valid artifacts to a GitHub Release (test against v0.6.0 or a manual tag)
+- No regressions in `ci.yml` (PR check still green)
+- If any code change was required to fix `receive_sharing_intent` on desktop, that is tracked as a separate implementation PR — this DevOps PR contains only workflow/config changes
 
 ---
 

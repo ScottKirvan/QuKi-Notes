@@ -58,20 +58,6 @@ Bulk-pull progress banner: always, or only above some threshold? Decision belong
 
 ---
 
-## OQ-NEW-3: Linux distribution format
-
-Tarball, AppImage, Flatpak, or Snap for Linux release artifacts?
-
-- **Tarball** — simplest, no signing, user runs `./quki_notes` from extracted dir. Good for testing.
-- **AppImage** — single-file, broad distro support, no install required.
-- **Flatpak** — sandboxed, Flathub distribution path, more ceremony.
-- **Snap** — Ubuntu-first, snapd dep, controversial.
-
-**Likely resolution:** ship a tarball in the first Linux build artifact; promote to AppImage if Linux usage justifies it. Flatpak/Snap only if a user explicitly asks.
-
-**Surface during:** Phase 3 — Linux CI wiring.
-
----
 
 ## OQ-NEW-4: Linux `flutter_secure_storage` keyring matrix
 
@@ -95,6 +81,8 @@ Tarball, AppImage, Flatpak, or Snap for Linux release artifacts?
 - **OQ-NEW-1: Which built-in QuKi-Toss ships first?** — **Resolved (Phase 2, v0.5.0).** Both ClipboardToss and ShareSheetToss shipped in the same Phase 2 PR. Clipboard proved the loader + UI first (zero deps, zero auth); Share Sheet followed immediately. Append-to-GitHub-file deferred until the OAuth helper exists (Phase 4+). No new ADR needed — consistent with the "likely resolution" stated at spec time.
 
 - **OQ-NEW-2: Plugin discovery model** — **Resolved (Phase 2, v0.5.0).** Built-in compile-time registry only (`lib/core/transports/registry.dart`). Every transport ships in the same APK; new transports require a new app version. Re-evaluate if third parties start writing transports post-v1.
+
+- **OQ-NEW-3: Linux distribution format** — **Resolved (Phase 3, `build-linux.yml`).** Tarball (`quki-notes-linux.tar.gz`). Promote to AppImage only if Linux usage justifies it; Flatpak/Snap only if a user explicitly requests it.
 
 ---
 

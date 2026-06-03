@@ -35,7 +35,7 @@ Additional transport-specific packages (e.g. `dio`, `flutter_secure_storage`, `u
 
 | Package | Version | Purpose |
 |---|---|---|
-| `receive_sharing_intent` | TBD | Android share-in (receive intents) |
+| `receive_sharing_intent` | `^1.8.1` | Android share-in (receive intents) |
 | `geolocator` | TBD | GPS capture (per-toss opt-in) |
 | `geocoding` | TBD | Platform-native reverse geocoding (no API key) |
 
