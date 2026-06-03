@@ -34,7 +34,7 @@ QuKis live in the now. They are not filed, tagged, organized, foldered, or curat
 
 A QuKi's job is **temporary**. Its purpose is to be there for you, frictionlessly, on whatever device is in your hand, and then to either:
 
-1. Get **tossed** somewhere (a daily log, a GitHub issue, a Slack message, an email draft) via copy/paste, a share, a transport, or
+1. Get **sent** somewhere (a daily log, a GitHub issue, a Slack message, an email draft) via a transport, or
 2. Drift quietly down the list as something newer takes its place.
 
 A QuKi is, under the hood, a markdown file with optional attached images. That is an implementation detail. The user never thinks about files.
@@ -47,7 +47,7 @@ A QuKi is, under the hood, a markdown file with optional attached images. That i
 
 - **QuKi** — a single ephemeral note.
 - **QuKi-Notes** — the application.
-- **QuKi-Toss** — a transport plugin that dispatches a QuKi somewhere (user-facing name).
+- **Transport** — a plugin that dispatches a QuKi somewhere. User-facing action: **Send...** (in the editor menu). Internal/code term: transport. Transports are architecturally bidirectional (output now; input/templating is a later version).
 
 ---
 
@@ -72,10 +72,16 @@ The product voice is **calm, present-tense, slightly dry**. Not aggressively min
 
 - Use "QuKi" as a noun in user-facing copy. Plural: **QuKis**.
 - The capture screen has no "title", no "untitled note", no "new document". It's just a blank field.
-- The list view is a **stream**, not a "library" or "inbox" or "documents".
-- Toss is an action, not a verb in marketing copy. Don't say "tossable" or "tossability."
-- Error states are matter-of-fact. "Toss failed — try again" not "Oops! Something went wrong 😅".
+- The list view screen title is **QuKis**. Not "stream", "library", "inbox", or "documents". "Stream" is acceptable as internal/code terminology only.
+- The user-facing send action is **Send...** — it appears in the editor's hamburger menu (≡). Internal code uses "toss"/"transport" — this distinction is intentional and does not need to align with UI copy.
+- Error states are matter-of-fact. "Send failed — try again" not "Oops! Something went wrong 😅".
 - No emoji in UI strings unless the user typed them.
+
+**Editor navigation**: the root editor has no back arrow. It has:
+- A **QuKis icon** (top-left) — direct navigation to the QuKis list. This is the primary nav affordance; users tap it more than Send.
+- A **hamburger menu ≡** (top-right) — contains **Send...**, **QuKis**, **Settings**.
+
+A back arrow appears only on: editors opened *from* the QuKis list (tap a row to edit), and on the QuKis list screen itself (back to the root editor). Nothing in the root editor should visually imply the list is the home screen.
 
 ---
 
@@ -85,7 +91,7 @@ QuKi-Notes is a **capture + dispatch** app with three independent plugin layers:
 
 | Layer        | What it does                                                                 | MVP status                            |
 | ------------ | ---------------------------------------------------------------------------- | ------------------------------------- |
-| **Transports** (QuKi-Tosses) | Take a QuKi (text + images) and deliver it somewhere. Stateless per-fire.    | **Yes** — at least one built-in toss. |
+| **Transports** | Take a QuKi (text + images) and deliver it somewhere. Stateless per-fire. Architecturally bidirectional; input/templating is a later version. | **Yes** — at least one built-in transport (Send via clipboard + share sheet). |
 | **Sync**     | Move QuKis between this user's own devices. Opt-in. Off by default.          | **No** — v1.1+ (plugin axis defined). |
 | **MCP**      | Expose QuKi-Notes (read/list/append/toss) to AI agents over Model Context Protocol. | **No** — v2.0+ (axis reserved, not built). |
 
@@ -100,10 +106,10 @@ Core app responsibility: **plugin management** + the editor + the stream + file 
 QuKis are framed as ephemeral, but **nothing is auto-deleted** without explicit user action.
 
 - Default storage: forever (local SQLite). Like Gmail — you don't delete, you just stop seeing it as older items push it down.
-- The **stream** surfaces newest-first. Older QuKis fall off the visible viewport but remain searchable.
+- The **QuKis list** surfaces newest-first. Older QuKis fall off the visible viewport but remain searchable.
 - Search exists because sometimes you need to find that one thing from three weeks ago. Search is **not** organization. It's recall.
-- A QuKi that's been **tossed** is still a QuKi — tossing copies, it doesn't move. The local copy lingers in the stream.
-- The user can delete a QuKi explicitly. There is no auto-expire policy in MVP. (A future "auto-archive after N days" setting may be considered post-v1, but is **not** assumed.)
+- A QuKi that's been **sent** is still a QuKi — sending copies, it doesn't move. The local copy lingers in the list.
+- The user can delete a QuKi explicitly. Deleted QuKis move to **Recently Deleted** for a user-configurable retention period (default TBD) before permanent deletion. This is **data recovery**, not organization — Recently Deleted has no sorting, filtering, or filing. Hard-delete from Recently Deleted is permanent and immediate.
 
 The point: the user is told "these are ephemeral, don't treat them as a vault" — and the app's behaviour reinforces that framing without enforcing destruction.
 
@@ -123,10 +129,11 @@ Single Flutter codebase. No platform-specific rewrites. Deferred platforms only 
 ## What's In MVP (v1.0)
 
 - Single-device local capture (Android first, Windows + Linux follow).
-- Markdown WYSIWYG editor.
+- **Markdown WYSIWYG editor** — live rendering as you type. Typing `**text**` renders bold; `- [ ]` renders a task list item; `# ` renders a heading; etc. This is a hard requirement, not a nice-to-have.
 - Image paste / share-in.
-- Stream view (newest-first, search, delete).
-- **At least one transport plugin** (built-in) — proves the plugin loader + the toss UX.
+- QuKis list (newest-first, search, delete).
+- **Recently Deleted** — data recovery screen; user-configurable retention; hard-delete from there is permanent.
+- **At least one transport plugin** (built-in) — proves the plugin loader + the Send UX.
 - Settings for transport configuration.
 - No sync. No GitHub OAuth. No MCP.
 
@@ -147,8 +154,11 @@ That's it. Anything beyond this list is post-MVP unless explicitly promoted via 
 ## Hard Rules for Implementation
 
 - The word **"vault"** does not appear in user-facing copy or in code identifiers. (It can appear in docs when discussing what QuKi-Notes is NOT.)
-- The word **"workflow"** is reserved for internal historical context only; user-facing term is **toss** (verb) / **QuKi-Toss** (the plugin / the configured target).
+- The word **"workflow"** is reserved for internal historical context only. It has no user-facing role.
+- User-facing send action is **Send...** Internal/code terminology uses "toss" / "transport" — this distinction is intentional and does not need to align with UI copy.
+- The list view screen title is **QuKis**. The word "stream" does not appear in UI copy; it is acceptable in internal code and docs.
 - "Notes" the noun does appear (the app is called QuKi-**Notes**) but in code and prose prefer **QuKi** / **QuKis** for the entity.
+- The root editor has no back arrow. A QuKis icon (top-left) and hamburger menu ≡ (top-right) are the only navigation affordances on the home editor.
 - No analytics, no telemetry, no crash reporting. Ever. (See ADR-12.)
 - OAuth tokens and full QuKi contents are never logged.
 - Plugins (transport / sync / MCP) live behind explicit interfaces in `lib/core/`. The app does not call plugin internals directly.
@@ -163,4 +173,4 @@ That's it. Anything beyond this list is post-MVP unless explicitly promoted via 
 
 ---
 
-**Last Updated**: 2026-05-28
+**Last Updated**: 2026-06-03

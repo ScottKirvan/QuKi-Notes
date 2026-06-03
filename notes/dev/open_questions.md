@@ -6,18 +6,21 @@ Do not implement past one of these without proposing a resolution in the PR body
 
 ---
 
-## OQ-1: super_editor ↔ GFM markdown round-trip fidelity
+## OQ-1: WYSIWYG markdown rendering — super_editor vs appflowy_editor ⚠️ ACTIVELY BLOCKING
 
-`super_editor` ships with markdown serializers, but full GFM coverage (task lists, tables, strikethrough, fenced code with language) is not guaranteed to round-trip cleanly through edit → save → reload.
+**Status: MVP requirement, not deferred.** Live WYSIWYG markdown rendering is a hard MVP requirement (manifesto updated 2026-06-03). The current plain-text implementation in `_parseInitialBody` / `_extractBody` is incorrect and must be replaced. See GitHub issue #27.
 
-**Surface during:** Phase 1, formatting toolbar implementation.
+The current `editor_screen.dart` comment "Plain-text loading; full markdown round-trip lands in Phase 3 (OQ-1)" was an implementation shortcut — not a product decision.
+
+**What is required**: typing markdown syntax converts to rendered nodes in real-time. `**text**` → bold, `- [ ]` → task list item, `# ` → heading, `` ` `` → code span, fenced code → code block, etc.
 
 **Resolution options:**
-- (a) Extend `super_editor` with missing serializers
-- (b) Restrict the toolbar to features that survive round-trip
-- (c) Fall back to `appflowy_editor`
+- (a) **`super_editor` markdown input shortcuts** — investigate whether `super_editor` supports live markdown input conversion (typing triggers). If it does, wire it up. If the GFM coverage (task lists, tables, strikethrough) is incomplete, assess the gap.
+- (b) **Fall back to `appflowy_editor`** — if `super_editor` cannot deliver live WYSIWYG GFM, switch editors. This is a significant rewrite but better than shipping a broken editor.
 
-**Test plan when reached:** write a small fixture for each GFM feature, serialize → deserialize → compare AST.
+**Before implementation**: the dev session must investigate option (a) first — specifically whether `super_editor` has a markdown shortcuts / input parser feature. Report findings to Scott before committing to (a) or (b). Do not start the rewrite without this investigation.
+
+**Test plan**: write a fixture for each GFM feature (bold, italic, strikethrough, task list, unordered list, ordered list, heading, inline code, fenced code block), render → serialize → compare output.
 
 ---
 

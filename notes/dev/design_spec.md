@@ -18,15 +18,16 @@ Single-device, local-only in MVP. Sync is a deferred plugin axis. MCP is reserve
 
 ## Vocabulary
 
-| Term            | Meaning                                                                  |
-| --------------- | ------------------------------------------------------------------------ |
-| **QuKi**        | A single ephemeral note. Plural: **QuKis**.                              |
-| **QuKi-Notes**  | The application.                                                         |
-| **QuKi-Toss**   | A transport plugin (user-facing). The "toss" action verb fires one.      |
-| **Stream**      | The newest-first list view. Not a "library", "inbox", or "documents".    |
-| **Toss**        | Verb: fire a transport. Object: optionally "a toss to *daily-log*".      |
+| Term            | Meaning                                                                                      |
+| --------------- | -------------------------------------------------------------------------------------------- |
+| **QuKi**        | A single ephemeral note. Plural: **QuKis**.                                                  |
+| **QuKi-Notes**  | The application.                                                                             |
+| **Transport**   | A plugin that delivers a QuKi somewhere. Internal/code term. Architecturally bidirectional; output only in MVP. |
+| **Send...**     | User-facing action label for firing a transport. Appears in the editor hamburger menu.       |
+| **QuKis**       | The list view screen title. "Stream" is acceptable in internal code and docs only.           |
+| **Recently Deleted** | Data recovery screen for soft-deleted QuKis. Not an organizer feature.               |
 
-Do **not** use: vault, library, document, file, note (in UI; the entity is QuKi), workflow (deprecated internal term), inbox.
+Do **not** use in UI copy: vault, library, document, file, note (the entity is QuKi), workflow, inbox, toss, stream.
 
 ---
 
@@ -137,11 +138,15 @@ Not designed in detail. Architectural intent: an embedded MCP server inside the 
 ### 1. Capture (Editor)
 
 - App opens to a blank QuKi. Cursor in the body. No "title", no "untitled note", no template.
-- Markdown WYSIWYG via `super_editor` (fallback: `appflowy_editor` — OQ-1 covers GFM round-trip fidelity).
-- Bottom formatting toolbar: bold, italic, strikethrough, lists, code blocks, links, image.
-- Image paste from clipboard via `super_clipboard`. Image share-in via Android share sheet (Phase 3).
+- **Markdown WYSIWYG is a hard requirement** — live rendering as the user types. Typing `**text**` renders bold; `- [ ]` renders a task list item; `# ` renders a heading; fenced code renders as a code block; etc. This is not deferred. See OQ-1 for implementation path.
+- Editor toolbar: bold, italic, strikethrough, lists, code blocks, links, image.
+- Image paste from clipboard via `super_clipboard`. Image share-in via Android share sheet. (Image paste currently blocked — CargoKit; see `dependencies.md`.)
 - Auto-save: 2s idle debounce + 30s periodic + lifecycle `inactive`/`paused`/`detached`. Never blocks, never networks.
-- Back/done returns to the stream.
+- **Editor navigation** (root editor — home screen):
+  - Top-left: QuKis icon → navigates to QuKis list. Primary nav affordance.
+  - Top-right: hamburger menu (≡) → Send..., QuKis, Settings.
+  - No back arrow on the root editor. Nothing implies the QuKis list is the home screen.
+- Editors opened *from* the QuKis list show a back button returning to the list.
 
 **Editor capabilities — built-in vs we-wire-it-up:**
 
@@ -156,28 +161,35 @@ Not designed in detail. Architectural intent: an embedded MCP server inside the 
 | Markdown ↔ editor doc round-trip            | `super_editor` markdown serializer, gaps tracked in OQ-1 |
 | Spellcheck                                  | Platform-native (OS-provided) — verified per-platform in Phase 3 |
 
-### 2. Stream
+### 2. QuKis list
 
-A newest-first list of QuKis. The temporal queue, not a filing cabinet.
+A newest-first list of QuKis. The temporal queue, not a filing cabinet. Screen title: **QuKis**.
 
 - Each row: truncated first non-empty line (~50–100 chars) + relative timestamp.
-- Tap → opens the QuKi in the editor.
-- Swipe → delete (with brief undo affordance).
-- Top-right: **+ New** opens a blank QuKi.
+- Tap → opens the QuKi in the editor (back button returns to list).
+- Swipe → soft-delete; QuKi moves to **Recently Deleted**.
+- Top-right: **+ New** opens a blank QuKi (back button returns to list).
 - Search field: live filter on body text. Search is for recall, not organisation.
 - **No folders, no tags, no pinning, no archive.** Period.
 
-### 3. QuKi-Toss (Transport)
+### 3. Recently Deleted
 
-In the editor, a "Toss" button (top-right or in the formatting toolbar overflow) opens a sheet listing configured transports. User picks one. App fires `toss()`. UI shows result (success / failure with retry).
+Data recovery screen — not an organizer feature.
 
-- After a successful toss, the local QuKi remains in the stream untouched. Toss copies, never moves.
-- At least one built-in transport ships with v1.0. Candidate set (decision deferred — OQ-NEW-1):
-  - Clipboard (copy markdown body to system clipboard)
-  - Share sheet (`share_plus` — hand the markdown to native share)
-  - Append-to-GitHub-file (a specific repo + path; appends with optional timestamp/GPS prefix)
+- Lists soft-deleted QuKis, newest-first, for the user-configurable retention period (default TBD; 24h is too short for real use — needs a setting).
+- Tap a row → restore to the QuKis list.
+- Swipe → permanent deletion (immediate; modal confirmation dialog).
+- No search, no sorting, no tagging, no pinning. It is not a second inbox.
+- After the retention period expires, QuKis are hard-deleted automatically.
 
-### 4. Settings
+### 4. Send (Transport)
+
+In the editor, **Send...** in the hamburger menu (≡) opens a sheet listing configured transports. User picks one. App fires `toss()`. UI shows result (success / failure with retry, auto-dismiss after a few seconds).
+
+- After a successful send, the local QuKi remains in the QuKis list untouched. Send copies, never moves.
+- Built-in transports (shipped in Phase 2): Clipboard, Share Sheet.
+
+### 5. Settings
 
 - Theme: follow system (ADR-12). No manual override in v1.
 - Tosses (transports): list installed plugins, configure each via its `settingsView`.
@@ -185,7 +197,7 @@ In the editor, a "Toss" button (top-right or in the formatting toolbar overflow)
 - **Privacy**: per-capability opt-in toggles (GPS first; camera/mic/etc. as transports require). All default OFF. See Privacy & Permissions below.
 - About: version, link to docs, link to manifesto, no telemetry disclosure.
 
-### 5. Privacy & Permissions (ADR-19)
+### 6. Privacy & Permissions (ADR-19)
 
 Device-backed enrichments (GPS today; camera/mic/contacts later if transports demand) follow a **three-gate opt-in** model. All three must be ON before the OS-level permission dialog appears or the field appears in `TossContext`:
 
@@ -202,7 +214,7 @@ Device-backed enrichments (GPS today; camera/mic/contacts later if transports de
 
 **MVP scope:** only GPS is wired (because at least one candidate first-toss might want geotagging — OQ-NEW-1). Camera/mic/etc. land if and when a transport needs them.
 
-### 6. What's NOT in MVP
+### 7. What's NOT in MVP
 
 - No accounts, no auth (until a plugin needs one).
 - No sync, no GitHub OAuth, no remote storage.
@@ -215,11 +227,11 @@ Device-backed enrichments (GPS today; camera/mic/contacts later if transports de
 
 ## UI Shapes
 
-### Main screen (editor)
+### Root editor (home screen)
 
 ```
 ┌──────────────────────────────┐
-│ [<- Stream]         [Toss ▼] │
+│ [📋 icon]                [≡] │
 ├──────────────────────────────┤
 │                              │
 │  [Blank QuKi]                │
@@ -232,11 +244,27 @@ Device-backed enrichments (GPS today; camera/mic/contacts later if transports de
 └──────────────────────────────┘
 ```
 
-### Stream
+- Top-left icon → navigates to QuKis list (primary nav)
+- Top-right ≡ → hamburger menu: Send..., QuKis, Settings
+- No back arrow — this is home
+
+### Hamburger menu
 
 ```
 ┌──────────────────────────────┐
-│ QuKis              [+ New]   │
+│                          [≡] │
+├──────────────────────────────┤
+│  Send...                     │
+│  QuKis                       │
+│  Settings                    │
+└──────────────────────────────┘
+```
+
+### QuKis list
+
+```
+┌──────────────────────────────┐
+│ [←]  QuKis         [+ New]   │
 │ [search...                 ] │
 ├──────────────────────────────┤
 │ 5 min ago — I went to the    │
@@ -246,17 +274,18 @@ Device-backed enrichments (GPS today; camera/mic/contacts later if transports de
 └──────────────────────────────┘
 ```
 
-### Toss sheet
+- Back arrow (←) → returns to root editor
+
+### Send sheet
 
 ```
 ┌──────────────────────────────┐
-│ Toss this QuKi to...         │
+│ Send this QuKi via...        │
 ├──────────────────────────────┤
 │ ● Clipboard                  │
-│ ● Daily Log (GitHub)         │
 │ ● Share sheet                │
 │                              │
-│ Manage tosses in Settings    │
+│ Manage transports in Settings│
 └──────────────────────────────┘
 ```
 

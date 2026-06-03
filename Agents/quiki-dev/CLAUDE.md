@@ -69,17 +69,29 @@ This task has two parts with different dependency profiles — read both before 
 
 Use Flutter's `CallbackShortcuts` or `Shortcuts` + `Actions` widgets. Register shortcuts only on desktop — wrap registration in `if (Platform.isWindows || Platform.isLinux)` (import `dart:io`). Android behavior must be unchanged.
 
+**Navigation model — read this before touching any shortcut:**
+
+- The **root editor is home**. It has no back destination. There is no "go back to editor" because the editor is always underneath everything else in the nav stack.
+- The **QuKis list** is pushed on top of the editor. Popping it returns to whatever state the editor was in — Flutter preserves it.
+- `Escape` is **not** a navigation key in this app. Do not wire it.
+
 **Shortcuts to wire:**
 
 | Screen | Keys | Action |
 |---|---|---|
-| Stream | `Ctrl+N` | Open a new blank QuKi in the editor |
-| Editor | `Escape` | Return to stream (same as tapping `← Stream`) |
-| Editor | `Ctrl+T` | Fire the toss picker |
+| Any screen | `Ctrl+N` | Start a new blank QuKi |
+| Any editor | `Ctrl+T` | Open the Send sheet |
+
+**`Ctrl+N` behaviour by context:**
+- **From the root editor**: flush auto-save (saves current QuKi to the list), then reset the editor to a blank new QuKi. Same as tapping `+ New` in the top bar. Do not push a second editor on the stack — reset in place.
+- **From the QuKis list**: push a fresh `EditorScreen` with no `qukiId` (same as tapping `+ New`).
+- **From an editor opened from the QuKis list**: flush auto-save, then push a fresh blank `EditorScreen` on top.
+
+**Back navigation from the QuKis list**: use the visible `←` back button in the UI. On desktop, `Alt+Left` may work automatically via Flutter's Navigator without explicit wiring — verify, and document the result in the PR body. Do not add `Escape` as a back shortcut.
 
 **Text formatting** (`Ctrl+B`, `Ctrl+I`, etc.) — check first whether `super_editor` already handles these on desktop before adding anything. If they work, document it in the PR body. Only wire what's missing.
 
-**Integration note**: `Escape` in the editor should call the existing `_onLeave()` method, which flushes auto-save before popping. Do not bypass the save flush.
+**Integration note**: always call `_autoSave.flush()` before any navigation or editor reset triggered by `Ctrl+N`. Never discard unsaved content.
 
 ---
 
@@ -98,10 +110,11 @@ If Scott is not available to approve during the session, implement Part 1 only a
 
 ### Tests required
 
-- Widget test: `Ctrl+N` on stream screen triggers navigation to editor.
-- Widget test: `Escape` on editor screen calls `_onLeave()` (or equivalent flush path).
+- Widget test: `Ctrl+N` on the root editor flushes auto-save and resets to a blank QuKi (no `qukiId`, empty document).
+- Widget test: `Ctrl+N` on the QuKis list screen pushes a blank `EditorScreen` (no `qukiId`).
+- Widget test: `Ctrl+T` on an editor screen opens the Send sheet.
 - Unit test for window-state persistence (if Part 2 lands): save → restore round-trip with mocked `shared_preferences`.
-- No test needed for `Ctrl+T` toss shortcut if the toss picker is already covered.
+- No `Escape` tests — it is not wired.
 
 ### Checklist reminder
 
