@@ -153,6 +153,20 @@ Claude works on a feature branch, tests iteratively with Scott on device, then o
 
 ---
 
+## Session Model
+
+Work on QuKi-Notes runs in three distinct Claude session types:
+
+| Session | What it owns | What it does NOT touch |
+|---|---|---|
+| **Spec** | `notes/dev/` — keeps docs accurate, scopes work, briefs other sessions | App code, CI config |
+| **Implementation** | App code + tests, one PR per session | CI/release infra, spec docs |
+| **DevOps** | `.github/workflows/`, build configs, `justfile`, OQ-NEW-3 | App code, spec docs |
+
+Each implementation and DevOps session reads the docs below at start and follows `notes/dev/session_protocol.md`.
+
+---
+
 ## Notes for Implementation Claude
 
 **Required reading at session start** (in order):
@@ -187,6 +201,46 @@ Claude works on a feature branch, tests iteratively with Scott on device, then o
 - No analytics, no crash reporting, no telemetry SDKs — ever (see ADR-12)
 - OAuth tokens and full QuKi contents are never logged
 - `lib/core/` and `lib/shared/models/` must stay Flutter-free (ADR-16, for future CLI). Flutter imports go in `lib/ui/` or `lib/features/`. **Exception (ADR-21):** `lib/core/transports/` imports Flutter for `settingsView()` — the CLI uses only `toss()` and ignores that method.
+
+---
+
+## Current Task Brief
+
+> This section is maintained by the Spec session. Implementation Claude: read this first, then read the full doc list below.
+
+**Task**: Phase 3 — Android share-in
+**Branch**: `feat/phase3-android-share-in`
+**PR title**: `feat(share_in): Android text share-in via receive_sharing_intent`
+
+### What to build
+
+Other Android apps can share text into QuKi-Notes. The app opens a new editor pre-populated with the shared text. See `notes/dev/design_spec.md` → Phase 3 → Share-in behavior spec for full behavioral detail.
+
+### Files to touch
+
+| File | Change |
+|---|---|
+| `pubspec.yaml` | Add `receive_sharing_intent: ^2.3.0` (verify latest on pub.dev before adding) |
+| `android/app/src/main/AndroidManifest.xml` | Add `ACTION_SEND` intent filters for `text/plain` and `text/*` to MainActivity |
+| `lib/features/share_in/share_handler.dart` | **New file.** Provider or plain class that reads `getInitialMedia()` + `getMediaStream()`, extracts `SharedMediaType.text` items, joins with `\n\n`, exposes as a `Stream<String?>` |
+| `lib/app.dart` | Listen to the share handler stream; push `EditorScreen(initialBody: text)` when non-null text arrives |
+| `test/features/share_in/share_handler_test.dart` | **New file.** Unit tests for text extraction and join logic |
+
+### Integration notes
+
+- `EditorScreen` already accepts `initialBody` — no changes needed to the editor itself.
+- `android:launchMode="singleTop"` is already set in the manifest — `receive_sharing_intent` uses `onNewIntent` for warm-start shares automatically.
+- The share handler should reset (emit null) after the intent is consumed so the app does not re-open the editor on hot reload or subsequent launches.
+- `lib/features/share_in/` is a Flutter feature directory — Flutter imports are fine here.
+
+### Tests required
+
+- Unit: `ShareHandler` with a mock list of `SharedMediaFile` objects → correct joined string, empty list → null, image-only list → null.
+- Widget: when handler emits a string, `app.dart` navigates to `EditorScreen` with correct `initialBody`.
+
+### Checklist reminder
+
+Run `just lint` and `just test` before committing. No drift schema changes in this PR — `just gen` not needed.
 
 ---
 

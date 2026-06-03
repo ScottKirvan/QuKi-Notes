@@ -1,4 +1,18 @@
-# Session Protocol for Implementation Claude
+# Session Protocol
+
+## Session types
+
+QuKi-Notes work runs in three distinct session types. Each session type starts from the docs below and has a different focus:
+
+| Session type | Who runs it | What it owns |
+|---|---|---|
+| **Spec** | A Claude instance dedicated to documentation | Keeps `notes/dev/` accurate; scopes and briefs the other sessions; does not write app code |
+| **Implementation** | A Claude instance per feature PR | Writes app code, tests, opens PR; follows this protocol; does not touch CI/release infra |
+| **DevOps** | A Claude instance per CI/infra task | Owns `.github/workflows/`, build configs, `justfile`, OQ-NEW-3 resolution; does not write app code |
+
+The rest of this file is the protocol for **Implementation** sessions specifically. DevOps sessions follow the same start/end discipline but substitute CI tooling for `just lint` / `just test`.
+
+---
 
 What to do at the **start** and **end** of every implementation session, and the hard rules that apply throughout.
 
@@ -47,7 +61,7 @@ What to do at the **start** and **end** of every implementation session, and the
 | Never commit to `main` unless Scott explicitly instructs it. | Scott's workflow rule |
 | Manifesto is normative. If a request conflicts with the manifesto, push back before implementing. | `manifesto.md` |
 | No vault-like features (folders, tags, backlinks, archive, pinning). | `manifesto.md` "Is NOT" list |
-| `lib/core/` and `lib/shared/models/` stay Flutter-free. Flutter imports go in `lib/ui/` / `lib/features/`. | ADR-16 |
+| `lib/core/` and `lib/shared/models/` stay Flutter-free. Flutter imports go in `lib/ui/` / `lib/features/`. **Exception**: `lib/core/transports/` may import Flutter for `settingsView()` — CLI ignores that method (ADR-21). | ADR-16, ADR-21 |
 | Any plugin secret (OAuth token, API key) lives in `flutter_secure_storage`, namespaced per plugin. Never in `shared_preferences`, files, or source. | ADR-2 |
 | No analytics, no crash reporting, no telemetry SDK. Ever. | ADR-12 |
 | `build-ios.yml` is a stub and must NOT be wired to trigger automatically | CLAUDE.md |

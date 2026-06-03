@@ -456,10 +456,23 @@ Delivered as a single PR:
 
 ### Phase 3 — Polish + Windows + Linux
 
-- Android share-in (`receive_sharing_intent` or platform channel).
-- Windows + Linux desktop builds wired in CI; keyboard shortcuts; window-state persistence.
-- Performance pass on stream view with many QuKis (lazy loading / pagination).
-- Onboarding refinement (still minimal — first-launch coachmarks at most).
+Sub-tasks in priority order:
+
+1. **Android share-in** — receive content shared from other Android apps via `receive_sharing_intent`. Text only (images still blocked — see dependencies.md CargoKit note). Multi-part shares (text + URL) are joined with `\n\n` into `initialBody`; the editor opens pre-populated. Both cold-start (app not running) and warm-start (app foregrounded via `onNewIntent`) must work.
+2. **Windows + Linux CI** — verify `build-windows.yml` and `build-linux.yml` produce working artifacts; wire OQ-NEW-3 resolution (Linux distribution format). DevOps session owns this.
+3. **Desktop keyboard shortcuts + window-state persistence** — keyboard shortcuts for common actions; remember window size/position across restarts.
+4. **Stream performance** — lazy loading / pagination for large QuKi counts. Defer until a real threshold is hit.
+5. **Onboarding** — still drops straight to editor; first-launch coachmarks at most, only if user testing reveals a need.
+
+#### Share-in: behavior spec
+
+- **Trigger**: another app invokes Android share and the user selects QuKi-Notes.
+- **Cold start** (app not running): app launches directly into a new `EditorScreen` with `initialBody` set to the joined shared text.
+- **Warm start** (app already open): a new `EditorScreen` is pushed on top of the current screen with `initialBody` set to the joined shared text.
+- **Multi-part shares**: all `SharedMediaType.text` items from the intent are joined with `\n\n`. Neither text-only nor URL-only items are stripped — the user sees exactly what was shared and can edit before saving.
+- **Auto-save**: shares flow through the same `EditorScreen(initialBody:)` → `AutoSaveController` path as normal QuKis. No special save behavior.
+- **Images**: not handled in Phase 3. If an intent includes only images (no text), ignore silently — do not open the editor with empty body.
+- **Scope**: Android only. Windows/Linux share-in is Phase 3 stretch at earliest; no platform channel work in this PR.
 
 ### Phase 4+ — Sync, iOS, MCP (post-MVP)
 
@@ -560,4 +573,4 @@ Tracked in `notes/dev/open_questions.md`. Snapshot of what's outstanding at spec
 
 ---
 
-**Last Updated**: 2026-06-02
+**Last Updated**: 2026-06-02 (Phase 3 share-in spec added)
