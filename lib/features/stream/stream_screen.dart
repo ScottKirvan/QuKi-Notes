@@ -146,7 +146,6 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
 
     final Widget screen = Scaffold(
       appBar: AppBar(
-        automaticallyImplyLeading: false,
         title: const Text('QuKis'),
         actions: [
           IconButton(
