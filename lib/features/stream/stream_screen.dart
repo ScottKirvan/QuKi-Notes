@@ -4,6 +4,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../core/database/app_database.dart';
 import '../../core/database/database_provider.dart';
@@ -149,12 +150,12 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
         title: const Text('QuKis'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.add),
+            icon: const Icon(LucideIcons.plus),
             tooltip: 'New QuKi',
             onPressed: _openNew,
           ),
           IconButton(
-            icon: const Icon(Icons.settings_outlined),
+            icon: const Icon(LucideIcons.settings),
             tooltip: 'Settings',
             onPressed: _openSettings,
           ),
@@ -168,10 +169,10 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
               controller: _searchController,
               decoration: InputDecoration(
                 hintText: 'Search…',
-                prefixIcon: const Icon(Icons.search),
+                prefixIcon: const Icon(LucideIcons.search),
                 suffixIcon: _query.isNotEmpty
                     ? IconButton(
-                        icon: const Icon(Icons.clear),
+                        icon: const Icon(LucideIcons.x),
                         onPressed: () {
                           _searchController.clear();
                           setState(() => _query = '');
@@ -222,7 +223,7 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
                         color: scheme.error,
                         padding: const EdgeInsets.only(right: 20),
                         child: Icon(
-                          Icons.delete_outline,
+                          LucideIcons.trash2,
                           color: scheme.onError,
                         ),
                       ),

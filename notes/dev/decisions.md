@@ -10,6 +10,18 @@ Normative framing in `manifesto.md` — read that first.
 
 ---
 
+## ADR-23: Icon library — Lucide (`lucide_icons`)
+
+Flutter's bundled `Icons` class covers the classic Material Design set. Material Symbols (the newer Google icon set) is not bundled and requires a separate package. Lucide was chosen instead: it is MIT-licensed, has a consistent stroke-based aesthetic that matches the app's clean visual intent, and the `lucide_icons` pub.dev package covers the full Lucide catalogue.
+
+- **What**: `lucide_flutter ^1.17.0` added to `dependencies`. Font-based (not SVG), works with the standard `Icon()` widget. All app-bar and navigation icons in `lib/features/editor/editor_screen.dart` use `LucideIcons.*`; other screens may migrate incrementally. (`lucide_icons` was tried first but is incompatible with Flutter 3.29+ — `LucideIconData extends IconData` fails since `IconData` became `final`.)
+- **Why**: Scott's explicit preference. Lucide's stroke style is cleaner than Material's filled defaults for this app's aesthetic. `Icons.*` remain available for anything not yet migrated.
+- **Rejected**: `material_symbols_icons` (Google's newer set, heavier package); Lucide-via-SVG assets (requires custom rendering, no `Icon` widget compatibility); staying with `Icons.*` (Scott rejected).
+
+---
+
+---
+
 ## ADR-22: Window-state persistence — `window_manager`
 
 Desktop (Windows + Linux) opens at the OS default size and position every launch. Persisting the last-used size and position improves the daily-driver desktop experience.

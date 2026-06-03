@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:super_editor/super_editor.dart';
 
 class FormattingToolbar extends StatelessWidget {
@@ -31,41 +32,41 @@ class FormattingToolbar extends StatelessWidget {
         child: Row(
           children: [
             _ToolbarButton(
-              icon: Icons.format_bold,
+              icon: LucideIcons.bold,
               tooltip: 'Bold',
               onPressed: () =>
                   _ops.toggleAttributionsOnSelection({boldAttribution}),
             ),
             _ToolbarButton(
-              icon: Icons.format_italic,
+              icon: LucideIcons.italic,
               tooltip: 'Italic',
               onPressed: () =>
                   _ops.toggleAttributionsOnSelection({italicsAttribution}),
             ),
             _ToolbarButton(
-              icon: Icons.format_strikethrough,
+              icon: LucideIcons.strikethrough,
               tooltip: 'Strikethrough',
               onPressed: () => _ops
                   .toggleAttributionsOnSelection({strikethroughAttribution}),
             ),
             _ToolbarButton(
-              icon: Icons.format_list_bulleted,
+              icon: LucideIcons.list,
               tooltip: 'Bullet list',
               onPressed: () => _convertToList(ListItemType.unordered),
             ),
             _ToolbarButton(
-              icon: Icons.format_list_numbered,
+              icon: LucideIcons.listOrdered,
               tooltip: 'Numbered list',
               onPressed: () => _convertToList(ListItemType.ordered),
             ),
             _ToolbarButton(
-              icon: Icons.code,
+              icon: LucideIcons.code,
               tooltip: 'Code',
               onPressed: () =>
                   _ops.toggleAttributionsOnSelection({codeAttribution}),
             ),
             _ToolbarButton(
-              icon: Icons.link,
+              icon: LucideIcons.link,
               tooltip: 'Link',
               onPressed: () => _showLinkStub(context),
             ),

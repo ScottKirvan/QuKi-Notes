@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:quki_notes/core/database/app_database.dart';
@@ -171,7 +172,7 @@ void main() {
       await tester.pumpAndSettle(); // wait for filtered stream
       expect(find.text('call dentist'), findsNothing);
 
-      await tester.tap(find.byIcon(Icons.clear));
+      await tester.tap(find.byIcon(LucideIcons.x));
       await tester.pumpAndSettle(); // wait for full stream to restore
       expect(find.text('call dentist'), findsOneWidget);
       await cleanup(tester);

@@ -9,6 +9,8 @@ import '../../core/database/database_provider.dart';
 import '../../core/transports/registry_provider.dart';
 import '../../core/transports/transport_plugin.dart';
 
+import 'package:lucide_flutter/lucide_flutter.dart';
+
 import 'auto_save_controller.dart';
 import 'formatting_toolbar.dart';
 import 'toss_picker_sheet.dart';
@@ -25,8 +27,7 @@ class EditorScreen extends ConsumerStatefulWidget {
   ConsumerState<EditorScreen> createState() => _EditorScreenState();
 }
 
-class _EditorScreenState extends ConsumerState<EditorScreen>
-    with WidgetsBindingObserver {
+class _EditorScreenState extends ConsumerState<EditorScreen> with WidgetsBindingObserver {
   late final MutableDocument _document;
   late final MutableDocumentComposer _composer;
   late final Editor _editor;
@@ -173,9 +174,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         content: Text(
           result.message ?? (result.success ? 'Sent!' : 'Send failed.'),
         ),
-        duration: result.success
-            ? const Duration(seconds: 2)
-            : const Duration(seconds: 4),
+        duration: result.success ? const Duration(seconds: 2) : const Duration(seconds: 4),
         action: (!result.success && result.retryable)
             ? SnackBarAction(label: 'Retry', onPressed: _onToss)
             : null,
@@ -216,19 +215,19 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         automaticallyImplyLeading: false,
         leading: isRoot
             ? IconButton(
-                icon: const Icon(Icons.format_list_bulleted_outlined),
+                icon: const Icon(LucideIcons.fileStack),
                 tooltip: 'QuKis',
                 onPressed: _openQuKisList,
               )
             : IconButton(
-                icon: const Icon(Icons.arrow_back),
+                icon: const Icon(LucideIcons.arrowLeft),
                 tooltip: 'Back',
                 onPressed: _onBack,
               ),
         actions: isRoot
             ? [
                 PopupMenuButton<String>(
-                  icon: const Icon(Icons.menu),
+                  icon: const Icon(LucideIcons.menu),
                   tooltip: 'Menu',
                   onSelected: (value) {
                     switch (value) {
@@ -287,8 +286,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
               editor: _editor,
               document: _document,
               composer: _composer,
-              documentLayoutResolver: () =>
-                  _docLayoutKey.currentState as DocumentLayout,
+              documentLayoutResolver: () => _docLayoutKey.currentState as DocumentLayout,
             ),
           ],
         ),
