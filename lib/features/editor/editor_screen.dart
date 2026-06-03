@@ -253,9 +253,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     if (Platform.isWindows || Platform.isLinux) {
       return CallbackShortcuts(
         bindings: {
-          const SingleActivator(LogicalKeyboardKey.escape): () {
-            _onLeave();
-          },
           const SingleActivator(LogicalKeyboardKey.keyT, control: true): () {
             _onToss();
           },
