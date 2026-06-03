@@ -119,7 +119,12 @@ Claude works on a feature branch, tests iteratively with Scott on device, then o
 |       | 1.5 Auto-save controller                                          | Complete (merged, v0.3.0)     |
 |       | 1.6 Settings stub                                                 | Complete (merged, v0.4.0)     |
 | 2     | Transport plugin loader + built-in QuKi-Tosses                    | Complete (merged, v0.5.0)     |
-| 3     | Polish + share-in + Windows + Linux ports                         | Not started                   |
+| 3     | Polish + share-in + Windows + Linux ports                         | In progress                   |
+|       | 3.1 Android share-in                                              | Complete (merged)             |
+|       | 3.2 Windows + Linux CI verification                               | Complete (merged)             |
+|       | 3.3 Platform guard: share-in on desktop                           | Complete (merged)             |
+|       | 3.4 Desktop keyboard shortcuts + window-state persistence          | Not started                   |
+|       | 3.5 Stream performance (lazy loading)                             | Defer until threshold hit     |
 | 4     | Sync plugin axis + first sync backend (likely GitHub)             | v1.1+                         |
 | 5     | iPadOS / iOS / Mac builds                                         | Deferred                      |
 | 6     | MCP plugin axis                                                   | v2.0+                         |
@@ -208,33 +213,7 @@ Each implementation and DevOps session reads the docs below at start and follows
 
 > This section is maintained by the Spec session. Implementation Claude: read this first, then read the full doc list below.
 
-**Task**: Phase 3 — Platform guard for share-in on Windows/Linux
-**Branch**: `fix/share-in-desktop-platform-guard`
-**PR title**: `fix(share_in): guard receive_sharing_intent behind Platform.isAndroid`
-
-### What to fix
-
-On Windows and Linux the share handler emits a silent `AsyncError` (`MissingPluginException`) because `receive_sharing_intent` is Android/iOS-only. The app doesn't crash, but the error is noise. Fix is a `Platform.isAndroid` guard in the share handler so it no-ops cleanly on non-Android.
-
-### File to touch
-
-`lib/features/share_in/share_handler.dart` — wrap any `ReceiveSharingIntent` calls in `if (Platform.isAndroid)` (import `dart:io`). On non-Android the handler should emit nothing and not subscribe to any streams.
-
-### Tests required
-
-- Unit test: on non-Android platform, handler emits no values (mock `Platform.isAndroid` as false or inject a platform flag).
-- Existing share-in tests must still pass unchanged.
-
-### Bug-fix protocol (testing.md — mandatory)
-
-1. Write a failing test that demonstrates the `AsyncError` / unexpected emission on non-Android **first**.
-2. Commit the failing test on its own.
-3. Implement the guard. Tests go green.
-4. PR body must include: description of bug, file:line of regression test, one-sentence root cause.
-
-### Checklist reminder
-
-This is a `fix:` commit. No drift schema changes. No new dependencies. `just lint` and `just test` must pass.
+**No task currently in progress.** Awaiting next task assignment from Scott.
 
 ---
 
@@ -250,4 +229,4 @@ This is a `fix:` commit. No drift schema changes. No new dependencies. `just lin
 
 **`flutter test` on Windows**: If `flutter test` crashes with `PathAccessException: sqlite3.dll Access is denied`, run `flutter clean` in a fresh terminal (close VS Code first). The DLL gets locked by the previous test process.
 
-**Last Updated**: 2026-06-02
+**Last Updated**: 2026-06-03

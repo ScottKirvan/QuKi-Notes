@@ -459,8 +459,8 @@ Delivered as a single PR:
 Sub-tasks in priority order:
 
 1. **Android share-in** — receive content shared from other Android apps via `receive_sharing_intent`. ✓ Complete (merged). Text only; multi-part shares joined with `\n\n`; cold-start and warm-start both handled. Images deferred (CargoKit still blocked).
-   - **Known desktop issue**: on Windows/Linux the share handler emits a silent `AsyncError` (`MissingPluginException`) because `receive_sharing_intent` is Android/iOS-only. Not a crash; the feature simply does nothing. Fix: `Platform.isAndroid` guard in `lib/features/share_in/share_handler.dart`. Tracked as a Phase 3 follow-up implementation task.
-2. **Windows + Linux CI** — verify `build-windows.yml` and `build-linux.yml` produce working artifacts; wire OQ-NEW-3 resolution (Linux distribution format). DevOps session owns this.
+   - Desktop issue resolved: `Platform.isAndroid` guard added to `lib/features/share_in/share_handler.dart` — no-ops cleanly on Windows/Linux. ✓ Complete (merged).
+2. **Windows + Linux CI** — verify `build-windows.yml` and `build-linux.yml` produce working artifacts; OQ-NEW-3 resolved (tarball). ✓ Complete (merged).
 3. **Desktop keyboard shortcuts + window-state persistence** — keyboard shortcuts for common actions; remember window size/position across restarts.
 4. **Stream performance** — lazy loading / pagination for large QuKi counts. Defer until a real threshold is hit.
 5. **Onboarding** — still drops straight to editor; first-launch coachmarks at most, only if user testing reveals a need.
@@ -574,4 +574,4 @@ Tracked in `notes/dev/open_questions.md`. Snapshot of what's outstanding at spec
 
 ---
 
-**Last Updated**: 2026-06-02 (Phase 3 share-in spec added)
+**Last Updated**: 2026-06-03
