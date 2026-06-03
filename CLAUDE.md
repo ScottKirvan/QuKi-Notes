@@ -208,59 +208,33 @@ Each implementation and DevOps session reads the docs below at start and follows
 
 > This section is maintained by the Spec session. Implementation Claude: read this first, then read the full doc list below.
 
-**Task**: Phase 3 — Windows + Linux build verification (DevOps session)
-**Branch**: `chore/phase3-desktop-ci`
-**PR title**: `chore(ci): verify and fix Windows + Linux release builds`
+**Task**: Phase 3 — Platform guard for share-in on Windows/Linux
+**Branch**: `fix/share-in-desktop-platform-guard`
+**PR title**: `fix(share_in): guard receive_sharing_intent behind Platform.isAndroid`
 
-> This is a **DevOps session** task. Do not touch app code (`lib/`, `test/`). Changes are confined to `.github/workflows/` and build configuration only.
+### What to fix
 
-### Context
+On Windows and Linux the share handler emits a silent `AsyncError` (`MissingPluginException`) because `receive_sharing_intent` is Android/iOS-only. The app doesn't crash, but the error is noise. Fix is a `Platform.isAndroid` guard in the share handler so it no-ops cleanly on non-Android.
 
-Both `build-windows.yml` and `build-linux.yml` have existed since Phase 0 but have never been validated against the current codebase. Since then, several packages have been added — most critically `receive_sharing_intent` (Android + iOS only), which may fail to compile on Windows or Linux.
+### File to touch
 
-Current release: **v0.5.0**. A `feat(share_in):` commit has since landed on `main`, so release-please should have opened a v0.6.0 Release PR — check `gh pr list` and confirm.
+`lib/features/share_in/share_handler.dart` — wrap any `ReceiveSharingIntent` calls in `if (Platform.isAndroid)` (import `dart:io`). On non-Android the handler should emit nothing and not subscribe to any streams.
 
-### Primary risk: `receive_sharing_intent` on non-Android
+### Tests required
 
-`receive_sharing_intent` supports Android and iOS only. When building for Windows or Linux, Flutter may either:
-- Compile fine but throw `MissingPluginException` at runtime (federated plugin with empty stubs), or
-- Fail to compile entirely.
+- Unit test: on non-Android platform, handler emits no values (mock `Platform.isAndroid` as false or inject a platform flag).
+- Existing share-in tests must still pass unchanged.
 
-**First thing to do**: attempt `flutter build windows --debug` and `flutter build linux --debug` locally (or push a test branch to trigger the workflows). If either fails due to `receive_sharing_intent`, the fix is platform-conditional code in `lib/features/share_in/share_handler.dart` — use `dart:io Platform.isAndroid` or Flutter's `defaultTargetPlatform` to no-op on non-Android. Co-ordinate with Scott if a code change is needed (that becomes an implementation session task, not a DevOps task).
+### Bug-fix protocol (testing.md — mandatory)
 
-### Workflow audit checklist
+1. Write a failing test that demonstrates the `AsyncError` / unexpected emission on non-Android **first**.
+2. Commit the failing test on its own.
+3. Implement the guard. Tests go green.
+4. PR body must include: description of bug, file:line of regression test, one-sentence root cause.
 
-Review each workflow for correctness before triggering a real release build:
+### Checklist reminder
 
-**`build-windows.yml`**
-- [ ] Confirm `flutter build windows --release` succeeds with current `pubspec.yaml`
-- [ ] Verify zip path `build\windows\x64\runner\Release\*` matches actual Flutter output location
-- [ ] Confirm `softprops/action-gh-release@v2` has permission to upload (needs `contents: write` permission block, or relies on the default `GITHUB_TOKEN` — check it matches `build-android.yml` pattern)
-
-**`build-linux.yml`**
-- [ ] Confirm `flutter build linux --release` succeeds with current `pubspec.yaml`
-- [ ] `libsecret-1-dev` is already in the apt install list ✓ — verify it's sufficient for `flutter_secure_storage`
-- [ ] Tarball path `build/linux/x64/release/bundle` — confirm this is the correct Flutter Linux output path
-- [ ] `softprops/action-gh-release@v2` permission check (same as Windows)
-
-**`build-android.yml`**
-- [ ] The APK step has `--dart-define=KEY_ALIAS` on a YAML continuation line — verify this is being parsed correctly by running a test build. If it isn't needed (keystore config flows through env vars anyway), remove it.
-
-**`ci.yml`**
-- No changes expected — runs on `ubuntu-latest`, tests only, no Flutter desktop compilation.
-
-**`build-ios.yml`**
-- Do NOT modify. Stub only; `workflow_dispatch` trigger; must never be wired to fire automatically.
-
-**`release-please.yml`**
-- Confirm it's still working: `gh run list --workflow=release-please.yml -L 5`. If the v0.6.0 Release PR exists and CI is green, merge it.
-
-### Definition of done
-
-- `flutter build windows --release` and `flutter build linux --release` both succeed (locally or in CI)
-- Both workflows upload valid artifacts to a GitHub Release (test against v0.6.0 or a manual tag)
-- No regressions in `ci.yml` (PR check still green)
-- If any code change was required to fix `receive_sharing_intent` on desktop, that is tracked as a separate implementation PR — this DevOps PR contains only workflow/config changes
+This is a `fix:` commit. No drift schema changes. No new dependencies. `just lint` and `just test` must pass.
 
 ---
 
