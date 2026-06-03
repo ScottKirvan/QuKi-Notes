@@ -27,6 +27,22 @@ subprojects {
         }
     }
 }
+
+// receive_sharing_intent (and other plugins) declare Kotlin JVM 21 but Java 11, which
+// Gradle rejects as inconsistent. Force both to JVM 17 to match the app module.
+subprojects {
+    afterEvaluate {
+        tasks.withType<JavaCompile>().configureEach {
+            sourceCompatibility = "17"
+            targetCompatibility = "17"
+        }
+        tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinJvmCompile>().configureEach {
+            compilerOptions {
+                jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+            }
+        }
+    }
+}
 subprojects {
     project.evaluationDependsOn(":app")
 }
