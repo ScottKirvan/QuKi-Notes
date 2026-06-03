@@ -10,18 +10,16 @@ Normative framing in `manifesto.md` — read that first.
 
 ---
 
-## ADR-22: Window-state persistence — `window_manager` ⚠️ PENDING APPROVAL
-
-**Status: stub — not yet merged or implemented. Awaiting verbal approval from Scott before `window_manager` is added to `pubspec.yaml`.**
+## ADR-22: Window-state persistence — `window_manager`
 
 Desktop (Windows + Linux) opens at the OS default size and position every launch. Persisting the last-used size and position improves the daily-driver desktop experience.
 
-- **What**: Add `window_manager` (pub.dev) to `dependencies`. On launch, read last-saved `{x, y, width, height}` from `shared_preferences` and restore the window. On window close / move / resize, persist the new values.
-- **Why**: `window_manager` is the Flutter ecosystem standard for desktop window control (listen, set, get position/size). The alternative — raw platform channels — requires maintaining Windows and Linux channel code separately with no benefit.
+- **What**: `window_manager ^0.5.1` added to `dependencies`. On launch (`main()`, before `runApp`), restore saved `{x, y, width, height}` from `shared_preferences`. `WindowStateScope` widget (mounted at app root) listens via `WindowListener` and persists bounds on `onWindowMoved`, `onWindowResized`, `onWindowClose`.
+- **Why**: `window_manager` is the Flutter ecosystem standard for desktop window control. No platform-side C++ modifications needed at 0.5.x — `windowManager.ensureInitialized()` in Dart is sufficient.
 - **Rejected**: Raw platform channels (higher maintenance burden; `window_manager` already wraps them correctly for both targets).
-- **Scope**: Windows + Linux only. Android is unaffected. iOS/macOS are deferred per manifesto platform priority.
-- **Keys in `shared_preferences`**: `window.x`, `window.y`, `window.width`, `window.height` (all `double`). Omit keys on first launch; let OS choose the initial position.
-- **Approved version**: TBD — confirm latest stable before adding.
+- **Scope**: Windows + Linux only. Android branch skipped via `Platform.isWindows || Platform.isLinux` guard. iOS/macOS deferred per manifesto platform priority.
+- **Keys in `shared_preferences`**: `window.x`, `window.y`, `window.width`, `window.height` (all `double`). Keys absent on first launch → OS chooses position.
+- **Save timing**: `onWindowMoved` / `onWindowResized` use the `*d` (post-gesture) variants so SharedPreferences is not written on every drag pixel.
 
 ---
 
@@ -209,12 +207,16 @@ Retained as a historical note so future Claude doesn't think we forgot about the
 - **Toss** (transport): user-initiated, never automatic. Pressing a QuKi-Toss button is the only way a QuKi leaves the device. No auto-toss in MVP.
 - **Why**: protects against long-typing-run data loss without networking. Max unsaved window ≈ 30s. Sync is a separate, deferred axis (ADR-17).
 
-## ADR-5: Deletion model — soft delete then hard (sync-aware when sync exists)
+## ADR-5: Deletion model — Recently Deleted with user-configurable retention
 
-- `qukis.deletedAt` nullable column. Set on user delete; row hidden from queries.
-- **MVP (no sync)**: soft-delete row immediately, hard-delete on a background sweep after 24 hours (gives a chance for an undo in a future UI; no remote round-trip required).
-- **Post-MVP (sync active)**: soft-delete + queue for push; on successful remote DELETE → hard-delete local row + cascade to images. 404 = success. Remote-originating deletes out of scope for the first sync plugin.
-- **Why**: clean offline-capable delete; preserves the option to undo; symmetric with future sync-state model without baking sync assumptions into MVP code.
+- `qukis.deletedAt` nullable column. Set on user delete; row hidden from main QuKis list queries immediately.
+- **Recently Deleted screen**: shows soft-deleted QuKis newest-first for the retention period. This is **data recovery**, not organization — no sort, filter, or filing within it.
+  - Tap → restore (clears `deletedAt`; QuKi returns to top of QuKis list).
+  - Swipe → permanent delete (hard-delete immediately; modal confirmation dialog).
+- **Retention period**: user-configurable in Settings (default TBD — 7 days is a reasonable starting point; 24h is too short for a fat-finger recovery scenario). Background sweep hard-deletes rows + cascades to images after the retention period expires.
+- **Post-MVP (sync active)**: soft-delete + queue for push; on successful remote DELETE → hard-delete local row + cascade to images. 404 = success.
+- **Why**: 24h was too short for the "fat-fingered an important note and didn't notice until later" scenario. Making retention configurable respects that different users have different recovery windows. The Recently Deleted screen is a safety net, not a filing feature — its design must resist feature creep toward vault-like behaviour.
+- **Rejected**: auto-expire only with no recovery UI (too easy to lose important notes permanently); archive folder (organization feature — violates manifesto).
 
 ## ADR-4: Image storage — separate binary files
 

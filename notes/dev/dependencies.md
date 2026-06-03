@@ -31,11 +31,12 @@ Versions track what's currently pinned in `pubspec.yaml`. Use compatible-version
 
 Additional transport-specific packages (e.g. `dio`, `flutter_secure_storage`, `url_launcher` for any GitHub/HTTP transport) are added **with the plugin that needs them**, not preemptively. Authentication helper (`lib/core/auth/`) lands at the same time as the first OAuth-needing plugin.
 
-### Share-in + GPS (Phase 3 polish)
+### Share-in + Desktop polish (Phase 3)
 
 | Package | Version | Purpose |
 |---|---|---|
 | `receive_sharing_intent` | `^1.8.1` | Android share-in (receive intents) |
+| `window_manager` | `^0.5.1` | Desktop window size/position persistence (Windows + Linux) |
 | `geolocator` | TBD | GPS capture (per-toss opt-in) |
 | `geocoding` | TBD | Platform-native reverse geocoding (no API key) |
 

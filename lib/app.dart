@@ -1,16 +1,19 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'features/editor/editor_screen.dart';
 import 'features/share_in/share_handler.dart';
 import 'features/stream/stream_screen.dart';
+import 'features/window/window_state_scope.dart';
 
 class QuKiNotesApp extends ConsumerWidget {
   const QuKiNotesApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return MaterialApp(
+    final app = MaterialApp(
       title: 'QuKi-Notes',
       themeMode: ThemeMode.system,
       theme: ThemeData(
@@ -26,6 +29,10 @@ class QuKiNotesApp extends ConsumerWidget {
       ),
       home: const _ShareAwareHome(),
     );
+    if (Platform.isWindows || Platform.isLinux) {
+      return WindowStateScope(child: app);
+    }
+    return app;
   }
 }
 
