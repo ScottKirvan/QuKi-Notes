@@ -102,6 +102,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Nothing to toss — write something first.'),
+          duration: Duration(seconds: 2),
         ),
       );
       return;
@@ -110,7 +111,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     final enabled = ref.read(enabledTransportsProvider);
     if (enabled.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No transports enabled.')),
+        const SnackBar(
+          content: Text('No transports enabled.'),
+          duration: Duration(seconds: 2),
+        ),
       );
       return;
     }
@@ -146,6 +150,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         content: Text(
           result.message ?? (result.success ? 'Tossed!' : 'Toss failed.'),
         ),
+        duration: result.success
+            ? const Duration(seconds: 2)
+            : const Duration(seconds: 4),
         action: (!result.success && result.retryable)
             ? SnackBarAction(label: 'Retry', onPressed: _onToss)
             : null,
@@ -224,8 +231,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                         BlockSelector.all,
                         (doc, node) => {
                           Styles.maxWidth: double.infinity,
-                          Styles.padding:
-                              const CascadingPadding.symmetric(horizontal: 16),
+                          Styles.padding: const CascadingPadding.symmetric(
+                            horizontal: 16,
+                            vertical: 0,
+                          ),
                           Styles.textStyle: TextStyle(
                             color: scheme.onSurface,
                             fontSize: 16,

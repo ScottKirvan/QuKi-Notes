@@ -115,6 +115,19 @@ void main() {
       await cleanup(tester);
     });
 
+    testWidgets('undo snackbar has duration ≥ 3s', (tester) async {
+      await insertQuki(db, id: 'snack-test', body: 'Snackbar target');
+      await tester.pumpWidget(buildUnderTest());
+      await tester.pump();
+
+      await tester.drag(find.text('Snackbar target'), const Offset(-500, 0));
+      await tester.pumpAndSettle();
+
+      final snackBar = tester.widget<SnackBar>(find.byType(SnackBar));
+      expect(snackBar.duration.inSeconds, greaterThanOrEqualTo(3));
+      await cleanup(tester);
+    });
+
     testWidgets('undo delete restores the QuKi to the list', (tester) async {
       const id = 'undo-test';
       await insertQuki(db, id: id, body: 'Undo me');

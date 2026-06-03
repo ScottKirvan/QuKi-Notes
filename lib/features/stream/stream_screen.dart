@@ -70,7 +70,7 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
     _messengerKey.currentState?.showSnackBar(
       SnackBar(
         content: Text('Deleted: ${_preview(quki.body)}'),
-        duration: const Duration(seconds: 5),
+        duration: const Duration(seconds: 4),
         action: SnackBarAction(
           label: 'Undo',
           onPressed: () => db.qukisDao.restoreQuki(quki.id),
