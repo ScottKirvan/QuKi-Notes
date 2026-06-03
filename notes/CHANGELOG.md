@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.2](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.6.1...v0.6.2) (2026-06-03)
+
+
+### Bug Fixes
+
+* **share_in:** guard receive_sharing_intent behind Platform.isAndroid ([60b4c99](https://github.com/ScottKirvan/QuKi-Notes/commit/60b4c99381cf4448591dab95d4b58bdf577e3681))
+
 ## [0.6.1](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.6.0...v0.6.1) (2026-06-03)
 
 
