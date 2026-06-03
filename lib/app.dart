@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'features/editor/editor_screen.dart';
+import 'features/share_in/share_handler.dart';
 import 'features/stream/stream_screen.dart';
 
 class QuKiNotesApp extends ConsumerWidget {
@@ -23,11 +24,34 @@ class QuKiNotesApp extends ConsumerWidget {
         ),
         useMaterial3: true,
       ),
-      home: EditorScreen(
-        onLeave: (ctx) => Navigator.push<void>(
-          ctx,
-          MaterialPageRoute(builder: (_) => const StreamScreen()),
-        ),
+      home: const _ShareAwareHome(),
+    );
+  }
+}
+
+/// Root home widget that listens for incoming share intents and pushes a new
+/// EditorScreen pre-populated with the shared text.
+class _ShareAwareHome extends ConsumerWidget {
+  const _ShareAwareHome();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    ref.listen<AsyncValue<String?>>(shareStreamProvider, (_, next) {
+      next.whenData((text) {
+        if (text != null && context.mounted) {
+          Navigator.of(context).push<void>(
+            MaterialPageRoute(
+              builder: (_) => EditorScreen(initialBody: text),
+            ),
+          );
+        }
+      });
+    });
+
+    return EditorScreen(
+      onLeave: (ctx) => Navigator.push<void>(
+        ctx,
+        MaterialPageRoute(builder: (_) => const StreamScreen()),
       ),
     );
   }
