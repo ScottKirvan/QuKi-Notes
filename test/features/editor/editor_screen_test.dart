@@ -2,6 +2,7 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lucide_flutter/lucide_flutter.dart';
 
 import 'package:quki_notes/core/database/app_database.dart';
 import 'package:quki_notes/core/database/database_provider.dart';
@@ -33,7 +34,7 @@ void main() {
       // Open hamburger menu then tap Send...
       // Use pump with a fixed duration instead of pumpAndSettle — the editor's
       // periodic auto-save timer prevents pumpAndSettle from ever settling.
-      await tester.tap(find.byIcon(Icons.menu));
+      await tester.tap(find.byIcon(LucideIcons.menu));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
       await tester.tap(find.text('Send...'));
@@ -61,9 +62,9 @@ void main() {
       await tester.pumpWidget(buildEditor());
       await tester.pump();
 
-      expect(find.byIcon(Icons.format_list_bulleted_outlined), findsOneWidget);
-      expect(find.byIcon(Icons.menu), findsOneWidget);
-      expect(find.byIcon(Icons.arrow_back), findsNothing);
+      expect(find.byIcon(LucideIcons.fileStack), findsOneWidget);
+      expect(find.byIcon(LucideIcons.menu), findsOneWidget);
+      expect(find.byIcon(LucideIcons.arrowLeft), findsNothing);
 
       await cleanup(tester);
     });
@@ -95,8 +96,8 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
 
-      expect(find.byIcon(Icons.arrow_back), findsOneWidget);
-      expect(find.byIcon(Icons.menu), findsNothing);
+      expect(find.byIcon(LucideIcons.arrowLeft), findsOneWidget);
+      expect(find.byIcon(LucideIcons.menu), findsNothing);
 
       await cleanup(tester);
     });
@@ -106,7 +107,7 @@ void main() {
       await tester.pumpWidget(buildEditor());
       await tester.pump();
 
-      await tester.tap(find.byIcon(Icons.menu));
+      await tester.tap(find.byIcon(LucideIcons.menu));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 

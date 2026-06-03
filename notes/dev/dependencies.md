@@ -31,6 +31,12 @@ Versions track what's currently pinned in `pubspec.yaml`. Use compatible-version
 
 Additional transport-specific packages (e.g. `dio`, `flutter_secure_storage`, `url_launcher` for any GitHub/HTTP transport) are added **with the plugin that needs them**, not preemptively. Authentication helper (`lib/core/auth/`) lands at the same time as the first OAuth-needing plugin.
 
+### UI / Phase 3
+
+| Package | Version | Purpose |
+|---|---|---|
+| `lucide_flutter` | `^1.17.0` | Lucide icon library (ADR-23); font-based, works with `Icon()` widget; replaces Material `Icons.*` in UI incrementally |
+
 ### Share-in + Desktop polish (Phase 3)
 
 | Package | Version | Purpose |

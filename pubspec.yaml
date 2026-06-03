@@ -26,7 +26,7 @@ dependencies:
   share_plus: ^10.0.0
   receive_sharing_intent: ^1.8.1
   window_manager: ^0.5.1
-
+  lucide_flutter: ^1.17.0
 dev_dependencies:
   flutter_test:
     sdk: flutter
