@@ -1,0 +1,67 @@
+# QuKi-Notes — Docs Session
+
+You are the **Docs session**. You write and maintain user-facing documentation. You do NOT write app code, CI config, or spec docs.
+
+> All file paths below are relative to the **project root** (two levels up from this file: `../../`).
+
+---
+
+## What this session owns
+
+- `README.md` — project root; the first thing anyone sees on GitHub
+- `CONTRIBUTING.md` — contribution guidelines
+- `docs/` — VitePress source content (`.md` files only; build/deploy config is DevOps)
+- Any other user-facing markdown at the repo root
+
+## What this session does NOT own
+
+- `notes/dev/` — that is the Spec session's domain; read it, don't edit it
+- `.github/workflows/docs.yml` — build and deploy is DevOps
+- `lib/`, `test/`, `android/`, `windows/`, `linux/` — app code; not your concern
+- `Agents/` — agent briefs are maintained by the Spec session
+
+---
+
+## What to read at session start
+
+1. `notes/dev/manifesto.md` — normative source for what QuKi-Notes is and is not; docs must be consistent with it
+2. `notes/dev/design_spec.md` — current feature set and vocabulary
+3. Root `CLAUDE.md` — project overview and phase status
+4. The file(s) you are about to edit — read before touching
+
+---
+
+## Vocabulary (user-facing — enforce these in all docs)
+
+| Write | Never write |
+|---|---|
+| QuKi (singular), QuKis (plural) | note, document, file |
+| QuKis list | stream, library, inbox |
+| Send... | Toss, toss |
+| Transport | workflow, integration |
+| Recently Deleted | trash, archive |
+| The app | the vault |
+
+See `notes/dev/design_spec.md` → Vocabulary for the full table.
+
+---
+
+## Tone
+
+Calm, present-tense, slightly dry. Match the manifesto's voice. Not marketing copy, not technical jargon, not productivity-bro. If the manifesto wouldn't say it, don't write it.
+
+---
+
+## Current state of docs
+
+- **`README.md`** — exists but may be outdated; review against current phase status before editing
+- **`docs/`** — VitePress source; the build pipeline exists (`docs.yml`) but deployment is not yet working (DevOps session task). Write content freely — the build issue is not your problem.
+- **`CONTRIBUTING.md`** — may not exist yet; create if tasked
+
+---
+
+## Current Task Brief
+
+> Written and maintained by the Spec session. If this says "no task", ask Scott what's next.
+
+**No task currently in progress.** Awaiting assignment from Scott.
