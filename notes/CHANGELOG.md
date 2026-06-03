@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.4.0...v0.5.0) (2026-06-03)
+
+
+### Features
+
+* **transports:** Phase 2 — transport plugin architecture + clipboard + share sheet ([a9cd632](https://github.com/ScottKirvan/QuKi-Notes/commit/a9cd632c7db17b5412c9c3abd59a5cd105bf2419))
+
 ## [0.4.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.3.0...v0.4.0) (2026-06-02)
 
 
