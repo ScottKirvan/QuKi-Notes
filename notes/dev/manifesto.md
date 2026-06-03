@@ -77,11 +77,17 @@ The product voice is **calm, present-tense, slightly dry**. Not aggressively min
 - Error states are matter-of-fact. "Send failed — try again" not "Oops! Something went wrong 😅".
 - No emoji in UI strings unless the user typed them.
 
-**Editor navigation**: the root editor has no back arrow. It has:
-- A **QuKis icon** (top-left) — direct navigation to the QuKis list. This is the primary nav affordance; users tap it more than Send.
-- A **hamburger menu ≡** (top-right) — contains **Send...**, **QuKis**, **Settings**.
+**Editor navigation**: the editor is the **permanent root** of all navigation. It never has a back button under any circumstance. Its chrome never changes regardless of which QuKi is loaded.
 
-A back arrow appears only on: editors opened *from* the QuKis list (tap a row to edit), and on the QuKis list screen itself (back to the root editor). Nothing in the root editor should visually imply the list is the home screen.
+- Top-left: **QuKis icon** — pushes the QuKis list on top of the editor.
+- Top-right: **hamburger menu ≡** — contains **Send...**, **QuKis**, **Settings**.
+
+**QuKis list** (always pushed on top of the editor, never replaces it):
+- Back button (top-left) → pops back to editor.
+- Tap a row → loads that QuKi's content into the root editor + pops the list.
+- `+ New` → clears the root editor to blank + pops the list.
+
+The editor is **one widget**. Its content changes (blank QuKi, or a specific loaded QuKi); its chrome does not. There is no scenario where a second EditorScreen is pushed onto the navigation stack.
 
 ---
 

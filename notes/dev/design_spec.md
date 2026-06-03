@@ -142,11 +142,13 @@ Not designed in detail. Architectural intent: an embedded MCP server inside the 
 - Editor toolbar: bold, italic, strikethrough, lists, code blocks, links, image.
 - Image paste from clipboard via `super_clipboard`. Image share-in via Android share sheet. (Image paste currently blocked — CargoKit; see `dependencies.md`.)
 - Auto-save: 2s idle debounce + 30s periodic + lifecycle `inactive`/`paused`/`detached`. Never blocks, never networks.
-- **Editor navigation** (root editor — home screen):
-  - Top-left: QuKis icon → navigates to QuKis list. Primary nav affordance.
-  - Top-right: hamburger menu (≡) → Send..., QuKis, Settings.
-  - No back arrow on the root editor. Nothing implies the QuKis list is the home screen.
-- Editors opened *from* the QuKis list show a back button returning to the list.
+- **Editor navigation** — the editor is the permanent root of all navigation. No back button. Ever. Regardless of which QuKi is loaded or how the user got there.
+  - Top-left: QuKis icon → pushes QuKis list; list **slides in from the left** (icon is on the left).
+  - Top-right: hamburger menu (≡) → Send..., QuKis, Settings; Settings **slides in from the right** (hamburger is on the right).
+  - The editor is **one widget** whose content changes; its chrome does not.
+- **QuKis list**: slides in from left; back/dismiss slides back out to the left. Tapping a row loads that QuKi into the root editor + pops the list. `+ New` clears the editor to blank + pops the list. No second EditorScreen is ever pushed.
+- **Send sheet**: slides up from bottom (`showModalBottomSheet`). Slides down on dismiss.
+- **Navigation direction principle**: the transition direction matches the physical position of the affordance that triggered it.
 
 **Editor capabilities — built-in vs we-wire-it-up:**
 
@@ -191,7 +193,7 @@ In the editor, **Send...** in the hamburger menu (≡) opens a sheet listing con
 
 ### 5. Settings
 
-- Theme: follow system (ADR-12). No manual override in v1.
+- Theme: follow system (ADR-12). No manual override in v1. **Color palette: GitHub Primer Dark High Contrast** (`primer.style/primitives/colors`). Key tokens mapped to Flutter `ColorScheme`: canvas `#0a0c10`, surface `#272b33`, foreground `#f0f3f9`, muted `#9ea7b4`, accent/primary `#71b7ff` / `#1f6feb`, borders `#7a828e`. Light system theme uses Primer Light High Contrast. Do not use Flutter's default `Colors.deepPurple` seed.
 - Tosses (transports): list installed plugins, configure each via its `settingsView`.
 - Sync: empty in MVP ("No sync backends installed" placeholder; copy hints at v1.1+).
 - **Privacy**: per-capability opt-in toggles (GPS first; camera/mic/etc. as transports require). All default OFF. See Privacy & Permissions below.
@@ -227,14 +229,14 @@ Device-backed enrichments (GPS today; camera/mic/contacts later if transports de
 
 ## UI Shapes
 
-### Root editor (home screen)
+### Editor (always home — no back button, ever)
 
 ```
 ┌──────────────────────────────┐
 │ [📋 icon]                [≡] │
 ├──────────────────────────────┤
 │                              │
-│  [Blank QuKi]                │
+│  (QuKi content)              │
 │  cursor here                 │
 │                              │
 │                              │
@@ -244,9 +246,10 @@ Device-backed enrichments (GPS today; camera/mic/contacts later if transports de
 └──────────────────────────────┘
 ```
 
-- Top-left icon → navigates to QuKis list (primary nav)
-- Top-right ≡ → hamburger menu: Send..., QuKis, Settings
-- No back arrow — this is home
+- Top-left icon → pushes QuKis list (primary nav)
+- Top-right ≡ → hamburger: Send..., QuKis, Settings
+- **No back button. Ever. Regardless of which QuKi is loaded.**
+- Content changes (blank or loaded QuKi); chrome never changes.
 
 ### Hamburger menu
 
