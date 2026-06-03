@@ -1,4 +1,7 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:super_editor/super_editor.dart';
 
@@ -182,7 +185,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return Scaffold(
+    final Widget scaffold = Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
         leadingWidth: 110,
@@ -246,5 +249,20 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         ),
       ),
     );
+
+    if (Platform.isWindows || Platform.isLinux) {
+      return CallbackShortcuts(
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.escape): () {
+            _onLeave();
+          },
+          const SingleActivator(LogicalKeyboardKey.keyT, control: true): () {
+            _onToss();
+          },
+        },
+        child: Focus(autofocus: true, skipTraversal: true, child: scaffold),
+      );
+    }
+    return scaffold;
   }
 }

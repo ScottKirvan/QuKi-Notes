@@ -10,6 +10,21 @@ Normative framing in `manifesto.md` — read that first.
 
 ---
 
+## ADR-22: Window-state persistence — `window_manager` ⚠️ PENDING APPROVAL
+
+**Status: stub — not yet merged or implemented. Awaiting verbal approval from Scott before `window_manager` is added to `pubspec.yaml`.**
+
+Desktop (Windows + Linux) opens at the OS default size and position every launch. Persisting the last-used size and position improves the daily-driver desktop experience.
+
+- **What**: Add `window_manager` (pub.dev) to `dependencies`. On launch, read last-saved `{x, y, width, height}` from `shared_preferences` and restore the window. On window close / move / resize, persist the new values.
+- **Why**: `window_manager` is the Flutter ecosystem standard for desktop window control (listen, set, get position/size). The alternative — raw platform channels — requires maintaining Windows and Linux channel code separately with no benefit.
+- **Rejected**: Raw platform channels (higher maintenance burden; `window_manager` already wraps them correctly for both targets).
+- **Scope**: Windows + Linux only. Android is unaffected. iOS/macOS are deferred per manifesto platform priority.
+- **Keys in `shared_preferences`**: `window.x`, `window.y`, `window.width`, `window.height` (all `double`). Omit keys on first launch; let OS choose the initial position.
+- **Approved version**: TBD — confirm latest stable before adding.
+
+---
+
 ## ADR-21: Flutter import allowed in `lib/core/transports/` (settingsView exception)
 
 The `TransportPlugin` interface defines `settingsView(WidgetRef ref) → Widget` as part of its contract so that each plugin can provide its own configuration UI shown in Settings → Tosses. This requires importing `package:flutter/material.dart` and `package:flutter_riverpod/flutter_riverpod.dart` in `lib/core/transports/transport_plugin.dart`, which technically violates the ADR-16 Flutter-free constraint on `lib/core/`.
