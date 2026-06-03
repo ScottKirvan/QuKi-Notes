@@ -60,14 +60,15 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   // Plain-text loading; full markdown round-trip lands in Phase 3 (OQ-1).
-  // Splits on double-newline so paragraph breaks survive the save/reload cycle.
+  // Splits on double-newline; internal empty entries (blank lines from double-
+  // Enter) are preserved as empty ParagraphNodes. Trailing empties are stripped
+  // because super_editor appends a trailing empty node that should not persist.
   MutableDocument _parseInitialBody(String body) {
     if (body.isEmpty) return MutableDocument.empty();
-    final paras = body
-        .split('\n\n')
-        .map((p) => p.trim())
-        .where((p) => p.isNotEmpty)
-        .toList();
+    var paras = body.split('\n\n').map((p) => p.trim()).toList();
+    while (paras.isNotEmpty && paras.last.isEmpty) {
+      paras.removeLast();
+    }
     if (paras.isEmpty) return MutableDocument.empty();
     return MutableDocument(nodes: [
       for (int i = 0; i < paras.length; i++)
@@ -182,9 +183,13 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           );
         }
       } else if (node is ParagraphNode) {
-        final text = node.text.toPlainText().trim();
-        if (text.isNotEmpty) parts.add(text);
+        parts.add(node.text.toPlainText().trim());
       }
+    }
+    // Strip trailing empty entries — super_editor appends a trailing empty
+    // paragraph; including it would accumulate extra blank lines on reload.
+    while (parts.isNotEmpty && parts.last.isEmpty) {
+      parts.removeLast();
     }
     return parts.join('\n\n');
   }
