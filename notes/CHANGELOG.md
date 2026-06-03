@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.6.0...v0.6.1) (2026-06-03)
+
+
+### Bug Fixes
+
+* **ci:** remove push:tags trigger to prevent duplicate builds ([1433079](https://github.com/ScottKirvan/QuKi-Notes/commit/143307936c96700c175eaaa7628217bc9fdb015e))
+
 ## [0.6.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.5.0...v0.6.0) (2026-06-03)
 
 
