@@ -4,7 +4,7 @@ default:
     @just --list
 
 android:
-    #!pwsh -NoLogo
+    #!powershell.exe -NoLogo
     $devices = flutter devices --machine 2>$null | ConvertFrom-Json
     $phone = $devices | Where-Object { $_.targetPlatform -match 'android' -and $_.id -notmatch 'emulator' } | Select-Object -First 1 -ExpandProperty id
     $emu   = $devices | Where-Object { $_.id -match 'emulator' } | Select-Object -First 1 -ExpandProperty id
