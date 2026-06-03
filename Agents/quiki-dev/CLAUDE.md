@@ -67,7 +67,14 @@ All `SnackBar` widgets in the app display indefinitely until manually dismissed.
 - Toss result snackbar (failure / retry): `Duration(seconds: 4)` — long enough to tap Retry
 - Swipe-to-delete undo snackbar: `Duration(seconds: 4)` — long enough to tap Undo
 
-Find all `SnackBar(` constructors in `lib/` and add durations. Do not change any other snackbar behaviour.
+**Known Flutter 3.44 + Material 3 quirk (previous session diagnosed this):** `SnackBar` widgets without a `SnackBarAction` auto-dismiss correctly when `duration` is set. `SnackBar` widgets that include a `SnackBarAction` (the undo snackbar) do NOT auto-dismiss reliably — the action's presence suppresses the internal timer. Fix for the undo snackbar specifically:
+
+1. Call `ScaffoldMessenger.of(context).clearSnackBars()` before `showSnackBar()`.
+2. Capture the `ScaffoldFeatureController` returned by `showSnackBar()`.
+3. Start a `Timer(Duration(seconds: 4), () => controller.close())` immediately after — this guarantees dismissal regardless of Flutter's internal behaviour.
+4. Cancel the timer in the Undo action's `onPressed` so tapping Undo doesn't close the bar prematurely via the timer.
+
+Also ensure `ScaffoldMessenger.of(context)` is captured *before* entering any async gap or `onDismissed` callback where the context may be stale.
 
 **#25 — Paragraph double-spacing**
 
