@@ -422,8 +422,8 @@ quki_notes/
 | Phase | Goal                                                                   | Status         |
 | ----- | ---------------------------------------------------------------------- | -------------- |
 | 0     | Bootstrap scaffold (project, CI, docs)                                 | Complete       |
-| 1     | Local QuKi capture on Android — editor, stream, drift, image paste     | In progress    |
-| 2     | Transport plugin loader + first built-in QuKi-Toss + Settings → Tosses | Not started    |
+| 1     | Local QuKi capture on Android — editor, stream, drift, auto-save       | Complete (v0.3.0) |
+| 2     | Transport plugin loader + built-in QuKi-Tosses + Settings → Tosses     | Complete (v0.5.0) |
 | 3     | Polish + share-in + Windows + Linux desktop ports                      | Not started    |
 | 4     | Sync plugin axis (`core/sync/`) + first sync backend (probably GitHub) | v1.1+       |
 | 5     | iPadOS / iOS / macOS builds (CI wiring + device QA)                    | Deferred    |
@@ -433,26 +433,26 @@ quki_notes/
 
 See `notes/dev/bootstrap.md`. One PR, scaffold only, no features.
 
-### Phase 1 — Local QuKi capture
+### Phase 1 — Local QuKi capture ✓ Complete (v0.3.0)
 
-Sub-PRs in order:
+Sub-PRs completed in order:
 
 1. **Drift schema v1**: `qukis` + `images` tables + repository providers + migration test scaffold. ✓ Complete (merged)
 2. **Editor screen**: blank QuKi on launch, `super_editor`, formatting toolbar (no image button yet). ✓ Complete (merged)
-3. **Stream screen**: list view with search; tap-to-edit; swipe-to-delete with undo. ✓ Complete (merged — PR #8)
-4. **Image paste**: `super_clipboard` integration; on-disk image store; markdown rewrite; image rendering in `super_editor` (OQ-2 covers integration shape). Blocked — `super_clipboard`/CargoKit archived 2026-03-26; deferred.
-5. **Auto-save controller**: ADR-6 save semantics; lifecycle hooks; never blocks. ← Next
-6. **Settings stub**: theme indicator (system), about page with version.
+3. **Stream screen**: list view with search; tap-to-edit; swipe-to-delete with undo. ✓ Complete (merged)
+4. **Image paste**: `super_clipboard` integration; on-disk image store; markdown rewrite; image rendering in `super_editor`. ⛔ Blocked — `super_clipboard`/CargoKit archived 2026-03-26; permanently deferred until `super_native_extensions` migrates away from CargoKit.
+5. **Auto-save controller**: ADR-6 save semantics (2s debounce + 30s periodic + lifecycle hooks); ADR-20 save-on-leave bridge removed. ✓ Complete (merged, v0.3.0)
+6. **Settings stub**: theme indicator (system), about page with version, `package_info_plus` for version string. ✓ Complete (merged, v0.4.0)
 
-### Phase 2 — Transports
+### Phase 2 — Transports ✓ Complete (v0.5.0)
 
-Sub-PRs in order:
+Delivered as a single PR:
 
-1. **Transport registry + plugin interface**: `lib/core/transports/`; built-in registry (no dynamic loading from disk in v1); ADR-14 contract.
-2. **First built-in toss** (decision OQ-NEW-1): probably "Clipboard" first as the simplest possible plugin — proves the loader + the toss-button UX with no network involvement.
-3. **Toss UI**: toss button in editor → bottom sheet → result feedback.
-4. **Settings → Tosses**: list installed transports + open each plugin's `settingsView`.
-5. **Second built-in toss** (likely Share Sheet or Append-to-GitHub-file) — only after the first proves the architecture is sound.
+1. **Transport registry + plugin interface**: `lib/core/transports/`; compile-time built-in registry (OQ-NEW-2 resolved — no dynamic loading in v1); ADR-14 contract. ADR-21 documents the Flutter-import exception for `settingsView()`.
+2. **ClipboardToss**: copies markdown body to system clipboard. Proves loader + toss-button UX with zero network involvement.
+3. **ShareSheetToss**: opens native Android share sheet via `share_plus`. Second built-in toss shipped in the same PR.
+4. **Toss UI**: toss button in editor → `TossPickerSheet` bottom sheet → success/failure snackbar; retry offered on retryable failures.
+5. **Settings → Tosses**: `SwitchListTile` per plugin; disabled plugins hidden from toss picker. `TransportSettingsNotifier` persists enabled state via `shared_preferences`.
 
 ### Phase 3 — Polish + Windows + Linux
 
@@ -560,4 +560,4 @@ Tracked in `notes/dev/open_questions.md`. Snapshot of what's outstanding at spec
 
 ---
 
-**Last Updated**: 2026-05-28
+**Last Updated**: 2026-06-02

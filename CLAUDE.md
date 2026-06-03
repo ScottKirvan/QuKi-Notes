@@ -7,7 +7,7 @@ A personal **capture-and-dispatch** app: ephemeral notes (**QuKis**) captured fr
 **Philosophy first.** Read `notes/dev/manifesto.md` before anything else. The manifesto is normative; this file and the spec must stay consistent with it.
 
 **Design phase: complete.** Full spec at `notes/dev/design_spec.md`.
-**Next phase: Phase 1 implementation** — local capture + first transport plugin on Android.
+**Phases 1 and 2 complete (v0.5.0).** Next: Phase 3 — Polish + share-in + Windows + Linux.
 
 ---
 
@@ -111,14 +111,14 @@ Claude works on a feature branch, tests iteratively with Scott on device, then o
 | Phase | Goal                                                              | Status                        |
 | ----- | ----------------------------------------------------------------- | ----------------------------- |
 | 0     | Bootstrap scaffold (project, CI, docs)                            | Complete (merged)             |
-| 1     | Local QuKi capture on Android (editor + stream + drift)           | In progress                   |
+| 1     | Local QuKi capture on Android (editor + stream + drift)           | Complete (v0.3.0)             |
 |       | 1.1 Drift schema v1 (qukis + images tables, DAOs, providers)      | Complete (merged)             |
 |       | 1.2 Editor screen (super_editor + formatting toolbar)             | Complete (merged)             |
 |       | 1.3 Stream screen                                                 | Complete (merged)             |
-|       | 1.4 Image paste                                                   | Not started (super_clipboard blocked — see deps note) |
-|       | 1.5 Auto-save controller                                          | Not started                   |
-|       | 1.6 Settings stub                                                 | Not started                   |
-| 2     | Transport plugin loader + first built-in QuKi-Toss                | Not started                   |
+|       | 1.4 Image paste                                                   | Blocked — super_clipboard/CargoKit archived; deferred |
+|       | 1.5 Auto-save controller                                          | Complete (merged, v0.3.0)     |
+|       | 1.6 Settings stub                                                 | Complete (merged, v0.4.0)     |
+| 2     | Transport plugin loader + built-in QuKi-Tosses                    | Complete (merged, v0.5.0)     |
 | 3     | Polish + share-in + Windows + Linux ports                         | Not started                   |
 | 4     | Sync plugin axis + first sync backend (likely GitHub)             | v1.1+                         |
 | 5     | iPadOS / iOS / Mac builds                                         | Deferred                      |
@@ -131,8 +131,8 @@ Claude works on a feature branch, tests iteratively with Scott on device, then o
 - A **QuKi-Toss** is a transport plugin: takes `(markdown, images, context)` → returns `success` or `failure(reason, retryable)`.
 - Tosses are **stateless per fire**. They don't track history; the QuKi stays in the local stream after a successful toss.
 - Tosses are **user-initiated**. No auto-toss in MVP.
-- Plugin interface in `lib/core/transports/`. See ADR-14 for the API shape.
-- First built-in toss: TBD at Phase 2 kickoff (candidates: clipboard, share-sheet, append-to-GitHub-file). Decision lives in `open_questions.md`.
+- Plugin interface in `lib/core/transports/`. See ADR-14 for the API shape, ADR-21 for the Flutter-import exception.
+- Built-in tosses (Phase 2, shipped): **ClipboardToss** (copies markdown to clipboard) and **ShareSheetToss** (opens Android native share via `share_plus`). Both are enabled by default and can be toggled in Settings → Tosses.
 
 ---
 
@@ -186,18 +186,20 @@ Claude works on a feature branch, tests iteratively with Scott on device, then o
 - `build-ios.yml` exists as a stub but must NOT be wired to trigger — macOS runner cost
 - No analytics, no crash reporting, no telemetry SDKs — ever (see ADR-12)
 - OAuth tokens and full QuKi contents are never logged
-- `lib/core/` and `lib/shared/models/` must stay Flutter-free (ADR-16, for future CLI). Flutter imports go in `lib/ui/` or `lib/features/`.
+- `lib/core/` and `lib/shared/models/` must stay Flutter-free (ADR-16, for future CLI). Flutter imports go in `lib/ui/` or `lib/features/`. **Exception (ADR-21):** `lib/core/transports/` imports Flutter for `settingsView()` — the CLI uses only `toss()` and ignores that method.
 
 ---
 
-## Phase 1.3 Implementation Notes
+## Implementation Notes (current as of v0.5.0)
 
 **Navigation**: `StreamScreen` is pushed from `EditorScreen` (stream is NOT the root). `app.dart` home = `EditorScreen(onLeave: push StreamScreen)`. The `onLeave` callback pattern avoids a circular import between editor and stream.
 
-**Save-on-leave bridge (ADR-20)**: `EditorScreen._saveIfNeeded()` fires when `← Stream` is tapped. First press on a new QuKi inserts a row; repeat presses update it (tracked via `_savedQukiId` state field). Hardware back button does NOT save — use `← Stream`. Phase 1.5 replaces this with full auto-save.
+**Auto-save (Phase 1.5 — in place)**: `AutoSaveController` implements ADR-6: 2s idle debounce + 30s periodic + lifecycle `inactive`/`paused`/`detached`. The Phase 1.3 save-on-leave bridge (`_saveIfNeeded`, `_savedQukiId`) was removed when Phase 1.5 landed. Stream sorts by `modifiedAt DESC` so editing a QuKi brings it back to the top.
 
 **riverpod_generator 4.0.4-dev.1 + drift types**: `@riverpod` functions returning `Stream<List<Quki>>` fail with `InvalidTypeException` because `Quki` lives in a generated `part` file and the generator can't determine its import path. Workaround: `StreamScreen` calls the drift DAO directly via `StreamBuilder` (DB comes through `ref.watch(appDatabaseProvider)`). Revisit when riverpod_generator stable 4.x ships.
 
+**Transport registry (Phase 2 — in place)**: Plugins are registered at compile time in `lib/core/transports/registry.dart`. `TransportSettingsNotifier` persists per-plugin enabled state via `shared_preferences`. `enabledTransportsProvider` filters to only enabled plugins. `TossPickerSheet` in the editor lists enabled transports; result shown as a snackbar (retry offered on retryable failures).
+
 **`flutter test` on Windows**: If `flutter test` crashes with `PathAccessException: sqlite3.dll Access is denied`, run `flutter clean` in a fresh terminal (close VS Code first). The DLL gets locked by the previous test process.
 
-**Last Updated**: 2026-06-01
+**Last Updated**: 2026-06-02

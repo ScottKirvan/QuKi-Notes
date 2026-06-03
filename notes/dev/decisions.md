@@ -10,6 +10,17 @@ Normative framing in `manifesto.md` — read that first.
 
 ---
 
+## ADR-21: Flutter import allowed in `lib/core/transports/` (settingsView exception)
+
+The `TransportPlugin` interface defines `settingsView(WidgetRef ref) → Widget` as part of its contract so that each plugin can provide its own configuration UI shown in Settings → Tosses. This requires importing `package:flutter/material.dart` and `package:flutter_riverpod/flutter_riverpod.dart` in `lib/core/transports/transport_plugin.dart`, which technically violates the ADR-16 Flutter-free constraint on `lib/core/`.
+
+- **What**: `lib/core/transports/` is the one approved exception to the ADR-16 Flutter-free rule. All other `lib/core/` subdirectories (`database/`, `auth/`, `settings/`) remain Flutter-free.
+- **Why**: Keeping `settingsView` in the plugin contract (rather than in a separate Flutter-side adapter) avoids a three-way dependency between the plugin, the core registry, and a feature-layer adapter for every plugin ever added. The CLI (ADR-16) uses only `toss()` and can simply ignore `settingsView()` — it is never called by non-Flutter hosts.
+- **Rejected**: A separate `TransportPluginUI` mixin in `lib/features/` that Flutter hosts mix in alongside the core interface — adds indirection with no practical benefit for the single-developer, single-codebase scenario; revisit if a headless server deployment is ever a real target.
+- **Scope**: only `lib/core/transports/`. The rest of `lib/core/` and all of `lib/shared/` remain Flutter-free per ADR-16.
+
+---
+
 ## ADR-20: Save-on-leave bridge (Phase 1.3) → superseded by Phase 1.5 auto-save
 
 Phase 1.3 (stream screen) requires content to appear in the list after the user types something in the editor. Full auto-save (ADR-6 debounce + lifecycle) lands in Phase 1.5. A minimal "save when the user explicitly navigates away" bridge was added to `EditorScreen` for Phase 1.3 so the stream is testable.

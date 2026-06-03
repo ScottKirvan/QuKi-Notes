@@ -58,34 +58,6 @@ Bulk-pull progress banner: always, or only above some threshold? Decision belong
 
 ---
 
-## OQ-NEW-1: Which built-in QuKi-Toss ships first?
-
-MVP requires at least one built-in transport (ADR-14, manifesto). Candidates:
-
-- (a) **Clipboard** — copy markdown to system clipboard. Zero deps, zero auth, proves the plugin loader + UI.
-- (b) **Share sheet** — hand markdown to `share_plus` → native share. One dep, no auth.
-- (c) **Append-to-GitHub-file** — the closest analogue to the original "daily log" use case. Needs OAuth (Phase 4 territory) — would push transports back unless an unauthenticated short-circuit (e.g. PAT pasted in settings) is acceptable for the first cut.
-
-**Likely resolution:** ship (a) first as the architecture-proving transport, then (b) shortly after. Defer (c) until OAuth helper exists.
-
-**Surface during:** Phase 2 kickoff.
-
----
-
-## OQ-NEW-2: Plugin discovery model — built-in only vs pubspec-declared optional
-
-In v1 plugins are built-in (registered at compile time in `lib/core/transports/registry.dart`). Should we support:
-
-- (a) **Built-in only** — every transport ships in the same APK. Simplest. New transports require a new app version.
-- (b) **Pubspec-declared optional packages** — `pubspec.yaml` lists optional dev deps; user opts in by reinstalling a flavour build. Half-measure.
-- (c) **Runtime plugin loading** — Dart isn't built for this without effort (no shared libs, no isolate-based plugin model in stable Flutter). Probably not v1.
-
-**Likely resolution:** (a) for MVP and probably v1.x. Re-evaluate if third parties start writing transports.
-
-**Surface during:** Phase 2.
-
----
-
 ## OQ-NEW-3: Linux distribution format
 
 Tarball, AppImage, Flatpak, or Snap for Linux release artifacts?
@@ -120,6 +92,10 @@ Tarball, AppImage, Flatpak, or Snap for Linux release artifacts?
 
 - **OQ-5: Workflow JSON schema validation** — **Removed.** Workflow JSON DSL dropped entirely per ADR-14. Transports are Dart code; no JSON schema to validate.
 
+- **OQ-NEW-1: Which built-in QuKi-Toss ships first?** — **Resolved (Phase 2, v0.5.0).** Both ClipboardToss and ShareSheetToss shipped in the same Phase 2 PR. Clipboard proved the loader + UI first (zero deps, zero auth); Share Sheet followed immediately. Append-to-GitHub-file deferred until the OAuth helper exists (Phase 4+). No new ADR needed — consistent with the "likely resolution" stated at spec time.
+
+- **OQ-NEW-2: Plugin discovery model** — **Resolved (Phase 2, v0.5.0).** Built-in compile-time registry only (`lib/core/transports/registry.dart`). Every transport ships in the same APK; new transports require a new app version. Re-evaluate if third parties start writing transports post-v1.
+
 ---
 
-**Last Updated**: 2026-05-28
+**Last Updated**: 2026-06-02
