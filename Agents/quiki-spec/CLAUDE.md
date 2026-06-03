@@ -65,3 +65,12 @@ See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phas
 - `notes/dev/open_questions.md`: when resolved, move to the Resolved section with resolution + PR reference.
 - Date format in docs: `YYYY-MM-DD`.
 - Do not add ADRs for implementation details — only for decisions that involve genuine tradeoffs or rejected alternatives worth documenting.
+
+## GitHub issue discipline
+
+Always use the issue templates in `.github/ISSUE_TEMPLATE/`:
+- **Bug**: title prefix `[BUG] `, label `bug` → use `bug_report.md` template
+- **Feature / enhancement**: title prefix `[FEATURE] `, label `enhancement` → use `feature_request.md` template
+- **Discussion / question**: use `general_report.md` template
+
+When creating issues via `gh issue create`, replicate the template body structure manually (Description, Steps to Reproduce, Expected Behavior, etc. for bugs). A GitHub project is used as the roadmap — correct labels and title prefixes are required for it to work.

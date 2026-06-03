@@ -49,75 +49,102 @@ Read in this order — do not skip:
 
 ---
 
-## Current Task Brief
+## Current Task Brief — Session 1 of 2
 
-> Written and maintained by the Spec session. If this says "no task", ask Scott what's next.
+> Written and maintained by the Spec session. Complete Session 1 and get Scott's sign-off before starting Session 2.
 
-**Task**: Phase 3.4 — Desktop keyboard shortcuts + window-state persistence
-**Branch**: `feat/phase3-desktop-keyboard-window`
-**PR title**: `feat(desktop): keyboard shortcuts and window-state persistence for Windows + Linux`
+**Task**: Phase 3 polish — snackbar auto-dismiss + paragraph double-spacing
+**Branch**: `fix/ui-polish-snackbar-spacing`
+**PR title**: `fix(ui): auto-dismiss snackbars and fix paragraph double-spacing`
+**Closes**: #24, #25
 
-### Context
+### What to fix
 
-The app now builds and runs on Windows and Linux (Phase 3.2). Desktop users have no keyboard shortcuts and the window opens at the OS default size and position every launch. This PR adds both.
+**#24 — Snackbars do not auto-dismiss**
 
-This task has two parts with different dependency profiles — read both before starting:
+All `SnackBar` widgets in the app display indefinitely until manually dismissed. Add a `duration` parameter to each:
+- Toss result snackbar (success): `Duration(seconds: 2)`
+- Toss result snackbar (failure / retry): `Duration(seconds: 4)` — long enough to tap Retry
+- Swipe-to-delete undo snackbar: `Duration(seconds: 4)` — long enough to tap Undo
 
----
+Find all `SnackBar(` constructors in `lib/` and add durations. Do not change any other snackbar behaviour.
 
-### Part 1: Keyboard shortcuts (no new dependencies)
+**#25 — Paragraph double-spacing**
 
-Use Flutter's `CallbackShortcuts` or `Shortcuts` + `Actions` widgets. Register shortcuts only on desktop — wrap registration in `if (Platform.isWindows || Platform.isLinux)` (import `dart:io`). Android behavior must be unchanged.
+Every paragraph in the editor appears double-spaced. Two likely causes compounding each other:
+1. `_extractBody` joins paragraphs with `\n\n`; `_parseInitialBody` splits on `\n\n` — each paragraph node carries a separator.
+2. `super_editor`'s default stylesheet adds its own paragraph padding on top.
 
-**Navigation model — read this before touching any shortcut:**
+Audit the `StyleRule` in `EditorScreen.build` and reduce/remove the extra vertical padding between paragraph nodes. Also check whether the `\n\n` join/split logic needs adjusting or if the stylesheet fix alone is sufficient. Do not change text size or horizontal padding.
 
-- The **root editor is home**. It has no back destination. There is no "go back to editor" because the editor is always underneath everything else in the nav stack.
-- The **QuKis list** is pushed on top of the editor. Popping it returns to whatever state the editor was in — Flutter preserves it.
-- `Escape` is **not** a navigation key in this app. Do not wire it.
+### Files to touch
 
-**Shortcuts to wire:**
-
-| Screen | Keys | Action |
-|---|---|---|
-| Any screen | `Ctrl+N` | Start a new blank QuKi |
-| Any editor | `Ctrl+T` | Open the Send sheet |
-
-**`Ctrl+N` behaviour by context:**
-- **From the root editor**: flush auto-save (saves current QuKi to the list), then reset the editor to a blank new QuKi. Same as tapping `+ New` in the top bar. Do not push a second editor on the stack — reset in place.
-- **From the QuKis list**: push a fresh `EditorScreen` with no `qukiId` (same as tapping `+ New`).
-- **From an editor opened from the QuKis list**: flush auto-save, then push a fresh blank `EditorScreen` on top.
-
-**Back navigation from the QuKis list**: use the visible `←` back button in the UI. On desktop, `Alt+Left` may work automatically via Flutter's Navigator without explicit wiring — verify, and document the result in the PR body. Do not add `Escape` as a back shortcut.
-
-**Text formatting** (`Ctrl+B`, `Ctrl+I`, etc.) — check first whether `super_editor` already handles these on desktop before adding anything. If they work, document it in the PR body. Only wire what's missing.
-
-**Integration note**: always call `_autoSave.flush()` before any navigation or editor reset triggered by `Ctrl+N`. Never discard unsaved content.
-
----
-
-### Part 2: Window-state persistence (new dependency — ADR required first)
-
-`window_manager` (pub.dev) is the standard Flutter package for reading and setting window size/position on desktop. It is not yet in `notes/dev/dependencies.md` and is a new runtime dependency.
-
-**Before implementing this part:**
-1. Propose an ADR entry in `notes/dev/decisions.md` (stub is fine — `window_manager` for desktop window control; rejected alternative: raw platform channels).
-2. Show the ADR stub to Scott and get verbal approval before adding the package.
-3. Once approved: add to `pubspec.yaml`, save size + position to `shared_preferences` on window close, restore on launch.
-
-If Scott is not available to approve during the session, implement Part 1 only and note the ADR stub is ready for review. Do not add `window_manager` to `pubspec.yaml` without approval.
-
----
+- `lib/features/editor/editor_screen.dart` — stylesheet padding + `_parseInitialBody`/`_extractBody` if needed
+- `lib/features/stream/stream_screen.dart` — delete undo snackbar duration
+- `lib/features/editor/toss_picker_sheet.dart` — toss result snackbar duration (if snackbar lives here)
 
 ### Tests required
 
-- Widget test: `Ctrl+N` on the root editor flushes auto-save and resets to a blank QuKi (no `qukiId`, empty document).
-- Widget test: `Ctrl+N` on the QuKis list screen pushes a blank `EditorScreen` (no `qukiId`).
-- Widget test: `Ctrl+T` on an editor screen opens the Send sheet.
-- Unit test for window-state persistence (if Part 2 lands): save → restore round-trip with mocked `shared_preferences`.
-- No `Escape` tests — it is not wired.
+- Widget test: after a successful toss, the result snackbar is present and has a non-null duration ≤ 3s.
+- Widget test: after swipe-to-delete, the undo snackbar has a non-null duration ≥ 3s.
+- No new tests needed for spacing — visual-only change; verify manually on device.
 
-### Checklist reminder
+### Checklist
 
-- Run `just lint` and `just test` before every commit.
-- No drift schema changes — `just gen` not needed.
-- If `window_manager` is added: update `notes/dev/dependencies.md` with the pinned version.
+- `just lint` and `just test` before committing.
+- No new dependencies. No drift schema changes.
+
+---
+
+## Queued — Session 2 (start after Session 1 is merged)
+
+**Task**: Phase 3 polish — editor navigation redesign + UI copy rename
+**Branch**: `feat/ui-navigation-redesign`
+**PR title**: `feat(ui): editor navigation redesign — QuKis icon, hamburger menu, Send terminology`
+**Closes**: #26, #28
+
+### Navigation model (read before touching anything)
+
+- **Root editor = home**. No back arrow. No element that implies the QuKis list is the parent screen.
+- **QuKis list** is pushed on top of the editor. It shows a `←` back button that pops back to the editor.
+- **Editors opened from the QuKis list** (tap a row) show a `←` back button that pops back to the list.
+
+### What to build
+
+**Editor top bar (root editor):**
+- Remove `← Stream` button entirely.
+- Remove `Toss ▼` button entirely.
+- Top-left: icon button (Lucide-style list/history icon — discuss with Scott if unsure; `Icons.list` or similar as a placeholder is fine) → navigates to QuKis list.
+- Top-right: `IconButton` with `Icons.menu` (hamburger ≡) → opens a `PopupMenuButton` or `Drawer` with items: **Send...**, **QuKis**, **Settings**.
+  - **Send...** → fires the existing toss picker sheet (rename sheet title to "Send this QuKi via...")
+  - **QuKis** → navigates to QuKis list (same as top-left icon)
+  - **Settings** → navigates to settings screen
+
+**UI copy changes (strings only — do not rename internal identifiers):**
+
+| Old string | New string | Location |
+|---|---|---|
+| `← Stream` | *(removed)* | EditorScreen app bar |
+| `Toss ▼` | *(removed)* | EditorScreen app bar |
+| `Toss this QuKi to...` | `Send this QuKi via...` | TossPickerSheet title |
+| `Tossed!` | `Sent!` | Toss result snackbar |
+| `Toss failed` | `Send failed` | Toss result snackbar |
+| `Tosses` (Settings section) | `Transports` | SettingsScreen |
+| `No transports enabled.` | *(keep as-is)* | — |
+
+**QuKis list screen:** add a `←` back button in the app bar that pops the navigator. Title stays "QuKis". `+ New` button stays top-right.
+
+### Files to touch
+
+- `lib/features/editor/editor_screen.dart` — top bar redesign
+- `lib/features/editor/toss_picker_sheet.dart` — title string
+- `lib/features/stream/stream_screen.dart` — add back button
+- `lib/features/settings/settings_screen.dart` — "Tosses" → "Transports"
+- `lib/app.dart` — verify nav wiring still correct after top bar changes
+
+### Tests required
+
+- Widget test: root `EditorScreen` (no `qukiId`, no `onLeave` implies root) has no back button and has a hamburger icon.
+- Widget test: `EditorScreen` opened with a `qukiId` shows a back button.
+- Widget test: hamburger menu on root editor contains "Send...", "QuKis", "Settings" items.
+- Widget test: `StreamScreen` app bar has a back button.
