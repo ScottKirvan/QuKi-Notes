@@ -1,3 +1,4 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 
@@ -58,6 +59,42 @@ void main() {
         ]),
         isNull,
       );
+    });
+  });
+
+  group('platform guard', () {
+    test(
+        'shareStreamProvider emits nothing when not on Android '
+        '— regression: Platform guard missing', () async {
+      // FIXME: failing — guard not yet implemented; shareStreamProvider calls
+      // ReceiveSharingIntent regardless of platform. On real Windows/Linux this
+      // causes MissingPluginException at runtime; here mock values prove that
+      // RSI is still invoked even when isAndroidProvider=false.
+      ReceiveSharingIntent.setMockValues(
+        initialMedia: [
+          SharedMediaFile(
+              path: 'should not appear', type: SharedMediaType.text),
+        ],
+        mediaStream: const Stream.empty(),
+      );
+
+      final container = ProviderContainer(
+        overrides: [isAndroidProvider.overrideWithValue(false)],
+      );
+      addTearDown(container.dispose);
+
+      final emitted = <String?>[];
+      container.listen<AsyncValue<String?>>(
+        shareStreamProvider,
+        (_, next) => next.whenData(emitted.add),
+        fireImmediately: false,
+      );
+
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      // Without the guard, RSI is called and 'should not appear' is emitted.
+      // With the guard, the stream returns early and nothing is emitted.
+      expect(emitted, isEmpty);
     });
   });
 }
