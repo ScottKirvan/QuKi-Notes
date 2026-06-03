@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.6.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.5.0...v0.6.0) (2026-06-03)
+
+
+### Features
+
+* **share_in:** Android text share-in via receive_sharing_intent ([723ed4d](https://github.com/ScottKirvan/QuKi-Notes/commit/723ed4dfaa1135d568d5488f70472d91adba9903))
+
+
+### Bug Fixes
+
+* **android:** align JVM target to 17 across all plugin subprojects ([d6f5345](https://github.com/ScottKirvan/QuKi-Notes/commit/d6f534532f98ef33c379b33d8a8b21ec24f063c9))
+* **android:** set compileOptions in LibraryExtension to fix JVM mismatch ([26a0f73](https://github.com/ScottKirvan/QuKi-Notes/commit/26a0f7368f6b3259f1762b3539c9cfec81ca809f))
+* **justfile:** use powershell.exe shebang for android recipe ([998cd36](https://github.com/ScottKirvan/QuKi-Notes/commit/998cd36d8119f70ba9c99ed84eedb8965696ca33))
+
 ## [0.5.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.4.0...v0.5.0) (2026-06-03)
 
 
