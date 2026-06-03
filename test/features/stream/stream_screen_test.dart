@@ -1,12 +1,16 @@
+import 'dart:io' show Platform;
+
 import 'package:drift/drift.dart' hide isNull, isNotNull;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:uuid/uuid.dart';
 
 import 'package:quki_notes/core/database/app_database.dart';
 import 'package:quki_notes/core/database/database_provider.dart';
+import 'package:quki_notes/features/editor/editor_screen.dart';
 import 'package:quki_notes/features/stream/stream_screen.dart';
 
 void main() {
@@ -170,6 +174,25 @@ void main() {
       await tester.pumpAndSettle(); // wait for filtered stream
 
       expect(find.textContaining('No results for'), findsOneWidget);
+      await cleanup(tester);
+    });
+
+    testWidgets('Ctrl+N opens new editor on desktop platforms', (tester) async {
+      // This test only verifies the shortcut on platforms where it is registered.
+      if (!Platform.isWindows && !Platform.isLinux) return;
+
+      await tester.pumpWidget(buildUnderTest());
+      await tester.pump();
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyN);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+      // pumpAndSettle would timeout — EditorScreen's periodic auto-save timer
+      // never settles. Pump enough frames for the push animation to complete.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.byType(EditorScreen), findsOneWidget);
       await cleanup(tester);
     });
   });

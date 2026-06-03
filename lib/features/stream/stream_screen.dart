@@ -1,4 +1,7 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/database/app_database.dart';
@@ -124,7 +127,7 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
         _query.isEmpty ? db.qukisDao.watchAll() : db.qukisDao.search(_query);
     final scheme = Theme.of(context).colorScheme;
 
-    return ScaffoldMessenger(
+    final Widget screen = ScaffoldMessenger(
         key: _messengerKey,
         child: Scaffold(
           appBar: AppBar(
@@ -232,5 +235,17 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
             ],
           ),
         ));
+
+    if (Platform.isWindows || Platform.isLinux) {
+      return CallbackShortcuts(
+        bindings: {
+          const SingleActivator(LogicalKeyboardKey.keyN, control: true): () {
+            _openNew();
+          },
+        },
+        child: Focus(autofocus: true, skipTraversal: true, child: screen),
+      );
+    }
+    return screen;
   }
 }
