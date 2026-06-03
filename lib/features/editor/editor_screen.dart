@@ -3,8 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:super_editor/super_editor.dart';
 
 import '../../core/database/database_provider.dart';
+import '../../core/transports/registry_provider.dart';
+import '../../core/transports/transport_plugin.dart';
+
 import 'auto_save_controller.dart';
 import 'formatting_toolbar.dart';
+import 'toss_picker_sheet.dart';
 
 class EditorScreen extends ConsumerStatefulWidget {
   final String? qukiId;
@@ -89,6 +93,63 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   void _onDocumentChanged(DocumentChangeLog _) => _autoSave.notifyChanged();
 
+  Future<void> _onToss() async {
+    final body = _extractBody();
+    if (body.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Nothing to toss — write something first.'),
+        ),
+      );
+      return;
+    }
+
+    final enabled = ref.read(enabledTransportsProvider);
+    if (enabled.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No transports enabled.')),
+      );
+      return;
+    }
+
+    final plugin = await showModalBottomSheet<TransportPlugin>(
+      context: context,
+      builder: (_) => TossPickerSheet(plugins: enabled),
+    );
+    if (plugin == null || !mounted) return;
+
+    await _autoSave.flush();
+    if (!mounted) return;
+
+    final now = DateTime.now();
+    final ctx = TossContext(
+      firedAt: now,
+      quki: QukiMetadata(
+        id: _autoSave.savedId ?? 'unsaved',
+        createdAt: now,
+        modifiedAt: now,
+      ),
+    );
+
+    final result = await plugin.toss(
+      markdown: body,
+      images: const [],
+      ctx: ctx,
+    );
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          result.message ?? (result.success ? 'Tossed!' : 'Toss failed.'),
+        ),
+        action: (!result.success && result.retryable)
+            ? SnackBarAction(label: 'Retry', onPressed: _onToss)
+            : null,
+      ),
+    );
+  }
+
   Future<void> _onLeave() async {
     await _autoSave.flush();
     if (!mounted) return;
@@ -138,7 +199,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
             child: OutlinedButton.icon(
-              onPressed: null, // Phase 2
+              onPressed: _onToss,
               icon: const Icon(Icons.send_outlined, size: 14),
               label: const Text('Toss ▼'),
             ),
