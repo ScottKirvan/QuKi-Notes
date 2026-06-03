@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.7.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.6.2...v0.7.0) (2026-06-03)
+
+
+### Features
+
+* **desktop:** keyboard shortcuts for Windows + Linux ([9cb3814](https://github.com/ScottKirvan/QuKi-Notes/commit/9cb381478f66d3f56a2d63c86bd7b13246e3f31a))
+* **desktop:** window-state persistence via window_manager ([4f5b373](https://github.com/ScottKirvan/QuKi-Notes/commit/4f5b3738ca3a17e09ea767eaaf13ebe67fca171c))
+
+
+### Bug Fixes
+
+* **desktop:** remove Escape shortcut from editor ([a869334](https://github.com/ScottKirvan/QuKi-Notes/commit/a8693342330b1def4d4b241807db5c765744af09))
+
 ## [0.6.2](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.6.1...v0.6.2) (2026-06-03)
 
 
