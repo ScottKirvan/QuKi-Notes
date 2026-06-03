@@ -1,8 +1,14 @@
 name: Build Android
 
 on:
+  release:
+    types: [published]
   push:
     tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -29,7 +35,6 @@ jobs:
 
       - name: Build APK (release)
         run: flutter build apk --release
-          --dart-define=KEY_ALIAS=${{ secrets.KEY_ALIAS }}
         env:
           STORE_FILE: keystore.jks
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
@@ -45,6 +50,7 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
       - name: Upload to GitHub Release
+        if: github.event_name != 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
           files: |

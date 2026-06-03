@@ -1,8 +1,14 @@
 name: Build Linux
 
 on:
+  release:
+    types: [published]
   push:
     tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -34,6 +40,7 @@ jobs:
             -C build/linux/x64/release/bundle .
 
       - name: Upload to GitHub Release
+        if: github.event_name != 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
           files: quki-notes-linux.tar.gz
