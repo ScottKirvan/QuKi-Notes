@@ -49,109 +49,107 @@ Read in this order — do not skip:
 
 ---
 
-## Current Task Brief — Session 1 of 2
+## Current Task Brief — Session 1
 
-> Written and maintained by the Spec session. Complete Session 1 and get Scott's sign-off before starting Session 2.
+> Written and maintained by the Spec session. Get Scott's sign-off before starting Session 2.
 
-**Task**: Phase 3 polish — snackbar auto-dismiss + paragraph double-spacing
-**Branch**: `fix/ui-polish-snackbar-spacing`
-**PR title**: `fix(ui): auto-dismiss snackbars and fix paragraph double-spacing`
-**Closes**: #24, #25
+**Task**: Phase 3 — WYSIWYG markdown rendering investigation + implementation (OQ-1 / #27)
+**Branch**: `feat/wysiwyg-markdown-editor`
+**PR title**: `feat(editor): live WYSIWYG markdown rendering`
+**Closes**: #27
 
-### What to fix
+### Context
 
-**#24 — Snackbars do not auto-dismiss**
+Live WYSIWYG markdown rendering is a **hard MVP requirement** per the manifesto — not a Phase 3 enhancement. The current `editor_screen.dart` implementation (`_parseInitialBody` / `_extractBody`) is plain-text only: it splits on `\n\n`, creates `ParagraphNode` entries, and rejoins on save. Bold, headings, task lists, code blocks etc. are not rendered live.
 
-All `SnackBar` widgets in the app display indefinitely until manually dismissed. Add a `duration` parameter to each:
-- Toss result snackbar (success): `Duration(seconds: 2)`
-- Toss result snackbar (failure / retry): `Duration(seconds: 4)` — long enough to tap Retry
-- Swipe-to-delete undo snackbar: `Duration(seconds: 4)` — long enough to tap Undo
+**Before writing a line of implementation code**, investigate and report to Scott:
 
-**Known Flutter 3.44 + Material 3 quirk (previous session diagnosed this):** `SnackBar` widgets without a `SnackBarAction` auto-dismiss correctly when `duration` is set. `SnackBar` widgets that include a `SnackBarAction` (the undo snackbar) do NOT auto-dismiss reliably — the action's presence suppresses the internal timer. Fix for the undo snackbar specifically:
+1. Does `super_editor` support live markdown input conversion (typing `**` → bold node, `# ` → heading node, `- [ ] ` → task list item)? Check `super_editor` changelog, README, and example apps for "markdown shortcuts" or "input transformer".
+2. What GFM features does it cover? Specifically: bold, italic, strikethrough, headings (H1–H3), unordered list, ordered list, task list `- [ ]`, inline code, fenced code block, blockquote.
+3. If coverage is insufficient, assess `appflowy_editor` as the fallback (OQ-1 option b). This is a significant rewrite; only recommend it if `super_editor` genuinely cannot deliver.
 
-1. Call `ScaffoldMessenger.of(context).clearSnackBars()` before `showSnackBar()`.
-2. Capture the `ScaffoldFeatureController` returned by `showSnackBar()`.
-3. Start a `Timer(Duration(seconds: 4), () => controller.close())` immediately after — this guarantees dismissal regardless of Flutter's internal behaviour.
-4. Cancel the timer in the Undo action's `onPressed` so tapping Undo doesn't close the bar prematurely via the timer.
+Report findings as a comment on issue #27 before implementing.
 
-Also ensure `ScaffoldMessenger.of(context)` is captured *before* entering any async gap or `onDismissed` callback where the context may be stale.
+### What to implement (after Scott approves the approach)
 
-**#25 — Paragraph double-spacing**
+Wire up whichever editor delivers live GFM rendering. The round-trip test plan below must pass:
 
-Every paragraph in the editor appears double-spaced. Two likely causes compounding each other:
-1. `_extractBody` joins paragraphs with `\n\n`; `_parseInitialBody` splits on `\n\n` — each paragraph node carries a separator.
-2. `super_editor`'s default stylesheet adds its own paragraph padding on top.
+- `**text**` → bold node; serialize back → `**text**`
+- `_text_` → italic node; serialize back → `_text_`
+- `~~text~~` → strikethrough; serialize back → `~~text~~`
+- `# heading` → H1 node; serialize back → `# heading`
+- `- item` → unordered list item; serialize back → `- item`
+- `1. item` → ordered list item; serialize back → `1. item`
+- `- [ ] item` → task list item (unchecked); serialize back → `- [ ] item`
+- `` `code` `` → inline code; serialize back → `` `code` ``
+- Fenced code block → code block node; serialize back with triple-backtick fence
 
-Audit the `StyleRule` in `EditorScreen.build` and reduce/remove the extra vertical padding between paragraph nodes. Also check whether the `\n\n` join/split logic needs adjusting or if the stylesheet fix alone is sufficient. Do not change text size or horizontal padding.
+Auto-save (`AutoSaveController`) and the `activeQukiIdProvider` load path must continue to work — the serialized body stored in SQLite must be valid GFM that another client could render.
 
-### Files to touch
+### Files likely to touch
 
-- `lib/features/editor/editor_screen.dart` — stylesheet padding + `_parseInitialBody`/`_extractBody` if needed
-- `lib/features/stream/stream_screen.dart` — delete undo snackbar duration
-- `lib/features/editor/toss_picker_sheet.dart` — toss result snackbar duration (if snackbar lives here)
+- `lib/features/editor/editor_screen.dart` — editor configuration + markdown round-trip
+- `lib/features/editor/formatting_toolbar.dart` — verify toolbar actions still apply correct node types
+- `pubspec.yaml` — may need version bump or package swap
+- `notes/dev/decisions.md` — add ADR for the chosen approach
+- `notes/dev/open_questions.md` — resolve OQ-1
 
 ### Tests required
 
-- Widget test: after a successful toss, the result snackbar is present and has a non-null duration ≤ 3s.
-- Widget test: after swipe-to-delete, the undo snackbar has a non-null duration ≥ 3s.
-- No new tests needed for spacing — visual-only change; verify manually on device.
+- Unit tests: fixture for each GFM feature listed above — parse markdown → serialize → compare.
+- Widget test: typing `**bold**` in the editor results in a bold-rendered node (not plain text).
+- Existing auto-save + stream tests must still pass.
 
 ### Checklist
 
 - `just lint` and `just test` before committing.
-- No new dependencies. No drift schema changes.
+- If switching to `appflowy_editor`: add an ADR entry in `decisions.md` explaining why `super_editor` was insufficient.
+- No vault-like features, no analytics.
 
 ---
 
 ## Queued — Session 2 (start after Session 1 is merged)
 
-**Task**: Phase 3 polish — editor navigation redesign + UI copy rename
-**Branch**: `feat/ui-navigation-redesign`
-**PR title**: `feat(ui): editor navigation redesign — QuKis icon, hamburger menu, Send terminology`
-**Closes**: #26, #28
+**Task**: Phase 3 polish — auto-capitalization bug + Primer DHC color palette
+**Branch**: `fix/editor-autocap-primer-theme`
+**PR title**: `fix(ui): disable editor auto-capitalization and apply Primer DHC color palette`
+**Closes**: #32, #37
 
-### Navigation model (read before touching anything)
+### Fix 1 — Auto-capitalization (#32)
 
-- **Root editor = home**. No back arrow. No element that implies the QuKis list is the parent screen.
-- **QuKis list** is pushed on top of the editor. It shows a `←` back button that pops back to the editor.
-- **Editors opened from the QuKis list** (tap a row) show a `←` back button that pops back to the list.
+The editor auto-capitalizes the first letter of each new line. This violates the capture-app contract — user input must be preserved exactly.
 
-### What to build
+Set `textCapitalization: TextCapitalization.none` on the `SuperEditor` (or `appflowy_editor` equivalent) IME/keyboard configuration in `lib/features/editor/editor_screen.dart`. Verify on Android (primary) that lowercase input is preserved. Confirm Windows/Linux are not affected (desktop keyboards don't typically auto-cap, but verify the setting is applied).
 
-**Editor top bar (root editor):**
-- Remove `← Stream` button entirely.
-- Remove `Toss ▼` button entirely.
-- Top-left: icon button (Lucide-style list/history icon — discuss with Scott if unsure; `Icons.list` or similar as a placeholder is fine) → navigates to QuKis list.
-- Top-right: `IconButton` with `Icons.menu` (hamburger ≡) → opens a `PopupMenuButton` or `Drawer` with items: **Send...**, **QuKis**, **Settings**.
-  - **Send...** → fires the existing toss picker sheet (rename sheet title to "Send this QuKi via...")
-  - **QuKis** → navigates to QuKis list (same as top-left icon)
-  - **Settings** → navigates to settings screen
+### Fix 2 — Primer DHC color palette (#37)
 
-**UI copy changes (strings only — do not rename internal identifiers):**
+The app uses Flutter's default `Colors.deepPurple` seed color. Spec calls for **GitHub Primer Dark High Contrast** palette (design_spec.md → Settings → Theme).
 
-| Old string | New string | Location |
+Replace `ColorScheme.fromSeed(seedColor: Colors.deepPurple)` in `lib/app.dart` with a hand-crafted `ColorScheme` using these Primer DHC tokens:
+
+| Role | Token | Hex |
 |---|---|---|
-| `← Stream` | *(removed)* | EditorScreen app bar |
-| `Toss ▼` | *(removed)* | EditorScreen app bar |
-| `Toss this QuKi to...` | `Send this QuKi via...` | TossPickerSheet title |
-| `Tossed!` | `Sent!` | Toss result snackbar |
-| `Toss failed` | `Send failed` | Toss result snackbar |
-| `Tosses` (Settings section) | `Transports` | SettingsScreen |
-| `No transports enabled.` | *(keep as-is)* | — |
+| background (canvas) | `canvas.default` | `#0a0c10` |
+| surface | `canvas.subtle` | `#272b33` |
+| onSurface (foreground) | `fg.default` | `#f0f3f9` |
+| onSurfaceVariant (muted) | `fg.muted` | `#9ea7b4` |
+| primary (accent) | `accent.fg` | `#71b7ff` |
+| primaryContainer | `accent.emphasis` | `#1f6feb` |
+| outline (borders) | `border.default` | `#7a828e` |
 
-**QuKis list screen:** add a `←` back button in the app bar that pops the navigator. Title stays "QuKis". `+ New` button stays top-right.
+Light system theme: use Primer Light High Contrast equivalents (check primer.style/primitives). `ThemeMode.system` stays — no manual override. Both `light` and `dark` `ThemeData` must be updated.
 
 ### Files to touch
 
-- `lib/features/editor/editor_screen.dart` — top bar redesign
-- `lib/features/editor/toss_picker_sheet.dart` — title string
-- `lib/features/stream/stream_screen.dart` — add back button
-- `lib/features/settings/settings_screen.dart` — "Tosses" → "Transports"
-- `lib/app.dart` — verify nav wiring still correct after top bar changes
+- `lib/features/editor/editor_screen.dart` — `textCapitalization` setting
+- `lib/app.dart` — `ColorScheme` replacement for both light and dark themes
 
 ### Tests required
 
-- Widget test: root `EditorScreen` (no `qukiId`, no `onLeave` implies root) has no back button and has a hamburger icon.
-- Widget test: `EditorScreen` opened with a `qukiId` shows a back button.
-- Widget test: hamburger menu on root editor contains "Send...", "QuKis", "Settings" items.
-- Widget test: `StreamScreen` app bar has a back button.
+- Widget test: `EditorScreen` keyboard config has `TextCapitalization.none`.
+- No automated tests for theme colors — verify visually on device.
+
+### Checklist
+
+- `just lint` and `just test` before committing.
+- No new dependencies. No drift schema changes.
