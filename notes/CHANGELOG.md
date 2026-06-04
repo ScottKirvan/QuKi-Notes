@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.9.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.8.1...v0.9.0) (2026-06-04)
+
+
+### Features
+
+* **editor:** add *italic* reaction and monospace code styling ([18c4e86](https://github.com/ScottKirvan/QuKi-Notes/commit/18c4e86728ab5dd61edc95eca244d46b75392232))
+* **editor:** live inline markdown input reactions ([a0e5dde](https://github.com/ScottKirvan/QuKi-Notes/commit/a0e5dde89d20b71f11b8e3247ca382424c86e8db)), closes [#27](https://github.com/ScottKirvan/QuKi-Notes/issues/27)
+
+
+### Bug Fixes
+
+* **docs:** clarify cross-platform support in README ([befe16f](https://github.com/ScottKirvan/QuKi-Notes/commit/befe16fb90b06936ee72cc1d2399ee5f47ecc896))
+* **docs:** correct British English spellings to American English ([6e5093c](https://github.com/ScottKirvan/QuKi-Notes/commit/6e5093cf1f6e5c02b60e010a8258433b8e4e60bd))
+* **docs:** update CONTRIBUTING, issue templates, and add philosophy page ([b749aff](https://github.com/ScottKirvan/QuKi-Notes/commit/b749aff8788c56ac5335e48351d467d6bb74ce67))
+* **editor:** restore heading sizes overridden by BlockSelector.all rule ([da0edd4](https://github.com/ScottKirvan/QuKi-Notes/commit/da0edd4c29941574091d16c2a3c5da7083e936a7))
+* **editor:** wire super_editor markdown serializer for correct round-trip ([1b2fa1d](https://github.com/ScottKirvan/QuKi-Notes/commit/1b2fa1decce1936f3d1b61009a044834b16732da))
+
 ## [0.8.1](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.8.0...v0.8.1) (2026-06-04)
 
 
