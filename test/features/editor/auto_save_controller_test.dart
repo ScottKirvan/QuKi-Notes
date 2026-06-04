@@ -154,4 +154,51 @@ void main() {
       expect(rows.first.body, 'periodic content');
     });
   });
+
+  group('AutoSaveController.resetForQuki', () {
+    test('subsequent save updates the new target QuKi — regression: #36 #38',
+        () async {
+      final now = DateTime(2026, 1, 1);
+      await db.qukisDao.insertQuki(QukisCompanion.insert(
+        id: 'existing-quki',
+        body: const Value('old body'),
+        createdAt: now,
+        modifiedAt: now,
+      ));
+
+      // Controller starts blank (no initialId)
+      body = 'new content';
+      makeController();
+      controller.start();
+
+      // Reset to target the existing QuKi
+      controller.resetForQuki(id: 'existing-quki');
+      await controller.save();
+
+      // Must update the existing row, not insert a new one
+      final rows = await db.qukisDao.watchAll().first;
+      expect(rows.length, 1);
+      expect(rows.first.id, 'existing-quki');
+      expect(rows.first.body, 'new content');
+      expect(controller.savedId, 'existing-quki');
+    });
+
+    test('resetForQuki to null causes next save to insert a new row', () async {
+      body = 'first quki';
+      makeController();
+      controller.start();
+      await controller.save();
+      expect(controller.savedId, isNotNull);
+
+      // Reset to blank — next save should create a new QuKi
+      controller.resetForQuki(id: null);
+      body = 'second quki';
+      await controller.save();
+
+      final rows = await db.qukisDao.watchAll().first;
+      expect(rows.length, 2);
+      expect(
+          rows.map((r) => r.body), containsAll(['first quki', 'second quki']));
+    });
+  });
 }

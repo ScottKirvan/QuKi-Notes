@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:super_editor/super_editor.dart';
 
+import '../../app.dart';
 import '../../core/database/database_provider.dart';
 import '../../core/transports/registry_provider.dart';
 import '../../core/transports/transport_plugin.dart';
@@ -16,11 +17,34 @@ import 'toss_picker_sheet.dart';
 import '../settings/settings_screen.dart';
 import '../stream/stream_screen.dart';
 
-class EditorScreen extends ConsumerStatefulWidget {
-  final String? qukiId;
-  final String? initialBody;
+PageRouteBuilder<void> _slideFromLeft(Widget screen) {
+  return PageRouteBuilder<void>(
+    pageBuilder: (_, __, ___) => screen,
+    transitionsBuilder: (_, animation, __, child) {
+      final tween = Tween(
+        begin: const Offset(-1.0, 0.0),
+        end: Offset.zero,
+      ).chain(CurveTween(curve: Curves.easeInOut));
+      return SlideTransition(position: animation.drive(tween), child: child);
+    },
+  );
+}
 
-  const EditorScreen({super.key, this.qukiId, this.initialBody});
+PageRouteBuilder<void> _slideFromRight(Widget screen) {
+  return PageRouteBuilder<void>(
+    pageBuilder: (_, __, ___) => screen,
+    transitionsBuilder: (_, animation, __, child) {
+      final tween = Tween(
+        begin: const Offset(1.0, 0.0),
+        end: Offset.zero,
+      ).chain(CurveTween(curve: Curves.easeInOut));
+      return SlideTransition(position: animation.drive(tween), child: child);
+    },
+  );
+}
+
+class EditorScreen extends ConsumerStatefulWidget {
+  const EditorScreen({super.key});
 
   @override
   ConsumerState<EditorScreen> createState() => _EditorScreenState();
@@ -28,9 +52,9 @@ class EditorScreen extends ConsumerStatefulWidget {
 
 class _EditorScreenState extends ConsumerState<EditorScreen>
     with WidgetsBindingObserver {
-  late final MutableDocument _document;
-  late final MutableDocumentComposer _composer;
-  late final Editor _editor;
+  late MutableDocument _document;
+  late MutableDocumentComposer _composer;
+  late Editor _editor;
   late final SuperEditorAndroidControlsController _androidController;
   late final AutoSaveController _autoSave;
   final _docLayoutKey = GlobalKey();
@@ -38,7 +62,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   @override
   void initState() {
     super.initState();
-    _document = _parseInitialBody(widget.initialBody ?? '');
+    _document = MutableDocument.empty();
     _composer = MutableDocumentComposer();
     _editor = createDefaultDocumentEditor(
       document: _document,
@@ -52,7 +76,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     _autoSave = AutoSaveController(
       dao: db.qukisDao,
       getBody: _extractBody,
-      initialId: widget.qukiId,
     );
     _autoSave.start();
 
@@ -64,7 +87,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   // Splits on double-newline; internal empty entries (blank lines from double-
   // Enter) are preserved as empty ParagraphNodes. Trailing empties are stripped
   // because super_editor appends a trailing empty node that should not persist.
-  MutableDocument _parseInitialBody(String body) {
+  MutableDocument _parseBody(String body) {
     if (body.isEmpty) return MutableDocument.empty();
     var paras = body.split('\n\n').map((p) => p.trim()).toList();
     while (paras.isNotEmpty && paras.last.isEmpty) {
@@ -98,26 +121,64 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   void _onDocumentChanged(DocumentChangeLog _) => _autoSave.notifyChanged();
 
+  Future<void> _onActiveQukiChanged(String? qukiId) async {
+    await _autoSave.flush();
+    if (!mounted) return;
+
+    String body = '';
+    if (qukiId != null) {
+      final db = ref.read(appDatabaseProvider);
+      final quki = await db.qukisDao.getById(qukiId);
+      if (!mounted) return;
+      body = quki?.body ?? '';
+    }
+
+    _switchDocument(body);
+    _autoSave.resetForQuki(id: qukiId);
+  }
+
+  void _switchDocument(String body) {
+    _document.removeListener(_onDocumentChanged);
+    _editor.dispose();
+
+    final newDoc = _parseBody(body);
+    final newComposer = MutableDocumentComposer();
+    final newEditor = createDefaultDocumentEditor(
+      document: newDoc,
+      composer: newComposer,
+    );
+
+    setState(() {
+      _document = newDoc;
+      _composer = newComposer;
+      _editor = newEditor;
+    });
+
+    _document.addListener(_onDocumentChanged);
+  }
+
+  Future<void> _newQuKi() async {
+    if (ref.read(activeQukiIdProvider) == null) {
+      // Provider already null — listener won't fire, handle inline.
+      await _autoSave.flush();
+      if (!mounted) return;
+      _switchDocument('');
+      _autoSave.resetForQuki(id: null);
+    } else {
+      // _onActiveQukiChanged(null) will handle flush + switch.
+      ref.read(activeQukiIdProvider.notifier).setId(null);
+    }
+  }
+
   Future<void> _openQuKisList() async {
     await _autoSave.flush();
     if (!mounted) return;
-    await Navigator.push<void>(
-      context,
-      MaterialPageRoute(builder: (_) => const StreamScreen()),
-    );
+    await Navigator.push<void>(context, _slideFromLeft(const StreamScreen()));
   }
 
   Future<void> _openSettings() async {
     await Navigator.push<void>(
-      context,
-      MaterialPageRoute(builder: (_) => const SettingsScreen()),
-    );
-  }
-
-  Future<void> _onBack() async {
-    await _autoSave.flush();
-    if (!mounted) return;
-    Navigator.pop(context);
+        context, _slideFromRight(const SettingsScreen()));
   }
 
   Future<void> _onToss() async {
@@ -210,48 +271,49 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final isRoot = !Navigator.canPop(context);
+
+    ref.listen<String?>(activeQukiIdProvider, (previous, next) {
+      if (previous == next) return;
+      _onActiveQukiChanged(next);
+    });
 
     final Widget scaffold = Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        leading: isRoot
-            ? IconButton(
-                icon: const Icon(LucideIcons.fileStack),
-                tooltip: 'QuKis',
-                onPressed: _openQuKisList,
-              )
-            : IconButton(
-                icon: const Icon(LucideIcons.arrowLeft),
-                tooltip: 'Back',
-                onPressed: _onBack,
-              ),
-        actions: isRoot
-            ? [
-                PopupMenuButton<String>(
-                  icon: const Icon(LucideIcons.menu),
-                  tooltip: 'Menu',
-                  onSelected: (value) {
-                    switch (value) {
-                      case 'send':
-                        _onToss();
-                        break;
-                      case 'qukis':
-                        _openQuKisList();
-                        break;
-                      case 'settings':
-                        _openSettings();
-                        break;
-                    }
-                  },
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(value: 'send', child: Text('Send...')),
-                    PopupMenuItem(value: 'qukis', child: Text('QuKis')),
-                    PopupMenuItem(value: 'settings', child: Text('Settings')),
-                  ],
-                ),
-              ]
-            : [],
+        leading: IconButton(
+          icon: const Icon(LucideIcons.fileStack),
+          tooltip: 'QuKis',
+          onPressed: _openQuKisList,
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(LucideIcons.plus),
+            tooltip: 'New QuKi',
+            onPressed: _newQuKi,
+          ),
+          PopupMenuButton<String>(
+            icon: const Icon(LucideIcons.menu),
+            tooltip: 'Menu',
+            onSelected: (value) {
+              switch (value) {
+                case 'send':
+                  _onToss();
+                  break;
+                case 'qukis':
+                  _openQuKisList();
+                  break;
+                case 'settings':
+                  _openSettings();
+                  break;
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(value: 'send', child: Text('Send...')),
+              PopupMenuItem(value: 'qukis', child: Text('QuKis')),
+              PopupMenuItem(value: 'settings', child: Text('Settings')),
+            ],
+          ),
+        ],
       ),
       body: SafeArea(
         child: Column(
@@ -301,6 +363,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         bindings: {
           const SingleActivator(LogicalKeyboardKey.keyT, control: true): () {
             _onToss();
+          },
+          const SingleActivator(LogicalKeyboardKey.keyN, control: true): () {
+            _newQuKi();
           },
         },
         child: Focus(autofocus: true, skipTraversal: true, child: scaffold),

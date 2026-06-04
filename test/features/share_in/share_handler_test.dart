@@ -1,12 +1,14 @@
+import 'package:drift/native.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 
+import 'package:quki_notes/core/database/app_database.dart';
+import 'package:quki_notes/core/database/database_provider.dart';
+import 'package:quki_notes/features/editor/editor_screen.dart';
 import 'package:quki_notes/features/share_in/share_handler.dart';
-
-// Navigation widget tests are covered by manual device testing: mounting two
-// EditorScreen instances simultaneously (home + pushed) triggers a duplicate
-// IME input registration in super_editor that crashes flutter_test.
 
 void main() {
   group('ShareHandler.extractText', () {
@@ -95,6 +97,47 @@ void main() {
       // Without the guard, RSI is called and 'should not appear' is emitted.
       // With the guard, the stream returns early and nothing is emitted.
       expect(emitted, isEmpty);
+    });
+  });
+
+  group('share-in navigation', () {
+    testWidgets('share-in never pushes a second EditorScreen', (tester) async {
+      // Regression test for the old behaviour (Navigator.push(EditorScreen))
+      // which produced a second EditorScreen with a back button. If that
+      // regression returns, find.byType(EditorScreen) will return findsWidgets
+      // and this test will fail.
+      //
+      // The async DB insert + provider update happen on an isolate-backed
+      // database and cannot reliably be asserted in FakeAsync widget tests.
+      // The architectural guarantee (one root editor, never a push) is what
+      // matters here; the handler logic is covered by other unit tests.
+      final db = AppDatabase(NativeDatabase.memory());
+      addTearDown(() async => db.close());
+
+      ReceiveSharingIntent.setMockValues(
+        initialMedia: [
+          SharedMediaFile(path: 'shared text', type: SharedMediaType.text),
+        ],
+        mediaStream: const Stream.empty(),
+      );
+
+      await tester.pumpWidget(ProviderScope(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(db),
+          isAndroidProvider.overrideWithValue(true),
+        ],
+        child: const MaterialApp(home: EditorScreen()),
+      ));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Only one EditorScreen — share-in must NOT push a second one.
+      expect(find.byType(EditorScreen), findsOneWidget);
+      // No back button — EditorScreen is always root.
+      expect(find.byIcon(LucideIcons.arrowLeft), findsNothing);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(Duration.zero);
     });
   });
 }

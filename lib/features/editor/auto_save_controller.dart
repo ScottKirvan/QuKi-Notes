@@ -71,6 +71,14 @@ class AutoSaveController {
     }
   }
 
+  /// Switch the active QuKi without disposing this controller.
+  /// Caller must flush before calling.
+  void resetForQuki({String? id}) {
+    _debounce?.cancel();
+    _debounce = null;
+    _savedId = id;
+  }
+
   void dispose() {
     _debounce?.cancel();
     _periodic?.cancel();
