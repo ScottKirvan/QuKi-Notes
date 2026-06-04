@@ -207,6 +207,8 @@ QuKi-Notes is built around three extension points. Only the first is active in t
 
 Transports are registered at compile time in `lib/core/transports/registry.dart`. The interface is `TransportPlugin` — implement `toss()` + `settingsView()` and add to the registry.
 
+
+
 ### Key Design Decisions
 
 Architecture decisions are logged as ADRs in [notes/dev/decisions.md](notes/dev/decisions.md). Highlights:
