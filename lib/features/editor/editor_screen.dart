@@ -83,21 +83,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     WidgetsBinding.instance.addObserver(this);
   }
 
-  // Plain-text loading; full markdown round-trip lands in Phase 3 (OQ-1).
-  // Splits on double-newline; internal empty entries (blank lines from double-
-  // Enter) are preserved as empty ParagraphNodes. Trailing empties are stripped
-  // because super_editor appends a trailing empty node that should not persist.
   MutableDocument _parseBody(String body) {
-    if (body.isEmpty) return MutableDocument.empty();
-    var paras = body.split('\n\n').map((p) => p.trim()).toList();
-    while (paras.isNotEmpty && paras.last.isEmpty) {
-      paras.removeLast();
-    }
-    if (paras.isEmpty) return MutableDocument.empty();
-    return MutableDocument(nodes: [
-      for (int i = 0; i < paras.length; i++)
-        ParagraphNode(id: 'p$i', text: AttributedText(paras[i])),
-    ]);
+    if (body.trim().isEmpty) return MutableDocument.empty();
+    return deserializeMarkdownToDocument(
+      body,
+      syntax: MarkdownSyntax.normal,
+    );
   }
 
   @override
@@ -246,26 +237,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   String _extractBody() {
-    final parts = <String>[];
-    for (int i = 0; i < _document.nodeCount; i++) {
-      final node = _document.getNodeAt(i);
-      if (node is ListItemNode) {
-        final text = node.text.toPlainText().trim();
-        if (text.isNotEmpty) {
-          parts.add(
-            node.type == ListItemType.unordered ? '- $text' : '1. $text',
-          );
-        }
-      } else if (node is ParagraphNode) {
-        parts.add(node.text.toPlainText().trim());
-      }
-    }
-    // Strip trailing empty entries — super_editor appends a trailing empty
-    // paragraph; including it would accumulate extra blank lines on reload.
-    while (parts.isNotEmpty && parts.last.isEmpty) {
-      parts.removeLast();
-    }
-    return parts.join('\n\n');
+    return serializeDocumentToMarkdown(
+      _document,
+      syntax: MarkdownSyntax.normal,
+    ).trim();
   }
 
   @override
