@@ -13,9 +13,32 @@ import '../../core/transports/transport_plugin.dart';
 
 import 'auto_save_controller.dart';
 import 'formatting_toolbar.dart';
+import 'markdown_inline_reactions.dart';
 import 'toss_picker_sheet.dart';
 import '../settings/settings_screen.dart';
 import '../stream/stream_screen.dart';
+
+/// Builds an [Editor] with the default reaction pipeline plus custom inline
+/// markdown reactions (bold, italic, code, task list).
+Editor _createEditor({
+  required MutableDocument document,
+  required MutableDocumentComposer composer,
+}) {
+  return Editor(
+    editables: {
+      Editor.documentKey: document,
+      Editor.composerKey: composer,
+    },
+    requestHandlers: List.from(defaultRequestHandlers),
+    reactionPipeline: [
+      ...defaultEditorReactions,
+      const BoldInlineMarkdownReaction(),
+      const ItalicInlineMarkdownReaction(),
+      const CodeInlineMarkdownReaction(),
+      const TaskListMarkdownReaction(),
+    ],
+  );
+}
 
 PageRouteBuilder<void> _slideFromLeft(Widget screen) {
   return PageRouteBuilder<void>(
@@ -64,10 +87,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     super.initState();
     _document = MutableDocument.empty();
     _composer = MutableDocumentComposer();
-    _editor = createDefaultDocumentEditor(
-      document: _document,
-      composer: _composer,
-    );
+    _editor = _createEditor(document: _document, composer: _composer);
     _androidController = SuperEditorAndroidControlsController(
       controlsColor: Colors.white,
     );
@@ -134,10 +154,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
     final newDoc = _parseBody(body);
     final newComposer = MutableDocumentComposer();
-    final newEditor = createDefaultDocumentEditor(
-      document: newDoc,
-      composer: newComposer,
-    );
+    final newEditor = _createEditor(document: newDoc, composer: newComposer);
 
     setState(() {
       _document = newDoc;

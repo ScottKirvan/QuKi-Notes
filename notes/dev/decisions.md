@@ -10,6 +10,18 @@ Normative framing in `manifesto.md` — read that first.
 
 ---
 
+## ADR-24: Inline markdown input reactions — custom `EditReaction` subclasses
+
+Live inline conversion (typing `**bold**` → bold span, `_italic_` → italic span, `` `code` `` → code span, `- [ ] ` → task node) is implemented as custom `EditReaction` subclasses registered after `defaultEditorReactions` in the `Editor.reactionPipeline`.
+
+**Approach**: each reaction watches `changeList` for the closing delimiter character, scans the current node's plain text for a matching opening delimiter, strips both delimiters via `DeleteContentRequest`, and applies the attribution via `AddTextAttributionsRequest`. No new dependencies — all types are public exports from `super_editor`.
+
+**Task list edge case**: `- ` triggers `UnorderedListItemConversionReaction` first, converting the paragraph to a `ListItemNode`. `TaskListMarkdownReaction` therefore watches for a `ListItemNode` with content `[ ] ` (the remainder after `- ` is stripped) and replaces it with `TaskNode` via `ReplaceNodeRequest`.
+
+**`createDefaultDocumentEditor` not used**: that factory hardcodes `List.from(defaultEditorReactions)` with no injection point. Both `EditorScreen` `initState` and `_switchDocument` now build the `Editor` directly using `[...defaultEditorReactions, ...customReactions]`.
+
+**Rejected**: patching `createDefaultDocumentEditor` at the super_editor source level (fragile across upgrades); replacing the entire editor with appflowy_editor (unnecessary — super_editor's reaction API is sufficient).
+
 ## ADR-23: Icon library — Lucide (`lucide_icons`)
 
 Flutter's bundled `Icons` class covers the classic Material Design set. Material Symbols (the newer Google icon set) is not bundled and requires a separate package. Lucide was chosen instead: it is MIT-licensed, has a consistent stroke-based aesthetic that matches the app's clean visual intent, and the `lucide_icons` pub.dev package covers the full Lucide catalogue.
