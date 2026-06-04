@@ -1,99 +1,150 @@
 # Contributing to QuKi-Notes
 
-First off, thank you for considering contributing to QuKi-Notes!
+Thank you for your interest in contributing. This document covers everything you need to get oriented before opening a PR or filing an issue.
 
-> **Note:** This is currently a personal project in early planning. External contributions aren't expected yet, but the design docs in `notes/dev/` are public — feel free to read along. Start with [`notes/dev/manifesto.md`](notes/dev/manifesto.md) to understand what QuKi-Notes is (and isn't).
+---
 
-## Code of Conduct
+## Before You Start
 
-This project and everyone participating in it is governed by our [Code of Conduct](CODE_OF_CONDUCT.md). By participating, you are expected to uphold this code.
+Read the [manifesto](notes/dev/manifesto.md) first. It is short. It defines what QuKi-Notes is and — critically — what it is not. The manifesto is normative: if a proposed change conflicts with it, it will not be accepted regardless of implementation quality.
 
-## How Can I Contribute?
+The hard constraints, summarised:
 
-### Reporting Bugs
+- **No vault-like features** — no folders, no tags, no backlinks, no archive, no pinning
+- **The editor is always home** — it does not have a back button; navigation depth is intentionally shallow
+- **Send is user-initiated** — nothing is automatically dispatched; auto-save is separate from sending
+- **Nothing auto-deletes** — ephemerality is a framing choice, not a timer
+- **No telemetry, ever** — no analytics, crash reporting, or tracking of any kind; this is not deferred, it is out of scope permanently
 
-Before creating bug reports, please check the existing issues to avoid duplicates. When you create a bug report, include as many details as possible using our bug report template.
+If you want to understand *why* these constraints exist, the manifesto explains the reasoning. If you are unsure whether your idea fits, open an issue and ask before writing code.
 
-**Guidelines for bug reports:**
-- Use a clear and descriptive title
-- Describe the exact steps to reproduce the problem
-- Provide specific examples to demonstrate the steps
-- Describe the behavior you observed and what you expected to see
-- Include screenshots if applicable
-- Note your environment (OS, version, etc.)
+---
 
-### Suggesting Enhancements
+## Vocabulary
 
-Enhancement suggestions are tracked as GitHub issues. When creating an enhancement suggestion, use our feature request template and include:
+Use these terms consistently in code, commit messages, issues, and PRs:
 
-- A clear and descriptive title
-- A detailed description of the proposed feature
-- Examples of how the feature would be used
-- Why this enhancement would be useful
+| Write | Never write |
+|---|---|
+| QuKi (singular), QuKis (plural) | note, document, file |
+| QuKis list | stream, library, inbox |
+| Send (user-facing action) | Toss (user-facing) |
+| Transport | workflow, integration |
+| Recently Deleted | trash, archive |
+| The app | the vault |
 
-### Pull Requests
+Transport plugin code names (`ClipboardToss`, `ShareSheetToss`, `TossPickerSheet`) use "Toss" because they predate the vocabulary lock. New code should use "send" for user-facing strings and "transport" for the concept.
 
-**Before submitting a pull request:**
-
-1. Fork the repository and create your branch from `main`
-2. If you've added code, add tests if applicable
-3. Ensure your code follows the existing style
-4. Make sure your commits follow our commit message conventions
-5. Update documentation as needed
-
-**Commit Message Convention:**
-
-We use [Conventional Commits](https://www.conventionalcommits.org/) with [Semantic Versioning](https://semver.org/):
-
-- `feat:` - New features (bumps MINOR version)
-- `fix:` - Bug fixes (bumps PATCH version)
-- `feat!:` or `fix!:` - Breaking changes (bumps MAJOR version)
-- `docs:` - Documentation only changes
-- `style:` - Code style changes (formatting, etc.)
-- `refactor:` - Code refactoring
-- `test:` - Adding or updating tests
-- `chore:` - Maintenance tasks
-
-**Examples:**
-```
-feat(editor): add formatting toolbar
-fix(stream): preserve scroll position after swipe-to-delete
-docs: clarify ephemerality model in manifesto
-feat!: change transport plugin interface signature
-```
-
-See `notes/dev/pr_template.md` for the full PR title format and body template.
-
-### Pull Request Process
-
-1. Update the README.md with details of changes if applicable
-2. Update the CHANGELOG.md is handled automatically by Release Please
-3. The PR will be merged once you have approval from a maintainer
-4. Your PR should pass all checks and have no merge conflicts
+---
 
 ## Development Setup
 
-See [`notes/dev/dev_env_setup.md`](notes/dev/dev_env_setup.md) for the full Windows 11 + Pixel 6 Pro + Linux setup walkthrough.
+**Prerequisites:**
 
-Once set up:
+- [Flutter SDK](https://docs.flutter.dev/get-started/install) — stable channel
+- [just](https://github.com/casey/just) task runner
+- Android: Android SDK + connected device or emulator
+- Windows desktop: Visual Studio 2022 Build Tools with "Desktop development with C++"
 
-1. Fork and clone the repository
-2. Create a feature branch (`feat/...`, `fix/...`, `chore/...`)
-3. Make your changes; run `just lint` and `just test`
-4. Submit a PR using `notes/dev/pr_template.md` for the body
+Full Windows 11 setup walkthrough: [notes/dev/dev_env_setup.md](notes/dev/dev_env_setup.md)
 
-## Project Structure
+**Quick start:**
 
-See [`notes/dev/design_spec.md`](notes/dev/design_spec.md) → Project Structure for the full layout.
+```sh
+git clone https://github.com/ScottKirvan/QuKi-Notes.git
+cd QuKi-Notes
+flutter pub get
+just android    # or: just windows / just linux
+```
+
+**Common tasks:**
+
+| Command | Description |
+|---|---|
+| `just test` | Run the test suite |
+| `just lint` | `flutter analyze` + `dart format` check |
+| `just gen` | Regenerate Riverpod + Drift code after schema or provider changes |
+| `just android` | Run on connected Android device |
+| `just windows` | Run Windows desktop build |
+
+Run `just gen` any time you touch a `@riverpod`-annotated provider or a Drift table / DAO.
+
+---
 
 ## Testing
 
-See [`notes/dev/testing.md`](notes/dev/testing.md). Tests ship with the code in every PR (ADR-13). Bug fixes follow the regression-test-first protocol.
+Tests ship with the code in every PR (ADR-13). For bug fixes, write a failing regression test first, then fix it. See [notes/dev/testing.md](notes/dev/testing.md) for the full test strategy.
 
-## Questions?
+Before pushing:
 
-Feel free to open an issue for questions or reach out via:
-- [LinkedIn](https://www.linkedin.com/in/scottkirvan/)
-- [Discord](https://discord.gg/TSKHvVFYxB)
+```sh
+just lint && just test
+```
 
-Thank you for your contributions!
+---
+
+## Commit Convention
+
+This project uses [Conventional Commits](https://www.conventionalcommits.org/). release-please reads every message to drive version bumps and the CHANGELOG — the scope and type both matter.
+
+**Format:** `type(scope): description`
+
+| Type | When to use | Version bump |
+|---|---|---|
+| `feat` | New user-visible behaviour | Minor |
+| `fix` | Bug fix | Patch |
+| `fix(docs)` | Documentation change | Patch + triggers docs build |
+| `refactor` | No behaviour change | None |
+| `test` | Adding or updating tests | None |
+| `chore` | CI, build config, maintenance | None |
+
+**Scope** is the affected area: `editor`, `stream`, `transport`, `database`, `settings`, `ci`, `docs`, etc.
+
+**Examples:**
+
+```
+feat(editor): add WYSIWYG markdown rendering
+fix(stream): guarantee undo snackbar dismissal via explicit Timer
+fix(docs): add philosophy page to user guide
+refactor(transport): extract toss context into separate class
+test(database): add regression test for soft-delete restore
+chore(ci): pin flutter-action to v2
+feat!: change TransportPlugin interface — breaking
+```
+
+Breaking changes use `!` after the type and include a `BREAKING CHANGE:` footer.
+
+---
+
+## PR Workflow
+
+1. Fork the repo and create a branch from `main`
+2. Keep the branch focused — one logical change per PR
+3. Run `just lint && just test` before pushing
+4. Open a PR; CI runs automatically on every push
+5. One approving review required before merge
+6. Rebase-and-merge (no merge commits on `main`)
+
+Branch naming conventions: `feat/...`, `fix/...`, `docs/...`, `chore/...`
+
+---
+
+## Design Documentation
+
+Before proposing structural changes, read the relevant planning docs in `notes/dev/`:
+
+| Document | Purpose |
+|---|---|
+| [manifesto.md](notes/dev/manifesto.md) | Normative philosophy — read this first |
+| [design_spec.md](notes/dev/design_spec.md) | Feature spec, vocabulary, development phases |
+| [decisions.md](notes/dev/decisions.md) | Architecture Decision Records (ADR-1 → ADR-23) |
+| [open_questions.md](notes/dev/open_questions.md) | Active blockers and unresolved questions |
+| [testing.md](notes/dev/testing.md) | Test strategy and conventions |
+
+---
+
+## Questions and Discussion
+
+- **Issues**: [github.com/ScottKirvan/QuKi-Notes/issues](https://github.com/ScottKirvan/QuKi-Notes/issues)
+- **Discord**: [discord.gg/TSKHvVFYxB](https://discord.gg/TSKHvVFYxB) — I'm `cptvideo`
+- **LinkedIn**: [linkedin.com/in/scottkirvan](https://www.linkedin.com/in/scottkirvan/)
