@@ -34,10 +34,20 @@ Editor _createEditor({
       ...defaultEditorReactions,
       const BoldInlineMarkdownReaction(),
       const ItalicInlineMarkdownReaction(),
+      const ItalicStarInlineMarkdownReaction(),
       const CodeInlineMarkdownReaction(),
       const TaskListMarkdownReaction(),
     ],
   );
+}
+
+TextStyle _inlineTextStyler(
+    Set<Attribution> attributions, TextStyle existingStyle) {
+  var style = defaultInlineTextStyler(attributions, existingStyle);
+  if (attributions.contains(codeAttribution)) {
+    style = style.copyWith(fontFamily: 'monospace');
+  }
+  return style;
 }
 
 PageRouteBuilder<void> _slideFromLeft(Widget screen) {
@@ -317,6 +327,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                   editor: _editor,
                   documentLayoutKey: _docLayoutKey,
                   stylesheet: defaultStylesheet.copyWith(
+                    inlineTextStyler: _inlineTextStyler,
                     addRulesAfter: [
                       StyleRule(
                         BlockSelector.all,

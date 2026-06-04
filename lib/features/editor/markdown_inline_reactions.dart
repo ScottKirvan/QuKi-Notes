@@ -36,6 +36,34 @@ class ItalicInlineMarkdownReaction extends EditReaction {
   }
 }
 
+/// Applies italic attribution when the user completes `*text*` (single asterisk).
+///
+/// Guards against false-firing inside `**bold**` by checking that the opening
+/// `*` is not preceded by another `*`.
+class ItalicStarInlineMarkdownReaction extends EditReaction {
+  const ItalicStarInlineMarkdownReaction();
+
+  @override
+  void react(EditContext editorContext, RequestDispatcher requestDispatcher,
+      List<EditEvent> changeList) {
+    _applyInlineAttribution(
+      editContext: editorContext,
+      requestDispatcher: requestDispatcher,
+      changeList: changeList,
+      triggerChar: '*',
+      delimiter: '*',
+      attribution: italicsAttribution,
+      validateMatch: (text, openingStart, closingStart) {
+        // Reject if opening * is part of ** (would be bold, not italic).
+        if (openingStart > 0 && text[openingStart - 1] == '*') return false;
+        // Reject if closing * is part of ** (previous char is also *).
+        if (closingStart > 0 && text[closingStart - 1] == '*') return false;
+        return true;
+      },
+    );
+  }
+}
+
 /// Applies inline-code attribution when the user completes `` `text` ``.
 class CodeInlineMarkdownReaction extends EditReaction {
   const CodeInlineMarkdownReaction();
@@ -101,6 +129,9 @@ class TaskListMarkdownReaction extends EditReaction {
 
 /// Shared logic: find a complete inline delimiter pair ending at the caret,
 /// strip both delimiters, and apply [attribution] to the content between them.
+///
+/// [validateMatch] is an optional extra guard called with the full text and the
+/// resolved opening/closing positions; return false to cancel the conversion.
 void _applyInlineAttribution({
   required EditContext editContext,
   required RequestDispatcher requestDispatcher,
@@ -108,6 +139,7 @@ void _applyInlineAttribution({
   required String triggerChar,
   required String delimiter,
   required Attribution attribution,
+  bool Function(String text, int openingStart, int closingStart)? validateMatch,
 }) {
   final document = editContext.document;
 
@@ -121,6 +153,9 @@ void _applyInlineAttribution({
   final text = node.text.toPlainText();
   final insertionEnd = textInsertion.offset + triggerChar.length;
 
+  // Stale event: a previous reaction already modified this node.
+  if (insertionEnd > text.length) return;
+
   // Verify the just-inserted characters complete the closing delimiter.
   if (insertionEnd < delimiter.length) return;
   if (text.substring(insertionEnd - delimiter.length, insertionEnd) !=
@@ -133,6 +168,11 @@ void _applyInlineAttribution({
   // Find the matching opening delimiter before the closing one.
   final openingStart = text.lastIndexOf(delimiter, closingStart - 1);
   if (openingStart < 0) return;
+
+  if (validateMatch != null &&
+      !validateMatch(text, openingStart, closingStart)) {
+    return;
+  }
 
   final contentStart = openingStart + delimiter.length;
   final contentEnd = closingStart; // exclusive
