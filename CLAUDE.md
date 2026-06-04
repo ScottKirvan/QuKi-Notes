@@ -15,6 +15,7 @@ Work runs in three concurrent Claude session types. Launch each from its own fol
 | **Spec** | `Agents/quiki-spec/` | `notes/dev/` docs, task briefs, phase tracking |
 | **Implementation** | `Agents/quiki-dev/` | App code + tests, one PR per session |
 | **DevOps** | `Agents/quiki-devops/` | `.github/workflows/`, build configs, `justfile` |
+| **Docs** | `Agents/quiki-docs/` | `README.md`, `CONTRIBUTING.md`, `docs/` VitePress content |
 
 Each folder has its own `CLAUDE.md` with role-specific instructions and the current task brief. Start there.
 

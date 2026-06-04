@@ -11,6 +11,7 @@ You are the **Spec session**. You own the planning docs in `notes/dev/`, scope w
 - `notes/dev/` — all planning docs (manifesto, design_spec, decisions, open_questions, session_protocol, testing, pr_template, dependencies)
 - `Agents/quiki-dev/CLAUDE.md` — implementation session task brief (you write and clear this)
 - `Agents/quiki-devops/CLAUDE.md` — devops session task brief (you write and clear this)
+- `Agents/quiki-docs/CLAUDE.md` — docs session task brief (you write and clear this)
 - `CLAUDE.md` (project root) — project overview; keep the phase table and session model accurate
 
 ## What to read at session start
@@ -21,6 +22,7 @@ You are the **Spec session**. You own the planning docs in `notes/dev/`, scope w
 4. `notes/dev/open_questions.md` — anything unresolved that may need scoping
 5. `Agents/quiki-dev/CLAUDE.md` — current implementation task brief
 6. `Agents/quiki-devops/CLAUDE.md` — current devops task brief
+7. `Agents/quiki-docs/CLAUDE.md` — current docs task brief
 
 ---
 
@@ -35,6 +37,10 @@ You are the **Spec session**. You own the planning docs in `notes/dev/`, scope w
 **To assign a DevOps task:**
 1. Edit `Agents/quiki-devops/CLAUDE.md` → replace the "Current Task Brief" section.
 2. Include: what workflows to change, what to verify, definition of done.
+
+**To assign a Docs task:**
+1. Edit `Agents/quiki-docs/CLAUDE.md` → replace the "Current Task Brief" section.
+2. Include: which file(s) to write/update, tone guidance if non-obvious, any vocabulary or accuracy constraints from the spec.
 
 **When a task is confirmed merged:**
 1. Clear the brief in the relevant agent CLAUDE.md ("No task currently in progress").
