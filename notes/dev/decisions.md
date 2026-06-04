@@ -94,7 +94,7 @@ Device-backed enrichments (GPS, future: camera, microphone, contacts, calendar) 
 - The sync API is `SyncBackend` (interface): pull-changes(since: timestamp) → list of QuKi diffs; push-changes(list) → ack/conflict.
 - **GitHub is one possible sync backend**, not privileged. Others on the long list: S3-compatible buckets, WebDAV, local filesystem (Syncthing-paired folder), Dropbox, raw HTTP webhook target.
 - Off by default. Users in Settings → Sync can install/enable a sync plugin.
-- **Conflict resolution** is sync-plugin-specific. The GitHub sync plugin uses SHA-based conflict detection (former ADR-6 behaviour); other backends choose their own.
+- **Conflict resolution** is sync-plugin-specific. The GitHub sync plugin uses SHA-based conflict detection (former ADR-6 behavior); other backends choose their own.
 - **Rejected**: GitHub-as-the-only-sync (locks ~95% of users out who don't want GitHub for personal scratch notes); generic "sync engine" with adapters (over-engineered — let each plugin be opinionated).
 
 ## ADR-16: CLI lives in the same repo, sharing the core library
@@ -108,10 +108,10 @@ Device-backed enrichments (GPS, future: camera, microphone, contacts, calendar) 
 ## ADR-15: Ephemerality model — Gmail-style, no auto-delete
 
 - QuKis are **framed** as ephemeral via UI affordances (newest-first stream, no folders, no tagging) but **persisted forever** locally by default.
-- Search exists for recall but is not promoted to a primary organisation tool.
+- Search exists for recall but is not promoted to a primary organization tool.
 - A tossed QuKi is **copied**, not moved — the local QuKi remains in the stream.
 - User-initiated delete is the only deletion mechanism. No auto-archive, no expire-after-N-days in MVP.
-- **Rejected**: hard auto-delete after N days (data loss surprise); explicit archive folder (folders are vault behaviour — ADR-15 forbids it); soft delete that hides from stream but keeps DB row (already covered by ADR-5 mechanically; the UX-level intent is "deleted means gone from the user's mental model").
+- **Rejected**: hard auto-delete after N days (data loss surprise); explicit archive folder (folders are vault behavior — ADR-15 forbids it); soft delete that hides from stream but keeps DB row (already covered by ADR-5 mechanically; the UX-level intent is "deleted means gone from the user's mental model").
 - **Why**: the friction of organising is what makes vaults heavy. The framing of "ephemeral but searchable" is what keeps QuKis weightless without surprising the user with data loss.
 
 ## ADR-14: Plugin architecture — three independent axes, Dart-only
@@ -163,7 +163,7 @@ Device-backed enrichments (GPS, future: camera, microphone, contacts, calendar) 
 - Mock services with `mocktail`; never mock data classes or drift itself (use `NativeDatabase.memory()`).
 - No coverage threshold — perverse incentive. PR review asks "where's the test?" instead.
 - Flaky tests: zero tolerance. Tag and fix immediately; do not let them accumulate.
-- **Rejected**: deferred testing (lets bugs land + locks in untestable architectures); coverage gates (incentivises noise tests); mocking the database (couples tests to ORM internals).
+- **Rejected**: deferred testing (lets bugs land + locks in untestable architectures); coverage gates (incentivizes noise tests); mocking the database (couples tests to ORM internals).
 - Full operational detail: `notes/dev/testing.md`.
 
 ## ADR-12: Theme / Logging / Privacy posture
@@ -178,7 +178,7 @@ Device-backed enrichments (GPS, future: camera, microphone, contacts, calendar) 
 - **Applies only when a sync plugin is active** (v1.1+). MVP has no rate-limit considerations because nothing leaves the device until the user tosses.
 - GitHub sync plugin: GitHub auth limit 5,000 req/hr; throttle when `X-RateLimit-Remaining < 100`. QuKis pulled newest-first; **images lazy-fetched** on first view (row inserted with `localPath = null`).
 - **Why lazy for images**: QuKi bodies are KB-sized, images can be MB each; bulk image pull would burn bandwidth + rate budget for files the user may never view.
-- Per-transport rate-limit behaviour is the **transport plugin's responsibility**, not core's.
+- Per-transport rate-limit behavior is the **transport plugin's responsibility**, not core's.
 
 ## ADR-10: Cross-device timestamps on pull (sync-plugin scope)
 
@@ -208,7 +208,7 @@ Device-backed enrichments (GPS, future: camera, microphone, contacts, calendar) 
 
 **Superseded by ADR-14** (transport plugins replace JSON workflow DSL) and **ADR-17** (sync is a plugin axis, not a built-in).
 
-Original framing (workflows as JSON files in GitHub doing read-modify-write append) is gone. The behaviour it described — "fetch latest SHA before each PUT to avoid 409" — is now a **per-transport-plugin implementation detail** for any GitHub-flavoured transport (e.g. an "append to daily log" toss). Plugins that need this pattern should follow it; the core app does not enforce it generically.
+Original framing (workflows as JSON files in GitHub doing read-modify-write append) is gone. The behavior it described — "fetch latest SHA before each PUT to avoid 409" — is now a **per-transport-plugin implementation detail** for any GitHub-flavoured transport (e.g. an "append to daily log" toss). Plugins that need this pattern should follow it; the core app does not enforce it generically.
 
 Retained as a historical note so future Claude doesn't think we forgot about the 409 retry pattern when implementing a GitHub-append transport.
 
@@ -227,7 +227,7 @@ Retained as a historical note so future Claude doesn't think we forgot about the
   - Swipe → permanent delete (hard-delete immediately; modal confirmation dialog).
 - **Retention period**: user-configurable in Settings (default TBD — 7 days is a reasonable starting point; 24h is too short for a fat-finger recovery scenario). Background sweep hard-deletes rows + cascades to images after the retention period expires.
 - **Post-MVP (sync active)**: soft-delete + queue for push; on successful remote DELETE → hard-delete local row + cascade to images. 404 = success.
-- **Why**: 24h was too short for the "fat-fingered an important note and didn't notice until later" scenario. Making retention configurable respects that different users have different recovery windows. The Recently Deleted screen is a safety net, not a filing feature — its design must resist feature creep toward vault-like behaviour.
+- **Why**: 24h was too short for the "fat-fingered an important note and didn't notice until later" scenario. Making retention configurable respects that different users have different recovery windows. The Recently Deleted screen is a safety net, not a filing feature — its design must resist feature creep toward vault-like behavior.
 - **Rejected**: auto-expire only with no recovery UI (too easy to lose important notes permanently); archive folder (organization feature — violates manifesto).
 
 ## ADR-4: Image storage — separate binary files

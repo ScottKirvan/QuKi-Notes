@@ -11,7 +11,7 @@ This file is the operational spec. The policy decision lives in `decisions.md` â
 | Layer           | Tool                        | What goes here                                                                                                                                               |
 | --------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Unit            | `flutter_test` + `mocktail` | Pure logic, services with substitutable deps, DAOs (against in-memory drift), serializers, transport plugins' core logic                                     |
-| Widget          | `flutter_test`              | UI behaviour where the widget has non-trivial state or transforms input (formatting toolbar, toss sheet, image-paste handler)                                |
+| Widget          | `flutter_test`              | UI behavior where the widget has non-trivial state or transforms input (formatting toolbar, toss sheet, image-paste handler)                                |
 | Integration     | `integration_test/`         | End-to-end flows across DB + UI on a real device or emulator (QuKi CRUD round-trip, pasteâ†’renderâ†’saveâ†’reopen, toss success/failure)                          |
 | Drift migration | `drift_dev schema verify`   | Schema snapshots in `test/db/schemas/`. Required for every `schemaVersion` bump per ADR-8                                                                    |
 
@@ -22,7 +22,7 @@ This file is the operational spec. The policy decision lives in `decisions.md` â
 - Every transport plugin's `toss()` happy path + at least one failure path (retryable + non-retryable)
 - Every transport plugin's `settingsView` validation (rejecting bad input, persisting good input)
 - The save controller's debounce/periodic/lifecycle triggers
-- The 24h delete-sweep behaviour (boundary cases)
+- The 24h delete-sweep behavior (boundary cases)
 - Image paste validation (size limits, MIME type whitelist)
 - Image-ref diff at save time (detecting removed `![](../images/...)` references for cascade delete)
 - Filename generation (`YYYY-MM-DD-{uuid8}.{ext}` for images and `.md` for transport-derived QuKi filenames)
@@ -33,7 +33,7 @@ This file is the operational spec. The policy decision lives in `decisions.md` â
 ## What does NOT need a test
 
 - Pure-render widgets with no state or logic (e.g. a `Text` wrapper)
-- Third-party glue with no behaviour of our own added (e.g. `url_launcher` invocation)
+- Third-party glue with no behavior of our own added (e.g. `url_launcher` invocation)
 - Generated code (`*.g.dart` files, drift output)
 - Flutter framework internals
 - Trivial getters/setters

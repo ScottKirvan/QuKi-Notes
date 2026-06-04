@@ -117,7 +117,7 @@ QuKis are framed as ephemeral, but **nothing is auto-deleted** without explicit 
 - A QuKi that's been **sent** is still a QuKi — sending copies, it doesn't move. The local copy lingers in the list.
 - The user can delete a QuKi explicitly. Deleted QuKis move to **Recently Deleted** for a user-configurable retention period (default TBD) before permanent deletion. This is **data recovery**, not organization — Recently Deleted has no sorting, filtering, or filing. Hard-delete from Recently Deleted is permanent and immediate.
 
-The point: the user is told "these are ephemeral, don't treat them as a vault" — and the app's behaviour reinforces that framing without enforcing destruction.
+The point: the user is told "these are ephemeral, don't treat them as a vault" — and the app's behavior reinforces that framing without enforcing destruction.
 
 ---
 
