@@ -110,7 +110,7 @@ class Geolocation {
 
 **Key intentional constraints:**
 
-- **`List<Image>`, not `List<Attachment>`** — a QuKi is GFM markdown which renders text + images. We do not generalise to arbitrary attachments (PDFs, videos, archives); see ADR-14 rationale. If a future use case demands it, we revisit.
+- **`List<Image>`, not `List<Attachment>`** — a QuKi is GFM markdown which renders text + images. We do not generalize to arbitrary attachments (PDFs, videos, archives); see ADR-14 rationale. If a future use case demands it, we revisit.
 - **`firedAt` vs `quki.createdAt`** — distinct on purpose. Transports may template either depending on intent (a daily-log toss uses `firedAt`; a wiki-publish toss may use `quki.createdAt`).
 - **`gps` is nullable**. Transports must handle absence — see Privacy & Permissions below and ADR-19 for the opt-in gates.
 
@@ -171,7 +171,7 @@ A newest-first list of QuKis. The temporal queue, not a filing cabinet. Screen t
 - Tap → opens the QuKi in the editor (back button returns to list).
 - Swipe → soft-delete; QuKi moves to **Recently Deleted**.
 - Top-right: **+ New** opens a blank QuKi (back button returns to list).
-- Search field: live filter on body text. Search is for recall, not organisation.
+- Search field: live filter on body text. Search is for recall, not organization.
 - **No folders, no tags, no pinning, no archive.** Period.
 
 ### 3. Recently Deleted
@@ -207,7 +207,7 @@ Device-backed enrichments (GPS today; camera/mic/contacts later if transports de
 2. **App-wide Privacy setting** — `Settings → Privacy` shows one toggle per supported capability. Default **OFF** for every one. Onboarding does NOT ask. The user discovers these settings if/when they install a transport that wants the capability.
 3. **Per-transport setting** — transports that want a capability declare it in their `settingsView` with a clear opt-in. Disabled by default per-install.
 
-**Behavioural rules:**
+**Behavioral rules:**
 
 - Capture is **never** gated by a permission dialog. Tapping the app icon takes you to a blank QuKi. Always.
 - The OS permission dialog only appears at the **first fire** of a transport that needs the capability after all three gates are ON.
@@ -338,7 +338,7 @@ Device-backed enrichments (GPS today; camera/mic/contacts later if transports de
 2. A subtle Settings entry surfaces tosses + future sync.
 
 **Subsequent launches:**
-1. Honour `launch_behaviour` setting: blank QuKi (default) or stream view.
+1. Honor `launch_behavior` setting: blank QuKi (default) or stream view.
 
 **No auth state to restore in MVP.** When a plugin that needs auth is installed (v1.1+), token refresh happens lazily on its next operation.
 
@@ -387,7 +387,7 @@ Migration discipline per ADR-8: every `schemaVersion` bump ships a migration tes
 
 - User deletes a QuKi from the stream → set `deletedAt`. Row hidden from queries immediately.
 - Background sweep at 24h hard-deletes soft-deleted rows + cascades to images.
-- When a sync plugin is active: replace the 24h sweep with sync-aware behaviour (queue remote DELETE; hard-delete on ack).
+- When a sync plugin is active: replace the 24h sweep with sync-aware behavior (queue remote DELETE; hard-delete on ack).
 
 ### Logging & privacy (ADR-12)
 

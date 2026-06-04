@@ -66,7 +66,7 @@ Bulk-pull progress banner: always, or only above some threshold? Decision belong
 
 `flutter_secure_storage` on Linux uses `libsecret`, which requires a Secret Service implementation (GNOME Keyring, KeePassXC's secret-service, KWallet bridge). On a vanilla server install or a headless WM there may be no Secret Service running.
 
-**Risk:** plugins that store tokens (any OAuth-using transport, any sync backend) fail to initialise on Linux when no keyring is available.
+**Risk:** plugins that store tokens (any OAuth-using transport, any sync backend) fail to initialize on Linux when no keyring is available.
 
 **Options:**
 - (a) Hard fail with clear error directing user to install + start gnome-keyring (or equivalent).

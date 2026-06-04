@@ -78,7 +78,7 @@ Auth, settings, and the SQLite DB are read from the **same** OS-keystore + app-d
 These do **not** block MVP. Recorded here to remember when the CLI work starts.
 
 - **OQ-CLI-1**: How does the CLI authenticate for transports that need OAuth (e.g. GitHub)? Re-use the same `flutter_secure_storage`-backed token? On Linux, `flutter_secure_storage` uses libsecret — does a pure Dart console app have access? Likely yes via the same backend, but to confirm.
-- **OQ-CLI-2**: Does the CLI write to the same SQLite file as the running Flutter app? Drift uses WAL by default which permits concurrent readers but only one writer. If the user runs the CLI while the app is open, what's the behaviour? Probably: CLI takes the writer lock briefly; if contended, retry once then error.
+- **OQ-CLI-2**: Does the CLI write to the same SQLite file as the running Flutter app? Drift uses WAL by default which permits concurrent readers but only one writer. If the user runs the CLI while the app is open, what's the behavior? Probably: CLI takes the writer lock briefly; if contended, retry once then error.
 - **OQ-CLI-3**: Plugin loading at the CLI — does the CLI scan the same plugin registry? If plugins ever need Flutter (they shouldn't, by ADR-14), the CLI can't load them. Enforce "transports are pure Dart" as a contract.
 - **OQ-CLI-4**: Distribution. Single `dart compile exe` per platform? Or `pub global activate` from the same repo? Decide at CLI-launch time, not before.
 
