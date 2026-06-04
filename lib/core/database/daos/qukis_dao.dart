@@ -12,6 +12,9 @@ class QukisDao extends DatabaseAccessor<AppDatabase> with _$QukisDaoMixin {
   Stream<Quki?> watchById(String id) =>
       (select(qukis)..where((t) => t.id.equals(id))).watchSingleOrNull();
 
+  Future<Quki?> getById(String id) =>
+      (select(qukis)..where((t) => t.id.equals(id))).getSingleOrNull();
+
   Stream<List<Quki>> search(String query) => (select(qukis)
         ..where((t) => t.deletedAt.isNull() & t.body.like('%$query%'))
         ..orderBy([(t) => OrderingTerm.desc(t.modifiedAt)]))

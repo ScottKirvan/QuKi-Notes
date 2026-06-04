@@ -1,12 +1,15 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
+import 'package:quki_notes/app.dart';
 import 'package:quki_notes/core/database/app_database.dart';
 import 'package:quki_notes/core/database/database_provider.dart';
 import 'package:quki_notes/features/editor/editor_screen.dart';
+import 'package:quki_notes/features/stream/stream_screen.dart';
 
 void main() {
   late AppDatabase db;
@@ -14,11 +17,9 @@ void main() {
   setUp(() => db = AppDatabase(NativeDatabase.memory()));
   tearDown(() async => db.close());
 
-  Widget buildEditor({String? initialBody}) => ProviderScope(
+  Widget buildEditor() => ProviderScope(
         overrides: [appDatabaseProvider.overrideWithValue(db)],
-        child: MaterialApp(
-          home: EditorScreen(initialBody: initialBody),
-        ),
+        child: const MaterialApp(home: EditorScreen()),
       );
 
   Future<void> cleanup(WidgetTester tester) async {
@@ -57,19 +58,21 @@ void main() {
   });
 
   group('EditorScreen navigation', () {
-    testWidgets('root editor shows QuKis icon and hamburger, no back button',
+    testWidgets('shows QuKis icon, + button, and hamburger — no back button',
         (tester) async {
       await tester.pumpWidget(buildEditor());
       await tester.pump();
 
       expect(find.byIcon(LucideIcons.fileStack), findsOneWidget);
+      expect(find.byIcon(LucideIcons.plus), findsOneWidget);
       expect(find.byIcon(LucideIcons.menu), findsOneWidget);
       expect(find.byIcon(LucideIcons.arrowLeft), findsNothing);
 
       await cleanup(tester);
     });
 
-    testWidgets('editor opened with qukiId shows back button, no hamburger',
+    testWidgets(
+        'no back button even when navigator-pushed — EditorScreen is always root',
         (tester) async {
       await tester.pumpWidget(ProviderScope(
         overrides: [appDatabaseProvider.overrideWithValue(db)],
@@ -79,9 +82,7 @@ void main() {
               body: ElevatedButton(
                 onPressed: () => Navigator.push<void>(
                   ctx,
-                  MaterialPageRoute(
-                    builder: (_) => const EditorScreen(qukiId: 'test-id'),
-                  ),
+                  MaterialPageRoute(builder: (_) => const EditorScreen()),
                 ),
                 child: const Text('Push'),
               ),
@@ -91,13 +92,47 @@ void main() {
       ));
       await tester.pump();
       await tester.tap(find.text('Push'));
-      // Pump enough frames for the push animation to complete without
-      // waiting for the editor's periodic auto-save timer to settle.
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
 
-      expect(find.byIcon(LucideIcons.arrowLeft), findsOneWidget);
-      expect(find.byIcon(LucideIcons.menu), findsNothing);
+      // Chrome never changes regardless of navigator position
+      expect(find.byIcon(LucideIcons.fileStack), findsOneWidget);
+      expect(find.byIcon(LucideIcons.plus), findsOneWidget);
+      expect(find.byIcon(LucideIcons.arrowLeft), findsNothing);
+
+      await cleanup(tester);
+    });
+
+    testWidgets('root editor has no back button when QuKi loaded via provider',
+        (tester) async {
+      final now = DateTime(2026, 1, 1);
+      await db.qukisDao.insertQuki(QukisCompanion.insert(
+        id: 'quki-nav-test',
+        body: const Value('nav test body'),
+        createdAt: now,
+        modifiedAt: now,
+      ));
+
+      final container = ProviderContainer(
+        overrides: [appDatabaseProvider.overrideWithValue(db)],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: EditorScreen()),
+      ));
+      await tester.pump();
+
+      // Load a QuKi into the root editor via the provider
+      container.read(activeQukiIdProvider.notifier).setId('quki-nav-test');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // Chrome must not change — still QuKis icon + plus + hamburger, no back
+      expect(find.byIcon(LucideIcons.fileStack), findsOneWidget);
+      expect(find.byIcon(LucideIcons.plus), findsOneWidget);
+      expect(find.byIcon(LucideIcons.arrowLeft), findsNothing);
 
       await cleanup(tester);
     });
@@ -114,6 +149,87 @@ void main() {
       expect(find.text('Send...'), findsOneWidget);
       expect(find.text('QuKis'), findsOneWidget);
       expect(find.text('Settings'), findsOneWidget);
+
+      await cleanup(tester);
+    });
+
+    testWidgets('+ button clears editor to blank — existing QuKi is preserved',
+        (tester) async {
+      final now = DateTime(2026, 1, 1);
+      await db.qukisDao.insertQuki(QukisCompanion.insert(
+        id: 'existing',
+        body: const Value('existing content'),
+        createdAt: now,
+        modifiedAt: now,
+      ));
+
+      final container = ProviderContainer(
+        overrides: [appDatabaseProvider.overrideWithValue(db)],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: EditorScreen()),
+      ));
+      await tester.pump();
+
+      // Load the existing QuKi
+      container.read(activeQukiIdProvider.notifier).setId('existing');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // Tap + to start a new QuKi
+      await tester.tap(find.byIcon(LucideIcons.plus));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // Provider must be null (blank QuKi)
+      expect(container.read(activeQukiIdProvider), isNull);
+      // Still no back button
+      expect(find.byIcon(LucideIcons.arrowLeft), findsNothing);
+      // Existing QuKi still in DB untouched
+      final row = await (db.select(db.qukis)
+            ..where((t) => t.id.equals('existing')))
+          .getSingleOrNull();
+      expect(row?.body, 'existing content');
+
+      await cleanup(tester);
+    });
+
+    testWidgets('QuKis list animates in from the left', (tester) async {
+      final container = ProviderContainer(
+        overrides: [appDatabaseProvider.overrideWithValue(db)],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: EditorScreen()),
+      ));
+      await tester.pump();
+
+      // Tap QuKis icon to push StreamScreen
+      await tester.tap(find.byIcon(LucideIcons.fileStack));
+      await tester.pump(); // process tap
+      await tester
+          .pump(Duration.zero); // drain microtasks: flush + Navigator.push
+      await tester.pump(const Duration(milliseconds: 50)); // mid-animation
+
+      // StreamScreen must be in the tree
+      expect(find.byType(StreamScreen), findsOneWidget);
+
+      // The SlideTransition that wraps StreamScreen (not just any SlideTransition
+      // in the tree — super_editor also uses SlideTransition internally)
+      final slideFinder = find.ancestor(
+        of: find.byType(StreamScreen),
+        matching: find.byType(SlideTransition),
+      );
+      expect(slideFinder, findsWidgets);
+
+      // Slide comes from the left: x must be negative mid-animation
+      final slide = tester.widget<SlideTransition>(slideFinder.first);
+      expect(slide.position.value.dx, lessThan(0));
 
       await cleanup(tester);
     });

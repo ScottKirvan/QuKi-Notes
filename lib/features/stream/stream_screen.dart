@@ -6,9 +6,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
+import '../../app.dart';
 import '../../core/database/app_database.dart';
 import '../../core/database/database_provider.dart';
-import '../editor/editor_screen.dart';
 import '../settings/settings_screen.dart';
 
 class StreamScreen extends ConsumerStatefulWidget {
@@ -49,21 +49,14 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
     );
   }
 
-  Future<void> _openNew() async {
-    if (!mounted) return;
-    await Navigator.push<void>(
-      context,
-      MaterialPageRoute(builder: (_) => const EditorScreen()),
-    );
+  void _openNew() {
+    ref.read(activeQukiIdProvider.notifier).setId(null);
+    if (mounted) Navigator.pop(context);
   }
 
-  Future<void> _openExisting(Quki quki) async {
-    await Navigator.push<void>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => EditorScreen(qukiId: quki.id, initialBody: quki.body),
-      ),
-    );
+  void _openExisting(Quki quki) {
+    ref.read(activeQukiIdProvider.notifier).setId(quki.id);
+    if (mounted) Navigator.pop(context);
   }
 
   Future<void> _delete(Quki quki) async {
@@ -253,9 +246,8 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
     if (Platform.isWindows || Platform.isLinux) {
       return CallbackShortcuts(
         bindings: {
-          const SingleActivator(LogicalKeyboardKey.keyN, control: true): () {
-            _openNew();
-          },
+          const SingleActivator(LogicalKeyboardKey.keyN, control: true):
+              _openNew,
         },
         child: Focus(autofocus: true, skipTraversal: true, child: screen),
       );

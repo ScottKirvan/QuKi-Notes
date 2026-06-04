@@ -9,9 +9,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:uuid/uuid.dart';
 
+import 'package:quki_notes/app.dart';
 import 'package:quki_notes/core/database/app_database.dart';
 import 'package:quki_notes/core/database/database_provider.dart';
-import 'package:quki_notes/features/editor/editor_screen.dart';
 import 'package:quki_notes/features/stream/stream_screen.dart';
 
 void main() {
@@ -215,22 +215,132 @@ void main() {
       await cleanup(tester);
     });
 
-    testWidgets('Ctrl+N opens new editor on desktop platforms', (tester) async {
-      // This test only verifies the shortcut on platforms where it is registered.
+    testWidgets('tapping QuKi row sets activeQukiIdProvider and pops',
+        (tester) async {
+      await insertQuki(db, id: 'row-tap-id', body: 'Row tap test');
+
+      final container = ProviderContainer(
+        overrides: [appDatabaseProvider.overrideWithValue(db)],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: Builder(
+            builder: (ctx) => Scaffold(
+              body: ElevatedButton(
+                onPressed: () => Navigator.push<void>(
+                  ctx,
+                  MaterialPageRoute(builder: (_) => const StreamScreen()),
+                ),
+                child: const Text('Push Stream'),
+              ),
+            ),
+          ),
+        ),
+      ));
+
+      await tester.tap(find.text('Push Stream'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Verify row is visible and tap it
+      expect(find.text('Row tap test'), findsOneWidget);
+      await tester.tap(find.text('Row tap test'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      // StreamScreen must have popped — no second EditorScreen was pushed
+      expect(find.byType(StreamScreen), findsNothing);
+      // Provider must hold the tapped QuKi's ID
+      expect(container.read(activeQukiIdProvider), 'row-tap-id');
+
+      await cleanup(tester);
+    });
+
+    testWidgets('+ New button sets activeQukiIdProvider to null and pops',
+        (tester) async {
+      final container = ProviderContainer(
+        overrides: [appDatabaseProvider.overrideWithValue(db)],
+      );
+      addTearDown(container.dispose);
+
+      // Pre-set a non-null ID so we can verify it gets cleared
+      container.read(activeQukiIdProvider.notifier).setId('existing-id');
+
+      await tester.pumpWidget(UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: Builder(
+            builder: (ctx) => Scaffold(
+              body: ElevatedButton(
+                onPressed: () => Navigator.push<void>(
+                  ctx,
+                  MaterialPageRoute(builder: (_) => const StreamScreen()),
+                ),
+                child: const Text('Push Stream'),
+              ),
+            ),
+          ),
+        ),
+      ));
+
+      await tester.tap(find.text('Push Stream'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      await tester.tap(find.byIcon(LucideIcons.plus));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(find.byType(StreamScreen), findsNothing);
+      expect(container.read(activeQukiIdProvider), isNull);
+
+      await cleanup(tester);
+    });
+
+    testWidgets('Ctrl+N sets activeQukiIdProvider to null and pops stream',
+        (tester) async {
       if (!Platform.isWindows && !Platform.isLinux) return;
 
-      await tester.pumpWidget(buildUnderTest());
+      final container = ProviderContainer(
+        overrides: [appDatabaseProvider.overrideWithValue(db)],
+      );
+      addTearDown(container.dispose);
+
+      container.read(activeQukiIdProvider.notifier).setId('some-id');
+
+      await tester.pumpWidget(UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: Builder(
+            builder: (ctx) => Scaffold(
+              body: ElevatedButton(
+                onPressed: () => Navigator.push<void>(
+                  ctx,
+                  MaterialPageRoute(builder: (_) => const StreamScreen()),
+                ),
+                child: const Text('Push Stream'),
+              ),
+            ),
+          ),
+        ),
+      ));
+
+      await tester.tap(find.text('Push Stream'));
       await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
 
       await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
       await tester.sendKeyEvent(LogicalKeyboardKey.keyN);
       await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
-      // pumpAndSettle would timeout — EditorScreen's periodic auto-save timer
-      // never settles. Pump enough frames for the push animation to complete.
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 500));
 
-      expect(find.byType(EditorScreen), findsOneWidget);
+      expect(find.byType(StreamScreen), findsNothing);
+      expect(container.read(activeQukiIdProvider), isNull);
+
       await cleanup(tester);
     });
   });
