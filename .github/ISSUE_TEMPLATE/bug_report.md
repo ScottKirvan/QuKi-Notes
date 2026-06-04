@@ -17,11 +17,11 @@ A clear and concise description of what the bug is.
 2. 
 3. 
 
-## Expected Behaviour
+## Expected Behavior
 
 What you expected to happen.
 
-## Actual Behaviour
+## Actual Behavior
 
 What actually happened. Include any error messages or unexpected output.
 
