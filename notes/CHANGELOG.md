@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.8.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.7.0...v0.8.0) (2026-06-04)
+
+
+### Features
+
+* **ui:** editor navigation redesign — QuKis icon, hamburger menu, Send terminology ([c3da627](https://github.com/ScottKirvan/QuKi-Notes/commit/c3da6271dc64ef201a142f111d62dd731c7239b7))
+
+
+### Bug Fixes
+
+* **ci:** fix dart format — reorder lucide import, wrap long lines ([4234389](https://github.com/ScottKirvan/QuKi-Notes/commit/4234389d2f2c5f37c2862d5b792cc43c01dbd9ab))
+* publish docs - vitepress - workflow was broken ([f4a9e7f](https://github.com/ScottKirvan/QuKi-Notes/commit/f4a9e7fe334fa2e0c20ad403d98a5c1427f00e86))
+* **stream:** guarantee undo snackbar dismissal via explicit Timer ([6baa553](https://github.com/ScottKirvan/QuKi-Notes/commit/6baa553d00b25b82978809f2c980a0dfd6519215))
+* **ui:** auto-dismiss snackbars and fix paragraph double-spacing ([8818a07](https://github.com/ScottKirvan/QuKi-Notes/commit/8818a072de3a14323495fd67d81fd2b9a68352d8))
+* **ui:** fix undo snackbar dismiss and paragraph blank-line round-trip ([c6942c6](https://github.com/ScottKirvan/QuKi-Notes/commit/c6942c666ed50dbdb50aea1c60aec918f46b34b9))
+
 ## [0.7.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.6.2...v0.7.0) (2026-06-03)
 
 
