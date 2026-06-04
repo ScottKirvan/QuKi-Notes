@@ -15,6 +15,7 @@ Editor _createEditor(MutableDocument document) {
       ...defaultEditorReactions,
       const BoldInlineMarkdownReaction(),
       const ItalicInlineMarkdownReaction(),
+      const ItalicStarInlineMarkdownReaction(),
       const CodeInlineMarkdownReaction(),
       const TaskListMarkdownReaction(),
     ],
@@ -53,7 +54,7 @@ void main() {
         expect(attributions, contains(boldAttribution));
       });
 
-      test('single * does not trigger bold', () {
+      test('single * triggers italic, not bold', () {
         final document = MutableDocument(nodes: [
           ParagraphNode(id: 'p1', text: AttributedText('*notbold')),
         ]);
@@ -61,9 +62,17 @@ void main() {
 
         _typeChar(editor, 'p1', 8, '*');
 
+        // ItalicStarReaction fires — strips delimiters, applies italic.
         final para = document.getNodeById('p1') as ParagraphNode;
-        // No delimiters stripped, text unchanged.
-        expect(para.text.toPlainText(), '*notbold*');
+        expect(para.text.toPlainText(), 'notbold');
+        expect(
+          para.text.getAllAttributionsThroughout(SpanRange(0, 6)),
+          contains(italicsAttribution),
+        );
+        expect(
+          para.text.getAllAttributionsThroughout(SpanRange(0, 6)),
+          isNot(contains(boldAttribution)),
+        );
       });
 
       test('bold with surrounding text', () {
@@ -80,6 +89,45 @@ void main() {
         final attributions =
             para.text.getAllAttributionsThroughout(SpanRange(6, 10));
         expect(attributions, contains(boldAttribution));
+      });
+    });
+
+    group('italic (*text* single star)', () {
+      test('typing closing * applies italic and strips delimiters', () {
+        final document = MutableDocument(nodes: [
+          ParagraphNode(id: 'p1', text: AttributedText('*italic')),
+        ]);
+        final editor = _createEditor(document);
+
+        _typeChar(editor, 'p1', 7, '*');
+
+        final para = document.getNodeById('p1') as ParagraphNode;
+        expect(para.text.toPlainText(), 'italic');
+        final attributions =
+            para.text.getAllAttributionsThroughout(SpanRange(0, 5));
+        expect(attributions, contains(italicsAttribution));
+      });
+
+      test('first * of ** closing does not trigger italic', () {
+        // Text is '**bold*' — typing one more '*' should trigger bold, not italic.
+        final document = MutableDocument(nodes: [
+          ParagraphNode(id: 'p1', text: AttributedText('**bold*')),
+        ]);
+        final editor = _createEditor(document);
+
+        _typeChar(editor, 'p1', 7, '*');
+
+        // Bold reaction fires: text becomes 'bold' with bold attribution.
+        final para = document.getNodeById('p1') as ParagraphNode;
+        expect(para.text.toPlainText(), 'bold');
+        expect(
+          para.text.getAllAttributionsThroughout(SpanRange(0, 3)),
+          contains(boldAttribution),
+        );
+        expect(
+          para.text.getAllAttributionsThroughout(SpanRange(0, 3)),
+          isNot(contains(italicsAttribution)),
+        );
       });
     });
 
