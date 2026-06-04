@@ -105,12 +105,19 @@ QuKi-Notes/
 | | 1.5 Auto-save controller | Complete (v0.3.0) |
 | | 1.6 Settings stub | Complete (v0.4.0) |
 | 2 | Transport plugin loader + built-in QuKi-Tosses | Complete (v0.5.0) |
-| 3 | Polish + share-in + Windows + Linux | In progress |
-| | 3.1 Android share-in | Complete (merged) |
-| | 3.2 Windows + Linux CI verification | Complete (merged) |
-| | 3.3 Platform guard: share-in on desktop | Complete (merged) |
-| | 3.4 Desktop keyboard shortcuts + window-state | Not started |
-| | 3.5 Stream performance (lazy loading) | Defer until threshold hit |
+| 3 | Polish + share-in + Windows + Linux | In progress (v0.8.1) |
+| | 3.1 Android share-in | Complete (v0.6.0) |
+| | 3.2 Windows + Linux CI verification | Complete (v0.6.1) |
+| | 3.3 Platform guard: share-in on desktop | Complete (v0.6.2) |
+| | 3.4 Desktop keyboard shortcuts + window-state | Complete (v0.7.0) |
+| | 3.5 Snackbar auto-dismiss + paragraph spacing | Complete (v0.8.0) |
+| | 3.6 Editor navigation redesign (QuKis icon, hamburger, Send) | Complete (v0.8.0) |
+| | 3.7 Editor single-root architecture (activeQukiIdProvider) | Complete (v0.8.1) |
+| | 3.8 WYSIWYG markdown rendering (OQ-1) | **Blocking MVP — not started** |
+| | 3.9 Primer DHC color palette (#37) | Not started |
+| | 3.10 Auto-capitalization bug (#32) | Not started |
+| | 3.11 Recently Deleted screen (#29) | Not started |
+| | 3.12 Stream performance (lazy loading) | Defer until threshold hit |
 | 4 | Sync plugin axis + first sync backend | v1.1+ |
 | 5 | iPadOS / iOS / macOS builds | Deferred |
 | 6 | MCP plugin axis | v2.0+ |
@@ -128,18 +135,20 @@ QuKi-Notes/
 
 ---
 
-## Implementation Notes (current as of v0.5.0+)
+## Implementation Notes (current as of v0.8.1)
 
-**Navigation**: `StreamScreen` is pushed from `EditorScreen` (stream is NOT the root). `app.dart` home = `EditorScreen(onLeave: push StreamScreen)`.
+**Navigation**: Editor is the permanent root. `app.dart` home = `EditorScreen`; it never has a back button. `activeQukiIdProvider` (NotifierProvider<String?>) controls which QuKi is loaded. `StreamScreen` sets `activeQukiIdProvider` and pops — no second `EditorScreen` is ever pushed. QuKis list slides in from the left; Settings slides in from the right (directional per affordance position).
 
-**Auto-save**: `AutoSaveController` implements ADR-6 — 2s idle debounce + 30s periodic + lifecycle hooks. The Phase 1.3 save-on-leave bridge was removed in Phase 1.5.
+**Auto-save**: `AutoSaveController` implements ADR-6 — 2s idle debounce + 30s periodic + lifecycle hooks. `resetForQuki(id:)` switches the save target when the active QuKi changes without disposing the controller.
 
 **riverpod_generator 4.0.4-dev.1 + drift types**: `@riverpod` functions returning `Stream<List<Quki>>` fail with `InvalidTypeException`. Workaround: `StreamScreen` calls the drift DAO directly via `StreamBuilder`. Revisit when riverpod_generator stable 4.x ships.
 
 **Transport registry**: Plugins registered at compile time in `lib/core/transports/registry.dart`. `TransportSettingsNotifier` persists enabled state via `shared_preferences`. `enabledTransportsProvider` filters to enabled plugins only.
 
-**Share-in**: `lib/features/share_in/share_handler.dart` — guarded with `Platform.isAndroid`; no-ops cleanly on Windows/Linux.
+**Share-in**: `lib/features/share_in/share_handler.dart` — guarded with `Platform.isAndroid`; inserts a new QuKi in the DB and routes via `activeQukiIdProvider` (no second screen).
+
+**Snackbar workaround**: Flutter 3.44 + Material 3 — `SnackBar` with `SnackBarAction` does not auto-dismiss when `duration` is set. Fix: capture `ScaffoldFeatureController` from `showSnackBar()`, start an explicit `Timer(duration, controller.close)`, cancel the timer in `onPressed` so Undo works correctly.
 
 **`flutter test` on Windows**: If `flutter test` crashes with `PathAccessException: sqlite3.dll Access is denied`, run `flutter clean` in a fresh terminal (close VS Code first).
 
-**Last Updated**: 2026-06-03
+**Last Updated**: 2026-06-04

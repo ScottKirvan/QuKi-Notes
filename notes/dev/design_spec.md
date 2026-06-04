@@ -456,7 +456,7 @@ quki_notes/
 | 0     | Bootstrap scaffold (project, CI, docs)                                 | Complete       |
 | 1     | Local QuKi capture on Android — editor, stream, drift, auto-save       | Complete (v0.3.0) |
 | 2     | Transport plugin loader + built-in QuKi-Tosses + Settings → Tosses     | Complete (v0.5.0) |
-| 3     | Polish + share-in + Windows + Linux desktop ports                      | Not started    |
+| 3     | Polish + share-in + Windows + Linux desktop ports                      | In progress (v0.8.1) |
 | 4     | Sync plugin axis (`core/sync/`) + first sync backend (probably GitHub) | v1.1+       |
 | 5     | iPadOS / iOS / macOS builds (CI wiring + device QA)                    | Deferred    |
 | 6     | MCP plugin axis                                                        | v2.0+       |
@@ -490,12 +490,19 @@ Delivered as a single PR:
 
 Sub-tasks in priority order:
 
-1. **Android share-in** — receive content shared from other Android apps via `receive_sharing_intent`. ✓ Complete (merged). Text only; multi-part shares joined with `\n\n`; cold-start and warm-start both handled. Images deferred (CargoKit still blocked).
-   - Desktop issue resolved: `Platform.isAndroid` guard added to `lib/features/share_in/share_handler.dart` — no-ops cleanly on Windows/Linux. ✓ Complete (merged).
-2. **Windows + Linux CI** — verify `build-windows.yml` and `build-linux.yml` produce working artifacts; OQ-NEW-3 resolved (tarball). ✓ Complete (merged).
-3. **Desktop keyboard shortcuts + window-state persistence** — keyboard shortcuts for common actions; remember window size/position across restarts.
-4. **Stream performance** — lazy loading / pagination for large QuKi counts. Defer until a real threshold is hit.
-5. **Onboarding** — still drops straight to editor; first-launch coachmarks at most, only if user testing reveals a need.
+1. **Android share-in** — receive content shared from other Android apps via `receive_sharing_intent`. ✓ Complete (v0.6.0). Text only; multi-part shares joined with `\n\n`; cold-start and warm-start both handled. Images deferred (CargoKit still blocked).
+   - Desktop platform guard: `Platform.isAndroid` guard in `lib/features/share_in/share_handler.dart` — no-ops cleanly on Windows/Linux. ✓ Complete (v0.6.2).
+2. **Windows + Linux CI** — `build-windows.yml` and `build-linux.yml` produce working artifacts; OQ-NEW-3 resolved (tarball). ✓ Complete (v0.6.1).
+3. **Desktop keyboard shortcuts + window-state persistence** — Ctrl+T (toss), Ctrl+N (new); `window_manager` persists bounds via `shared_preferences`; `WindowStateScope` listener saves on move/resize. ✓ Complete (v0.7.0). ADR-22.
+4. **Snackbar auto-dismiss + paragraph spacing** — toss result snackbar 2s/4s duration; undo snackbar 4s via explicit `Timer` workaround (Flutter 3.44 + Material 3 bug); stylesheet paragraph padding reduced. ✓ Complete (v0.8.0).
+5. **Editor navigation redesign** — `← Stream` and `Toss ▼` removed; top-left QuKis icon (Lucide) + top-right hamburger (≡) with Send…/QuKis/Settings; `TossPickerSheet` title → "Send this QuKi via…"; snackbar copy → "Sent!" / "Send failed"; Settings section "Tosses" → "Transports". ✓ Complete (v0.8.0). ADR-23 (Lucide icons).
+6. **Editor single-root architecture** — replaced push-based QuKi loading with `activeQukiIdProvider` (NotifierProvider<String?>); editor is now the permanent root, `StreamScreen` sets the provider and pops; `AutoSaveController.resetForQuki(id:)` switches save target without disposal; share-in routes through provider (no second EditorScreen). ✓ Complete (v0.8.1).
+7. **WYSIWYG markdown rendering (OQ-1 / #27)** — live GFM rendering (bold, italic, headings, task lists, code blocks, etc.). **Blocking MVP. Not started.** Investigate `super_editor` markdown input shortcuts first; fallback: `appflowy_editor` rewrite.
+8. **Auto-capitalization bug (#32)** — `TextCapitalization.none` on editor IME config. Not started.
+9. **Primer DHC color palette (#37)** — replace `Colors.deepPurple` seed with GitHub Primer Dark High Contrast `ColorScheme`. Not started.
+10. **Recently Deleted screen (#29)** — data recovery UI; user-configurable retention; background sweep. Not started (drift schema bump required per ADR-8).
+11. **Stream performance** — lazy loading / pagination for large QuKi counts. Defer until a real threshold is hit.
+12. **Onboarding** — drops straight to editor; coachmarks deferred unless user testing reveals a need.
 
 #### Share-in: behavior spec
 
@@ -606,4 +613,4 @@ Tracked in `notes/dev/open_questions.md`. Snapshot of what's outstanding at spec
 
 ---
 
-**Last Updated**: 2026-06-03
+**Last Updated**: 2026-06-04
