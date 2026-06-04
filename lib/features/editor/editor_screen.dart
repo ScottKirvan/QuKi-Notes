@@ -316,6 +316,39 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                           ),
                         },
                       ),
+                      StyleRule(
+                        const BlockSelector('header1'),
+                        (doc, node) => {
+                          Styles.textStyle: TextStyle(
+                            color: scheme.onSurface,
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            height: 1.3,
+                          ),
+                        },
+                      ),
+                      StyleRule(
+                        const BlockSelector('header2'),
+                        (doc, node) => {
+                          Styles.textStyle: TextStyle(
+                            color: scheme.onSurface,
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
+                            height: 1.3,
+                          ),
+                        },
+                      ),
+                      StyleRule(
+                        const BlockSelector('header3'),
+                        (doc, node) => {
+                          Styles.textStyle: TextStyle(
+                            color: scheme.onSurface,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            height: 1.3,
+                          ),
+                        },
+                      ),
                     ],
                   ),
                 ),
