@@ -12,6 +12,9 @@ Ephemeral notes captured on whatever device is at hand, dispatched wherever they
 [![Release](https://img.shields.io/github/v/release/ScottKirvan/QuKi-Notes)](https://github.com/ScottKirvan/QuKi-Notes/releases/latest)
 [![License: MIT](https://img.shields.io/github/license/ScottKirvan/QuKi-Notes)](LICENSE.md)
 [![Flutter stable](https://img.shields.io/badge/Flutter-stable-0553B1?logo=flutter&logoColor=white)](https://flutter.dev)
+[![Android](https://img.shields.io/badge/Android-supported-3DDC84?logo=android&logoColor=white)](#platform-support)
+[![Windows](https://img.shields.io/badge/Windows-supported-0078D4?logo=windows&logoColor=white)](#platform-support)
+[![Linux](https://img.shields.io/badge/Linux-supported-FCC624?logo=linux&logoColor=black)](#platform-support)
 [![Discord](https://img.shields.io/discord/1052011377415438346?label=discord&color=00ACD7)](https://discord.gg/TSKHvVFYxB)
 
 [User Docs](https://scottkirvan.github.io/QuKi-Notes/) &nbsp;·&nbsp;
@@ -25,7 +28,7 @@ Ephemeral notes captured on whatever device is at hand, dispatched wherever they
 
 ## What is QuKi-Notes?
 
-QuKi-Notes is a **capture-and-dispatch** app. You open it, type a thought (a **QuKi**), and send it somewhere — the clipboard, an Android share sheet, or any transport plugin you wire up. There is no vault, no folder structure, no organisation ritual. Capture is the point; dispatch is the exit.
+QuKi-Notes is a **capture-and-dispatch** app. You open it, type a thought (a **QuKi**), and send it somewhere — the clipboard, a share sheet, or any transport plugin you wire up. There is no vault, no folder structure, no organisation ritual. Capture is the point; dispatch is the exit.
 
 A QuKi is intentionally ephemeral by framing. It lives on the device until you send it or delete it, but nothing is hidden and nothing auto-deletes. The newest QuKis surface to the top; older ones stay searchable. It is closer to an outbox than a notebook.
 
@@ -69,9 +72,9 @@ Not in this release:
 
 | Platform | Status | Notes |
 |---|---|---|
-| Android | **Primary** | Pixel 6 Pro is the reference device |
-| Windows | Active | Window-state persistence; keyboard shortcuts |
-| Linux | Active | CI-verified; same feature set as Windows |
+| Android | Supported | Reference device: Pixel 6 Pro |
+| Windows | Supported | Window-state persistence; keyboard shortcuts |
+| Linux | Supported | CI-verified; same feature set as Windows |
 | iOS / iPadOS | Codebase ready | CI build deferred; not a listed release target |
 | macOS | Codebase ready | CI build deferred; not a listed release target |
 
