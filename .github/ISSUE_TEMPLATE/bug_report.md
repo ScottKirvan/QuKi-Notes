@@ -1,6 +1,6 @@
 ---
 name: Bug Report
-about: Create a report to help us improve
+about: Report something that isn't working correctly
 title: '[BUG] '
 labels: bug
 assignees: ''
@@ -8,31 +8,38 @@ assignees: ''
 ---
 
 ## Description
+
 A clear and concise description of what the bug is.
 
 ## Steps to Reproduce
-1. Go to '...'
-2. Click on '...'
-3. Scroll down to '...'
-4. See error
 
-## Expected Behavior
-A clear and concise description of what you expected to happen.
+1. 
+2. 
+3. 
 
-## Actual Behavior
-A clear and concise description of what actually happened.
+## Expected Behaviour
+
+What you expected to happen.
+
+## Actual Behaviour
+
+What actually happened. Include any error messages or unexpected output.
 
 ## Screenshots
-If applicable, add screenshots to help explain your problem.
+
+If applicable, add screenshots to help explain the problem.
 
 ## Environment
-- OS: [e.g. Windows 11, macOS 14, Ubuntu 22.04]
-- Version: [e.g. 1.2.3]
-- Unreal Engine Version: [if applicable, e.g. UE 5.3]
-- Additional context: [any other relevant information]
+
+- **OS**: [e.g. Android 15, Windows 11, Ubuntu 22.04]
+- **QuKi-Notes version**: [e.g. v0.8.0 — shown in Settings → About]
+- **Flutter SDK version**: [e.g. 3.27.0 stable — run `flutter --version`]
+- **Device**: [e.g. Pixel 6 Pro, desktop]
 
 ## Additional Context
-Add any other context about the problem here.
+
+Anything else that might be relevant — frequency, whether it's reproducible, related issues, etc.
 
 ## Possible Solution
-If you have suggestions on how to fix the bug, please describe them here.
+
+If you have ideas about how to fix this, describe them here.

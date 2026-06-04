@@ -18,6 +18,7 @@ export default defineConfig({
           { text: 'Sending QuKis', link: '/user-guide/sending-qukis' },
           { text: 'Settings', link: '/user-guide/settings' },
           { text: 'Keyboard Shortcuts', link: '/user-guide/keyboard-shortcuts' },
+          { text: 'Why QuKi-Notes Works This Way', link: '/user-guide/philosophy' },
         ],
       },
     ],

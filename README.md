@@ -12,7 +12,7 @@ Ephemeral notes captured on whatever device is at hand, dispatched wherever they
 [![Release](https://img.shields.io/github/v/release/ScottKirvan/QuKi-Notes)](https://github.com/ScottKirvan/QuKi-Notes/releases/latest)
 [![License: MIT](https://img.shields.io/github/license/ScottKirvan/QuKi-Notes)](LICENSE.md)
 [![Flutter stable](https://img.shields.io/badge/Flutter-stable-0553B1?logo=flutter&logoColor=white)](https://flutter.dev)
-[![Discord](https://img.shields.io/discord/1052011377415438346?label=discord&color=00ACD7)](https://discord.gg/gQH4mXWQRT)
+[![Discord](https://img.shields.io/discord/1052011377415438346?label=discord&color=00ACD7)](https://discord.gg/TSKHvVFYxB)
 
 [User Docs](https://scottkirvan.github.io/QuKi-Notes/) &nbsp;·&nbsp;
 [Design Spec](notes/dev/design_spec.md) &nbsp;·&nbsp;
@@ -305,7 +305,7 @@ MIT — see [LICENSE.md](LICENSE.md).
 ## Contact
 
 - **Issues & PRs**: [github.com/ScottKirvan/QuKi-Notes](https://github.com/ScottKirvan/QuKi-Notes)
-- **Discord**: [discord.gg/gQH4mXWQRT](https://discord.gg/gQH4mXWQRT) — I'm `cptvideo`
+- **Discord**: [discord.gg/TSKHvVFYxB](https://discord.gg/TSKHvVFYxB) — I'm `cptvideo`
 - **LinkedIn**: [linkedin.com/in/scottkirvan](https://www.linkedin.com/in/scottkirvan/)
 - **User Docs**: [scottkirvan.github.io/QuKi-Notes](https://scottkirvan.github.io/QuKi-Notes/)
 
