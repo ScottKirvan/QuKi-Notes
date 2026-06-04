@@ -53,103 +53,98 @@ Read in this order — do not skip:
 
 > Written and maintained by the Spec session. Get Scott's sign-off before starting Session 2.
 
-**Task**: Phase 3 — WYSIWYG markdown rendering investigation + implementation (OQ-1 / #27)
-**Branch**: `feat/wysiwyg-markdown-editor`
-**PR title**: `feat(editor): live WYSIWYG markdown rendering`
-**Closes**: #27
+**Task**: Fix markdown round-trip — formatting lost on save/reload (OQ-1 / #27, partial)
+**Branch**: `fix/markdown-round-trip` ← **branch already exists on remote with changes committed**
+**PR title**: `fix(editor): wire super_editor markdown serializer for correct round-trip`
+**Closes**: #27 (partial — round-trip fixed; live inline reactions are Session 2)
 
-### Context
+### Background (read before touching anything)
 
-Live WYSIWYG markdown rendering is a **hard MVP requirement** per the manifesto — not a Phase 3 enhancement. The current `editor_screen.dart` implementation (`_parseInitialBody` / `_extractBody`) is plain-text only: it splits on `\n\n`, creates `ParagraphNode` entries, and rejoins on save. Bold, headings, task lists, code blocks etc. are not rendered live.
+The Spec session diagnosed the root cause of the formatting-loss bug (#27). Two functions in `lib/features/editor/editor_screen.dart` were broken:
 
-**Before writing a line of implementation code**, investigate and report to Scott:
+- `_parseBody` — was splitting on `\n\n` and creating plain `ParagraphNode`s, stripping all formatting (headings, bold, lists, etc.) on load.
+- `_extractBody` — was calling `toPlainText()` on each node, losing all inline attributions on save.
 
-1. Does `super_editor` support live markdown input conversion (typing `**` → bold node, `# ` → heading node, `- [ ] ` → task list item)? Check `super_editor` changelog, README, and example apps for "markdown shortcuts" or "input transformer".
-2. What GFM features does it cover? Specifically: bold, italic, strikethrough, headings (H1–H3), unordered list, ordered list, task list `- [ ]`, inline code, fenced code block, blockquote.
-3. If coverage is insufficient, assess `appflowy_editor` as the fallback (OQ-1 option b). This is a significant rewrite; only recommend it if `super_editor` genuinely cannot deliver.
+The Spec session committed a fix to branch `fix/markdown-round-trip`. **Your job is to pick up that branch, verify it, test it on device, and open the PR.**
 
-Report findings as a comment on issue #27 before implementing.
+### What was changed
 
-### What to implement (after Scott approves the approach)
+Both functions now use super_editor's built-in serializers (already exported from the `super_editor` package — no new dependency):
 
-Wire up whichever editor delivers live GFM rendering. The round-trip test plan below must pass:
+```dart
+// _parseBody
+MutableDocument _parseBody(String body) {
+  if (body.trim().isEmpty) return MutableDocument.empty();
+  return deserializeMarkdownToDocument(body, syntax: MarkdownSyntax.normal);
+}
 
-- `**text**` → bold node; serialize back → `**text**`
-- `_text_` → italic node; serialize back → `_text_`
-- `~~text~~` → strikethrough; serialize back → `~~text~~`
-- `# heading` → H1 node; serialize back → `# heading`
-- `- item` → unordered list item; serialize back → `- item`
-- `1. item` → ordered list item; serialize back → `1. item`
-- `- [ ] item` → task list item (unchecked); serialize back → `- [ ] item`
-- `` `code` `` → inline code; serialize back → `` `code` ``
-- Fenced code block → code block node; serialize back with triple-backtick fence
+// _extractBody
+String _extractBody() {
+  return serializeDocumentToMarkdown(_document, syntax: MarkdownSyntax.normal).trim();
+}
+```
 
-Auto-save (`AutoSaveController`) and the `activeQukiIdProvider` load path must continue to work — the serialized body stored in SQLite must be valid GFM that another client could render.
+`MarkdownSyntax.normal` is used (not `superEditor`) to keep stored markdown GFM-compatible and free of proprietary super_editor notation.
 
-### Files likely to touch
+A round-trip test file was also committed: `test/features/editor/markdown_round_trip_test.dart`.
 
-- `lib/features/editor/editor_screen.dart` — editor configuration + markdown round-trip
-- `lib/features/editor/formatting_toolbar.dart` — verify toolbar actions still apply correct node types
-- `pubspec.yaml` — may need version bump or package swap
-- `notes/dev/decisions.md` — add ADR for the chosen approach
-- `notes/dev/open_questions.md` — resolve OQ-1
+### Your checklist
 
-### Tests required
+1. `git fetch origin && git checkout fix/markdown-round-trip`
+2. `just lint` — fix any analysis issues.
+3. `just test` — all tests must pass, including the new round-trip tests.
+4. Run on device (Android primary): load an existing QuKi that contains markdown syntax — confirm headings, bold, and lists render correctly instead of showing raw `**` and `#` characters.
+5. Type `# ` (hash space) in a blank line — confirm it converts to a heading node live (this already works via `createDefaultDocumentEditor` reactions).
+6. Verify save → navigate to QuKis list → tap back into the QuKi → formatting is preserved.
+7. Open PR with the template from `notes/dev/pr_template.md`. Scott must confirm on-device before merge.
 
-- Unit tests: fixture for each GFM feature listed above — parse markdown → serialize → compare.
-- Widget test: typing `**bold**` in the editor results in a bold-rendered node (not plain text).
-- Existing auto-save + stream tests must still pass.
+### Known limitations (do NOT fix in this PR — that is Session 2)
 
-### Checklist
+- Live inline reactions for typing `**bold**`, `_italic_`, `` `code` `` are not in this PR. Users must use toolbar buttons for inline formatting.
+- `- [ ]` task list conversion reaction is not in this PR.
+- Fenced code blocks are deferred (Scott decision).
 
-- `just lint` and `just test` before committing.
-- If switching to `appflowy_editor`: add an ADR entry in `decisions.md` explaining why `super_editor` was insufficient.
-- No vault-like features, no analytics.
+### Files touched
+
+- `lib/features/editor/editor_screen.dart`
+- `test/features/editor/markdown_round_trip_test.dart` (new)
 
 ---
 
 ## Queued — Session 2 (start after Session 1 is merged)
 
-**Task**: Phase 3 polish — auto-capitalization bug + Primer DHC color palette
-**Branch**: `fix/editor-autocap-primer-theme`
-**PR title**: `fix(ui): disable editor auto-capitalization and apply Primer DHC color palette`
-**Closes**: #32, #37
+**Task**: Live inline markdown reactions — bold, italic, inline code, task list
+**Branch**: `feat/markdown-inline-reactions`
+**PR title**: `feat(editor): live inline markdown input reactions`
+**Closes**: #27 (fully)
 
-### Fix 1 — Auto-capitalization (#32)
+### What to build
 
-The editor auto-capitalizes the first letter of each new line. This violates the capture-app contract — user input must be preserved exactly.
+Add custom `EditReaction` subclasses to the editor so typing markdown syntax converts inline:
 
-Set `textCapitalization: TextCapitalization.none` on the `SuperEditor` (or `appflowy_editor` equivalent) IME/keyboard configuration in `lib/features/editor/editor_screen.dart`. Verify on Android (primary) that lowercase input is preserved. Confirm Windows/Linux are not affected (desktop keyboards don't typically auto-cap, but verify the setting is applied).
+| Type this | Result |
+|---|---|
+| `**text**` (type closing `**`) | bold attribution |
+| `_text_` (type closing `_`) | italic attribution |
+| `` `text` `` (type closing `` ` ``) | inline code attribution |
+| `- [ ] ` (type space after `]`) | task list node |
 
-### Fix 2 — Primer DHC color palette (#37)
+Each is a custom `EditReaction` that triggers on the closing delimiter, scans backward in the current text node for the opening delimiter, and applies the attribution. Follow the pattern in `super_editor`'s `default_document_editor_reactions.dart`.
 
-The app uses Flutter's default `Colors.deepPurple` seed color. Spec calls for **GitHub Primer Dark High Contrast** palette (design_spec.md → Settings → Theme).
+The task list reaction converts the current paragraph node to a `TaskNode` — the node type already exists in super_editor.
 
-Replace `ColorScheme.fromSeed(seedColor: Colors.deepPurple)` in `lib/app.dart` with a hand-crafted `ColorScheme` using these Primer DHC tokens:
-
-| Role | Token | Hex |
-|---|---|---|
-| background (canvas) | `canvas.default` | `#0a0c10` |
-| surface | `canvas.subtle` | `#272b33` |
-| onSurface (foreground) | `fg.default` | `#f0f3f9` |
-| onSurfaceVariant (muted) | `fg.muted` | `#9ea7b4` |
-| primary (accent) | `accent.fg` | `#71b7ff` |
-| primaryContainer | `accent.emphasis` | `#1f6feb` |
-| outline (borders) | `border.default` | `#7a828e` |
-
-Light system theme: use Primer Light High Contrast equivalents (check primer.style/primitives). `ThemeMode.system` stays — no manual override. Both `light` and `dark` `ThemeData` must be updated.
-
-### Files to touch
-
-- `lib/features/editor/editor_screen.dart` — `textCapitalization` setting
-- `lib/app.dart` — `ColorScheme` replacement for both light and dark themes
+Register the new reactions by passing them to `createDefaultDocumentEditor(inputSource: ..., reactionPipeline: [...defaultReactions, myReactions])` or equivalent super_editor API.
 
 ### Tests required
 
-- Widget test: `EditorScreen` keyboard config has `TextCapitalization.none`.
-- No automated tests for theme colors — verify visually on device.
+- Widget test (or unit test via `EditorTester` if available): type `**bold**`, assert a bold-attributed span exists in the document.
+- Widget test: type `_italic_`, assert italic attribution.
+- Widget test: type `` `code` ``, assert code attribution.
+- Widget test: type `- [ ] `, assert a `TaskNode` exists in the document.
+- Existing round-trip tests from Session 1 must still pass.
 
 ### Checklist
 
 - `just lint` and `just test` before committing.
-- No new dependencies. No drift schema changes.
+- No new dependencies — all reactions use the existing super_editor API.
+- Add an ADR entry in `notes/dev/decisions.md` for the chosen reaction implementation approach (custom `EditReaction` vs any alternative considered).
