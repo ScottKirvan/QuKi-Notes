@@ -2,7 +2,7 @@
 
 ## What is QuKi-Notes?
 
-QuKi-Notes is a capture-and-dispatch app. You open it, type a note (a QuKi), and send it somewhere — a clipboard paste, an Android share sheet, or any transport you enable. There is no vault, no folder structure, no organisation ritual. Capture is the point; dispatch is the exit.
+QuKi-Notes is a capture-and-dispatch app. You open it, type a note (a QuKi), and send it somewhere — a clipboard paste, an Android share sheet, or any transport you enable. There is no vault, no folder structure, no organization ritual. Capture is the point; dispatch is the exit.
 
 ## Platforms
 

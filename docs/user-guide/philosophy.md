@@ -10,11 +10,11 @@ This is intentional. The most common action is capture — you have a thought, y
 
 If you want to see your previous QuKis, the QuKis list is one tap away. But it is not the default, because capture is the default.
 
-## No folders, tags, or organisation
+## No folders, tags, or organization
 
-QuKi-Notes has no way to organise QuKis into folders, add tags, create backlinks, or archive items. This is not a missing feature — it is a deliberate constraint.
+QuKi-Notes has no way to organize QuKis into folders, add tags, create backlinks, or archive items. This is not a missing feature — it is a deliberate constraint.
 
-Organisation takes time. Deciding where something goes, maintaining a taxonomy, keeping it consistent — these are tasks that slow down capture and turn a note app into a productivity system. QuKi-Notes is not a productivity system.
+Organization takes time. Deciding where something goes, maintaining a taxonomy, keeping it consistent — these are tasks that slow down capture and turn a note app into a productivity system. QuKi-Notes is not a productivity system.
 
 If a QuKi needs to live somewhere specific, the answer is to send it there using a transport. The clipboard, a share sheet, a GitHub file, a wiki — these are the destinations. QuKi-Notes is the staging area before dispatch, not the destination itself.
 

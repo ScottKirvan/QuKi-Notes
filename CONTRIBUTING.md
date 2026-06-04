@@ -8,7 +8,7 @@ Thank you for your interest in contributing. This document covers everything you
 
 Read the [manifesto](notes/dev/manifesto.md) first. It is short. It defines what QuKi-Notes is and — critically — what it is not. The manifesto is normative: if a proposed change conflicts with it, it will not be accepted regardless of implementation quality.
 
-The hard constraints, summarised:
+The hard constraints, summarized:
 
 - **No vault-like features** — no folders, no tags, no backlinks, no archive, no pinning
 - **The editor is always home** — it does not have a back button; navigation depth is intentionally shallow
@@ -91,10 +91,10 @@ This project uses [Conventional Commits](https://www.conventionalcommits.org/). 
 
 | Type | When to use | Version bump |
 |---|---|---|
-| `feat` | New user-visible behaviour | Minor |
+| `feat` | New user-visible behavior | Minor |
 | `fix` | Bug fix | Patch |
 | `fix(docs)` | Documentation change | Patch + triggers docs build |
-| `refactor` | No behaviour change | None |
+| `refactor` | No behavior change | None |
 | `test` | Adding or updating tests | None |
 | `chore` | CI, build config, maintenance | None |
 

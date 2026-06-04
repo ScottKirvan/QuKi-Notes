@@ -28,11 +28,11 @@ Ephemeral notes captured on whatever device is at hand, dispatched wherever they
 
 ## What is QuKi-Notes?
 
-QuKi-Notes is a **capture-and-dispatch** app. You open it, type a thought (a **QuKi**), and send it somewhere — the clipboard, a share sheet, or any transport plugin you wire up. There is no vault, no folder structure, no organisation ritual. Capture is the point; dispatch is the exit.
+QuKi-Notes is a **capture-and-dispatch** app. You open it, type a thought (a **QuKi**), and send it somewhere — the clipboard, a share sheet, or any transport plugin you wire up. There is no vault, no folder structure, no organization ritual. Capture is the point; dispatch is the exit.
 
 A QuKi is intentionally ephemeral by framing. It lives on the device until you send it or delete it, but nothing is hidden and nothing auto-deletes. The newest QuKis surface to the top; older ones stay searchable. It is closer to an outbox than a notebook.
 
-The project prioritises **radical simplicity** in the UI (one screen, no navigation depth, no configuration required to start) and **open extensibility** in the backend — a plugin axis for transports, a reserved axis for sync, and a reserved axis for MCP integration. Read the [manifesto](notes/dev/manifesto.md) for the full philosophy.
+The project prioritizes **radical simplicity** in the UI (one screen, no navigation depth, no configuration required to start) and **open extensibility** in the backend — a plugin axis for transports, a reserved axis for sync, and a reserved axis for MCP integration. Read the [manifesto](notes/dev/manifesto.md) for the full philosophy.
 
 > [!NOTE]
 > **Status: v0.8.0 · Phase 3 in progress.**
@@ -243,10 +243,10 @@ Vocabulary that matters in code, docs, and commit messages:
 This project uses [Conventional Commits](https://www.conventionalcommits.org/). release-please reads every message to drive version bumps and the CHANGELOG:
 
 ```
-feat(editor):     new user-visible behaviour       → minor bump
+feat(editor):     new user-visible behavior       → minor bump
 fix(transport):   bug fix                          → patch bump
 fix(docs):        documentation change             → patch bump + docs build
-refactor(stream): no behaviour change              → no bump
+refactor(stream): no behavior change              → no bump
 test(database):   add or fix tests                 → no bump
 chore(ci):        CI / build config only           → no bump
 ```
