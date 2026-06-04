@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.8.1](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.8.0...v0.8.1) (2026-06-04)
+
+
+### Bug Fixes
+
+* **docs:** rewrite README as a complete GitHub landing page ([111f37a](https://github.com/ScottKirvan/QuKi-Notes/commit/111f37a4026f290e145f818caf369795a2a8ec85))
+* **docs:** write full user-facing VitePress documentation ([cfdda0c](https://github.com/ScottKirvan/QuKi-Notes/commit/cfdda0c2d5f09924433f589354b2151067108d34))
+* **ui:** editor is permanent root — one editor, always ([7aa312f](https://github.com/ScottKirvan/QuKi-Notes/commit/7aa312f9687a5fa732b3663b93ab1cfc838058dc))
+
 ## [0.8.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.7.0...v0.8.0) (2026-06-04)
 
 
