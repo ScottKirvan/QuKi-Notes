@@ -49,109 +49,102 @@ Read in this order — do not skip:
 
 ---
 
-## Current Task Brief — Session 1 of 2
+## Current Task Brief — Session 1
 
-> Written and maintained by the Spec session. Complete Session 1 and get Scott's sign-off before starting Session 2.
+> Written and maintained by the Spec session. Get Scott's sign-off before starting Session 2.
 
-**Task**: Phase 3 polish — snackbar auto-dismiss + paragraph double-spacing
-**Branch**: `fix/ui-polish-snackbar-spacing`
-**PR title**: `fix(ui): auto-dismiss snackbars and fix paragraph double-spacing`
-**Closes**: #24, #25
+**Task**: Fix markdown round-trip — formatting lost on save/reload (OQ-1 / #27, partial)
+**Branch**: `fix/markdown-round-trip` ← **branch already exists on remote with changes committed**
+**PR title**: `fix(editor): wire super_editor markdown serializer for correct round-trip`
+**Closes**: #27 (partial — round-trip fixed; live inline reactions are Session 2)
 
-### What to fix
+### Background (read before touching anything)
 
-**#24 — Snackbars do not auto-dismiss**
+The Spec session diagnosed the root cause of the formatting-loss bug (#27). Two functions in `lib/features/editor/editor_screen.dart` were broken:
 
-All `SnackBar` widgets in the app display indefinitely until manually dismissed. Add a `duration` parameter to each:
-- Toss result snackbar (success): `Duration(seconds: 2)`
-- Toss result snackbar (failure / retry): `Duration(seconds: 4)` — long enough to tap Retry
-- Swipe-to-delete undo snackbar: `Duration(seconds: 4)` — long enough to tap Undo
+- `_parseBody` — was splitting on `\n\n` and creating plain `ParagraphNode`s, stripping all formatting (headings, bold, lists, etc.) on load.
+- `_extractBody` — was calling `toPlainText()` on each node, losing all inline attributions on save.
 
-**Known Flutter 3.44 + Material 3 quirk (previous session diagnosed this):** `SnackBar` widgets without a `SnackBarAction` auto-dismiss correctly when `duration` is set. `SnackBar` widgets that include a `SnackBarAction` (the undo snackbar) do NOT auto-dismiss reliably — the action's presence suppresses the internal timer. Fix for the undo snackbar specifically:
+The Spec session committed a fix to branch `fix/markdown-round-trip`. **Your job is to pick up that branch, verify it, test it on device, and open the PR.**
 
-1. Call `ScaffoldMessenger.of(context).clearSnackBars()` before `showSnackBar()`.
-2. Capture the `ScaffoldFeatureController` returned by `showSnackBar()`.
-3. Start a `Timer(Duration(seconds: 4), () => controller.close())` immediately after — this guarantees dismissal regardless of Flutter's internal behaviour.
-4. Cancel the timer in the Undo action's `onPressed` so tapping Undo doesn't close the bar prematurely via the timer.
+### What was changed
 
-Also ensure `ScaffoldMessenger.of(context)` is captured *before* entering any async gap or `onDismissed` callback where the context may be stale.
+Both functions now use super_editor's built-in serializers (already exported from the `super_editor` package — no new dependency):
 
-**#25 — Paragraph double-spacing**
+```dart
+// _parseBody
+MutableDocument _parseBody(String body) {
+  if (body.trim().isEmpty) return MutableDocument.empty();
+  return deserializeMarkdownToDocument(body, syntax: MarkdownSyntax.normal);
+}
 
-Every paragraph in the editor appears double-spaced. Two likely causes compounding each other:
-1. `_extractBody` joins paragraphs with `\n\n`; `_parseInitialBody` splits on `\n\n` — each paragraph node carries a separator.
-2. `super_editor`'s default stylesheet adds its own paragraph padding on top.
+// _extractBody
+String _extractBody() {
+  return serializeDocumentToMarkdown(_document, syntax: MarkdownSyntax.normal).trim();
+}
+```
 
-Audit the `StyleRule` in `EditorScreen.build` and reduce/remove the extra vertical padding between paragraph nodes. Also check whether the `\n\n` join/split logic needs adjusting or if the stylesheet fix alone is sufficient. Do not change text size or horizontal padding.
+`MarkdownSyntax.normal` is used (not `superEditor`) to keep stored markdown GFM-compatible and free of proprietary super_editor notation.
 
-### Files to touch
+A round-trip test file was also committed: `test/features/editor/markdown_round_trip_test.dart`.
 
-- `lib/features/editor/editor_screen.dart` — stylesheet padding + `_parseInitialBody`/`_extractBody` if needed
-- `lib/features/stream/stream_screen.dart` — delete undo snackbar duration
-- `lib/features/editor/toss_picker_sheet.dart` — toss result snackbar duration (if snackbar lives here)
+### Your checklist
 
-### Tests required
+1. `git fetch origin && git checkout fix/markdown-round-trip`
+2. `just lint` — fix any analysis issues.
+3. `just test` — all tests must pass, including the new round-trip tests.
+4. Run on device (Android primary): load an existing QuKi that contains markdown syntax — confirm headings, bold, and lists render correctly instead of showing raw `**` and `#` characters.
+5. Type `# ` (hash space) in a blank line — confirm it converts to a heading node live (this already works via `createDefaultDocumentEditor` reactions).
+6. Verify save → navigate to QuKis list → tap back into the QuKi → formatting is preserved.
+7. Open PR with the template from `notes/dev/pr_template.md`. Scott must confirm on-device before merge.
 
-- Widget test: after a successful toss, the result snackbar is present and has a non-null duration ≤ 3s.
-- Widget test: after swipe-to-delete, the undo snackbar has a non-null duration ≥ 3s.
-- No new tests needed for spacing — visual-only change; verify manually on device.
+### Known limitations (do NOT fix in this PR — that is Session 2)
 
-### Checklist
+- Live inline reactions for typing `**bold**`, `_italic_`, `` `code` `` are not in this PR. Users must use toolbar buttons for inline formatting.
+- `- [ ]` task list conversion reaction is not in this PR.
+- Fenced code blocks are deferred (Scott decision).
 
-- `just lint` and `just test` before committing.
-- No new dependencies. No drift schema changes.
+### Files touched
+
+- `lib/features/editor/editor_screen.dart`
+- `test/features/editor/markdown_round_trip_test.dart` (new)
 
 ---
 
 ## Queued — Session 2 (start after Session 1 is merged)
 
-**Task**: Phase 3 polish — editor navigation redesign + UI copy rename
-**Branch**: `feat/ui-navigation-redesign`
-**PR title**: `feat(ui): editor navigation redesign — QuKis icon, hamburger menu, Send terminology`
-**Closes**: #26, #28
-
-### Navigation model (read before touching anything)
-
-- **Root editor = home**. No back arrow. No element that implies the QuKis list is the parent screen.
-- **QuKis list** is pushed on top of the editor. It shows a `←` back button that pops back to the editor.
-- **Editors opened from the QuKis list** (tap a row) show a `←` back button that pops back to the list.
+**Task**: Live inline markdown reactions — bold, italic, inline code, task list
+**Branch**: `feat/markdown-inline-reactions`
+**PR title**: `feat(editor): live inline markdown input reactions`
+**Closes**: #27 (fully)
 
 ### What to build
 
-**Editor top bar (root editor):**
-- Remove `← Stream` button entirely.
-- Remove `Toss ▼` button entirely.
-- Top-left: icon button (Lucide-style list/history icon — discuss with Scott if unsure; `Icons.list` or similar as a placeholder is fine) → navigates to QuKis list.
-- Top-right: `IconButton` with `Icons.menu` (hamburger ≡) → opens a `PopupMenuButton` or `Drawer` with items: **Send...**, **QuKis**, **Settings**.
-  - **Send...** → fires the existing toss picker sheet (rename sheet title to "Send this QuKi via...")
-  - **QuKis** → navigates to QuKis list (same as top-left icon)
-  - **Settings** → navigates to settings screen
+Add custom `EditReaction` subclasses to the editor so typing markdown syntax converts inline:
 
-**UI copy changes (strings only — do not rename internal identifiers):**
+| Type this | Result |
+|---|---|
+| `**text**` (type closing `**`) | bold attribution |
+| `_text_` (type closing `_`) | italic attribution |
+| `` `text` `` (type closing `` ` ``) | inline code attribution |
+| `- [ ] ` (type space after `]`) | task list node |
 
-| Old string | New string | Location |
-|---|---|---|
-| `← Stream` | *(removed)* | EditorScreen app bar |
-| `Toss ▼` | *(removed)* | EditorScreen app bar |
-| `Toss this QuKi to...` | `Send this QuKi via...` | TossPickerSheet title |
-| `Tossed!` | `Sent!` | Toss result snackbar |
-| `Toss failed` | `Send failed` | Toss result snackbar |
-| `Tosses` (Settings section) | `Transports` | SettingsScreen |
-| `No transports enabled.` | *(keep as-is)* | — |
+Each is a custom `EditReaction` that triggers on the closing delimiter, scans backward in the current text node for the opening delimiter, and applies the attribution. Follow the pattern in `super_editor`'s `default_document_editor_reactions.dart`.
 
-**QuKis list screen:** add a `←` back button in the app bar that pops the navigator. Title stays "QuKis". `+ New` button stays top-right.
+The task list reaction converts the current paragraph node to a `TaskNode` — the node type already exists in super_editor.
 
-### Files to touch
-
-- `lib/features/editor/editor_screen.dart` — top bar redesign
-- `lib/features/editor/toss_picker_sheet.dart` — title string
-- `lib/features/stream/stream_screen.dart` — add back button
-- `lib/features/settings/settings_screen.dart` — "Tosses" → "Transports"
-- `lib/app.dart` — verify nav wiring still correct after top bar changes
+Register the new reactions by passing them to `createDefaultDocumentEditor(inputSource: ..., reactionPipeline: [...defaultReactions, myReactions])` or equivalent super_editor API.
 
 ### Tests required
 
-- Widget test: root `EditorScreen` (no `qukiId`, no `onLeave` implies root) has no back button and has a hamburger icon.
-- Widget test: `EditorScreen` opened with a `qukiId` shows a back button.
-- Widget test: hamburger menu on root editor contains "Send...", "QuKis", "Settings" items.
-- Widget test: `StreamScreen` app bar has a back button.
+- Widget test (or unit test via `EditorTester` if available): type `**bold**`, assert a bold-attributed span exists in the document.
+- Widget test: type `_italic_`, assert italic attribution.
+- Widget test: type `` `code` ``, assert code attribution.
+- Widget test: type `- [ ] `, assert a `TaskNode` exists in the document.
+- Existing round-trip tests from Session 1 must still pass.
+
+### Checklist
+
+- `just lint` and `just test` before committing.
+- No new dependencies — all reactions use the existing super_editor API.
+- Add an ADR entry in `notes/dev/decisions.md` for the chosen reaction implementation approach (custom `EditReaction` vs any alternative considered).
