@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.1](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.9.0...v0.9.1) (2026-06-04)
+
+
+### Bug Fixes
+
+* chore - force new build ([48a5ea6](https://github.com/ScottKirvan/QuKi-Notes/commit/48a5ea66bffdd32253de82b33088e50d86435374))
+
 ## [0.9.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.8.1...v0.9.0) (2026-06-04)
 
 
