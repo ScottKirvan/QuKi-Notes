@@ -326,6 +326,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                 child: SuperEditor(
                   editor: _editor,
                   documentLayoutKey: _docLayoutKey,
+                  imeConfiguration: const SuperEditorImeConfiguration(
+                    enableAutocorrect: false,
+                    enableSuggestions: false,
+                  ),
                   stylesheet: defaultStylesheet.copyWith(
                     inlineTextStyler: _inlineTextStyler,
                     addRulesAfter: [
