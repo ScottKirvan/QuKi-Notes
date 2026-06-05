@@ -64,4 +64,67 @@ Calm, present-tense, slightly dry. Match the manifesto's voice. Not marketing co
 
 > Written and maintained by the Spec session. If this says "no task", ask Scott what's next.
 
-**No task currently in progress.** Awaiting assignment from Scott.
+**Task**: Bring README and VitePress user guide up to v0.9.1
+**Branch**: `docs/user-docs-v0.9.1`
+
+### Context
+
+The app is currently at **v0.9.1**. The README still says "v0.8.0 · Phase 3 in progress" and the features table stops at v0.8.0. Several things have shipped since then that users and beta testers will need to know about. The VitePress user guide under `docs/user-guide/` exists but has not been audited since Phase 2.
+
+### Changes required
+
+#### 1 — README.md
+
+- Update the status note from `v0.8.0` to `v0.9.1`. Replace the OQ-1 sentence (resolved) with a brief accurate summary of where Phase 3 stands: core capture, WYSIWYG markdown editing, and transport plugins are complete; Recently Deleted and theme polish are in progress.
+- Add these rows to the Features table (or update existing rows to match):
+
+| Feature | Details |
+|---|---|
+| **WYSIWYG markdown** | Bold, italic, inline code, task lists render as you type; GFM-compatible storage |
+| **Inline markdown shortcuts** | `**x**` → bold, `_x_` / `*x*` → italic, `` `x` `` → code, `- [ ] ` → task item |
+| **Desktop keyboard shortcuts** | Ctrl+T (Send...), Ctrl+N (new QuKi) on Windows / Linux |
+| **Window-state persistence** | Size and position remembered between sessions (Windows / Linux) |
+
+- Do **not** add "Recently Deleted" — it has not shipped yet.
+- Keep all badge links, the logo, and the existing tone unchanged.
+
+#### 2 — `docs/user-guide/capturing-qukis.md`
+
+- Add a short section on markdown formatting: what shortcuts work (bold, italic, inline code, task list), and that fenced code blocks are not yet rendered.
+- Mention that auto-capitalization is disabled (note as "coming soon" if Session 1 has not yet merged, or as a done fact if it has).
+
+#### 3 — `docs/user-guide/sending-qukis.md`
+
+- Verify the two built-in transports (Clipboard, Share Sheet) are accurately described. No changes needed if accurate; fix anything that is wrong or missing.
+
+#### 4 — `docs/user-guide/keyboard-shortcuts.md`
+
+- Confirm Ctrl+T and Ctrl+N are listed. Add them if missing.
+
+#### 5 — `docs/user-guide/getting-started.md`
+
+- Verify the install path still matches current release artifacts (Android APK from GitHub Releases, Windows and Linux tarballs). No content changes needed if already accurate.
+
+### What NOT to do
+
+- Do not document "Recently Deleted" — it has not shipped.
+- Do not document any sync features.
+- Do not change `.github/workflows/docs.yml` or any VitePress config files.
+- Do not edit anything under `notes/dev/` — that is the Spec session's domain.
+- Do not invent features or behaviors not confirmed in `CLAUDE.md` (root) or `notes/dev/design_spec.md`.
+
+### Checklist
+
+- [ ] README status note updated to v0.9.1
+- [ ] README features table updated
+- [ ] `capturing-qukis.md` covers WYSIWYG markdown shortcuts
+- [ ] `sending-qukis.md` verified accurate
+- [ ] `keyboard-shortcuts.md` has Ctrl+T and Ctrl+N
+- [ ] `getting-started.md` install path verified
+- [ ] No new files created unless clearly needed
+- [ ] Commit with message: `docs: update README and user guide to v0.9.1`
+
+### PR
+
+Title: `docs: update README and user guide to v0.9.1`
+Base: `main`
