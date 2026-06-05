@@ -105,6 +105,23 @@ The app is currently at **v0.9.1**. The README still says "v0.8.0 · Phase 3 in 
 
 - Verify the install path still matches current release artifacts (Android APK from GitHub Releases, Windows and Linux tarballs). No content changes needed if already accurate.
 
+#### 6 — Privacy policy (`docs/privacy.md` or `docs/user-guide/privacy.md`)
+
+Google Play requires a hosted privacy policy URL before any app can be submitted — even apps that collect no data. Write a minimal, honest privacy policy page for QuKi-Notes.
+
+Key facts to convey accurately:
+- The app collects **no personal data** of any kind
+- No analytics, no crash reporting, no telemetry — ever (this is a hard rule in the manifesto, not a marketing claim)
+- All QuKis are stored **locally on the device only**; nothing is transmitted unless the user explicitly initiates a Send via a transport
+- Transport plugins (Clipboard, Share Sheet) send content **at the user's explicit request** to a destination the user chose; no data goes to the app developer
+- No accounts, no sign-in, no server-side storage
+
+Tone: plain language, not legal boilerplate. Match the manifesto voice. Short is correct — there is genuinely nothing to disclose.
+
+The page must be reachable as a public URL once the VitePress site is deployed (e.g., `https://scottkirvan.github.io/QuKi-Notes/privacy`). Add it to the VitePress nav if there is one, or as a footer link.
+
+Scott will use this URL in the Google Play store listing.
+
 ### What NOT to do
 
 - Do not document "Recently Deleted" — it has not shipped.
@@ -121,7 +138,9 @@ The app is currently at **v0.9.1**. The README still says "v0.8.0 · Phase 3 in 
 - [ ] `sending-qukis.md` verified accurate
 - [ ] `keyboard-shortcuts.md` has Ctrl+T and Ctrl+N
 - [ ] `getting-started.md` install path verified
-- [ ] No new files created unless clearly needed
+- [ ] Privacy policy page created (`docs/privacy.md` or similar)
+- [ ] Privacy policy added to site nav or footer
+- [ ] No new files created beyond what is explicitly listed above
 - [ ] Commit with message: `docs: update README and user guide to v0.9.1`
 
 ### PR
