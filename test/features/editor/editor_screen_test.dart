@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
+import 'package:super_editor/super_editor.dart';
+
 import 'package:quki_notes/app.dart';
 import 'package:quki_notes/core/database/app_database.dart';
 import 'package:quki_notes/core/database/database_provider.dart';
@@ -193,6 +195,30 @@ void main() {
             ..where((t) => t.id.equals('existing')))
           .getSingleOrNull();
       expect(row?.body, 'existing content');
+
+      await cleanup(tester);
+    });
+
+    testWidgets('SuperEditor has autocorrect and suggestions disabled (#32)',
+        (tester) async {
+      await tester.pumpWidget(buildEditor());
+      await tester.pump();
+
+      // super_editor 0.3.0-dev.x does not expose textCapitalization on
+      // SuperEditorImeConfiguration; disabling autocorrect + suggestions is
+      // the available mechanism to suppress auto-capitalization on Android IMEs.
+      final superEditor =
+          tester.widget<SuperEditor>(find.byType(SuperEditor));
+      expect(
+        superEditor.imeConfiguration?.enableAutocorrect,
+        isFalse,
+        reason: 'Autocorrect must be off to suppress IME auto-capitalization',
+      );
+      expect(
+        superEditor.imeConfiguration?.enableSuggestions,
+        isFalse,
+        reason: 'Suggestions must be off to suppress IME auto-capitalization',
+      );
 
       await cleanup(tester);
     });

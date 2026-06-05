@@ -32,13 +32,68 @@ class QuKiNotesApp extends ConsumerWidget {
       title: 'QuKi-Notes',
       themeMode: ThemeMode.system,
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+        colorScheme: const ColorScheme(
+          brightness: Brightness.light,
+          // Primer Light High Contrast
+          surface: Color(0xffffffff), // canvas.default → surface
+          onSurface: Color(0xff0d1117), // fg.default
+          onSurfaceVariant: Color(0xff59636e), // fg.muted
+          primary: Color(0xff0550ae), // accent.fg
+          onPrimary: Color(0xffffffff),
+          primaryContainer: Color(0xff0969da), // accent.emphasis
+          onPrimaryContainer: Color(0xffffffff),
+          secondary: Color(0xff0550ae),
+          onSecondary: Color(0xffffffff),
+          secondaryContainer: Color(0xffdff7ff),
+          onSecondaryContainer: Color(0xff0d1117),
+          tertiary: Color(0xff0550ae),
+          onTertiary: Color(0xffffffff),
+          tertiaryContainer: Color(0xffdff7ff),
+          onTertiaryContainer: Color(0xff0d1117),
+          error: Color(0xffd1242f), // danger.fg
+          onError: Color(0xffffffff),
+          errorContainer: Color(0xffFFebe9),
+          onErrorContainer: Color(0xff0d1117),
+          outline: Color(0xff3d444d), // border.default
+          shadow: Color(0xff0d1117),
+          inverseSurface: Color(0xff0d1117),
+          onInverseSurface: Color(0xffffffff),
+          inversePrimary: Color(0xff71b7ff),
+          surfaceTint: Color(0xff0550ae),
+          surfaceContainerHighest: Color(0xfff6f8fa), // canvas.subtle
+        ),
         useMaterial3: true,
       ),
       darkTheme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.deepPurple,
+        colorScheme: const ColorScheme(
           brightness: Brightness.dark,
+          // Primer Dark High Contrast
+          surface: Color(0xff0a0c10), // canvas.default → surface
+          surfaceContainerHighest: Color(0xff272b33), // canvas.subtle
+          onSurface: Color(0xfff0f3f9), // fg.default
+          onSurfaceVariant: Color(0xff9ea7b4), // fg.muted
+          primary: Color(0xff71b7ff), // accent.fg
+          onPrimary: Color(0xff0a0c10),
+          primaryContainer: Color(0xff1f6feb), // accent.emphasis
+          onPrimaryContainer: Color(0xfff0f3f9),
+          secondary: Color(0xff71b7ff),
+          onSecondary: Color(0xff0a0c10),
+          secondaryContainer: Color(0xff1f2937),
+          onSecondaryContainer: Color(0xfff0f3f9),
+          tertiary: Color(0xff71b7ff),
+          onTertiary: Color(0xff0a0c10),
+          tertiaryContainer: Color(0xff1f2937),
+          onTertiaryContainer: Color(0xfff0f3f9),
+          error: Color(0xffff9492), // danger.fg dark
+          onError: Color(0xff0a0c10),
+          errorContainer: Color(0xff300d0d),
+          onErrorContainer: Color(0xfff0f3f9),
+          outline: Color(0xff7a828e), // border.default
+          shadow: Color(0xff0a0c10),
+          inverseSurface: Color(0xfff0f3f9),
+          onInverseSurface: Color(0xff0a0c10),
+          inversePrimary: Color(0xff0550ae),
+          surfaceTint: Color(0xff71b7ff),
         ),
         useMaterial3: true,
       ),
