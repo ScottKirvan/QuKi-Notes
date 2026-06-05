@@ -35,14 +35,14 @@ A QuKi is intentionally ephemeral by framing. It lives on the device until you s
 The project prioritizes **radical simplicity** in the UI (one screen, no navigation depth, no configuration required to start) and **open extensibility** in the backend — a plugin axis for transports, a reserved axis for sync, and a reserved axis for MCP integration. Read the [manifesto](notes/dev/manifesto.md) for the full philosophy.
 
 > [!NOTE]
-> **Status: v0.8.0 · Phase 3 in progress.**
-> Core capture, local storage, and transport plugins are complete. Desktop polish (window-state persistence, keyboard shortcuts, Lucide icon system) landed in v0.7–v0.8. WYSIWYG markdown rendering (OQ-1) is the active open question before v1.0. All design docs and Claude session directives are committed to the repo — start with the [manifesto](notes/dev/manifesto.md).
+> **Status: v0.9.1 · Phase 3 in progress.**
+> Core capture, local storage, transport plugins, and WYSIWYG markdown editing are complete. Recently Deleted and theme polish are in progress. All design docs and Claude session directives are committed to the repo — start with the [manifesto](notes/dev/manifesto.md).
 
 ---
 
 ## Features
 
-Shipped and working in v0.8.0:
+Shipped and working in v0.9.1:
 
 | Feature | Details |
 |---|---|
@@ -53,14 +53,15 @@ Shipped and working in v0.8.0:
 | **Clipboard transport** | Copies full QuKi text to system clipboard; Android, Windows, Linux |
 | **Share Sheet transport** | Opens Android share dialog; Android only |
 | **Android share-in** | Receive text shared from any other app into a new QuKi |
-| **Desktop support** | Windows and Linux builds with window-state persistence |
-| **Keyboard shortcuts** | Ctrl+T (send), Ctrl+N (new QuKi) on Windows / Linux |
+| **WYSIWYG markdown** | Bold, italic, inline code, task lists render as you type; GFM-compatible storage |
+| **Inline markdown shortcuts** | `**x**` → bold, `_x_` / `*x*` → italic, `` `x` `` → code, `- [ ] ` → task item |
+| **Desktop keyboard shortcuts** | Ctrl+T (Send...), Ctrl+N (new QuKi) on Windows / Linux |
+| **Window-state persistence** | Size and position remembered between sessions (Windows / Linux) |
 | **Settings** | Per-transport enable/disable; theme follows system |
 | **No telemetry** | No analytics, no crash reporting, no tracking — ever |
 
 Not in this release:
 
-- WYSIWYG markdown rendering — plain-text editor for now; tracked as OQ-1
 - Image paste — upstream CargoKit blocker; deferred
 - Recently Deleted screen — soft-delete is in the database; the UI screen is not built yet
 - Sync — v1.1+ opt-in plugin axis
@@ -162,7 +163,7 @@ Platform release builds (Android APK, Windows bundle, Linux tarball) are trigger
 | Framework | Flutter / Dart | Single codebase; all active platforms |
 | State / DI | `flutter_riverpod` + `riverpod_generator` | `@riverpod` code-gen throughout |
 | Local storage | `drift` (SQLite ORM) | Schema v1; snapshot tests per version bump |
-| Editor | `super_editor` | Plain-text now; WYSIWYG markdown tracked as OQ-1 |
+| Editor | `super_editor` | WYSIWYG markdown with inline shortcuts; GFM-compatible storage |
 | Icons | `lucide_flutter` | Migrated from Material icons in v0.8.0 |
 | Desktop window | `window_manager` | Size/position persistence on Windows + Linux |
 | Clipboard / share | `share_plus` | Cross-platform clipboard; Android share dialog |
@@ -293,8 +294,10 @@ All planning documents live in `notes/dev/`. Read these before proposing structu
 | &ensp;3.2 | Windows + Linux CI verification | Complete |
 | &ensp;3.3 | Platform guard: share-in on desktop | Complete |
 | &ensp;3.4 | Desktop keyboard shortcuts + window-state | Complete (v0.7–v0.8) |
-| &ensp;3.5 | Stream performance (lazy loading) | Deferred — threshold not hit |
-| — | OQ-1: WYSIWYG markdown editor | Open — blocking v1.0 |
+| &ensp;3.5 | WYSIWYG markdown rendering | Complete (v0.9.1) |
+| &ensp;3.6 | Recently Deleted screen | In progress |
+| &ensp;3.7 | Theme polish | In progress |
+| &ensp;3.8 | Stream performance (lazy loading) | Deferred — threshold not hit |
 | 4 | Sync plugin axis + first sync backend | v1.1+ |
 | 5 | iOS / iPadOS / macOS builds | Deferred |
 | 6 | MCP plugin axis | v2.0+ |

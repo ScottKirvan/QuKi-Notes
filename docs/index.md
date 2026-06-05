@@ -19,3 +19,7 @@ features:
   - title: Nothing to manage
     details: No folders, tags, or backlinks. QuKis exist until you send them or delete them.
 ---
+
+<div style="text-align:center; margin-top: 2rem; font-size: 0.875rem; color: var(--vp-c-text-2);">
+  <a href="/QuKi-Notes/privacy">Privacy Policy</a>
+</div>
