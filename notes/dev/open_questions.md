@@ -6,21 +6,13 @@ Do not implement past one of these without proposing a resolution in the PR body
 
 ---
 
-## OQ-1: WYSIWYG markdown rendering — super_editor vs appflowy_editor ⚠️ ACTIVELY BLOCKING
+## ~~OQ-1: WYSIWYG markdown rendering~~ — **Resolved (v0.9.1, PR #54)**
 
-**Status: MVP requirement, not deferred.** Live WYSIWYG markdown rendering is a hard MVP requirement (manifesto updated 2026-06-03). The current plain-text implementation in `_parseInitialBody` / `_extractBody` is incorrect and must be replaced. See GitHub issue #27.
+**Resolution**: Stayed on `super_editor`. Two-part fix:
+1. `_parseBody` / `_extractBody` replaced with `deserializeMarkdownToDocument` / `serializeDocumentToMarkdown` (both built into `super_editor`; `super_editor_markdown` companion package deprecated and merged upstream). `MarkdownSyntax.normal` used for GFM compatibility.
+2. Custom `EditReaction` subclasses added in `lib/features/editor/markdown_inline_reactions.dart`: bold (`**x**`), italic (`_x_`, `*x*`), inline code (`` `x` ``), task list (`- [ ] `). Block reactions (headings, lists, blockquote) were already provided by `createDefaultDocumentEditor`. ADR-24.
 
-The current `editor_screen.dart` comment "Plain-text loading; full markdown round-trip lands in Phase 3 (OQ-1)" was an implementation shortcut — not a product decision.
-
-**What is required**: typing markdown syntax converts to rendered nodes in real-time. `**text**` → bold, `- [ ]` → task list item, `# ` → heading, `` ` `` → code span, fenced code → code block, etc.
-
-**Resolution options:**
-- (a) **`super_editor` markdown input shortcuts** — investigate whether `super_editor` supports live markdown input conversion (typing triggers). If it does, wire it up. If the GFM coverage (task lists, tables, strikethrough) is incomplete, assess the gap.
-- (b) **Fall back to `appflowy_editor`** — if `super_editor` cannot deliver live WYSIWYG GFM, switch editors. This is a significant rewrite but better than shipping a broken editor.
-
-**Before implementation**: the dev session must investigate option (a) first — specifically whether `super_editor` has a markdown shortcuts / input parser feature. Report findings to Scott before committing to (a) or (b). Do not start the rewrite without this investigation.
-
-**Test plan**: write a fixture for each GFM feature (bold, italic, strikethrough, task list, unordered list, ordered list, heading, inline code, fenced code block), render → serialize → compare output.
+Fenced code block rendering deferred (Scott decision — not a priority for quick-capture use case).
 
 ---
 
@@ -89,4 +81,4 @@ Bulk-pull progress banner: always, or only above some threshold? Decision belong
 
 ---
 
-**Last Updated**: 2026-06-02
+**Last Updated**: 2026-06-05
