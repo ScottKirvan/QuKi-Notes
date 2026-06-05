@@ -53,98 +53,76 @@ Read in this order — do not skip:
 
 > Written and maintained by the Spec session. Get Scott's sign-off before starting Session 2.
 
-**Task**: Fix markdown round-trip — formatting lost on save/reload (OQ-1 / #27, partial)
-**Branch**: `fix/markdown-round-trip` ← **branch already exists on remote with changes committed**
-**PR title**: `fix(editor): wire super_editor markdown serializer for correct round-trip`
-**Closes**: #27 (partial — round-trip fixed; live inline reactions are Session 2)
+**Task**: Phase 3 polish — Primer DHC color palette + auto-capitalization fix
+**Branch**: `fix/primer-theme-autocap`
+**PR title**: `fix(ui): apply Primer Dark High Contrast theme and disable editor auto-capitalization`
+**Closes**: #37, #32
 
-### Background (read before touching anything)
+### Fix 1 — Primer Dark High Contrast color palette (#37)
 
-The Spec session diagnosed the root cause of the formatting-loss bug (#27). Two functions in `lib/features/editor/editor_screen.dart` were broken:
+The app uses Flutter's default `Colors.deepPurple` seed color. Replace `ColorScheme.fromSeed` in `lib/app.dart` with a hand-crafted `ColorScheme` using GitHub Primer Dark High Contrast tokens:
 
-- `_parseBody` — was splitting on `\n\n` and creating plain `ParagraphNode`s, stripping all formatting (headings, bold, lists, etc.) on load.
-- `_extractBody` — was calling `toPlainText()` on each node, losing all inline attributions on save.
+| Flutter role | Primer token | Hex |
+|---|---|---|
+| background / canvas | `canvas.default` | `#0a0c10` |
+| surface | `canvas.subtle` | `#272b33` |
+| onSurface (foreground) | `fg.default` | `#f0f3f9` |
+| onSurfaceVariant (muted) | `fg.muted` | `#9ea7b4` |
+| primary (accent) | `accent.fg` | `#71b7ff` |
+| primaryContainer | `accent.emphasis` | `#1f6feb` |
+| outline (borders) | `border.default` | `#7a828e` |
 
-The Spec session committed a fix to branch `fix/markdown-round-trip`. **Your job is to pick up that branch, verify it, test it on device, and open the PR.**
+Light system theme: use Primer Light High Contrast equivalents from primer.style/primitives. `ThemeMode.system` stays — no manual override. Both `light` and `dark` `ThemeData` must be updated. No new dependencies.
 
-### What was changed
+### Fix 2 — Auto-capitalization (#32)
 
-Both functions now use super_editor's built-in serializers (already exported from the `super_editor` package — no new dependency):
+The editor auto-capitalizes the first letter of each new line. Set `textCapitalization: TextCapitalization.none` on the `SuperEditor` IME/keyboard configuration in `lib/features/editor/editor_screen.dart`. Verify on Android that lowercase input is preserved.
 
-```dart
-// _parseBody
-MutableDocument _parseBody(String body) {
-  if (body.trim().isEmpty) return MutableDocument.empty();
-  return deserializeMarkdownToDocument(body, syntax: MarkdownSyntax.normal);
-}
+### Files to touch
 
-// _extractBody
-String _extractBody() {
-  return serializeDocumentToMarkdown(_document, syntax: MarkdownSyntax.normal).trim();
-}
-```
+- `lib/app.dart` — `ColorScheme` replacement
+- `lib/features/editor/editor_screen.dart` — `textCapitalization` setting
 
-`MarkdownSyntax.normal` is used (not `superEditor`) to keep stored markdown GFM-compatible and free of proprietary super_editor notation.
+### Tests required
 
-A round-trip test file was also committed: `test/features/editor/markdown_round_trip_test.dart`.
+- Widget test: `EditorScreen` keyboard config has `TextCapitalization.none`.
+- No automated tests for theme colors — verify visually on device.
 
-### Your checklist
+### Checklist
 
-1. `git fetch origin && git checkout fix/markdown-round-trip`
-2. `just lint` — fix any analysis issues.
-3. `just test` — all tests must pass, including the new round-trip tests.
-4. Run on device (Android primary): load an existing QuKi that contains markdown syntax — confirm headings, bold, and lists render correctly instead of showing raw `**` and `#` characters.
-5. Type `# ` (hash space) in a blank line — confirm it converts to a heading node live (this already works via `createDefaultDocumentEditor` reactions).
-6. Verify save → navigate to QuKis list → tap back into the QuKi → formatting is preserved.
-7. Open PR with the template from `notes/dev/pr_template.md`. Scott must confirm on-device before merge.
-
-### Known limitations (do NOT fix in this PR — that is Session 2)
-
-- Live inline reactions for typing `**bold**`, `_italic_`, `` `code` `` are not in this PR. Users must use toolbar buttons for inline formatting.
-- `- [ ]` task list conversion reaction is not in this PR.
-- Fenced code blocks are deferred (Scott decision).
-
-### Files touched
-
-- `lib/features/editor/editor_screen.dart`
-- `test/features/editor/markdown_round_trip_test.dart` (new)
+- `just lint` and `just test` before committing.
+- No new dependencies. No drift schema changes.
 
 ---
 
 ## Queued — Session 2 (start after Session 1 is merged)
 
-**Task**: Live inline markdown reactions — bold, italic, inline code, task list
-**Branch**: `feat/markdown-inline-reactions`
-**PR title**: `feat(editor): live inline markdown input reactions`
-**Closes**: #27 (fully)
+**Task**: Phase 3 — Recently Deleted screen
+**Branch**: `feat/recently-deleted`
+**PR title**: `feat(stream): Recently Deleted screen with user-configurable retention`
+**Closes**: #29
 
 ### What to build
 
-Add custom `EditReaction` subclasses to the editor so typing markdown syntax converts inline:
+Data recovery screen — not an organizer feature. See `notes/dev/design_spec.md` → "Recently Deleted" and ADR-5 for full behavioral spec.
 
-| Type this | Result |
-|---|---|
-| `**text**` (type closing `**`) | bold attribution |
-| `_text_` (type closing `_`) | italic attribution |
-| `` `text` `` (type closing `` ` ``) | inline code attribution |
-| `- [ ] ` (type space after `]`) | task list node |
-
-Each is a custom `EditReaction` that triggers on the closing delimiter, scans backward in the current text node for the opening delimiter, and applies the attribution. Follow the pattern in `super_editor`'s `default_document_editor_reactions.dart`.
-
-The task list reaction converts the current paragraph node to a `TaskNode` — the node type already exists in super_editor.
-
-Register the new reactions by passing them to `createDefaultDocumentEditor(inputSource: ..., reactionPipeline: [...defaultReactions, myReactions])` or equivalent super_editor API.
+- **Access**: entry point from Settings (not from the main QuKis list — avoids making it feel like a second list)
+- **Screen**: newest-first list of soft-deleted QuKis; no sort, filter, tags, or pinning
+- **Tap a row** → restore (clears `deletedAt`; QuKi returns to top of QuKis list)
+- **Swipe a row** → permanent hard-delete (immediate; modal confirmation dialog required)
+- **Retention period**: user-configurable in Settings → a new setting (default 7 days; 24h is too short for fat-finger recovery). Background sweep hard-deletes + cascades to images after the period expires.
+- **Drift schema bump required**: add `schemaVersion` bump + migration test per ADR-8. The `qukis` table already has `deletedAt` — no column changes needed, but the sweep logic needs wiring.
 
 ### Tests required
 
-- Widget test (or unit test via `EditorTester` if available): type `**bold**`, assert a bold-attributed span exists in the document.
-- Widget test: type `_italic_`, assert italic attribution.
-- Widget test: type `` `code` ``, assert code attribution.
-- Widget test: type `- [ ] `, assert a `TaskNode` exists in the document.
-- Existing round-trip tests from Session 1 must still pass.
+- Unit test: `hardDeleteBefore(threshold)` DAO method deletes rows with `deletedAt` older than threshold and leaves newer rows.
+- Widget test: Recently Deleted screen shows soft-deleted QuKis; restore tap clears `deletedAt`.
+- Widget test: swipe to hard-delete shows confirmation dialog; confirm → row gone.
+- Migration test: schema version bump verified against prior snapshot per ADR-8.
 
 ### Checklist
 
 - `just lint` and `just test` before committing.
-- No new dependencies — all reactions use the existing super_editor API.
-- Add an ADR entry in `notes/dev/decisions.md` for the chosen reaction implementation approach (custom `EditReaction` vs any alternative considered).
+- No new runtime dependencies.
+- Drift schema version bump + snapshot test required (ADR-8).
+- ADR entry not required (behavior already specified in ADR-5).
