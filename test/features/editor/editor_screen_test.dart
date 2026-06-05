@@ -207,8 +207,7 @@ void main() {
       // super_editor 0.3.0-dev.x does not expose textCapitalization on
       // SuperEditorImeConfiguration; disabling autocorrect + suggestions is
       // the available mechanism to suppress auto-capitalization on Android IMEs.
-      final superEditor =
-          tester.widget<SuperEditor>(find.byType(SuperEditor));
+      final superEditor = tester.widget<SuperEditor>(find.byType(SuperEditor));
       expect(
         superEditor.imeConfiguration?.enableAutocorrect,
         isFalse,
