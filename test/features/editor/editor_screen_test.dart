@@ -29,6 +29,23 @@ void main() {
     await tester.pump(Duration.zero);
   }
 
+  group('EditorScreen auto-focus', () {
+    testWidgets('editor FocusNode is focused after first frame', (tester) async {
+      await tester.pumpWidget(buildEditor());
+      // Post-frame callback fires after the first pump.
+      await tester.pump();
+
+      final superEditorFinder = find.byType(SuperEditor);
+      expect(superEditorFinder, findsOneWidget);
+
+      final superEditor = tester.widget<SuperEditor>(superEditorFinder);
+      expect(superEditor.focusNode, isNotNull);
+      expect(superEditor.focusNode!.hasFocus, isTrue);
+
+      await cleanup(tester);
+    });
+  });
+
   group('EditorScreen snackbar durations', () {
     testWidgets('empty-body guard snackbar has duration ≤ 3s', (tester) async {
       await tester.pumpWidget(buildEditor());

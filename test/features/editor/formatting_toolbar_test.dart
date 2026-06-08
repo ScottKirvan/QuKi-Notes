@@ -23,6 +23,7 @@ void main() {
       expect(LucideIcons.listOrdered, isNotNull);
       expect(LucideIcons.code, isNotNull);
       expect(LucideIcons.link, isNotNull);
+      expect(LucideIcons.keyboardOff, isNotNull);
     });
 
     testWidgets('renders all expected toolbar buttons', (tester) async {
@@ -34,6 +35,7 @@ void main() {
       expect(find.byIcon(LucideIcons.listOrdered), findsOneWidget);
       expect(find.byIcon(LucideIcons.code), findsOneWidget);
       expect(find.byIcon(LucideIcons.link), findsOneWidget);
+      expect(find.byIcon(LucideIcons.keyboardOff), findsOneWidget);
     });
 
     testWidgets('link button shows stub snackbar', (tester) async {

@@ -70,6 +70,12 @@ class FormattingToolbar extends StatelessWidget {
               tooltip: 'Link',
               onPressed: () => _showLinkStub(context),
             ),
+            const Spacer(),
+            _ToolbarButton(
+              icon: LucideIcons.keyboardOff,
+              tooltip: 'Dismiss keyboard',
+              onPressed: () => FocusScope.of(context).unfocus(),
+            ),
           ],
         ),
       ),

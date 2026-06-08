@@ -88,9 +88,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   late MutableDocument _document;
   late MutableDocumentComposer _composer;
   late Editor _editor;
-  late final SuperEditorAndroidControlsController _androidController;
+  SuperEditorAndroidControlsController? _androidController;
   late final AutoSaveController _autoSave;
   final _docLayoutKey = GlobalKey();
+  final _editorFocusNode = FocusNode();
 
   @override
   void initState() {
@@ -98,9 +99,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     _document = MutableDocument.empty();
     _composer = MutableDocumentComposer();
     _editor = _createEditor(document: _document, composer: _composer);
-    _androidController = SuperEditorAndroidControlsController(
-      controlsColor: Colors.white,
-    );
 
     final db = ref.read(appDatabaseProvider);
     _autoSave = AutoSaveController(
@@ -111,6 +109,20 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
     _document.addListener(_onDocumentChanged);
     WidgetsBinding.instance.addObserver(this);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _editorFocusNode.requestFocus();
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final primary = Theme.of(context).colorScheme.primary;
+    _androidController?.dispose();
+    _androidController = SuperEditorAndroidControlsController(
+      controlsColor: primary,
+    );
   }
 
   MutableDocument _parseBody(String body) {
@@ -126,8 +138,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     WidgetsBinding.instance.removeObserver(this);
     _document.removeListener(_onDocumentChanged);
     _autoSave.dispose();
-    _androidController.dispose();
+    _androidController?.dispose();
     _editor.dispose();
+    _editorFocusNode.dispose();
     super.dispose();
   }
 
@@ -322,9 +335,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           children: [
             Expanded(
               child: SuperEditorAndroidControlsScope(
-                controller: _androidController,
+                controller: _androidController!,
                 child: SuperEditor(
                   editor: _editor,
+                  focusNode: _editorFocusNode,
                   documentLayoutKey: _docLayoutKey,
                   imeConfiguration: const SuperEditorImeConfiguration(
                     enableAutocorrect: false,
