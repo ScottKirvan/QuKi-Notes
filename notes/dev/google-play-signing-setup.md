@@ -70,12 +70,12 @@ Go to: **GitHub → ScottKirvan/QuKi-Notes → Settings → Secrets and variable
 
 Add all four:
 
-| Secret name | Value |
-|---|---|
-| `KEYSTORE_BASE64` | The base64 string you just copied |
-| `STORE_PASSWORD` | The keystore password you chose |
-| `KEY_ALIAS` | `quki-notes` (whatever alias you used in Step 1) |
-| `KEY_PASSWORD` | The key password you chose |
+| Secret name       | Value                                            |
+| ----------------- | ------------------------------------------------ |
+| `KEYSTORE_BASE64` | The base64 string you just copied                |
+| `STORE_PASSWORD`  | The keystore password you chose                  |
+| `KEY_ALIAS`       | `quki-notes` (whatever alias you used in Step 1) |
+| `KEY_PASSWORD`    | The key password you chose                       |
 
 ---
 
