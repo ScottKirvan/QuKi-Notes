@@ -48,8 +48,7 @@ void main() {
   });
 
   group('EditorScreen snackbar durations', () {
-    testWidgets('empty-body guard snackbar has duration ≤ 3s',
-        (tester) async {
+    testWidgets('empty-body guard snackbar has duration ≤ 3s', (tester) async {
       await tester.pumpWidget(buildEditor());
       await tester.pump();
 
