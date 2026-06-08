@@ -20,16 +20,21 @@ Every APK released so far has been signed with a randomly-generated debug key fr
 
 ### Step 1 — Generate the keystore
 
+> **Keep the keystore out of the repo.** Store it somewhere stable outside any git working tree — e.g. `%USERPROFILE%\keystores\quki-notes-release.jks` on Windows or `~/keystores/quki-notes-release.jks` on Linux. Committing it, even to a private repo, would expose your signing credentials to anyone with access.
+
 Run this on your Windows dev box (requires Java — the Android SDK includes it):
 
 ```powershell
+# Create the keystores folder outside your repo
+New-Item -ItemType Directory -Force "$env:USERPROFILE\keystores" | Out-Null
+
 # Use the keytool that ships with the Android SDK
 # Adjust the path if your SDK is installed elsewhere
 $KEYTOOL = "$env:LOCALAPPDATA\Android\Sdk\jdk\bin\keytool.exe"
 
 & $KEYTOOL -genkeypair `
   -v `
-  -keystore quki-notes-release.jks `
+  -keystore "$env:USERPROFILE\keystores\quki-notes-release.jks" `
   -keyalg RSA `
   -keysize 2048 `
   -validity 10000 `
@@ -41,7 +46,7 @@ You will be prompted for:
 - Your name / org / city / country — these appear in the cert; use whatever you like (they are not shown to users)
 - A **key password** — can be the same as the keystore password; save it too
 
-This creates `quki-notes-release.jks` in the current directory.
+This creates `quki-notes-release.jks` in `%USERPROFILE%\keystores\`.
 
 **Back this file up immediately** — copy it to your password manager's file vault or an encrypted backup location. If you lose it, you cannot update sideloaded installs.
 
@@ -52,7 +57,7 @@ This creates `quki-notes-release.jks` in the current directory.
 GitHub secrets are strings, so you need to base64-encode the binary `.jks` file:
 
 ```powershell
-[Convert]::ToBase64String([IO.File]::ReadAllBytes("quki-notes-release.jks")) | Set-Clipboard
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("$env:USERPROFILE\keystores\quki-notes-release.jks")) | Set-Clipboard
 ```
 
 This puts the base64 string on your clipboard.
