@@ -268,6 +268,14 @@ rmdir /s /q test_sanity      # clean up
 
 If all four pass, the environment is ready and the first Sonnet bootstrap PR (`notes/dev/bootstrap.md`) can run.
 
+After cloning (or re-cloning), activate the pre-commit format hook:
+
+```powershell
+just setup
+```
+
+This wires `.githooks/pre-commit` so `dart format` runs automatically before every commit. The hook is a no-op if `dart` is not on the PATH.
+
 ---
 
 ## 7. Things that will bite you (preemptive)
