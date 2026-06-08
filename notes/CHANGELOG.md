@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.9.2](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.9.1...v0.9.2) (2026-06-08)
+
+
+### Bug Fixes
+
+* **android:** wire release signing config to CI keystore env vars ([0feeaad](https://github.com/ScottKirvan/QuKi-Notes/commit/0feeaade74e362eb77869bacdf1d051c919f82b7))
+* **editor:** auto-focus editor on launch and add keyboard dismiss button ([3cb93ad](https://github.com/ScottKirvan/QuKi-Notes/commit/3cb93adf537ea9a1ad5db94896d7890f509ada84))
+* **ui:** apply Primer Dark High Contrast theme and disable editor auto-capitalization ([d3f3791](https://github.com/ScottKirvan/QuKi-Notes/commit/d3f3791a5c4353652ce66f6091b1ce0e5ba95d9e))
+
 ## [0.9.1](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.9.0...v0.9.1) (2026-06-04)
 
 
