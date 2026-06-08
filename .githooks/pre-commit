@@ -1,0 +1,19 @@
+#!/bin/sh
+# Fail the commit if any staged Dart file is not formatted.
+# Run `just setup` once after cloning to activate this hook.
+
+if ! command -v dart >/dev/null 2>&1; then
+  echo "pre-commit: dart not found — skipping format check"
+  exit 0
+fi
+
+dart format --output=none --set-exit-if-changed lib/ test/
+STATUS=$?
+
+if [ $STATUS -ne 0 ]; then
+  echo ""
+  echo "pre-commit: dart format found unformatted files (see above)."
+  echo "Run:  dart format lib/ test/"
+  echo "Then re-stage the changed files and commit again."
+  exit 1
+fi

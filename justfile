@@ -3,6 +3,11 @@ set windows-shell := ["powershell.exe", "-NoLogo", "-Command"]
 default:
     @just --list
 
+# Wire the committed pre-commit hook — run once after cloning.
+setup:
+    git config core.hooksPath .githooks
+    @echo "pre-commit hook active"
+
 android:
     #!powershell.exe -NoLogo
     $devices = flutter devices --machine 2>$null | ConvertFrom-Json
