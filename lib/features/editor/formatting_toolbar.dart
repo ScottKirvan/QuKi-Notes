@@ -77,9 +77,9 @@ class FormattingToolbar extends StatelessWidget {
             const Spacer(),
             // Keyboard toggle: shows keyboardOff when focused (keyboard is up),
             // keyboard icon when unfocused (#78).
-            ValueListenableBuilder<bool>(
-              valueListenable: focusNode,
-              builder: (context, _, __) {
+            ListenableBuilder(
+              listenable: focusNode,
+              builder: (context, _) {
                 final hasFocus = focusNode.hasFocus;
                 return _ToolbarButton(
                   icon: hasFocus ? LucideIcons.keyboardOff : LucideIcons.keyboard,
