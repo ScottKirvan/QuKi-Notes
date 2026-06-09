@@ -50,112 +50,82 @@ Read in this order — do not skip:
 
 ---
 
-## Current Task Brief — Session 1 (COMPLETE — pending Scott's device test)
+## Session 1 — COMPLETE
 
-**Task**: Phase 3 polish — Primer DHC color palette + auto-capitalization fix
-**Branch**: `fix/primer-theme-autocap` — PR #63 open, CI green
-**Closes**: #37, #32
-
-Merge when Scott confirms auto-cap fix works on device.
+Primer DHC color palette + auto-capitalization fix. Merged as PR #63.
 
 ---
 
-## Current Task Brief — Session 2
+## Session 2 — COMPLETE
 
-> Start after Session 1 is merged. Written and maintained by the Spec session.
+Editor focus on launch + keyboard dismiss button. Merged as PR #66.
 
-**Task**: Phase 3 polish — editor focus on launch + keyboard dismiss button
-**Branch**: `fix/editor-focus-keyboard-dismiss`
-**PR title**: `fix(editor): auto-focus editor on launch and add keyboard dismiss button`
-**Closes**: (no existing issue — open one if desired)
+---
 
-### Background
+## Current Task Brief — Session 3
 
-A previous hack hardcoded `controlsColor: Colors.white` on `SuperEditorAndroidControlsController` to make the cursor visible. This only works in dark mode and is not a real fix. The underlying problem was that the editor never had focus on launch, so no cursor was visible at all.
+> Written and maintained by the Spec session. Get Scott's sign-off before starting Session 4.
 
-### Fix 1 — Remove the hardcoded white cursor color
+**Task**: Code review fixes — error handling, case-insensitive search, small refactors
+**Branch**: `fix/code-review-error-handling`
+**PR title**: `fix: error handling, case-insensitive search, and stream utility extraction`
 
-In `lib/features/editor/editor_screen.dart`, `initState()`:
+These are all contained, targeted changes. Work through them in order; commit logically (don't squash everything into one commit).
+
+### Fix 1 — Share-in async error handling — `lib/app.dart:120-131`
+
+The async closure that handles incoming shared text has no try/catch. If the DB insert fails the user gets no feedback and the content is silently lost. Wrap in try/catch, log the error via the `logging` package, and show a snackbar: `'Failed to save shared content.'`.
+
+### Fix 2 — Toss error handling — `lib/features/editor/editor_screen.dart:244-263`
+
+`plugin.toss()` has no try/catch. A plugin crash leaves the UI in an indeterminate state. Wrap in try/catch; on exception show an error snackbar: `'Send failed — unexpected error.'` with a Retry action. Log the exception.
+
+### Fix 3 — AutoSaveController error handling — `lib/features/editor/auto_save_controller.dart:52-71`
+
+`insertQuki()` and `updateQuki()` calls are not wrapped. Wrap both in try/catch and log any exception via the `logging` package. No snackbar here — silent saves should stay silent on success.
+
+### Fix 4 — Registry provider error logging — `lib/core/transports/registry_provider.dart:18-23`
+
+The `error:` branch silently returns all plugins as enabled. Log the error via `logging` so it's visible in debug output. Keep the fallback behaviour — return all plugins.
+
+### Fix 5 — Static regex in `_preview()` — `lib/features/stream/stream_screen.dart:99`
+
+The `RegExp(r'^#+\s*')` is constructed on every call (once per list item per rebuild). Extract to:
 
 ```dart
-_androidController = SuperEditorAndroidControlsController(
-  controlsColor: Colors.white,  // ← remove this; derive from theme instead
-);
+static final _headingPattern = RegExp(r'^#+\s*');
 ```
 
-Replace with a theme-derived color. `controlsColor` should use `Theme.of(context).colorScheme.primary` (the accent color). Since `initState` runs before `build`, you need to read the color in `build` and either pass it to a late field or rebuild the controller when theme changes. The simplest correct approach: move `_androidController` construction into `build` and cache it with `didChangeDependencies`, or read the color via `Theme.of(context)` in `didChangeDependencies` and store it for use in `initState`. Use whichever pattern is cleanest — just don't hardcode a hex literal.
+### Fix 6 — Case-insensitive search — `lib/core/database/daos/qukis_dao.dart:19`
 
-### Fix 2 — Auto-focus the editor on launch
+Drift's `.like()` on SQLite is case-sensitive by default. Searching "milk" won't find "Milk". Fix by lowercasing both sides:
 
-When `EditorScreen` first builds, the `SuperEditor` should have keyboard focus so the cursor is visible and the keyboard opens on Android. In `super_editor`, this is controlled by passing an `autofocus: true` property to `SuperEditor` (check the API — the parameter name may vary across versions). If `SuperEditor` does not expose `autofocus` directly, use a `FocusNode` passed to the editor and call `focusNode.requestFocus()` in a post-frame callback from `initState`.
+```dart
+t.body.lower().like('%${query.toLowerCase()}%')
+```
 
-Goal: app opens → cursor blinks in the editor → Android keyboard is up, ready to type. No extra tap required.
+Drift exposes `.lower()` on string expressions. Verify this compiles with the current Drift version.
 
-### Fix 3 — Keyboard dismiss button on the formatting toolbar
+### Fix 7 — Extract `_relativeTime()` to a shared utility
 
-In `lib/features/editor/formatting_toolbar.dart`, add a dismiss button at the **right end** of the toolbar row (use `Spacer()` to push it right). The button should:
-- Use `LucideIcons.keyboardOff` (or `LucideIcons.chevronDown` if `keyboardOff` is not in the current lucide_flutter version — check first)
-- Tooltip: `'Dismiss keyboard'`
-- On press: call `FocusScope.of(context).unfocus()` to dismiss the keyboard without clearing the document selection
-
-This button is only meaningful on mobile. On Windows/Linux there is no software keyboard, but showing it is harmless — it will simply do nothing on desktop.
-
-### Files to touch
-
-- `lib/features/editor/editor_screen.dart` — remove hardcoded white, add auto-focus
-- `lib/features/editor/formatting_toolbar.dart` — add dismiss button
+Move `_relativeTime(DateTime dt)` out of `_StreamScreenState` into a top-level function in `lib/shared/` (e.g. `lib/shared/relative_time.dart`). Write unit tests covering: just now, < 1 min, 1–59 min, 1–23 h, 1–6 days, and older. This makes it testable without a widget harness.
 
 ### Tests required
 
-- Widget test: `EditorScreen` auto-focuses the editor on first build (i.e., a `FocusNode` attached to the `SuperEditor` is focused after the first frame).
-- No automated test for keyboard visibility — verify on Android device.
+- `AutoSaveController`: add test for DB insert exception — mock `QukisDao` to throw, verify no crash and exception is logged.
+- `EditorScreen` toss: add test for plugin throwing — mock transport to throw, verify error snackbar is shown.
+- Search: add test with mixed-case input — insert `'Buy Milk'`, search `'milk'`, expect 1 result.
+- `relativeTime` utility: unit tests for all time buckets listed above.
 
 ### Checklist
 
 - `just lint` and `just test` before committing.
-- No new dependencies.
-- No drift schema changes.
+- No new runtime dependencies.
+- No Drift schema changes.
 
 ---
 
-## Queued — Session 3 (start after Session 2 is merged)
-
-### Fix 1 — Primer Dark High Contrast color palette (#37)
-
-The app uses Flutter's default `Colors.deepPurple` seed color. Replace `ColorScheme.fromSeed` in `lib/app.dart` with a hand-crafted `ColorScheme` using GitHub Primer Dark High Contrast tokens:
-
-| Flutter role | Primer token | Hex |
-|---|---|---|
-| background / canvas | `canvas.default` | `#0a0c10` |
-| surface | `canvas.subtle` | `#272b33` |
-| onSurface (foreground) | `fg.default` | `#f0f3f9` |
-| onSurfaceVariant (muted) | `fg.muted` | `#9ea7b4` |
-| primary (accent) | `accent.fg` | `#71b7ff` |
-| primaryContainer | `accent.emphasis` | `#1f6feb` |
-| outline (borders) | `border.default` | `#7a828e` |
-
-Light system theme: use Primer Light High Contrast equivalents from primer.style/primitives. `ThemeMode.system` stays — no manual override. Both `light` and `dark` `ThemeData` must be updated. No new dependencies.
-
-### Fix 2 — Auto-capitalization (#32)
-
-The editor auto-capitalizes the first letter of each new line. Set `textCapitalization: TextCapitalization.none` on the `SuperEditor` IME/keyboard configuration in `lib/features/editor/editor_screen.dart`. Verify on Android that lowercase input is preserved.
-
-### Files to touch
-
-- `lib/app.dart` — `ColorScheme` replacement
-- `lib/features/editor/editor_screen.dart` — `textCapitalization` setting
-
-### Tests required
-
-- Widget test: `EditorScreen` keyboard config has `TextCapitalization.none`.
-- No automated tests for theme colors — verify visually on device.
-
-### Checklist
-
-- `just lint` and `just test` before committing.
-- No new dependencies. No drift schema changes.
-
----
+## Queued — Session 4 (start after Session 3 is merged)
 
 **Task**: Phase 3 — Recently Deleted screen
 **Branch**: `feat/recently-deleted`
@@ -170,7 +140,7 @@ Data recovery screen — not an organizer feature. See `notes/dev/design_spec.md
 - **Screen**: newest-first list of soft-deleted QuKis; no sort, filter, tags, or pinning
 - **Tap a row** → restore (clears `deletedAt`; QuKi returns to top of QuKis list)
 - **Swipe a row** → permanent hard-delete (immediate; modal confirmation dialog required)
-- **Retention period**: user-configurable in Settings → a new setting (default 7 days; 24h is too short for fat-finger recovery). Background sweep hard-deletes + cascades to images after the period expires.
+- **Retention period**: user-configurable in Settings → a new setting (default 7 days). Background sweep hard-deletes + cascades to images after the period expires.
 - **Drift schema bump required**: add `schemaVersion` bump + migration test per ADR-8. The `qukis` table already has `deletedAt` — no column changes needed, but the sweep logic needs wiring.
 
 ### Tests required
