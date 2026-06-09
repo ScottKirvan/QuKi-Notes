@@ -105,7 +105,7 @@ QuKi-Notes/
 | | 1.5 Auto-save controller | Complete (v0.3.0) |
 | | 1.6 Settings stub | Complete (v0.4.0) |
 | 2 | Transport plugin loader + built-in QuKi-Tosses | Complete (v0.5.0) |
-| 3 | Polish + share-in + Windows + Linux | In progress (v0.9.1) |
+| 3 | Polish + share-in + Windows + Linux | In progress (v0.9.3) |
 | | 3.1 Android share-in | Complete (v0.6.0) |
 | | 3.2 Windows + Linux CI verification | Complete (v0.6.1) |
 | | 3.3 Platform guard: share-in on desktop | Complete (v0.6.2) |
@@ -114,10 +114,12 @@ QuKi-Notes/
 | | 3.6 Editor navigation redesign (QuKis icon, hamburger, Send) | Complete (v0.8.0) |
 | | 3.7 Editor single-root architecture (activeQukiIdProvider) | Complete (v0.8.1) |
 | | 3.8 WYSIWYG markdown rendering (OQ-1) | Complete (v0.9.1) |
-| | 3.9 Primer DHC color palette (#37) | Not started |
-| | 3.10 Auto-capitalization bug (#32) | Not started |
-| | 3.11 Recently Deleted screen (#29) | Not started |
-| | 3.12 Stream performance (lazy loading) | Defer until threshold hit |
+| | 3.9 Primer DHC color palette (#37) | Complete (v0.9.2) |
+| | 3.10 Auto-capitalization bug (#32, #74) | Partially addressed (v0.9.2) — IME workaround insufficient; root issue persists, tracked #74 |
+| | 3.11 Editor auto-focus + keyboard dismiss button | Complete (v0.9.2) |
+| | 3.12 Error handling + case-insensitive search + relativeTime utility | Complete (v0.9.3) |
+| | 3.13 Recently Deleted screen (#29) | Not started |
+| | 3.14 Stream performance (lazy loading) | Defer until threshold hit |
 | 4 | Sync plugin axis + first sync backend | v1.1+ |
 | 5 | iPadOS / iOS / macOS builds | Deferred |
 | 6 | MCP plugin axis | v2.0+ |
@@ -136,7 +138,7 @@ QuKi-Notes/
 
 ---
 
-## Implementation Notes (current as of v0.9.1)
+## Implementation Notes (current as of v0.9.3)
 
 **Navigation**: Editor is the permanent root. `app.dart` home = `EditorScreen`; it never has a back button. `activeQukiIdProvider` (NotifierProvider<String?>) controls which QuKi is loaded. `StreamScreen` sets `activeQukiIdProvider` and pops — no second `EditorScreen` is ever pushed. QuKis list slides in from the left; Settings slides in from the right (directional per affordance position).
 
@@ -154,8 +156,18 @@ QuKi-Notes/
 
 **Snackbar workaround**: Flutter 3.44 + Material 3 — `SnackBar` with `SnackBarAction` does not auto-dismiss when `duration` is set. Fix: capture `ScaffoldFeatureController` from `showSnackBar()`, start an explicit `Timer(duration, controller.close)`, cancel the timer in `onPressed` so Undo works correctly.
 
-**APK signing bug (#56)**: All releases to date are debug-signed with ephemeral runner keystores — upgrades between releases fail. Fix requires generating a real keystore and updating `android/app/build.gradle.kts`. DevOps brief in `Agents/quiki-devops/CLAUDE.md`; must be fixed before beta distribution.
+**APK signing**: Fixed in v0.9.2 (PR #70). `android/app/build.gradle.kts` now reads `STORE_FILE` / `STORE_PASSWORD` / `KEY_ALIAS` / `KEY_PASSWORD` env vars from CI; falls back to debug signing only when env vars are absent (local dev). Confirm the four GitHub Actions secrets are populated before each release.
+
+**Editor focus**: `FocusNode` added to `SuperEditor`; `requestFocus()` called in a post-frame callback from `initState`. Cursor is visible and keyboard raised on Android cold launch. `SuperEditorAndroidControlsController` is constructed in `didChangeDependencies` and uses `colorScheme.primary` for cursor/handle colour (no longer hardcoded white).
+
+**Keyboard dismiss**: `LucideIcons.keyboardOff` button at the right end of the formatting toolbar; calls `FocusScope.of(context).unfocus()`. Tracked issue #78 to make it toggle (show/hide).
+
+**Auto-capitalization workaround (insufficient)**: `SuperEditorImeConfiguration(enableAutocorrect: false, enableSuggestions: false)` was applied in v0.9.2 (#63) as a proxy for `textCapitalization: none` (not yet exposed by `super_editor 0.3.0-dev.51`). The workaround does not fully suppress IME auto-cap on Android. Root issue tracked as #74. Also disables spell check and swipe-to-type (#83) — re-enable those once a proper `textCapitalization` API is available.
+
+**Known bugs (open)**: #75 opening a note without editing bumps `modifiedAt` (auto-save fires on document load); #71 blank lines between list items stripped on round-trip; #76 cursor not visible on Windows; #72 keyboard not raised on cold launch (focus correct, IME not raised).
+
+**Error handling (v0.9.3)**: try/catch added to share-in async closure (`app.dart`), `plugin.toss()` (`editor_screen.dart`), and `AutoSaveController` save paths. Transport settings error branch now logs via `logging`. Static `_headingPattern` regex extracted in `stream_screen.dart`. Case-insensitive search via `t.body.lower().like(...)`. `relativeTime()` extracted to `lib/shared/relative_time.dart` with injected `now:` param for testability.
 
 **`flutter test` on Windows**: If `flutter test` crashes with `PathAccessException: sqlite3.dll Access is denied`, run `flutter clean` in a fresh terminal (close VS Code first).
 
-**Last Updated**: 2026-06-05
+**Last Updated**: 2026-06-09

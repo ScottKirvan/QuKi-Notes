@@ -66,67 +66,53 @@ Calm, present-tense, slightly dry. Match the manifesto's voice. Not marketing co
 
 ---
 
+## Previous task — COMPLETE
+
+README and VitePress user guide updated to v0.9.1; privacy policy created. Merged as PR #62.
+
+---
+
 ## Current Task Brief
 
 > Written and maintained by the Spec session. If this says "no task", ask Scott what's next.
 
-**Task**: Bring README and VitePress user guide up to v0.9.1
-**Branch**: `docs/user-docs-v0.9.1`
+**Task**: Bring README and user guide up to v0.9.2 / v0.9.3
+**Branch**: `docs/user-docs-v0.9.3`
 
 ### Context
 
-The app is currently at **v0.9.1**. The README still says "v0.8.0 · Phase 3 in progress" and the features table stops at v0.8.0. Several things have shipped since then that users and beta testers will need to know about. The VitePress user guide under `docs/user-guide/` exists but has not been audited since Phase 2.
+Three releases have shipped since the last docs update (PR #62, v0.9.1):
+
+- **v0.9.2** — Primer DHC theme, editor auto-focus on launch, keyboard dismiss button, Android release signing fix
+- **v0.9.3** — Error handling hardening, case-insensitive search, `relativeTime` utility (internal; no direct user-visible change beyond search behaviour)
+
+The README and user guide need to reflect these. The app is now at **v0.9.3** (release-please PR #93 open; treat as current).
 
 ### Changes required
 
 #### 1 — README.md
 
-- Update the status note from `v0.8.0` to `v0.9.1`. Replace the OQ-1 sentence (resolved) with a brief accurate summary of where Phase 3 stands: core capture, WYSIWYG markdown editing, and transport plugins are complete; Recently Deleted and theme polish are in progress.
-- Add these rows to the Features table (or update existing rows to match):
+- Update the status badge / version note to `v0.9.3`.
+- Add or update these rows in the Features table:
 
 | Feature | Details |
 |---|---|
-| **WYSIWYG markdown** | Bold, italic, inline code, task lists render as you type; GFM-compatible storage |
-| **Inline markdown shortcuts** | `**x**` → bold, `_x_` / `*x*` → italic, `` `x` `` → code, `- [ ] ` → task item |
-| **Desktop keyboard shortcuts** | Ctrl+T (Send...), Ctrl+N (new QuKi) on Windows / Linux |
-| **Window-state persistence** | Size and position remembered between sessions (Windows / Linux) |
+| **Primer Dark High Contrast theme** | GitHub Primer DHC colour palette in dark mode; Primer LHC in light mode |
+| **Editor auto-focus on launch** | Cursor ready and keyboard raised immediately on Android cold launch |
+| **Keyboard dismiss button** | Toolbar button (keyboard-off icon) dismisses the software keyboard without losing cursor position |
+| **Case-insensitive search** | Search "milk" finds "Buy Milk" |
 
 - Do **not** add "Recently Deleted" — it has not shipped yet.
-- Keep all badge links, the logo, and the existing tone unchanged.
 
 #### 2 — `docs/user-guide/capturing-qukis.md`
 
-- Add a short section on markdown formatting: what shortcuts work (bold, italic, inline code, task list), and that fenced code blocks are not yet rendered.
-- Mention that auto-capitalization is disabled (note as "coming soon" if Session 1 has not yet merged, or as a done fact if it has).
+- Add a note that the editor auto-focuses on launch — no tap required to start typing.
+- Add a note about the keyboard dismiss button (right end of the formatting toolbar).
+- Verify the auto-capitalization note is accurate: the workaround in v0.9.2 is **not fully effective** — the IME may still auto-cap on Android. Do not promise this is fixed; note it as a known issue.
 
-#### 3 — `docs/user-guide/sending-qukis.md`
+#### 3 — `docs/user-guide/searching-qukis.md` (or wherever search is documented)
 
-- Verify the two built-in transports (Clipboard, Share Sheet) are accurately described. No changes needed if accurate; fix anything that is wrong or missing.
-
-#### 4 — `docs/user-guide/keyboard-shortcuts.md`
-
-- Confirm Ctrl+T and Ctrl+N are listed. Add them if missing.
-
-#### 5 — `docs/user-guide/getting-started.md`
-
-- Verify the install path still matches current release artifacts (Android APK from GitHub Releases, Windows and Linux tarballs). No content changes needed if already accurate.
-
-#### 6 — Privacy policy (`docs/privacy.md` or `docs/user-guide/privacy.md`)
-
-Google Play requires a hosted privacy policy URL before any app can be submitted — even apps that collect no data. Write a minimal, honest privacy policy page for QuKi-Notes.
-
-Key facts to convey accurately:
-- The app collects **no personal data** of any kind
-- No analytics, no crash reporting, no telemetry — ever (this is a hard rule in the manifesto, not a marketing claim)
-- All QuKis are stored **locally on the device only**; nothing is transmitted unless the user explicitly initiates a Send via a transport
-- Transport plugins (Clipboard, Share Sheet) send content **at the user's explicit request** to a destination the user chose; no data goes to the app developer
-- No accounts, no sign-in, no server-side storage
-
-Tone: plain language, not legal boilerplate. Match the manifesto voice. Short is correct — there is genuinely nothing to disclose.
-
-The page must be reachable as a public URL once the VitePress site is deployed (e.g., `https://scottkirvan.github.io/QuKi-Notes/privacy`). Add it to the VitePress nav if there is one, or as a footer link.
-
-Scott will use this URL in the Google Play store listing.
+- Confirm search is documented as case-insensitive (as of v0.9.3). Add this fact if missing.
 
 ### What NOT to do
 
@@ -134,22 +120,19 @@ Scott will use this URL in the Google Play store listing.
 - Do not document any sync features.
 - Do not change `.github/workflows/docs.yml` or any VitePress config files.
 - Do not edit anything under `notes/dev/` — that is the Spec session's domain.
-- Do not invent features or behaviors not confirmed in `CLAUDE.md` (root) or `notes/dev/design_spec.md`.
+- Do not invent features or behaviors not confirmed in root `CLAUDE.md` or `notes/dev/design_spec.md`.
 
 ### Checklist
 
-- [ ] README status note updated to v0.9.1
-- [ ] README features table updated
-- [ ] `capturing-qukis.md` covers WYSIWYG markdown shortcuts
-- [ ] `sending-qukis.md` verified accurate
-- [ ] `keyboard-shortcuts.md` has Ctrl+T and Ctrl+N
-- [ ] `getting-started.md` install path verified
-- [ ] Privacy policy page created (`docs/privacy.md` or similar)
-- [ ] Privacy policy added to site nav or footer
+- [ ] README version note updated to v0.9.3
+- [ ] README features table updated with v0.9.2 / v0.9.3 items
+- [ ] `capturing-qukis.md` reflects auto-focus and keyboard dismiss
+- [ ] Auto-cap note is accurate (partial workaround, not fixed)
+- [ ] Search documented as case-insensitive
 - [ ] No new files created beyond what is explicitly listed above
-- [ ] Commit with message: `docs: update README and user guide to v0.9.1`
+- [ ] Commit with message: `docs: update README and user guide to v0.9.3`
 
 ### PR
 
-Title: `docs: update README and user guide to v0.9.1`
+Title: `docs: update README and user guide to v0.9.3`
 Base: `main`

@@ -62,70 +62,15 @@ Editor focus on launch + keyboard dismiss button. Merged as PR #66.
 
 ---
 
-## Current Task Brief — Session 3
+## Session 3 — COMPLETE
 
-> Written and maintained by the Spec session. Get Scott's sign-off before starting Session 4.
-
-**Task**: Code review fixes — error handling, case-insensitive search, small refactors
-**Branch**: `fix/code-review-error-handling`
-**PR title**: `fix: error handling, case-insensitive search, and stream utility extraction`
-
-These are all contained, targeted changes. Work through them in order; commit logically (don't squash everything into one commit).
-
-### Fix 1 — Share-in async error handling — `lib/app.dart:120-131`
-
-The async closure that handles incoming shared text has no try/catch. If the DB insert fails the user gets no feedback and the content is silently lost. Wrap in try/catch, log the error via the `logging` package, and show a snackbar: `'Failed to save shared content.'`.
-
-### Fix 2 — Toss error handling — `lib/features/editor/editor_screen.dart:244-263`
-
-`plugin.toss()` has no try/catch. A plugin crash leaves the UI in an indeterminate state. Wrap in try/catch; on exception show an error snackbar: `'Send failed — unexpected error.'` with a Retry action. Log the exception.
-
-### Fix 3 — AutoSaveController error handling — `lib/features/editor/auto_save_controller.dart:52-71`
-
-`insertQuki()` and `updateQuki()` calls are not wrapped. Wrap both in try/catch and log any exception via the `logging` package. No snackbar here — silent saves should stay silent on success.
-
-### Fix 4 — Registry provider error logging — `lib/core/transports/registry_provider.dart:18-23`
-
-The `error:` branch silently returns all plugins as enabled. Log the error via `logging` so it's visible in debug output. Keep the fallback behaviour — return all plugins.
-
-### Fix 5 — Static regex in `_preview()` — `lib/features/stream/stream_screen.dart:99`
-
-The `RegExp(r'^#+\s*')` is constructed on every call (once per list item per rebuild). Extract to:
-
-```dart
-static final _headingPattern = RegExp(r'^#+\s*');
-```
-
-### Fix 6 — Case-insensitive search — `lib/core/database/daos/qukis_dao.dart:19`
-
-Drift's `.like()` on SQLite is case-sensitive by default. Searching "milk" won't find "Milk". Fix by lowercasing both sides:
-
-```dart
-t.body.lower().like('%${query.toLowerCase()}%')
-```
-
-Drift exposes `.lower()` on string expressions. Verify this compiles with the current Drift version.
-
-### Fix 7 — Extract `_relativeTime()` to a shared utility
-
-Move `_relativeTime(DateTime dt)` out of `_StreamScreenState` into a top-level function in `lib/shared/` (e.g. `lib/shared/relative_time.dart`). Write unit tests covering: just now, < 1 min, 1–59 min, 1–23 h, 1–6 days, and older. This makes it testable without a widget harness.
-
-### Tests required
-
-- `AutoSaveController`: add test for DB insert exception — mock `QukisDao` to throw, verify no crash and exception is logged.
-- `EditorScreen` toss: add test for plugin throwing — mock transport to throw, verify error snackbar is shown.
-- Search: add test with mixed-case input — insert `'Buy Milk'`, search `'milk'`, expect 1 result.
-- `relativeTime` utility: unit tests for all time buckets listed above.
-
-### Checklist
-
-- `just lint` and `just test` before committing.
-- No new runtime dependencies.
-- No Drift schema changes.
+Error handling, case-insensitive search, and stream utility extraction. Merged as PR #90 (v0.9.3).
 
 ---
 
-## Queued — Session 4 (start after Session 3 is merged)
+## Current Task Brief — Session 4
+
+> Written and maintained by the Spec session. Get Scott's sign-off before starting Session 5.
 
 **Task**: Phase 3 — Recently Deleted screen
 **Branch**: `feat/recently-deleted`

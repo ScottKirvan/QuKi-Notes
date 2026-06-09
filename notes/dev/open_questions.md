@@ -81,4 +81,4 @@ Bulk-pull progress banner: always, or only above some threshold? Decision belong
 
 ---
 
-**Last Updated**: 2026-06-05
+**Last Updated**: 2026-06-09
