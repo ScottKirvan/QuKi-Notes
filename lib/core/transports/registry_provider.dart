@@ -1,10 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:logging/logging.dart';
 
 import 'plugins/clipboard_toss.dart';
 import 'plugins/share_sheet_toss.dart';
 import 'registry.dart';
 import 'transport_plugin.dart';
 import 'transport_settings_notifier.dart';
+
+final _log = Logger('TransportRegistry');
 
 final transportRegistryProvider = Provider<TransportRegistry>(
   (ref) =>
@@ -19,6 +22,10 @@ final enabledTransportsProvider = Provider<List<TransportPlugin>>((ref) {
     data: (enabled) =>
         registry.plugins.where((p) => enabled[p.id] ?? true).toList(),
     loading: () => registry.plugins,
-    error: (_, __) => registry.plugins,
+    error: (err, st) {
+      _log.warning('enabledTransportsProvider: failed to load settings; '
+          'falling back to all plugins enabled', err, st);
+      return registry.plugins;
+    },
   );
 });

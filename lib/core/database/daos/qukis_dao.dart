@@ -1,7 +1,9 @@
 part of '../app_database.dart';
 
 @DriftAccessor(tables: [Qukis])
-class QukisDao extends DatabaseAccessor<AppDatabase> with _$QukisDaoMixin {
+class QukisDao extends DatabaseAccessor<AppDatabase>
+    with _$QukisDaoMixin
+    implements QukisDaoWritable {
   QukisDao(super.db);
 
   Stream<List<Quki>> watchAll() => (select(qukis)
@@ -16,7 +18,9 @@ class QukisDao extends DatabaseAccessor<AppDatabase> with _$QukisDaoMixin {
       (select(qukis)..where((t) => t.id.equals(id))).getSingleOrNull();
 
   Stream<List<Quki>> search(String query) => (select(qukis)
-        ..where((t) => t.deletedAt.isNull() & t.body.like('%$query%'))
+        ..where((t) =>
+            t.deletedAt.isNull() &
+            t.body.lower().like('%${query.toLowerCase()}%'))
         ..orderBy([(t) => OrderingTerm.desc(t.modifiedAt)]))
       .watch();
 

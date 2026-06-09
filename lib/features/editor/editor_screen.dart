@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:logging/logging.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:super_editor/super_editor.dart';
 
@@ -12,6 +13,8 @@ import '../../core/transports/registry_provider.dart';
 import '../../core/transports/transport_plugin.dart';
 
 import 'auto_save_controller.dart';
+
+final _log = Logger('EditorScreen');
 import 'formatting_toolbar.dart';
 import 'markdown_inline_reactions.dart';
 import 'toss_picker_sheet.dart';
@@ -254,11 +257,25 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       ),
     );
 
-    final result = await plugin.toss(
-      markdown: body,
-      images: const [],
-      ctx: ctx,
-    );
+    TossResult result;
+    try {
+      result = await plugin.toss(
+        markdown: body,
+        images: const [],
+        ctx: ctx,
+      );
+    } catch (e, st) {
+      _log.severe('plugin.toss threw unexpectedly', e, st);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Send failed — unexpected error.'),
+          duration: const Duration(seconds: 4),
+          action: SnackBarAction(label: 'Retry', onPressed: _onToss),
+        ),
+      );
+      return;
+    }
     if (!mounted) return;
 
     ScaffoldMessenger.of(context).showSnackBar(

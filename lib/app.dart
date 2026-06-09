@@ -3,9 +3,12 @@ import 'dart:io' show Platform;
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:logging/logging.dart';
 import 'package:uuid/uuid.dart';
 
 import 'core/database/app_database.dart';
+
+final _log = Logger('ShareAwareHome');
 import 'core/database/database_provider.dart';
 import 'features/editor/editor_screen.dart';
 import 'features/share_in/share_handler.dart';
@@ -118,16 +121,28 @@ class _ShareAwareHome extends ConsumerWidget {
         if (text == null) return;
         // Save as a new QuKi and open it in the root editor.
         () async {
-          final db = ref.read(appDatabaseProvider);
-          final id = const Uuid().v4();
-          final now = DateTime.now();
-          await db.qukisDao.insertQuki(QukisCompanion.insert(
-            id: id,
-            body: Value(text),
-            createdAt: now,
-            modifiedAt: now,
-          ));
-          ref.read(activeQukiIdProvider.notifier).setId(id);
+          try {
+            final db = ref.read(appDatabaseProvider);
+            final id = const Uuid().v4();
+            final now = DateTime.now();
+            await db.qukisDao.insertQuki(QukisCompanion.insert(
+              id: id,
+              body: Value(text),
+              createdAt: now,
+              modifiedAt: now,
+            ));
+            ref.read(activeQukiIdProvider.notifier).setId(id);
+          } catch (e, st) {
+            _log.severe('Failed to save shared content', e, st);
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Failed to save shared content.'),
+                  duration: Duration(seconds: 4),
+                ),
+              );
+            }
+          }
         }();
       });
     });

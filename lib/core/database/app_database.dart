@@ -55,3 +55,11 @@ LazyDatabase _openConnection() {
     return NativeDatabase.createInBackground(file);
   });
 }
+
+/// Narrow write interface for [AutoSaveController].
+/// Decoupled from [QukisDao] so unit tests can provide a lightweight fake
+/// without a live database connection.
+abstract class QukisDaoWritable {
+  Future<void> insertQuki(QukisCompanion entry);
+  Future<void> updateQuki(QukisCompanion entry);
+}

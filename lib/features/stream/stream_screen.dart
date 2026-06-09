@@ -9,6 +9,7 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 import '../../app.dart';
 import '../../core/database/app_database.dart';
 import '../../core/database/database_provider.dart';
+import '../../shared/relative_time.dart';
 import '../settings/settings_screen.dart';
 
 class StreamScreen extends ConsumerStatefulWidget {
@@ -19,6 +20,7 @@ class StreamScreen extends ConsumerStatefulWidget {
 }
 
 class _StreamScreenState extends ConsumerState<StreamScreen> {
+  static final _headingPattern = RegExp(r'^#+\s*');
   final _searchController = TextEditingController();
   String _query = '';
   Timer? _undoTimer;
@@ -96,35 +98,10 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
         .split('\n')
         .where((l) => l.trim().isNotEmpty)
         .firstOrNull
-        ?.replaceAll(RegExp(r'^#+\s*'), '')
+        ?.replaceAll(_headingPattern, '')
         .trim();
     if (first == null || first.isEmpty) return '(empty)';
     return first.length > 80 ? '${first.substring(0, 80)}…' : first;
-  }
-
-  String _relativeTime(DateTime dt) {
-    final diff = DateTime.now().difference(dt);
-    if (diff.inMinutes < 1) return 'just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    if (diff.inDays == 1) return 'Yesterday';
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    final m = months[dt.month - 1];
-    final now = DateTime.now();
-    return dt.year == now.year ? '$m ${dt.day}' : '$m ${dt.day}, ${dt.year}';
   }
 
   @override
@@ -228,7 +205,7 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
                           overflow: TextOverflow.ellipsis,
                         ),
                         subtitle: Text(
-                          _relativeTime(quki.modifiedAt),
+                          relativeTime(quki.modifiedAt),
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                         onTap: () => _openExisting(quki),

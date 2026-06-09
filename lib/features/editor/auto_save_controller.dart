@@ -1,15 +1,18 @@
 import 'dart:async';
 
 import 'package:drift/drift.dart' show Value;
+import 'package:logging/logging.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../core/database/app_database.dart';
+
+final _log = Logger('AutoSaveController');
 
 // Implements ADR-6: 2s idle debounce + 30s periodic + lifecycle saves.
 // Phase 1.3 save-on-leave bridge (ADR-20) is superseded by this controller.
 class AutoSaveController {
   AutoSaveController({
-    required QukisDao dao,
+    required QukisDaoWritable dao,
     required String Function() getBody,
     String? initialId,
     this.debounceDelay = const Duration(seconds: 2),
@@ -18,7 +21,7 @@ class AutoSaveController {
         _getBody = getBody,
         _savedId = initialId;
 
-  final QukisDao _dao;
+  final QukisDaoWritable _dao;
   final String Function() _getBody;
 
   // Exposed for tests; read-only after construction.
@@ -53,21 +56,25 @@ class AutoSaveController {
     final body = _getBody();
     if (body.isEmpty) return;
     final now = DateTime.now();
-    if (_savedId != null) {
-      await _dao.updateQuki(QukisCompanion(
-        id: Value(_savedId!),
-        body: Value(body),
-        modifiedAt: Value(now),
-      ));
-    } else {
-      final id = const Uuid().v4();
-      _savedId = id;
-      await _dao.insertQuki(QukisCompanion(
-        id: Value(id),
-        body: Value(body),
-        createdAt: Value(now),
-        modifiedAt: Value(now),
-      ));
+    try {
+      if (_savedId != null) {
+        await _dao.updateQuki(QukisCompanion(
+          id: Value(_savedId!),
+          body: Value(body),
+          modifiedAt: Value(now),
+        ));
+      } else {
+        final id = const Uuid().v4();
+        _savedId = id;
+        await _dao.insertQuki(QukisCompanion(
+          id: Value(id),
+          body: Value(body),
+          createdAt: Value(now),
+          modifiedAt: Value(now),
+        ));
+      }
+    } catch (e, st) {
+      _log.severe('save failed', e, st);
     }
   }
 
