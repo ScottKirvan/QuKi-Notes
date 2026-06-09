@@ -7,12 +7,12 @@ import 'package:logging/logging.dart';
 import 'package:uuid/uuid.dart';
 
 import 'core/database/app_database.dart';
-
-final _log = Logger('ShareAwareHome');
 import 'core/database/database_provider.dart';
 import 'features/editor/editor_screen.dart';
 import 'features/share_in/share_handler.dart';
 import 'features/window/window_state_scope.dart';
+
+final _log = Logger('ShareAwareHome');
 
 // ID of the QuKi currently loaded in the root editor.
 // null = blank new QuKi. Set by StreamScreen on row-tap or + New.

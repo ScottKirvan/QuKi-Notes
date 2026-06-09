@@ -13,13 +13,13 @@ import '../../core/transports/registry_provider.dart';
 import '../../core/transports/transport_plugin.dart';
 
 import 'auto_save_controller.dart';
-
-final _log = Logger('EditorScreen');
 import 'formatting_toolbar.dart';
 import 'markdown_inline_reactions.dart';
 import 'toss_picker_sheet.dart';
 import '../settings/settings_screen.dart';
 import '../stream/stream_screen.dart';
+
+final _log = Logger('EditorScreen');
 
 /// Builds an [Editor] with the default reaction pipeline plus custom inline
 /// markdown reactions (bold, italic, code, task list).
