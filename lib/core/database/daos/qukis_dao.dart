@@ -24,8 +24,10 @@ class QukisDao extends DatabaseAccessor<AppDatabase>
         ..orderBy([(t) => OrderingTerm.desc(t.modifiedAt)]))
       .watch();
 
+  @override
   Future<void> insertQuki(QukisCompanion entry) => into(qukis).insert(entry);
 
+  @override
   Future<void> updateQuki(QukisCompanion entry) =>
       (update(qukis)..where((t) => t.id.equals(entry.id.value))).write(entry);
 
