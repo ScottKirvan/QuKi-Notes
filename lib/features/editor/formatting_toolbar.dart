@@ -9,12 +9,17 @@ class FormattingToolbar extends StatelessWidget {
     required this.document,
     required this.composer,
     required this.documentLayoutResolver,
+    required this.focusNode,
   });
 
   final Editor editor;
   final MutableDocument document;
   final MutableDocumentComposer composer;
   final DocumentLayoutResolver documentLayoutResolver;
+
+  /// The [FocusNode] of the [SuperEditor]. Used to toggle keyboard visibility
+  /// (#78).
+  final FocusNode focusNode;
 
   CommonEditorOperations get _ops => CommonEditorOperations(
         document: document,
@@ -60,10 +65,9 @@ class FormattingToolbar extends StatelessWidget {
               onPressed: () => _convertToList(ListItemType.ordered),
             ),
             _ToolbarButton(
-              icon: LucideIcons.code,
-              tooltip: 'Code',
-              onPressed: () =>
-                  _ops.toggleAttributionsOnSelection({codeAttribution}),
+              icon: LucideIcons.listChecks,
+              tooltip: 'Task list item',
+              onPressed: () => _insertTaskListItem(context),
             ),
             _ToolbarButton(
               icon: LucideIcons.link,
@@ -71,10 +75,24 @@ class FormattingToolbar extends StatelessWidget {
               onPressed: () => _showLinkStub(context),
             ),
             const Spacer(),
-            _ToolbarButton(
-              icon: LucideIcons.keyboardOff,
-              tooltip: 'Dismiss keyboard',
-              onPressed: () => FocusScope.of(context).unfocus(),
+            // Keyboard toggle: shows keyboardOff when focused (keyboard is up),
+            // keyboard icon when unfocused (#78).
+            ValueListenableBuilder<bool>(
+              valueListenable: focusNode,
+              builder: (context, _, __) {
+                final hasFocus = focusNode.hasFocus;
+                return _ToolbarButton(
+                  icon: hasFocus ? LucideIcons.keyboardOff : LucideIcons.keyboard,
+                  tooltip: hasFocus ? 'Dismiss keyboard' : 'Show keyboard',
+                  onPressed: () {
+                    if (hasFocus) {
+                      FocusScope.of(context).unfocus();
+                    } else {
+                      focusNode.requestFocus();
+                    }
+                  },
+                );
+              },
             ),
           ],
         ),
@@ -88,6 +106,33 @@ class FormattingToolbar extends StatelessWidget {
     final node = document.getNodeById(selection.extent.nodeId);
     if (node is! TextNode) return;
     _ops.convertToListItem(type, node.text);
+  }
+
+  /// Inserts `- [ ] ` at offset 0 of the current node. The existing
+  /// [TaskListMarkdownReaction] picks up the `- [ ] ` prefix and converts the
+  /// paragraph to a [TaskNode] automatically.
+  void _insertTaskListItem(BuildContext context) {
+    final selection = composer.selection;
+    if (selection == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Place cursor in the editor first.'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
+    final nodeId = selection.extent.nodeId;
+    editor.execute([
+      InsertTextRequest(
+        documentPosition: DocumentPosition(
+          nodeId: nodeId,
+          nodePosition: const TextNodePosition(offset: 0),
+        ),
+        textToInsert: '- [ ] ',
+        attributions: const {},
+      ),
+    ]);
   }
 
   // Link insertion deferred to Phase 3 polish (requires URL dialog + LinkAttribution).
