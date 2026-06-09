@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.9.3](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.9.2...v0.9.3) (2026-06-09)
+
+
+### Bug Fixes
+
+* **editor:** resolve Logger ambiguity by hiding super_editor's Logger ([edaf04c](https://github.com/ScottKirvan/QuKi-Notes/commit/edaf04cf3968c39f2f1fc4a691e6553ee5a60de0))
+* error handling, case-insensitive search, and stream utility extraction ([341e1bd](https://github.com/ScottKirvan/QuKi-Notes/commit/341e1bd328486d6c41acacfbcdca12746df4f836))
+* force a release-please action ([ef33a04](https://github.com/ScottKirvan/QuKi-Notes/commit/ef33a048fea5628a1ae34823bfb99df960a6d53d))
+* resolve ambiguous Logger import and add [@override](https://github.com/override) annotations ([ffff012](https://github.com/ScottKirvan/QuKi-Notes/commit/ffff012564fd346b4398175f1e115fd3002113e8))
+* use show Logger, Level to resolve ambiguous import in editor_screen ([0b0d664](https://github.com/ScottKirvan/QuKi-Notes/commit/0b0d664c1212f87572b5de045e385584d21a77ca))
+
 ## [0.9.2](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.9.1...v0.9.2) (2026-06-08)
 
 
