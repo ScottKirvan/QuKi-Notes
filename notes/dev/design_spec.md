@@ -456,7 +456,7 @@ quki_notes/
 | 0     | Bootstrap scaffold (project, CI, docs)                                 | Complete       |
 | 1     | Local QuKi capture on Android — editor, stream, drift, auto-save       | Complete (v0.3.0) |
 | 2     | Transport plugin loader + built-in QuKi-Tosses + Settings → Tosses     | Complete (v0.5.0) |
-| 3     | Polish + share-in + Windows + Linux desktop ports                      | In progress (v0.8.1) |
+| 3     | Polish + share-in + Windows + Linux desktop ports                      | In progress (v0.9.3) |
 | 4     | Sync plugin axis (`core/sync/`) + first sync backend (probably GitHub) | v1.1+       |
 | 5     | iPadOS / iOS / macOS builds (CI wiring + device QA)                    | Deferred    |
 | 6     | MCP plugin axis                                                        | v2.0+       |
@@ -497,12 +497,14 @@ Sub-tasks in priority order:
 4. **Snackbar auto-dismiss + paragraph spacing** — toss result snackbar 2s/4s duration; undo snackbar 4s via explicit `Timer` workaround (Flutter 3.44 + Material 3 bug); stylesheet paragraph padding reduced. ✓ Complete (v0.8.0).
 5. **Editor navigation redesign** — `← Stream` and `Toss ▼` removed; top-left QuKis icon (Lucide) + top-right hamburger (≡) with Send…/QuKis/Settings; `TossPickerSheet` title → "Send this QuKi via…"; snackbar copy → "Sent!" / "Send failed"; Settings section "Tosses" → "Transports". ✓ Complete (v0.8.0). ADR-23 (Lucide icons).
 6. **Editor single-root architecture** — replaced push-based QuKi loading with `activeQukiIdProvider` (NotifierProvider<String?>); editor is now the permanent root, `StreamScreen` sets the provider and pops; `AutoSaveController.resetForQuki(id:)` switches save target without disposal; share-in routes through provider (no second EditorScreen). ✓ Complete (v0.8.1).
-7. **WYSIWYG markdown rendering (OQ-1 / #27)** — live GFM rendering (bold, italic, headings, task lists, code blocks, etc.). **Blocking MVP. Not started.** Investigate `super_editor` markdown input shortcuts first; fallback: `appflowy_editor` rewrite.
-8. **Auto-capitalization bug (#32)** — `TextCapitalization.none` on editor IME config. Not started.
-9. **Primer DHC color palette (#37)** — replace `Colors.deepPurple` seed with GitHub Primer Dark High Contrast `ColorScheme`. Not started.
-10. **Recently Deleted screen (#29)** — data recovery UI; user-configurable retention; background sweep. Not started (drift schema bump required per ADR-8).
-11. **Stream performance** — lazy loading / pagination for large QuKi counts. Defer until a real threshold is hit.
-12. **Onboarding** — drops straight to editor; coachmarks deferred unless user testing reveals a need.
+7. **WYSIWYG markdown rendering (OQ-1 / #27)** — live GFM rendering (bold, italic, headings, task lists, code blocks, etc.). ✓ Complete (v0.9.1). Fenced code block rendering deferred per Scott's decision.
+8. **Primer DHC color palette (#37)** — replace `Colors.deepPurple` seed with GitHub Primer Dark High Contrast `ColorScheme`. ✓ Complete (v0.9.2, PR #63). Primer LHC for light mode also applied.
+9. **Auto-capitalization bug (#32)** — `TextCapitalization.none` on editor IME config. Partially addressed (v0.9.2): `enableAutocorrect: false` / `enableSuggestions: false` applied as a proxy since `super_editor 0.3.0-dev.51` does not expose `textCapitalization`. Root issue persists and is tracked as #74. Also disables spell check and swipe-to-type (#83).
+10. **Editor auto-focus + keyboard dismiss** — cursor visible and keyboard raised on Android cold launch; keyboard dismiss button in toolbar. ✓ Complete (v0.9.2, PR #66). Known follow-up: #72 keyboard not always raised, #78 keyboard button should toggle.
+11. **Error handling + code review fixes** — share-in, toss, auto-save wrapped in try/catch; case-insensitive search; `relativeTime` utility extracted. ✓ Complete (v0.9.3, PR #90).
+12. **Recently Deleted screen (#29)** — data recovery UI; user-configurable retention; background sweep. Not started (drift schema bump required per ADR-8).
+13. **Stream performance** — lazy loading / pagination for large QuKi counts. Defer until a real threshold is hit.
+14. **Onboarding** — drops straight to editor; coachmarks deferred unless user testing reveals a need.
 
 #### Share-in: behavior spec
 
@@ -613,4 +615,4 @@ Tracked in `notes/dev/open_questions.md`. Snapshot of what's outstanding at spec
 
 ---
 
-**Last Updated**: 2026-06-04
+**Last Updated**: 2026-06-09
