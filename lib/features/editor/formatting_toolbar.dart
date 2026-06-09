@@ -82,7 +82,8 @@ class FormattingToolbar extends StatelessWidget {
               builder: (context, _) {
                 final hasFocus = focusNode.hasFocus;
                 return _ToolbarButton(
-                  icon: hasFocus ? LucideIcons.keyboardOff : LucideIcons.keyboard,
+                  icon:
+                      hasFocus ? LucideIcons.keyboardOff : LucideIcons.keyboard,
                   tooltip: hasFocus ? 'Dismiss keyboard' : 'Show keyboard',
                   onPressed: () {
                     if (hasFocus) {
