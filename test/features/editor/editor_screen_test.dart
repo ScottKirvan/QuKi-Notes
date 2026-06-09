@@ -436,8 +436,7 @@ void main() {
 
     testWidgets(
         'QuKis icon is enabled after a QuKi is inserted — '
-        'regression: icon did not react to DB changes (#86)',
-        (tester) async {
+        'regression: icon did not react to DB changes (#86)', (tester) async {
       final container = ProviderContainer(
         overrides: [appDatabaseProvider.overrideWithValue(db)],
       );
