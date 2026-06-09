@@ -1,8 +1,21 @@
 import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logging/logging.dart';
 import 'package:quki_notes/core/database/app_database.dart';
 import 'package:quki_notes/features/editor/auto_save_controller.dart';
+
+/// Fake [QukisDaoWritable] that throws on every write — used to verify that
+/// [AutoSaveController] swallows and logs DB exceptions rather than crashing.
+class _ThrowingDao implements QukisDaoWritable {
+  @override
+  Future<void> insertQuki(QukisCompanion entry) async =>
+      throw Exception('insert failed');
+
+  @override
+  Future<void> updateQuki(QukisCompanion entry) async =>
+      throw Exception('update failed');
+}
 
 // Short durations so tests run fast without fake_async.
 const _debounce = Duration(milliseconds: 20);
@@ -199,6 +212,54 @@ void main() {
       expect(rows.length, 2);
       expect(
           rows.map((r) => r.body), containsAll(['first quki', 'second quki']));
+    });
+  });
+
+  group('AutoSaveController DB exception handling', () {
+    test(
+        'save does not throw when insert raises an exception — '
+        'regression: silent data loss on DB error', () async {
+      final logged = <LogRecord>[];
+      final sub = Logger('AutoSaveController').onRecord.listen(logged.add);
+      addTearDown(sub.cancel);
+
+      final throwingController = AutoSaveController(
+        dao: _ThrowingDao(),
+        getBody: () => 'hello',
+        debounceDelay: _debounce,
+        periodicInterval: _periodic,
+      );
+      addTearDown(throwingController.dispose);
+
+      // Must not throw — exception should be caught and logged.
+      await expectLater(throwingController.save(), completes);
+
+      // Verify the exception was logged at SEVERE level.
+      expect(logged, isNotEmpty);
+      expect(logged.first.level, Level.SEVERE);
+    });
+
+    test(
+        'save does not throw when update raises an exception — '
+        'regression: silent data loss on DB error', () async {
+      final logged = <LogRecord>[];
+      final sub = Logger('AutoSaveController').onRecord.listen(logged.add);
+      addTearDown(sub.cancel);
+
+      // initialId triggers the update path.
+      final throwingController = AutoSaveController(
+        dao: _ThrowingDao(),
+        getBody: () => 'hello',
+        initialId: 'existing-id',
+        debounceDelay: _debounce,
+        periodicInterval: _periodic,
+      );
+      addTearDown(throwingController.dispose);
+
+      await expectLater(throwingController.save(), completes);
+
+      expect(logged, isNotEmpty);
+      expect(logged.first.level, Level.SEVERE);
     });
   });
 }

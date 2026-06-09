@@ -10,8 +10,33 @@ import 'package:super_editor/super_editor.dart';
 import 'package:quki_notes/app.dart';
 import 'package:quki_notes/core/database/app_database.dart';
 import 'package:quki_notes/core/database/database_provider.dart';
+import 'package:quki_notes/core/transports/registry_provider.dart';
+import 'package:quki_notes/core/transports/transport_plugin.dart';
 import 'package:quki_notes/features/editor/editor_screen.dart';
 import 'package:quki_notes/features/stream/stream_screen.dart';
+
+/// A transport that always throws — used to verify error snackbar behaviour.
+class _ThrowingTransport extends TransportPlugin {
+  const _ThrowingTransport();
+
+  @override
+  String get id => 'throwing-transport';
+
+  @override
+  String get displayName => 'Throwing Transport';
+
+  @override
+  String get description => 'Always throws for test purposes.';
+
+  @override
+  Future<TossResult> toss({
+    required String markdown,
+    required List<TossImage> images,
+    required TossContext ctx,
+  }) async {
+    throw Exception('transport error');
+  }
+}
 
 void main() {
   late AppDatabase db;
@@ -273,6 +298,63 @@ void main() {
       // Slide comes from the left: x must be negative mid-animation
       final slide = tester.widget<SlideTransition>(slideFinder.first);
       expect(slide.position.value.dx, lessThan(0));
+
+      await cleanup(tester);
+    });
+  });
+
+  group('EditorScreen toss error handling', () {
+    testWidgets(
+        'shows error snackbar with Retry action when plugin throws — '
+        'regression: plugin crash left UI in indeterminate state',
+        (tester) async {
+      // Pre-insert a QuKi so the body is non-empty and the toss path is reached.
+      final now = DateTime(2026, 1, 1);
+      await db.qukisDao.insertQuki(QukisCompanion.insert(
+        id: 'toss-error-quki',
+        body: const Value('some content to toss'),
+        createdAt: now,
+        modifiedAt: now,
+      ));
+
+      final container = ProviderContainer(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(db),
+          // Replace enabled transports with a single throwing one.
+          enabledTransportsProvider
+              .overrideWithValue(const [_ThrowingTransport()]),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: EditorScreen()),
+      ));
+      await tester.pump();
+
+      // Load the QuKi so the editor has content.
+      container.read(activeQukiIdProvider.notifier).setId('toss-error-quki');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // Open hamburger menu and tap Send...
+      await tester.tap(find.byIcon(LucideIcons.menu));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('Send...'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Toss picker sheet appears; tap the throwing transport.
+      expect(find.text('Throwing Transport'), findsOneWidget);
+      await tester.tap(find.text('Throwing Transport'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Error snackbar must appear.
+      expect(find.text('Send failed — unexpected error.'), findsOneWidget);
+      expect(find.text('Retry'), findsOneWidget);
 
       await cleanup(tester);
     });

@@ -153,6 +153,21 @@ void main() {
       expect(result.first.id, 's1');
     });
 
+    test('search is case-insensitive — regression: uppercase input misses match',
+        () async {
+      final now = DateTime(2026, 1, 1);
+      await db.qukisDao.insertQuki(QukisCompanion.insert(
+        id: 'ci1',
+        body: const Value('Buy Milk'),
+        createdAt: now,
+        modifiedAt: now,
+      ));
+      // Lowercase query must match mixed-case body.
+      final result = await db.qukisDao.search('milk').first;
+      expect(result.length, 1);
+      expect(result.first.id, 'ci1');
+    });
+
     test('excludes soft-deleted qukis from search results', () async {
       final now = DateTime(2026, 1, 1);
       await db.qukisDao.insertQuki(QukisCompanion.insert(
