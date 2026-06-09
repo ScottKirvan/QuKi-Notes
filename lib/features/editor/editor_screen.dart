@@ -21,7 +21,7 @@ import '../stream/stream_screen.dart';
 
 /// True when at least one non-deleted QuKi exists. Hand-written [StreamProvider]
 /// (not @riverpod codegen) to avoid the riverpod_generator + drift
-/// Stream<List<T>> InvalidTypeException — see CLAUDE.md implementation notes.
+/// `Stream<List<T>>` InvalidTypeException — see CLAUDE.md implementation notes.
 final _hasQukisProvider = StreamProvider<bool>((ref) {
   final db = ref.watch(appDatabaseProvider);
   return db.qukisDao.watchAll().map((list) => list.isNotEmpty);
