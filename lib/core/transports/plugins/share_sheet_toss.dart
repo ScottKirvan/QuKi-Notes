@@ -20,11 +20,11 @@ class ShareSheetToss extends TransportPlugin {
     required List<TossImage> images,
     required TossContext ctx,
   }) async {
-    final result = await Share.share(markdown);
-    final success = result.status != ShareResultStatus.dismissed;
-    return TossResult(
-      success: success,
-      message: success ? 'Shared.' : 'Share cancelled.',
-    );
+    await Share.share(markdown);
+    // share_plus fires ShareResultStatus.dismissed on Android even when the
+    // user completes a share successfully (#92). Drop the status check and
+    // always return success so users don't see a false "Share cancelled."
+    // snackbar.
+    return const TossResult(success: true, message: 'Shared.');
   }
 }
