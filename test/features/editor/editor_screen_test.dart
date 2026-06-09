@@ -359,4 +359,173 @@ void main() {
       await cleanup(tester);
     });
   });
+
+  group('EditorScreen smart send (#85)', () {
+    testWidgets(
+        'fires direct when exactly one transport is enabled — no bottom sheet shown — '
+        'regression: always showed picker sheet regardless of transport count (#85)',
+        (tester) async {
+      // Pre-insert a QuKi so the body is non-empty.
+      final now = DateTime(2026, 1, 1);
+      await db.qukisDao.insertQuki(QukisCompanion.insert(
+        id: 'smart-send-quki',
+        body: const Value('smart send content'),
+        createdAt: now,
+        modifiedAt: now,
+      ));
+
+      final container = ProviderContainer(
+        overrides: [
+          appDatabaseProvider.overrideWithValue(db),
+          // A single throwing transport — will throw if reached, confirming
+          // no picker sheet is shown and the transport is called directly.
+          enabledTransportsProvider
+              .overrideWithValue(const [_ThrowingTransport()]),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: EditorScreen()),
+      ));
+      await tester.pump();
+
+      container.read(activeQukiIdProvider.notifier).setId('smart-send-quki');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // Open hamburger menu and tap Send...
+      await tester.tap(find.byIcon(LucideIcons.menu));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('Send...'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // No picker sheet — the _ThrowingTransport is called directly and
+      // produces the error snackbar.
+      expect(find.text('Throwing Transport'), findsNothing);
+      expect(find.text('Send failed — unexpected error.'), findsOneWidget);
+
+      await cleanup(tester);
+    });
+  });
+
+  group('EditorScreen QuKis icon disabled when empty (#86)', () {
+    testWidgets(
+        'QuKis icon is disabled when DB is empty — '
+        'regression: icon was always enabled regardless of DB state (#86)',
+        (tester) async {
+      // DB starts empty.
+      await tester.pumpWidget(buildEditor());
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      final iconButton = tester.widget<IconButton>(
+        find.ancestor(
+          of: find.byIcon(LucideIcons.fileStack),
+          matching: find.byType(IconButton),
+        ),
+      );
+      expect(iconButton.onPressed, isNull,
+          reason: 'QuKis icon must be disabled when the DB is empty');
+
+      await cleanup(tester);
+    });
+
+    testWidgets(
+        'QuKis icon is enabled after a QuKi is inserted — '
+        'regression: icon did not react to DB changes (#86)',
+        (tester) async {
+      final container = ProviderContainer(
+        overrides: [appDatabaseProvider.overrideWithValue(db)],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: EditorScreen()),
+      ));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // Icon should be disabled initially.
+      final iconButtonBefore = tester.widget<IconButton>(
+        find.ancestor(
+          of: find.byIcon(LucideIcons.fileStack),
+          matching: find.byType(IconButton),
+        ),
+      );
+      expect(iconButtonBefore.onPressed, isNull);
+
+      // Insert a QuKi.
+      final now = DateTime(2026, 1, 1);
+      await db.qukisDao.insertQuki(QukisCompanion.insert(
+        id: 'icon-test-quki',
+        body: const Value('hello'),
+        createdAt: now,
+        modifiedAt: now,
+      ));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // Icon should now be enabled.
+      final iconButtonAfter = tester.widget<IconButton>(
+        find.ancestor(
+          of: find.byIcon(LucideIcons.fileStack),
+          matching: find.byType(IconButton),
+        ),
+      );
+      expect(iconButtonAfter.onPressed, isNotNull,
+          reason: 'QuKis icon must be enabled after a QuKi is inserted');
+
+      await cleanup(tester);
+    });
+  });
+
+  group('EditorScreen _switchDocument does not bump modifiedAt (#75)', () {
+    testWidgets(
+        '_switchDocument does not call notifyChanged on AutoSaveController — '
+        'regression: opening a note without editing bumped modifiedAt (#75)',
+        (tester) async {
+      final now = DateTime(2026, 1, 1);
+      await db.qukisDao.insertQuki(QukisCompanion.insert(
+        id: 'no-bump-quki',
+        body: const Value('load me'),
+        createdAt: now,
+        modifiedAt: now,
+      ));
+
+      final container = ProviderContainer(
+        overrides: [appDatabaseProvider.overrideWithValue(db)],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: EditorScreen()),
+      ));
+      await tester.pump();
+
+      // Record modifiedAt before loading.
+      final before = await db.qukisDao.getById('no-bump-quki');
+      final modifiedBefore = before!.modifiedAt;
+
+      // Load the QuKi — triggers _switchDocument.
+      container.read(activeQukiIdProvider.notifier).setId('no-bump-quki');
+      await tester.pump();
+      // Process post-frame callbacks (clears _isLoadingDocument).
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // modifiedAt must not have changed — no user edit occurred.
+      final after = await db.qukisDao.getById('no-bump-quki');
+      expect(after!.modifiedAt, equals(modifiedBefore),
+          reason:
+              'Opening a QuKi without editing must not change its modifiedAt');
+
+      await cleanup(tester);
+    });
+  });
 }

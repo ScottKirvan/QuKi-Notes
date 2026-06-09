@@ -19,6 +19,14 @@ import 'toss_picker_sheet.dart';
 import '../settings/settings_screen.dart';
 import '../stream/stream_screen.dart';
 
+/// True when at least one non-deleted QuKi exists. Hand-written [StreamProvider]
+/// (not @riverpod codegen) to avoid the riverpod_generator + drift
+/// Stream<List<T>> InvalidTypeException — see CLAUDE.md implementation notes.
+final _hasQukisProvider = StreamProvider<bool>((ref) {
+  final db = ref.watch(appDatabaseProvider);
+  return db.qukisDao.watchAll().map((list) => list.isNotEmpty);
+});
+
 final _log = Logger('EditorScreen');
 
 /// Builds an [Editor] with the default reaction pipeline plus custom inline
@@ -96,6 +104,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   final _docLayoutKey = GlobalKey();
   final _editorFocusNode = FocusNode();
 
+  /// True while [_switchDocument] is loading content into the editor.
+  /// Suppresses [_onDocumentChanged] during the initial document swap so that
+  /// opening a QuKi without editing does not bump its [modifiedAt] (#75).
+  bool _isLoadingDocument = false;
+
   @override
   void initState() {
     super.initState();
@@ -156,7 +169,13 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     }
   }
 
-  void _onDocumentChanged(DocumentChangeLog _) => _autoSave.notifyChanged();
+  void _onDocumentChanged(DocumentChangeLog _) {
+    // Suppress during document swap — super_editor fires change events when
+    // content is first loaded, which would bump modifiedAt without user input
+    // (#75).
+    if (_isLoadingDocument) return;
+    _autoSave.notifyChanged();
+  }
 
   Future<void> _onActiveQukiChanged(String? qukiId) async {
     await _autoSave.flush();
@@ -182,6 +201,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     final newComposer = MutableDocumentComposer();
     final newEditor = _createEditor(document: newDoc, composer: newComposer);
 
+    _isLoadingDocument = true;
+
     setState(() {
       _document = newDoc;
       _composer = newComposer;
@@ -189,6 +210,13 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     });
 
     _document.addListener(_onDocumentChanged);
+
+    // Clear the loading flag after the first frame so that any change events
+    // fired during the initial layout pass are suppressed, but subsequent
+    // user edits are not.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _isLoadingDocument = false;
+    });
   }
 
   Future<void> _newQuKi() async {
@@ -238,10 +266,17 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       return;
     }
 
-    final plugin = await showModalBottomSheet<TransportPlugin>(
-      context: context,
-      builder: (_) => TossPickerSheet(plugins: enabled),
-    );
+    // Smart send: skip the picker sheet when exactly one transport is enabled
+    // (#85). The sheet is still shown for 2+ transports.
+    final TransportPlugin? plugin;
+    if (enabled.length == 1) {
+      plugin = enabled.first;
+    } else {
+      plugin = await showModalBottomSheet<TransportPlugin>(
+        context: context,
+        builder: (_) => TossPickerSheet(plugins: enabled),
+      );
+    }
     if (plugin == null || !mounted) return;
 
     await _autoSave.flush();
@@ -309,13 +344,16 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       _onActiveQukiChanged(next);
     });
 
+    // Disable the QuKis icon when the DB is empty — nothing to show (#86).
+    final hasQukis = ref.watch(_hasQukisProvider).valueOrNull ?? false;
+
     final Widget scaffold = Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
         leading: IconButton(
           icon: const Icon(LucideIcons.fileStack),
           tooltip: 'QuKis',
-          onPressed: _openQuKisList,
+          onPressed: hasQukis ? _openQuKisList : null,
         ),
         actions: [
           IconButton(
@@ -423,6 +461,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
               composer: _composer,
               documentLayoutResolver: () =>
                   _docLayoutKey.currentState as DocumentLayout,
+              focusNode: _editorFocusNode,
             ),
           ],
         ),
