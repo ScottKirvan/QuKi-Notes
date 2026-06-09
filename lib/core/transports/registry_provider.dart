@@ -23,8 +23,11 @@ final enabledTransportsProvider = Provider<List<TransportPlugin>>((ref) {
         registry.plugins.where((p) => enabled[p.id] ?? true).toList(),
     loading: () => registry.plugins,
     error: (err, st) {
-      _log.warning('enabledTransportsProvider: failed to load settings; '
-          'falling back to all plugins enabled', err, st);
+      _log.warning(
+          'enabledTransportsProvider: failed to load settings; '
+          'falling back to all plugins enabled',
+          err,
+          st);
       return registry.plugins;
     },
   );

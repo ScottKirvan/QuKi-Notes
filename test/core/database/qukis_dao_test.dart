@@ -153,7 +153,8 @@ void main() {
       expect(result.first.id, 's1');
     });
 
-    test('search is case-insensitive — regression: uppercase input misses match',
+    test(
+        'search is case-insensitive — regression: uppercase input misses match',
         () async {
       final now = DateTime(2026, 1, 1);
       await db.qukisDao.insertQuki(QukisCompanion.insert(
