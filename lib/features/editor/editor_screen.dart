@@ -345,7 +345,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     });
 
     // Disable the QuKis icon when the DB is empty — nothing to show (#86).
-    final hasQukis = ref.watch(_hasQukisProvider).valueOrNull ?? false;
+    final hasQukis = ref.watch(_hasQukisProvider).value ?? false;
 
     final Widget scaffold = Scaffold(
       appBar: AppBar(
