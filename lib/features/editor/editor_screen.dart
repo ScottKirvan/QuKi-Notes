@@ -3,9 +3,9 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:logging/logging.dart' show Logger, Level;
+import 'package:logging/logging.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
-import 'package:super_editor/super_editor.dart';
+import 'package:super_editor/super_editor.dart' hide Logger;
 
 import '../../app.dart';
 import '../../core/database/database_provider.dart';
