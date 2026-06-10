@@ -143,10 +143,11 @@ void main() {
         'regression: buttons showed snackbar instead of being greyed out (#post-96, Bug 4)',
         (tester) async {
       await pumpEditor(tester);
-      await tester.pump();
-
-      // On cold launch the composer has no selection — all format buttons
-      // must have onPressed == null (disabled / greyed out).
+      // No extra pump here — pumpEditor fires the post-frame requestFocus() but
+      // super_editor needs another frame to convert focus into an initial cursor
+      // placement. Asserting before that extra pump gives us a genuine
+      // composer.selection == null state, which is what the production snackbar
+      // path required (and what the fix guards against).
       IconButton getButton(IconData icon) => tester.widget<IconButton>(
             find.ancestor(
               of: find.byIcon(icon),
