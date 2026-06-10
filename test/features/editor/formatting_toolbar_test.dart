@@ -143,7 +143,8 @@ void main() {
         'regression: buttons showed snackbar instead of being greyed out (#post-96, Bug 4)',
         (tester) async {
       await pumpEditor(tester);
-      await tester.pump(); // let super_editor process focus → places initial cursor
+      await tester
+          .pump(); // let super_editor process focus → places initial cursor
 
       // Show keyboard first (tapping the keyboard icon sets _keyboardVisible=true).
       await tester.tap(find.byIcon(LucideIcons.keyboard));
@@ -164,15 +165,20 @@ void main() {
       expect(getButton(LucideIcons.bold).onPressed, isNull,
           reason: 'bold must be disabled when selection is cleared by unfocus');
       expect(getButton(LucideIcons.italic).onPressed, isNull,
-          reason: 'italic must be disabled when selection is cleared by unfocus');
+          reason:
+              'italic must be disabled when selection is cleared by unfocus');
       expect(getButton(LucideIcons.strikethrough).onPressed, isNull,
-          reason: 'strikethrough must be disabled when selection is cleared by unfocus');
+          reason:
+              'strikethrough must be disabled when selection is cleared by unfocus');
       expect(getButton(LucideIcons.list).onPressed, isNull,
-          reason: 'bullet list must be disabled when selection is cleared by unfocus');
+          reason:
+              'bullet list must be disabled when selection is cleared by unfocus');
       expect(getButton(LucideIcons.listOrdered).onPressed, isNull,
-          reason: 'numbered list must be disabled when selection is cleared by unfocus');
+          reason:
+              'numbered list must be disabled when selection is cleared by unfocus');
       expect(getButton(LucideIcons.listChecks).onPressed, isNull,
-          reason: 'task list must be disabled when selection is cleared by unfocus');
+          reason:
+              'task list must be disabled when selection is cleared by unfocus');
 
       await cleanup(tester);
     });
