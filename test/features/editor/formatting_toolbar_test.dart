@@ -75,31 +75,62 @@ void main() {
     });
 
     testWidgets(
-        'keyboard toggle shows keyboardOff when editor has focus — '
-        'regression: button was static keyboardOff regardless of focus state (#78)',
+        'keyboard toggle shows keyboard icon at cold launch — '
+        'regression: icon showed keyboardOff at launch because FocusNode.hasFocus '
+        'was true even though IME keyboard was not visible (#post-96, #72)',
         (tester) async {
       await pumpEditor(tester);
-      // Post-frame focus request fires after initState.
+      // Post-frame focus request fires after initState — FocusNode gets focus
+      // but IME keyboard is not visible (#72 known issue). The icon should
+      // reflect keyboard visibility, not focus state.
       await tester.pump();
 
-      // Editor should be focused — toggle shows keyboardOff.
+      // At cold launch _keyboardVisible is false — shows "show keyboard" icon.
+      expect(find.byIcon(LucideIcons.keyboard), findsOneWidget,
+          reason:
+              'At cold launch keyboard is not visible so the show-keyboard icon '
+              'must be shown, not keyboardOff');
+      expect(find.byIcon(LucideIcons.keyboardOff), findsNothing);
+      await cleanup(tester);
+    });
+
+    testWidgets(
+        'keyboard toggle shows keyboardOff after tapping show-keyboard — '
+        'regression: icon state did not update after tapping (#78, #post-96)',
+        (tester) async {
+      await pumpEditor(tester);
+      await tester.pump(); // process post-frame focus request
+
+      // At cold launch the toolbar shows the keyboard (show) icon.
+      expect(find.byIcon(LucideIcons.keyboard), findsOneWidget);
+
+      // Tap "show keyboard" — sets _keyboardVisible = true.
+      await tester.tap(find.byIcon(LucideIcons.keyboard));
+      await tester.pump();
+
+      // Now _keyboardVisible = true — toggle shows keyboardOff.
       expect(find.byIcon(LucideIcons.keyboardOff), findsOneWidget);
       expect(find.byIcon(LucideIcons.keyboard), findsNothing);
       await cleanup(tester);
     });
 
     testWidgets(
-        'keyboard toggle shows keyboard icon after unfocus — '
+        'keyboard toggle shows keyboard icon after tapping keyboardOff — '
         'regression: button was static regardless of focus state (#78)',
         (tester) async {
       await pumpEditor(tester);
       await tester.pump(); // process post-frame focus request
 
-      // Tap the keyboardOff button to unfocus.
+      // Tap show-keyboard first to get into visible state.
+      await tester.tap(find.byIcon(LucideIcons.keyboard));
+      await tester.pump();
+      expect(find.byIcon(LucideIcons.keyboardOff), findsOneWidget);
+
+      // Tap dismiss — sets _keyboardVisible = false.
       await tester.tap(find.byIcon(LucideIcons.keyboardOff));
       await tester.pump();
 
-      // Now unfocused — toggle should show the keyboard (show) icon.
+      // Now _keyboardVisible = false — shows keyboard icon again.
       expect(find.byIcon(LucideIcons.keyboard), findsOneWidget);
       expect(find.byIcon(LucideIcons.keyboardOff), findsNothing);
       await cleanup(tester);
