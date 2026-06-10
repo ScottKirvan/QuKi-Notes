@@ -109,6 +109,13 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   /// opening a QuKi without editing does not bump its [modifiedAt] (#75).
   bool _isLoadingDocument = false;
 
+  /// Tracks whether the IME keyboard is currently visible. Kept separate from
+  /// [FocusNode.hasFocus] because focus and keyboard visibility can diverge at
+  /// cold launch (known #72 issue): focus is granted in a post-frame callback
+  /// but the IME does not necessarily open. Left false on startup so the
+  /// toolbar shows the "show keyboard" icon, not "dismiss keyboard" (#post-96).
+  bool _keyboardVisible = false;
+
   @override
   void initState() {
     super.initState();
@@ -233,6 +240,21 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     } else {
       // _onActiveQukiChanged(null) will handle flush + switch.
       ref.read(activeQukiIdProvider.notifier).setId(null);
+    }
+  }
+
+  /// Toggles the IME keyboard. When visible, drops focus to dismiss it and
+  /// sets [_keyboardVisible] to false. When hidden, requests focus to raise it
+  /// and sets [_keyboardVisible] to true. Decoupled from [FocusNode.hasFocus]
+  /// because focus and keyboard visibility can diverge at cold launch (#72,
+  /// #post-96).
+  void _toggleKeyboard() {
+    if (_keyboardVisible) {
+      FocusScope.of(context).unfocus();
+      setState(() => _keyboardVisible = false);
+    } else {
+      _editorFocusNode.requestFocus();
+      setState(() => _keyboardVisible = true);
     }
   }
 
@@ -465,7 +487,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
               composer: _composer,
               documentLayoutResolver: () =>
                   _docLayoutKey.currentState as DocumentLayout,
-              focusNode: _editorFocusNode,
+              keyboardVisible: _keyboardVisible,
+              onToggleKeyboard: _toggleKeyboard,
             ),
           ],
         ),
