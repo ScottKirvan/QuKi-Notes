@@ -8,7 +8,6 @@ import 'package:super_editor/super_editor.dart';
 import 'package:quki_notes/core/database/app_database.dart';
 import 'package:quki_notes/core/database/database_provider.dart';
 import 'package:quki_notes/features/editor/editor_screen.dart';
-import 'package:quki_notes/features/editor/formatting_toolbar.dart';
 
 void main() {
   late AppDatabase db;
