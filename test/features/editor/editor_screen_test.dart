@@ -523,7 +523,8 @@ void main() {
       // because super_editor fires DocumentChangeLog events across multiple
       // frames during layout/initialisation (#post-96 regression of #75).
       await tester.pump(); // first post-frame callback
-      await tester.pump(); // second post-frame callback (clears _isLoadingDocument)
+      await tester
+          .pump(); // second post-frame callback (clears _isLoadingDocument)
       await tester.pump(const Duration(milliseconds: 100));
 
       // modifiedAt must not have changed — no user edit occurred.
