@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.9.4](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.9.3...v0.9.4) (2026-06-10)
+
+
+### Bug Fixes
+
+* drop the status check and always return TossResult(success: true, ([8a52af6](https://github.com/ScottKirvan/QuKi-Notes/commit/8a52af6c1bb3f70e861112848fb43993b94a1b36))
+* **editor:** correct two compile errors caught by CI ([d68a13e](https://github.com/ScottKirvan/QuKi-Notes/commit/d68a13e1cf8fa9f86da43617475c2488120bb2a3))
+* **editor:** fix doc comment HTML lint warning in _hasQukisProvider ([14dd014](https://github.com/ScottKirvan/QuKi-Notes/commit/14dd0148ce427f16014da420dcf8650cfd46f687))
+* **editor:** smart send fires direct when one transport enabled ([#85](https://github.com/ScottKirvan/QuKi-Notes/issues/85)) ([d9b7779](https://github.com/ScottKirvan/QuKi-Notes/commit/d9b77798c8d95ff6b8750ad2c33575af28cf2724))
+* **toolbar:** replace code button with task list button; keyboard toggle ([#82](https://github.com/ScottKirvan/QuKi-Notes/issues/82), [#78](https://github.com/ScottKirvan/QuKi-Notes/issues/78)) ([a80fa45](https://github.com/ScottKirvan/QuKi-Notes/commit/a80fa454366cac43f6fbddef7fa0ef1c18233c4f))
+* **transports:** ShareSheetToss always returns success — removes false-negative snackbar ([#92](https://github.com/ScottKirvan/QuKi-Notes/issues/92)) ([8a52af6](https://github.com/ScottKirvan/QuKi-Notes/commit/8a52af6c1bb3f70e861112848fb43993b94a1b36))
+
 ## [0.9.3](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.9.2...v0.9.3) (2026-06-09)
 
 
