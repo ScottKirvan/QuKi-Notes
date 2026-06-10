@@ -139,15 +139,21 @@ void main() {
 
     testWidgets(
         'format buttons (bold, italic, strikethrough, list, numbered list, task list) '
-        'are disabled when no selection exists — '
+        'are disabled after keyboard is dismissed (selection cleared) — '
         'regression: buttons showed snackbar instead of being greyed out (#post-96, Bug 4)',
         (tester) async {
       await pumpEditor(tester);
-      // No extra pump here — pumpEditor fires the post-frame requestFocus() but
-      // super_editor needs another frame to convert focus into an initial cursor
-      // placement. Asserting before that extra pump gives us a genuine
-      // composer.selection == null state, which is what the production snackbar
-      // path required (and what the fix guards against).
+      await tester.pump(); // let super_editor process focus → places initial cursor
+
+      // Show keyboard first (tapping the keyboard icon sets _keyboardVisible=true).
+      await tester.tap(find.byIcon(LucideIcons.keyboard));
+      await tester.pump();
+
+      // Dismiss keyboard — calls FocusScope.unfocus(), which clears
+      // super_editor's composer.selection. Buttons should become disabled.
+      await tester.tap(find.byIcon(LucideIcons.keyboardOff));
+      await tester.pump();
+
       IconButton getButton(IconData icon) => tester.widget<IconButton>(
             find.ancestor(
               of: find.byIcon(icon),
@@ -156,17 +162,17 @@ void main() {
           );
 
       expect(getButton(LucideIcons.bold).onPressed, isNull,
-          reason: 'bold must be disabled when no selection');
+          reason: 'bold must be disabled when selection is cleared by unfocus');
       expect(getButton(LucideIcons.italic).onPressed, isNull,
-          reason: 'italic must be disabled when no selection');
+          reason: 'italic must be disabled when selection is cleared by unfocus');
       expect(getButton(LucideIcons.strikethrough).onPressed, isNull,
-          reason: 'strikethrough must be disabled when no selection');
+          reason: 'strikethrough must be disabled when selection is cleared by unfocus');
       expect(getButton(LucideIcons.list).onPressed, isNull,
-          reason: 'bullet list must be disabled when no selection');
+          reason: 'bullet list must be disabled when selection is cleared by unfocus');
       expect(getButton(LucideIcons.listOrdered).onPressed, isNull,
-          reason: 'numbered list must be disabled when no selection');
+          reason: 'numbered list must be disabled when selection is cleared by unfocus');
       expect(getButton(LucideIcons.listChecks).onPressed, isNull,
-          reason: 'task list must be disabled when no selection');
+          reason: 'task list must be disabled when selection is cleared by unfocus');
 
       await cleanup(tester);
     });
