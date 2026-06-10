@@ -519,8 +519,11 @@ void main() {
       // Load the QuKi — triggers _switchDocument.
       container.read(activeQukiIdProvider.notifier).setId('no-bump-quki');
       await tester.pump();
-      // Process post-frame callbacks (clears _isLoadingDocument).
-      await tester.pump();
+      // Two nested post-frame callbacks are needed to clear _isLoadingDocument
+      // because super_editor fires DocumentChangeLog events across multiple
+      // frames during layout/initialisation (#post-96 regression of #75).
+      await tester.pump(); // first post-frame callback
+      await tester.pump(); // second post-frame callback (clears _isLoadingDocument)
       await tester.pump(const Duration(milliseconds: 100));
 
       // modifiedAt must not have changed — no user edit occurred.
