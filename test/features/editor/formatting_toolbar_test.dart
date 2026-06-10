@@ -1,15 +1,32 @@
+import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
+
+import 'package:quki_notes/core/database/app_database.dart';
+import 'package:quki_notes/core/database/database_provider.dart';
 import 'package:quki_notes/features/editor/editor_screen.dart';
 
 void main() {
+  late AppDatabase db;
+
+  setUp(() => db = AppDatabase(NativeDatabase.memory()));
+  tearDown(() async => db.close());
+
+  // Replaces the widget tree with a minimal widget and drains any pending
+  // timers (e.g. drift stream-cleanup timers) left by ProviderScope disposal.
+  Future<void> cleanup(WidgetTester tester) async {
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(Duration.zero);
+  }
+
   group('FormattingToolbar', () {
     Future<void> pumpEditor(WidgetTester tester) async {
       await tester.pumpWidget(
-        const ProviderScope(
-          child: MaterialApp(home: EditorScreen()),
+        ProviderScope(
+          overrides: [appDatabaseProvider.overrideWithValue(db)],
+          child: const MaterialApp(home: EditorScreen()),
         ),
       );
       await tester.pump();
@@ -46,6 +63,7 @@ void main() {
             find.byIcon(LucideIcons.keyboard).evaluate().isNotEmpty,
         isTrue,
       );
+      await cleanup(tester);
     });
 
     testWidgets('link button shows stub snackbar', (tester) async {
@@ -53,6 +71,7 @@ void main() {
       await tester.tap(find.byIcon(LucideIcons.link));
       await tester.pump();
       expect(find.text('Link formatting coming soon.'), findsOneWidget);
+      await cleanup(tester);
     });
 
     testWidgets(
@@ -66,6 +85,7 @@ void main() {
       // Editor should be focused — toggle shows keyboardOff.
       expect(find.byIcon(LucideIcons.keyboardOff), findsOneWidget);
       expect(find.byIcon(LucideIcons.keyboard), findsNothing);
+      await cleanup(tester);
     });
 
     testWidgets(
@@ -82,6 +102,7 @@ void main() {
       // Now unfocused — toggle should show the keyboard (show) icon.
       expect(find.byIcon(LucideIcons.keyboard), findsOneWidget);
       expect(find.byIcon(LucideIcons.keyboardOff), findsNothing);
+      await cleanup(tester);
     });
   });
 }

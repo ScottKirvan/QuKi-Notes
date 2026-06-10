@@ -277,6 +277,16 @@ void main() {
       ));
       await tester.pump();
 
+      // Insert a QuKi so the icon is enabled (#86 — icon disabled when empty).
+      final now = DateTime(2026, 1, 1);
+      await db.qukisDao.insertQuki(QukisCompanion.insert(
+        id: 'nav-anim-quki',
+        body: const Value('content'),
+        createdAt: now,
+        modifiedAt: now,
+      ));
+      await tester.pump(); // stream emits hasQukis=true → icon enabled
+
       // Tap QuKis icon to push StreamScreen
       await tester.tap(find.byIcon(LucideIcons.fileStack));
       await tester.pump(); // process tap
@@ -346,13 +356,8 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
-      // Toss picker sheet appears; tap the throwing transport.
-      expect(find.text('Throwing Transport'), findsOneWidget);
-      await tester.tap(find.text('Throwing Transport'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-
-      // Error snackbar must appear.
+      // Smart send (#85): exactly 1 transport → picker skipped, transport fires
+      // directly, throws, and error snackbar appears without any sheet tap.
       expect(find.text('Send failed — unexpected error.'), findsOneWidget);
       expect(find.text('Retry'), findsOneWidget);
 
