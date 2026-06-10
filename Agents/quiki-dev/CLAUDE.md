@@ -76,7 +76,125 @@ Editor UX polish batch: ShareSheetToss false-negative (#92), smart send (#85), Q
 
 ## Current Task Brief — Session 4b
 
-> Written and maintained by the Spec session. Get Scott's sign-off before starting Session 5.
+> Written and maintained by the Spec session.
+
+**Task**: Device-testing regressions from PR #96
+**Branch**: `fix/post-96-device-bugs`
+**PR title**: `fix(editor): post-96 device-testing regressions`
+
+Four bugs found during Scott's device testing of PR #96. Work through them in order. Commit each fix with its regression test before moving to the next.
+
+---
+
+### Bug 1 — Transport enabled/disabled state ignored on app restart
+
+**File**: `lib/core/transports/transport_settings_notifier.dart`
+
+`TransportSettingsNotifier.build()` reads SharedPreferences on startup, but `enabledTransportsProvider` returns ALL plugins while the async read is in-flight (`loading` state fallback). If `Send...` is tapped during that window, or if the async read fails silently, the user sees disabled transports as enabled.
+
+**Investigate first**: add a temporary log in `build()` to confirm SharedPreferences is returning the correct values. If it is, the race window is the problem. If it isn't, there is a persistence bug.
+
+**Fix A (if it's the loading-race)**: the `loading:` branch in `enabledTransportsProvider` should return `[]` (empty, nothing enabled) rather than all plugins. This means the user can't toss until settings load — which is instantaneous in practice but avoids the flash of wrong state.
+
+**Fix B (if SharedPreferences isn't persisting)**: add `await prefs.reload()` at the top of `build()` to force-read from disk rather than the in-memory cache.
+
+**Test**: unit test `TransportSettingsNotifier` — set one transport disabled, dispose the notifier, recreate it (simulating app restart), assert the disabled transport is still disabled.
+
+---
+
+### Bug 2 — Opening a QuKi still bumps `modifiedAt` (#75 regression)
+
+**File**: `lib/features/editor/editor_screen.dart`
+
+The `_isLoadingDocument` flag is cleared after ONE post-frame callback, but `super_editor` fires `DocumentChangeLog` events across **multiple** frames during its internal layout and initialization. By the time those events arrive, `_isLoadingDocument` is already `false`.
+
+**Fix**: Replace the single `addPostFrameCallback` with a double-nested one. This ensures the flag stays set until all initialization events have fired:
+
+```dart
+WidgetsBinding.instance.addPostFrameCallback((_) {
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (mounted) setState(() => _isLoadingDocument = false);
+  });
+});
+```
+
+If two frames is still insufficient on device (super_editor may need more), escalate to `Future.delayed(const Duration(milliseconds: 300), ...)`. Prefer the double post-frame approach first; only use the timer if device testing confirms two frames is still not enough.
+
+**Test**: the existing `_switchDocument does not bump modifiedAt` test in `editor_screen_test.dart` should already cover this once the fix is correct. Verify it still passes. Add a pump between `setId` and the assertion to allow the extra frame:
+
+```dart
+await tester.pump(); // first post-frame
+await tester.pump(); // second post-frame (clears _isLoadingDocument)
+await tester.pump(const Duration(milliseconds: 100));
+```
+
+---
+
+### Bug 3 — Keyboard toggle icon wrong at cold launch
+
+**File**: `lib/features/editor/formatting_toolbar.dart`, `lib/features/editor/editor_screen.dart`
+
+`FocusNode.hasFocus` is `true` immediately after the post-frame `requestFocus()` call (focus is set correctly), but the IME keyboard is not actually visible — this is the known #72 issue. The `ListenableBuilder` reads `hasFocus = true` and shows the `keyboardOff` icon, making the user think the keyboard is visible when it isn't.
+
+**Fix**: Track keyboard visibility as a separate boolean in `_EditorScreenState` rather than inferring it from `FocusNode.hasFocus`.
+
+1. Add `bool _keyboardVisible = false;` to `_EditorScreenState`.
+2. Pass it to `FormattingToolbar` as a new `required bool keyboardVisible` parameter (replacing the `FocusNode` parameter — the toolbar doesn't need direct access to the node).
+3. In the toolbar, use `keyboardVisible` to drive the icon: `keyboardVisible ? LucideIcons.keyboardOff : LucideIcons.keyboard`.
+4. The toolbar button `onPressed`:
+   - If `keyboardVisible`: call `FocusScope.of(context).unfocus()` and set `_keyboardVisible = false` in `setState`.
+   - If `!keyboardVisible`: call `focusNode.requestFocus()` (kept in `_EditorScreenState`) and set `_keyboardVisible = true` in `setState`.
+5. Do NOT set `_keyboardVisible = true` in `initState` / the startup `requestFocus()` call — leave it `false` on cold launch so the icon correctly shows "show keyboard".
+
+This decouples the icon from `FocusNode.hasFocus` entirely, which is what we want since #72 means they can diverge.
+
+**Test**: update `formatting_toolbar_test.dart` — the keyboard toggle tests now pass `keyboardVisible` instead of `focusNode`. Test that icon shows `keyboard` initially, `keyboardOff` after "show keyboard" is tapped.
+
+---
+
+### Bug 4 — Toolbar buttons should be disabled when no selection, not show a snackbar
+
+**Files**: `lib/features/editor/formatting_toolbar.dart`
+
+The task list button (and ideally all format buttons) shows "Place cursor in the editor first." as a snackbar when `composer.selection == null`. The correct UX is to disable the button — greyed out, no snackbar.
+
+**Fix**: Wrap `FormattingToolbar`'s `build` method in a `ListenableBuilder(listenable: composer)` so it rebuilds when the selection changes. Then pass `onPressed: composer.selection != null ? () => _insertTaskListItem(context) : null` for the task list button (and `() => _ops.foo() : null` for all the other format buttons too).
+
+`MutableDocumentComposer` extends `ChangeNotifier`, so it works directly as the `listenable`. Remove the snackbar + null check from `_insertTaskListItem`; the button will simply be non-interactive when there is no selection.
+
+**Test**: widget test — when toolbar is rendered with no selection, the task list button's `onPressed` is null (disabled). When a selection exists, it is non-null (enabled). Extend to cover bold, italic, list buttons too if time allows; at minimum cover the task list button since that's the one with the explicit snackbar today.
+
+---
+
+### Bug 5 — Task list button inserts `- []` instead of `- [ ]` (#82)
+
+**File**: `lib/features/editor/formatting_toolbar.dart`
+
+Device testing confirmed the inserted text renders as `- []` (missing space between the brackets). The current code calls `InsertTextRequest` with `textToInsert: '- [ ] '` but the space inside the brackets is not appearing in the document.
+
+**Investigate first**: the most likely cause is `TaskListMarkdownReaction` firing immediately as each character is inserted and consuming the partial input `- [` before the space and `]` are typed/inserted. Check whether `InsertTextRequest` inserts the full string atomically or character-by-character. If the reaction fires mid-insertion, the space inside the brackets is never committed to the document.
+
+**Fix A (preferred)**: Replace the `InsertTextRequest`-based approach with a direct super_editor API call that inserts a proper task list node without going through the markdown reaction. Look for `InsertNewlineInParagraphAtCaretCommand` or equivalent that converts a paragraph to a `TaskItemNode`. If no direct API exists, insert the raw text as a single atomic operation that the reaction won't intercept mid-way.
+
+**Fix B (fallback)**: If the reaction is the problem, insert `'- [ ] '` as a programmatic document edit that bypasses reactions entirely — use `editor.execute([InsertTextRequest(...)])` with `react: false` if that option exists, or insert via the document model directly rather than the editor pipeline.
+
+**Fix C (simplest)**: If the `InsertTextRequest` API does insert atomically, the bug may be in `TaskListMarkdownReaction` consuming `[ ]` and outputting `[]`. Inspect the reaction and ensure it preserves the space. The stored markdown should be `- [ ] text`, not `- []text`.
+
+**Test**: confirm a task list item inserted via the toolbar button serializes to `- [ ] ` (with space) in the markdown body — check `serializeDocumentToMarkdown(document)` output after the button tap.
+
+---
+
+### Checklist
+
+- [ ] `just lint` and `just test` before committing (Scott's local machine only — no `dart` in CI container)
+- [ ] Regression test committed before each fix
+- [ ] No new runtime dependencies
+- [ ] No Drift schema changes
+- [ ] No Claude/Anthropic attribution in commits or PR body
+
+---
+
+## Queued — Session 5 (start after Session 4b is merged)
 
 **Task**: Phase 3 — Recently Deleted screen
 **Branch**: `feat/recently-deleted`
