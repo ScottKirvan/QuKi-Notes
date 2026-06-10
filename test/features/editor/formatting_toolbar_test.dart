@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
+import 'package:super_editor/super_editor.dart';
 
 import 'package:quki_notes/core/database/app_database.dart';
 import 'package:quki_notes/core/database/database_provider.dart';
 import 'package:quki_notes/features/editor/editor_screen.dart';
+import 'package:quki_notes/features/editor/formatting_toolbar.dart';
 
 void main() {
   late AppDatabase db;
@@ -134,6 +136,81 @@ void main() {
       expect(find.byIcon(LucideIcons.keyboard), findsOneWidget);
       expect(find.byIcon(LucideIcons.keyboardOff), findsNothing);
       await cleanup(tester);
+    });
+
+    testWidgets(
+        'format buttons (bold, italic, strikethrough, list, numbered list, task list) '
+        'are disabled when no selection exists — '
+        'regression: buttons showed snackbar instead of being greyed out (#post-96, Bug 4)',
+        (tester) async {
+      await pumpEditor(tester);
+      await tester.pump();
+
+      // On cold launch the composer has no selection — all format buttons
+      // must have onPressed == null (disabled / greyed out).
+      IconButton getButton(IconData icon) => tester.widget<IconButton>(
+            find.ancestor(
+              of: find.byIcon(icon),
+              matching: find.byType(IconButton),
+            ),
+          );
+
+      expect(getButton(LucideIcons.bold).onPressed, isNull,
+          reason: 'bold must be disabled when no selection');
+      expect(getButton(LucideIcons.italic).onPressed, isNull,
+          reason: 'italic must be disabled when no selection');
+      expect(getButton(LucideIcons.strikethrough).onPressed, isNull,
+          reason: 'strikethrough must be disabled when no selection');
+      expect(getButton(LucideIcons.list).onPressed, isNull,
+          reason: 'bullet list must be disabled when no selection');
+      expect(getButton(LucideIcons.listOrdered).onPressed, isNull,
+          reason: 'numbered list must be disabled when no selection');
+      expect(getButton(LucideIcons.listChecks).onPressed, isNull,
+          reason: 'task list must be disabled when no selection');
+
+      await cleanup(tester);
+    });
+  });
+
+  group('FormattingToolbar task list insertion (#82, #post-96 Bug 5)', () {
+    test(
+        'TaskNode serializes to "- [ ] " (with space) in markdown — '
+        'regression: InsertTextRequest-based approach produced "- []" missing '
+        'the space between brackets (#82 regression, #post-96 Bug 5)',
+        () {
+      // This is a unit test of the serialization — the fix converts a paragraph
+      // to TaskNode directly via ReplaceNodeRequest, bypassing the markdown
+      // reaction pipeline. Verify that a TaskNode round-trips correctly.
+      final document = MutableDocument(nodes: [
+        TaskNode(id: 'task1', text: AttributedText('hello'), isComplete: false),
+      ]);
+
+      final markdown = serializeDocumentToMarkdown(
+        document,
+        syntax: MarkdownSyntax.normal,
+      );
+
+      expect(markdown, contains('- [ ] hello'),
+          reason:
+              'TaskNode must serialize to "- [ ] " (with space between brackets), '
+              'not "- []" (#82 regression, #post-96 Bug 5)');
+      expect(markdown, isNot(contains('- []')),
+          reason: 'Broken "- []" pattern must not appear in serialized markdown');
+    });
+
+    test(
+        'TaskNode (complete) serializes to "- [x] " in markdown',
+        () {
+      final document = MutableDocument(nodes: [
+        TaskNode(id: 'task1', text: AttributedText('done'), isComplete: true),
+      ]);
+
+      final markdown = serializeDocumentToMarkdown(
+        document,
+        syntax: MarkdownSyntax.normal,
+      );
+
+      expect(markdown, contains('- [x] done'));
     });
   });
 }
