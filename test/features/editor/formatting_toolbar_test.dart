@@ -175,8 +175,7 @@ void main() {
     test(
         'TaskNode serializes to "- [ ] " (with space) in markdown — '
         'regression: InsertTextRequest-based approach produced "- []" missing '
-        'the space between brackets (#82 regression, #post-96 Bug 5)',
-        () {
+        'the space between brackets (#82 regression, #post-96 Bug 5)', () {
       // This is a unit test of the serialization — the fix converts a paragraph
       // to TaskNode directly via ReplaceNodeRequest, bypassing the markdown
       // reaction pipeline. Verify that a TaskNode round-trips correctly.
@@ -194,12 +193,11 @@ void main() {
               'TaskNode must serialize to "- [ ] " (with space between brackets), '
               'not "- []" (#82 regression, #post-96 Bug 5)');
       expect(markdown, isNot(contains('- []')),
-          reason: 'Broken "- []" pattern must not appear in serialized markdown');
+          reason:
+              'Broken "- []" pattern must not appear in serialized markdown');
     });
 
-    test(
-        'TaskNode (complete) serializes to "- [x] " in markdown',
-        () {
+    test('TaskNode (complete) serializes to "- [x] " in markdown', () {
       final document = MutableDocument(nodes: [
         TaskNode(id: 'task1', text: AttributedText('done'), isComplete: true),
       ]);

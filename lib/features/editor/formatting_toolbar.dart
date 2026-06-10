@@ -53,16 +53,16 @@ class FormattingToolbar extends StatelessWidget {
                   icon: LucideIcons.bold,
                   tooltip: 'Bold',
                   onPressed: hasSelection
-                      ? () => _ops
-                          .toggleAttributionsOnSelection({boldAttribution})
+                      ? () =>
+                          _ops.toggleAttributionsOnSelection({boldAttribution})
                       : null,
                 ),
                 _ToolbarButton(
                   icon: LucideIcons.italic,
                   tooltip: 'Italic',
                   onPressed: hasSelection
-                      ? () => _ops.toggleAttributionsOnSelection(
-                          {italicsAttribution})
+                      ? () => _ops
+                          .toggleAttributionsOnSelection({italicsAttribution})
                       : null,
                 ),
                 _ToolbarButton(
@@ -106,7 +106,8 @@ class FormattingToolbar extends StatelessWidget {
                   icon: keyboardVisible
                       ? LucideIcons.keyboardOff
                       : LucideIcons.keyboard,
-                  tooltip: keyboardVisible ? 'Dismiss keyboard' : 'Show keyboard',
+                  tooltip:
+                      keyboardVisible ? 'Dismiss keyboard' : 'Show keyboard',
                   onPressed: onToggleKeyboard,
                 ),
               ],

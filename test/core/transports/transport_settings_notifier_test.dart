@@ -81,8 +81,7 @@ void main() {
     test(
         'enabledTransportsProvider returns empty list while settings are loading — '
         'regression: loading state returned all plugins, causing disabled transports '
-        'to flash as enabled (#post-96)',
-        () async {
+        'to flash as enabled (#post-96)', () async {
       // Verify that the loading branch of enabledTransportsProvider returns []
       // rather than all plugins. We inspect the provider synchronously before
       // the async SharedPreferences read completes.
