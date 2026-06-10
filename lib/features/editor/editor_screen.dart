@@ -211,11 +211,15 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
     _document.addListener(_onDocumentChanged);
 
-    // Clear the loading flag after the first frame so that any change events
-    // fired during the initial layout pass are suppressed, but subsequent
-    // user edits are not.
+    // Clear the loading flag after two frames. super_editor fires
+    // DocumentChangeLog events across multiple frames during internal layout
+    // and initialisation; a single post-frame callback is insufficient and
+    // the second event arrives with _isLoadingDocument already false, bumping
+    // modifiedAt without user input (#75, #post-96).
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _isLoadingDocument = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _isLoadingDocument = false);
+      });
     });
   }
 
