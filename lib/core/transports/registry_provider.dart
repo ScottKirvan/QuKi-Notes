@@ -21,7 +21,9 @@ final enabledTransportsProvider = Provider<List<TransportPlugin>>((ref) {
   return settings.when(
     data: (enabled) =>
         registry.plugins.where((p) => enabled[p.id] ?? true).toList(),
-    loading: () => registry.plugins,
+    // Return empty list while loading — prevents disabled transports from
+    // flashing as enabled during the async SharedPreferences read (#post-96).
+    loading: () => [],
     error: (err, st) {
       _log.warning(
           'enabledTransportsProvider: failed to load settings; '
