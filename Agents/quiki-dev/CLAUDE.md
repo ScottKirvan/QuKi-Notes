@@ -68,7 +68,13 @@ Error handling, case-insensitive search, and stream utility extraction. Merged a
 
 ---
 
-## Current Task Brief — Session 4
+## Session 4a — COMPLETE
+
+Editor UX polish batch: ShareSheetToss false-negative (#92), smart send (#85), QuKis icon disabled when empty (#86), save-on-load guard (#75), task list toolbar button (#82), keyboard toggle (#78). Merged as PR #96.
+
+---
+
+## Current Task Brief — Session 4b
 
 > Written and maintained by the Spec session. Get Scott's sign-off before starting Session 5.
 

@@ -92,14 +92,14 @@ See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phas
 **Current version**: v0.9.3 (release-please PR #93 open; v0.9.2 released 2026-06-08).
 
 **Phase 3 remaining:**
-- Recently Deleted screen (#29) — next implementation task (Session 4, brief in quiki-dev CLAUDE.md)
+- Recently Deleted screen (#29) — next implementation task (Session 4b, brief in quiki-dev CLAUDE.md)
 - Auto-cap root fix (#74) — partial workaround shipped; proper fix awaits `super_editor` exposing `textCapitalization`
 - Stream performance / lazy loading — defer until threshold is hit
 - Onboarding coachmarks — defer unless user testing reveals a need
 
-**New open bugs (filed 2026-06-09):** #71 list formatting lost on round-trip, #72 keyboard not raised on cold launch, #73 rapid shares may lose content, #74 auto-cap persists, #75 opening note bumps modifiedAt, #76 cursor not visible on Windows, #77 tab/indent not working on lists, #92 Share Sheet false-negative snackbar.
+**Resolved by PR #96 (merged 2026-06-10):** #75 (save-on-load), #78 (keyboard toggle), #82 (task list button), #85 (smart send), #86 (QuKis icon disabled), #92 (ShareSheet false-negative).
 
-**New open feature requests (filed 2026-06-09):** #78–#88 (keyboard toggle, auto-new-note, replace hamburger, hyperlinks, task list toolbar button, spell check, runtime plugins, smart send, disable list icon when empty, partial-width panels with scrim, justfile release recipes).
+**Still open bugs:** #71 list formatting lost on round-trip, #72 keyboard not raised on cold launch, #73 rapid shares may lose content, #74 auto-cap persists, #76 cursor not visible on Windows, #77 tab/indent not working on lists.
 
 **Phase 4+:** Sync plugin axis (v1.1+), MCP (v2.0+) — not in scope until Phase 3 is complete.
 

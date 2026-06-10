@@ -118,7 +118,8 @@ QuKi-Notes/
 | | 3.10 Auto-capitalization bug (#32, #74) | Partially addressed (v0.9.2) — IME workaround insufficient; root issue persists, tracked #74 |
 | | 3.11 Editor auto-focus + keyboard dismiss button | Complete (v0.9.2) |
 | | 3.12 Error handling + case-insensitive search + relativeTime utility | Complete (v0.9.3) |
-| | 3.13 Recently Deleted screen (#29) | Not started |
+| | 3.13 Editor UX polish batch (#75, #78, #82, #85, #86, #92) | Complete (PR #96) |
+| | 3.14 Recently Deleted screen (#29) | Not started |
 | | 3.14 Stream performance (lazy loading) | Defer until threshold hit |
 | 4 | Sync plugin axis + first sync backend | v1.1+ |
 | 5 | iPadOS / iOS / macOS builds | Deferred |
@@ -160,14 +161,24 @@ QuKi-Notes/
 
 **Editor focus**: `FocusNode` added to `SuperEditor`; `requestFocus()` called in a post-frame callback from `initState`. Cursor is visible and keyboard raised on Android cold launch. `SuperEditorAndroidControlsController` is constructed in `didChangeDependencies` and uses `colorScheme.primary` for cursor/handle colour (no longer hardcoded white).
 
-**Keyboard dismiss**: `LucideIcons.keyboardOff` button at the right end of the formatting toolbar; calls `FocusScope.of(context).unfocus()`. Tracked issue #78 to make it toggle (show/hide).
+**Keyboard toggle**: Rightmost toolbar button shows `LucideIcons.keyboardOff` when `focusNode.hasFocus` (keyboard up) and `LucideIcons.keyboard` when unfocused. Uses `ListenableBuilder(listenable: focusNode)` — `FocusNode` is a `ChangeNotifier`, not `ValueListenable<bool>`. Tap requests or drops focus. Fixed #78.
 
 **Auto-capitalization workaround (insufficient)**: `SuperEditorImeConfiguration(enableAutocorrect: false, enableSuggestions: false)` was applied in v0.9.2 (#63) as a proxy for `textCapitalization: none` (not yet exposed by `super_editor 0.3.0-dev.51`). The workaround does not fully suppress IME auto-cap on Android. Root issue tracked as #74. Also disables spell check and swipe-to-type (#83) — re-enable those once a proper `textCapitalization` API is available.
 
-**Known bugs (open)**: #75 opening a note without editing bumps `modifiedAt` (auto-save fires on document load); #71 blank lines between list items stripped on round-trip; #76 cursor not visible on Windows; #72 keyboard not raised on cold launch (focus correct, IME not raised).
+**Smart send (#85)**: `_onToss()` skips the picker sheet when `enabled.length == 1` and fires the single transport directly. Picker still shown for 2+ transports.
+
+**QuKis icon disabled when empty (#86)**: `_hasQukisProvider` (`StreamProvider<bool>`, hand-written — not `@riverpod` codegen, avoids riverpod_generator + drift `Stream<List<T>>` bug) drives `onPressed: hasQukis ? _openQuKisList : null`.
+
+**Save-on-load guard (#75)**: `_isLoadingDocument` flag set `true` before `_switchDocument` swap, cleared via `addPostFrameCallback`. Suppresses `_onDocumentChanged` during the initial document load so opening a QuKi without editing does not bump `modifiedAt`.
+
+**Task list toolbar button (#82)**: Code button replaced with `LucideIcons.listChecks`. Tap inserts `'- [ ] '` at offset 0 of the current node via `InsertTextRequest`; existing `TaskListMarkdownReaction` converts it automatically.
+
+**ShareSheetToss always succeeds (#92)**: `share_plus` fires `ShareResultStatus.dismissed` on Android even when the user completes a share. Dropped the status check; always returns `TossResult(success: true, message: 'Shared.')`.
+
+**Known bugs (open)**: #71 blank lines between list items stripped on round-trip; #76 cursor not visible on Windows; #72 keyboard not raised on cold launch (focus correct, IME not raised).
 
 **Error handling (v0.9.3)**: try/catch added to share-in async closure (`app.dart`), `plugin.toss()` (`editor_screen.dart`), and `AutoSaveController` save paths. Transport settings error branch now logs via `logging`. Static `_headingPattern` regex extracted in `stream_screen.dart`. Case-insensitive search via `t.body.lower().like(...)`. `relativeTime()` extracted to `lib/shared/relative_time.dart` with injected `now:` param for testability.
 
 **`flutter test` on Windows**: If `flutter test` crashes with `PathAccessException: sqlite3.dll Access is denied`, run `flutter clean` in a fresh terminal (close VS Code first).
 
-**Last Updated**: 2026-06-09
+**Last Updated**: 2026-06-10
