@@ -74,15 +74,15 @@ Editor UX polish batch: ShareSheetToss false-negative (#92), smart send (#85), Q
 
 ---
 
-## Current Task Brief — Session 4b
+## Session 4b — COMPLETE
 
-> Written and maintained by the Spec session.
+Post-#96 device-testing regressions: transport enabled/disabled state (#post-96), save-on-load guard (#75 re-fix), keyboard icon at cold launch (#78 re-fix), toolbar disable-on-no-selection (#82), task list `- [ ] ` space fix (#82). Merged as PR #99.
 
-**Task**: Device-testing regressions from PR #96
-**Branch**: `fix/post-96-device-bugs`
-**PR title**: `fix(editor): post-96 device-testing regressions`
+> **Note**: #75 (modifiedAt bump on open) remains open — the double-nested post-frame approach in PR #99 is the second attempt; device testing needed to confirm. See issue #75 for full fix history and recommended robust approach (content-hash comparison).
 
-Four bugs found during Scott's device testing of PR #96. Work through them in order. Commit each fix with its regression test before moving to the next.
+---
+
+## Current Task Brief — Session 5
 
 ---
 
@@ -193,8 +193,6 @@ Device testing confirmed the inserted text renders as `- []` (missing space betw
 - [ ] No Claude/Anthropic attribution in commits or PR body
 
 ---
-
-## Queued — Session 5 (start after Session 4b is merged)
 
 **Task**: Phase 3 — Recently Deleted screen
 **Branch**: `feat/recently-deleted`

@@ -119,8 +119,9 @@ QuKi-Notes/
 | | 3.11 Editor auto-focus + keyboard dismiss button | Complete (v0.9.2) |
 | | 3.12 Error handling + case-insensitive search + relativeTime utility | Complete (v0.9.3) |
 | | 3.13 Editor UX polish batch (#75, #78, #82, #85, #86, #92) | Complete (PR #96) |
-| | 3.14 Recently Deleted screen (#29) | Not started |
-| | 3.14 Stream performance (lazy loading) | Defer until threshold hit |
+| | 3.14 Post-#96 device regressions (transport state, #75 re-fix, #78 re-fix, #82 format fix) | Complete (PR #99) |
+| | 3.15 Recently Deleted screen (#29) | Not started |
+| | 3.15 Stream performance (lazy loading) | Defer until threshold hit |
 | 4 | Sync plugin axis + first sync backend | v1.1+ |
 | 5 | iPadOS / iOS / macOS builds | Deferred |
 | 6 | MCP plugin axis | v2.0+ |
@@ -161,7 +162,7 @@ QuKi-Notes/
 
 **Editor focus**: `FocusNode` added to `SuperEditor`; `requestFocus()` called in a post-frame callback from `initState`. Cursor is visible and keyboard raised on Android cold launch. `SuperEditorAndroidControlsController` is constructed in `didChangeDependencies` and uses `colorScheme.primary` for cursor/handle colour (no longer hardcoded white).
 
-**Keyboard toggle**: Rightmost toolbar button shows `LucideIcons.keyboardOff` when `focusNode.hasFocus` (keyboard up) and `LucideIcons.keyboard` when unfocused. Uses `ListenableBuilder(listenable: focusNode)` — `FocusNode` is a `ChangeNotifier`, not `ValueListenable<bool>`. Tap requests or drops focus. Fixed #78.
+**Keyboard toggle (PR #99)**: `_EditorScreenState` tracks `bool _keyboardVisible = false`. `FormattingToolbar` receives `keyboardVisible` + `onToggleKeyboard` callback — no direct `FocusNode` access. Icon: `keyboardVisible ? LucideIcons.keyboardOff : LucideIcons.keyboard`. Toggle: if visible → `FocusScope.unfocus()` + `_keyboardVisible = false`; if hidden → `focusNode.requestFocus()` + `_keyboardVisible = true`. Default `false` means cold-launch icon correctly shows "show keyboard". Decouples icon from `FocusNode.hasFocus` which diverges at launch (#72). Fixed #78.
 
 **Auto-capitalization workaround (insufficient)**: `SuperEditorImeConfiguration(enableAutocorrect: false, enableSuggestions: false)` was applied in v0.9.2 (#63) as a proxy for `textCapitalization: none` (not yet exposed by `super_editor 0.3.0-dev.51`). The workaround does not fully suppress IME auto-cap on Android. Root issue tracked as #74. Also disables spell check and swipe-to-type (#83) — re-enable those once a proper `textCapitalization` API is available.
 
@@ -169,16 +170,20 @@ QuKi-Notes/
 
 **QuKis icon disabled when empty (#86)**: `_hasQukisProvider` (`StreamProvider<bool>`, hand-written — not `@riverpod` codegen, avoids riverpod_generator + drift `Stream<List<T>>` bug) drives `onPressed: hasQukis ? _openQuKisList : null`.
 
-**Save-on-load guard (#75)**: `_isLoadingDocument` flag set `true` before `_switchDocument` swap, cleared via `addPostFrameCallback`. Suppresses `_onDocumentChanged` during the initial document load so opening a QuKi without editing does not bump `modifiedAt`.
+**Save-on-load guard (#75, PR #99 re-fix)**: `_isLoadingDocument` flag set `true` before `_switchDocument` swap, cleared via double-nested `addPostFrameCallback` (two frames to cover `super_editor`'s multi-frame init events). Suppresses `_onDocumentChanged` during load. NOTE: this is the second fix attempt — if device testing shows `modifiedAt` still bumps, see #75 for the recommended content-hash approach.
 
-**Task list toolbar button (#82)**: Code button replaced with `LucideIcons.listChecks`. Tap inserts `'- [ ] '` at offset 0 of the current node via `InsertTextRequest`; existing `TaskListMarkdownReaction` converts it automatically.
+**Task list toolbar button (#82, PR #99 re-fix)**: Code button replaced with `LucideIcons.listChecks`. Uses `ReplaceNodeRequest` to convert the current `TextNode` directly to `TaskNode(isComplete: false)` — bypasses `TaskListMarkdownReaction` entirely (reaction uses `findLastTextUserTyped` which returns null for programmatic insertions, causing `- []` instead of `- [ ] `). Serializes correctly to `- [ ] text`.
+
+**Transport enabled state (PR #99)**: `enabledTransportsProvider` `loading:` branch returns `[]` instead of all plugins — prevents disabled transports from flashing as enabled during the async SharedPreferences read on startup.
+
+**Toolbar format buttons disabled when no selection (PR #99)**: `FormattingToolbar.build` wrapped in `ListenableBuilder(listenable: composer)`. All format buttons get `onPressed: hasSelection ? action : null`. Link and keyboard toggle always enabled. Removed "Place cursor in editor first" snackbar.
 
 **ShareSheetToss always succeeds (#92)**: `share_plus` fires `ShareResultStatus.dismissed` on Android even when the user completes a share. Dropped the status check; always returns `TossResult(success: true, message: 'Shared.')`.
 
-**Known bugs (open)**: #71 blank lines between list items stripped on round-trip; #76 cursor not visible on Windows; #72 keyboard not raised on cold launch (focus correct, IME not raised).
+**Known bugs (open)**: #71 blank lines between list items stripped on round-trip; #72 keyboard not raised on cold launch (focus correct, IME not raised); #75 modifiedAt bump on open (two fix attempts; see issue for content-hash approach); #76 cursor not visible on Windows.
 
 **Error handling (v0.9.3)**: try/catch added to share-in async closure (`app.dart`), `plugin.toss()` (`editor_screen.dart`), and `AutoSaveController` save paths. Transport settings error branch now logs via `logging`. Static `_headingPattern` regex extracted in `stream_screen.dart`. Case-insensitive search via `t.body.lower().like(...)`. `relativeTime()` extracted to `lib/shared/relative_time.dart` with injected `now:` param for testability.
 
 **`flutter test` on Windows**: If `flutter test` crashes with `PathAccessException: sqlite3.dll Access is denied`, run `flutter clean` in a fresh terminal (close VS Code first).
 
-**Last Updated**: 2026-06-10
+**Last Updated**: 2026-06-14
