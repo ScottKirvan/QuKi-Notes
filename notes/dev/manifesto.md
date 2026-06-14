@@ -9,7 +9,7 @@
 QuKi-Notes is **not** "Drafts for Android". It is a personal capture environment, built because nothing on the market hits the four constraints that matter most to ephemeral note capture:
 
 1. **Velocity** — open the app, type, done. No "+ New", no template picker, no title field, no folder choice. A copious notetaker (Scott captures many QuKis per day) cannot afford one second of friction per capture.
-2. **Open data** — markdown body, plain SQLite on disk, no proprietary serialization, no cloud lock-in, no "export your data" button needed because the data was never locked up in the first place. "No closed formats" is a hard requirement, no just a preference.
+2. **Open data** — individual `.md` files on disk, no proprietary serialization, no cloud lock-in, no "export your data" button needed because the data was never locked up in the first place. A non-technical user can browse the app's documents folder and read every QuKi as a plain text file. "No closed formats" is a hard requirement, not just a preference.
 3. **Information-first UI** — minimal chrome. The QuKi is the interface; the app gets out of the way.
 4. **Extensible dispatch** — the value of a QuKi is realized when it gets used or goes somewhere else (a short-term todo list, a daily log, a chat, a task tracker, a wiki entry, a draft). That "somewhere else" is highly personal, so it must be customizable; a **plug-in**. Hard-coded integrations age badly; transports are the answer.
 
@@ -111,11 +111,11 @@ Core app responsibility: **plugin management** + the editor + the stream + file 
 
 QuKis are framed as ephemeral, but **nothing is auto-deleted** without explicit user action.
 
-- Default storage: forever (local SQLite). Like Gmail — you don't delete, you just stop seeing it as older items push it down.
-- The **QuKis list** surfaces newest-first. Older QuKis fall off the visible viewport but remain searchable.
+- Default storage: forever (individual `.md` files in the app documents directory). Like Gmail — you don't delete, you just stop seeing it as older items push it down.
+- The **QuKis list** surfaces newest-first, ordered by filesystem `mtime`. Older QuKis fall off the visible viewport but remain searchable.
 - Search exists because sometimes you need to find that one thing from three weeks ago. Search is **not** organization. It's recall.
-- A QuKi that's been **sent** is still a QuKi — sending copies, it doesn't move. The local copy lingers in the list.
-- The user can delete a QuKi explicitly. Deleted QuKis move to **Recently Deleted** for a user-configurable retention period (default TBD) before permanent deletion. This is **data recovery**, not organization — Recently Deleted has no sorting, filtering, or filing. Hard-delete from Recently Deleted is permanent and immediate.
+- A QuKi that's been **sent** is still a QuKi — sending copies, it doesn't move. The local file lingers in the list.
+- The user can delete a QuKi explicitly. Deleted QuKis move to a **Recently Deleted** folder (`.trash/` in the app documents directory). The user can restore or permanently delete from there. No configurable retention timer — the user controls the trash. This is **data recovery**, not organization — Recently Deleted has no sorting, filtering, or filing. Hard-delete from Recently Deleted is permanent and immediate.
 
 The point: the user is told "these are ephemeral, don't treat them as a vault" — and the app's behavior reinforces that framing without enforcing destruction.
 
@@ -179,4 +179,4 @@ That's it. Anything beyond this list is post-MVP unless explicitly promoted via 
 
 ---
 
-**Last Updated**: 2026-06-03
+**Last Updated**: 2026-06-14
