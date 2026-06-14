@@ -89,17 +89,19 @@ Fix CI failures directly (they are always small). Use `mcp__github__subscribe_pr
 
 See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phase table.
 
-**Current version**: v0.9.3 (release-please PR #93 open; v0.9.2 released 2026-06-08).
+**Current version**: v0.9.3 (PR #99 merged 2026-06-14).
 
-**Phase 3 remaining:**
-- Recently Deleted screen (#29) — next implementation task (Session 4b, brief in quiki-dev CLAUDE.md)
+**Next implementation task — Session 5**: Storage backend migration — Drift/SQLite → individual `.md` files (ADR-25). Brief is in `Agents/quiki-dev/CLAUDE.md`. Branch: `refactor/file-storage`. Closes #29 (Recently Deleted) and #75 (modifiedAt bump).
+
+**Phase 3 remaining after Session 5:**
 - Auto-cap root fix (#74) — partial workaround shipped; proper fix awaits `super_editor` exposing `textCapitalization`
 - Stream performance / lazy loading — defer until threshold is hit
-- Onboarding coachmarks — defer unless user testing reveals a need
 
-**Resolved by PR #96 (merged 2026-06-10):** #75 (save-on-load), #78 (keyboard toggle), #82 (task list button), #85 (smart send), #86 (QuKis icon disabled), #92 (ShareSheet false-negative).
+**Resolved by PR #99 (merged 2026-06-14):** Transport enabled/disabled state race (#post-96), save-on-load guard re-fix (#75), keyboard icon at cold launch (#78), toolbar disable-on-no-selection (#82 post-96), task list `- [ ] ` space fix (#82 regression).
 
-**Still open bugs:** #71 list formatting lost on round-trip, #72 keyboard not raised on cold launch, #73 rapid shares may lose content, #74 auto-cap persists, #76 cursor not visible on Windows, #77 tab/indent not working on lists.
+**Still open bugs:** #71 list formatting lost on round-trip, #72 keyboard not raised on cold launch, #73 rapid shares may lose content, #74 auto-cap persists, #75 modifiedAt bump (two failed attempts — eliminated by design in ADR-25), #76 cursor not visible on Windows, #77 tab/indent not working on lists.
+
+**Architecture decision (ADR-25, 2026-06-14):** Storage backend replaced — Drift/SQLite dropped in favour of individual `.md` files in the app documents directory. `createdAt` in `.meta/{uuid}.json` sidecar. `modifiedAt` = filesystem `mtime`. Recently Deleted = `.trash/` subfolder, user-managed. Search = content scan. See `notes/dev/decisions.md` for full rationale.
 
 **Phase 4+:** Sync plugin axis (v1.1+), MCP (v2.0+) — not in scope until Phase 3 is complete.
 

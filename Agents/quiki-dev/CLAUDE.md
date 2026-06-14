@@ -84,142 +84,140 @@ Post-#96 device-testing regressions: transport enabled/disabled state (#post-96)
 
 ## Current Task Brief — Session 5
 
----
+> Written and maintained by the Spec session.
 
-### Bug 1 — Transport enabled/disabled state ignored on app restart
-
-**File**: `lib/core/transports/transport_settings_notifier.dart`
-
-`TransportSettingsNotifier.build()` reads SharedPreferences on startup, but `enabledTransportsProvider` returns ALL plugins while the async read is in-flight (`loading` state fallback). If `Send...` is tapped during that window, or if the async read fails silently, the user sees disabled transports as enabled.
-
-**Investigate first**: add a temporary log in `build()` to confirm SharedPreferences is returning the correct values. If it is, the race window is the problem. If it isn't, there is a persistence bug.
-
-**Fix A (if it's the loading-race)**: the `loading:` branch in `enabledTransportsProvider` should return `[]` (empty, nothing enabled) rather than all plugins. This means the user can't toss until settings load — which is instantaneous in practice but avoids the flash of wrong state.
-
-**Fix B (if SharedPreferences isn't persisting)**: add `await prefs.reload()` at the top of `build()` to force-read from disk rather than the in-memory cache.
-
-**Test**: unit test `TransportSettingsNotifier` — set one transport disabled, dispose the notifier, recreate it (simulating app restart), assert the disabled transport is still disabled.
+**Task**: Storage backend migration — Drift/SQLite → individual `.md` files (ADR-25)
+**Branch**: `refactor/file-storage`
+**PR title**: `refactor(storage): replace Drift/SQLite with individual .md files (ADR-25)`
+**Closes**: #29, #75
 
 ---
 
-### Bug 2 — Opening a QuKi still bumps `modifiedAt` (#75 regression)
+### Context
 
-**File**: `lib/features/editor/editor_screen.dart`
+This is a foundational change driven by manifesto alignment and a recurring bug class. Read ADR-25 in `notes/dev/decisions.md` before starting. The manifesto has been updated to reflect the new storage model.
 
-The `_isLoadingDocument` flag is cleared after ONE post-frame callback, but `super_editor` fires `DocumentChangeLog` events across **multiple** frames during its internal layout and initialization. By the time those events arrive, `_isLoadingDocument` is already `false`.
+The #75 bug (modifiedAt bumped on open, two failed fix attempts) is eliminated by design: `modifiedAt` is now filesystem `mtime`, which only changes when the file is actually written.
 
-**Fix**: Replace the single `addPostFrameCallback` with a double-nested one. This ensures the flag stays set until all initialization events have fired:
+---
 
-```dart
-WidgetsBinding.instance.addPostFrameCallback((_) {
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    if (mounted) setState(() => _isLoadingDocument = false);
-  });
-});
+### Directory structure
+
+```
+<app-documents>/qukis/
+  {uuid}.md              ← QuKi body, plain markdown
+  .meta/
+    {uuid}.json          ← {"createdAt": "2026-06-14T17:00:00.000Z"}
+  .trash/
+    {uuid}.md            ← soft-deleted; user restores or hard-deletes
+    .meta/
+      {uuid}.json
 ```
 
-If two frames is still insufficient on device (super_editor may need more), escalate to `Future.delayed(const Duration(milliseconds: 300), ...)`. Prefer the double post-frame approach first; only use the timer if device testing confirms two frames is still not enough.
+Use `path_provider` (`getApplicationDocumentsDirectory()`) to locate the root. Create `qukis/` and `qukis/.meta/` on first run.
 
-**Test**: the existing `_switchDocument does not bump modifiedAt` test in `editor_screen_test.dart` should already cover this once the fix is correct. Verify it still passes. Add a pump between `setId` and the assertion to allow the extra frame:
+---
 
+### New files to create
+
+**`lib/core/storage/quki_meta.dart`** — pure Dart model:
 ```dart
-await tester.pump(); // first post-frame
-await tester.pump(); // second post-frame (clears _isLoadingDocument)
-await tester.pump(const Duration(milliseconds: 100));
+class QuKiMeta {
+  final String id;       // UUID, no extension
+  final String filePath; // absolute path to .md file
+  final DateTime createdAt;
+  final DateTime modifiedAt; // from FileStat.modified
+}
 ```
 
----
+**`lib/core/storage/quki_storage.dart`** — file I/O service:
+- `Future<QuKiMeta> create(String body)` — write new .md + .meta JSON, return meta
+- `Future<void> update(String id, String body)` — overwrite .md; mtime updates automatically
+- `Future<void> softDelete(String id)` — move .md + .meta to `.trash/`
+- `Future<void> restore(String id)` — move back from `.trash/`
+- `Future<void> hardDelete(String id)` — delete .md + .meta from `.trash/`
+- `Future<String> read(String id)` — read .md content
+- Use write-to-temp-then-rename for all writes (atomic, avoids corruption on crash)
 
-### Bug 3 — Keyboard toggle icon wrong at cold launch
+**`lib/core/storage/quki_index.dart`** — Riverpod `Notifier<List<QuKiMeta>>`:
+- Built by scanning the `qukis/` directory on startup (excludes `.trash/`)
+- Updated synchronously in-memory on every create/update/delete — no re-scan needed
+- Sorted by `modifiedAt` descending (newest first)
+- Refreshed by re-scanning on `AppLifecycleState.resumed` (catches external file changes)
 
-**File**: `lib/features/editor/formatting_toolbar.dart`, `lib/features/editor/editor_screen.dart`
+**`lib/core/storage/trash_index.dart`** — Riverpod `Notifier<List<QuKiMeta>>`:
+- Same pattern, scans `.trash/` only
+- Sorted by `modifiedAt` descending
 
-`FocusNode.hasFocus` is `true` immediately after the post-frame `requestFocus()` call (focus is set correctly), but the IME keyboard is not actually visible — this is the known #72 issue. The `ListenableBuilder` reads `hasFocus = true` and shows the `keyboardOff` icon, making the user think the keyboard is visible when it isn't.
-
-**Fix**: Track keyboard visibility as a separate boolean in `_EditorScreenState` rather than inferring it from `FocusNode.hasFocus`.
-
-1. Add `bool _keyboardVisible = false;` to `_EditorScreenState`.
-2. Pass it to `FormattingToolbar` as a new `required bool keyboardVisible` parameter (replacing the `FocusNode` parameter — the toolbar doesn't need direct access to the node).
-3. In the toolbar, use `keyboardVisible` to drive the icon: `keyboardVisible ? LucideIcons.keyboardOff : LucideIcons.keyboard`.
-4. The toolbar button `onPressed`:
-   - If `keyboardVisible`: call `FocusScope.of(context).unfocus()` and set `_keyboardVisible = false` in `setState`.
-   - If `!keyboardVisible`: call `focusNode.requestFocus()` (kept in `_EditorScreenState`) and set `_keyboardVisible = true` in `setState`.
-5. Do NOT set `_keyboardVisible = true` in `initState` / the startup `requestFocus()` call — leave it `false` on cold launch so the icon correctly shows "show keyboard".
-
-This decouples the icon from `FocusNode.hasFocus` entirely, which is what we want since #72 means they can diverge.
-
-**Test**: update `formatting_toolbar_test.dart` — the keyboard toggle tests now pass `keyboardVisible` instead of `focusNode`. Test that icon shows `keyboard` initially, `keyboardOff` after "show keyboard" is tapped.
-
----
-
-### Bug 4 — Toolbar buttons should be disabled when no selection, not show a snackbar
-
-**Files**: `lib/features/editor/formatting_toolbar.dart`
-
-The task list button (and ideally all format buttons) shows "Place cursor in the editor first." as a snackbar when `composer.selection == null`. The correct UX is to disable the button — greyed out, no snackbar.
-
-**Fix**: Wrap `FormattingToolbar`'s `build` method in a `ListenableBuilder(listenable: composer)` so it rebuilds when the selection changes. Then pass `onPressed: composer.selection != null ? () => _insertTaskListItem(context) : null` for the task list button (and `() => _ops.foo() : null` for all the other format buttons too).
-
-`MutableDocumentComposer` extends `ChangeNotifier`, so it works directly as the `listenable`. Remove the snackbar + null check from `_insertTaskListItem`; the button will simply be non-interactive when there is no selection.
-
-**Test**: widget test — when toolbar is rendered with no selection, the task list button's `onPressed` is null (disabled). When a selection exists, it is non-null (enabled). Extend to cover bold, italic, list buttons too if time allows; at minimum cover the task list button since that's the one with the explicit snackbar today.
+**`lib/core/storage/quki_search.dart`** — search function:
+- `Future<List<QuKiMeta>> search(String query, List<QuKiMeta> index)` — filters index by reading each .md file and checking `body.toLowerCase().contains(query.toLowerCase())`
+- At MVP scale this is fine; revisit if performance degrades
 
 ---
 
-### Bug 5 — Task list button inserts `- []` instead of `- [ ]` (#82)
+### Files to delete
 
-**File**: `lib/features/editor/formatting_toolbar.dart`
+- `lib/core/database/` — entire directory
+- `test/core/database/` — entire directory (tests no longer relevant)
+- `test/db/` — schema snapshots
 
-Device testing confirmed the inserted text renders as `- []` (missing space between the brackets). The current code calls `InsertTextRequest` with `textToInsert: '- [ ] '` but the space inside the brackets is not appearing in the document.
-
-**Investigate first**: the most likely cause is `TaskListMarkdownReaction` firing immediately as each character is inserted and consuming the partial input `- [` before the space and `]` are typed/inserted. Check whether `InsertTextRequest` inserts the full string atomically or character-by-character. If the reaction fires mid-insertion, the space inside the brackets is never committed to the document.
-
-**Fix A (preferred)**: Replace the `InsertTextRequest`-based approach with a direct super_editor API call that inserts a proper task list node without going through the markdown reaction. Look for `InsertNewlineInParagraphAtCaretCommand` or equivalent that converts a paragraph to a `TaskItemNode`. If no direct API exists, insert the raw text as a single atomic operation that the reaction won't intercept mid-way.
-
-**Fix B (fallback)**: If the reaction is the problem, insert `'- [ ] '` as a programmatic document edit that bypasses reactions entirely — use `editor.execute([InsertTextRequest(...)])` with `react: false` if that option exists, or insert via the document model directly rather than the editor pipeline.
-
-**Fix C (simplest)**: If the `InsertTextRequest` API does insert atomically, the bug may be in `TaskListMarkdownReaction` consuming `[ ]` and outputting `[]`. Inspect the reaction and ensure it preserves the space. The stored markdown should be `- [ ] text`, not `- []text`.
-
-**Test**: confirm a task list item inserted via the toolbar button serializes to `- [ ] ` (with space) in the markdown body — check `serializeDocumentToMarkdown(document)` output after the button tap.
+Remove from `pubspec.yaml`:
+- `drift`
+- `drift_flutter`
+- `sqlite3_flutter_libs`
+- Remove `drift_dev` and `build_runner` from `dev_dependencies`
 
 ---
 
-### Checklist
+### Files to update
 
-- [ ] `just lint` and `just test` before committing (Scott's local machine only — no `dart` in CI container)
-- [ ] Regression test committed before each fix
-- [ ] No new runtime dependencies
-- [ ] No Drift schema changes
-- [ ] No Claude/Anthropic attribution in commits or PR body
+**`lib/features/editor/editor_screen.dart`**:
+- Replace `QukisDaoWritable` with `QuKiStorage`
+- Remove `_isLoadingDocument` flag entirely — no longer needed; `mtime` is truth
+- `AutoSaveController` still uses debounce (avoid disk thrashing), but the `notifyChanged` / `_onDocumentChanged` guard is gone
+- `activeQukiIdProvider` still works; IDs are UUIDs (now filenames without extension)
+- On load: call `QuKiStorage.read(id)` to get body; on save: call `QuKiStorage.update(id, body)`
+- On new QuKi: call `QuKiStorage.create('')` to get ID, then load it
+
+**`lib/features/stream/stream_screen.dart`**:
+- Replace `StreamBuilder` over Drift DAO with `Consumer` over `quKiIndexProvider`
+- Search now calls `QuKiSearch.search(query, index)` instead of SQL LIKE
+
+**`lib/features/settings/`** and any other Drift call sites — audit and replace.
+
+**`AutoSaveController`**: remove `QukisDaoWritable` dependency; accept a write callback `Future<void> Function(String body)` instead. Simpler and decoupled.
 
 ---
 
-**Task**: Phase 3 — Recently Deleted screen
-**Branch**: `feat/recently-deleted`
-**PR title**: `feat(stream): Recently Deleted screen with user-configurable retention`
-**Closes**: #29
+### Recently Deleted screen (included in this PR — closes #29)
 
-### What to build
+The storage layer already has `.trash/` and `trashIndexProvider`. Wire up the UI:
 
-Data recovery screen — not an organizer feature. See `notes/dev/design_spec.md` → "Recently Deleted" and ADR-5 for full behavioral spec.
+- **Access**: Settings screen → "Recently Deleted" entry
+- **Screen**: `RecentlyDeletedScreen` — `Consumer` over `trashIndexProvider`, newest-first list
+- **Tap a row** → `QuKiStorage.restore(id)`, update both indexes, pop
+- **Swipe a row** → show confirmation dialog → `QuKiStorage.hardDelete(id)`, update trash index
+- No sorting, filtering, tags, or retention timer
 
-- **Access**: entry point from Settings (not from the main QuKis list — avoids making it feel like a second list)
-- **Screen**: newest-first list of soft-deleted QuKis; no sort, filter, tags, or pinning
-- **Tap a row** → restore (clears `deletedAt`; QuKi returns to top of QuKis list)
-- **Swipe a row** → permanent hard-delete (immediate; modal confirmation dialog required)
-- **Retention period**: user-configurable in Settings → a new setting (default 7 days). Background sweep hard-deletes + cascades to images after the period expires.
-- **Drift schema bump required**: add `schemaVersion` bump + migration test per ADR-8. The `qukis` table already has `deletedAt` — no column changes needed, but the sweep logic needs wiring.
+---
 
 ### Tests required
 
-- Unit test: `hardDeleteBefore(threshold)` DAO method deletes rows with `deletedAt` older than threshold and leaves newer rows.
-- Widget test: Recently Deleted screen shows soft-deleted QuKis; restore tap clears `deletedAt`.
-- Widget test: swipe to hard-delete shows confirmation dialog; confirm → row gone.
-- Migration test: schema version bump verified against prior snapshot per ADR-8.
+- Unit: `QuKiStorage.create` writes `.md` + `.meta` files; `read` returns the body
+- Unit: `QuKiStorage.softDelete` moves files to `.trash/`; `restore` moves them back; `hardDelete` removes from `.trash/`
+- Unit: `QuKiIndex` sorted newest-first by mtime; updates correctly on create/delete
+- Unit: `QuKiSearch` filters by body content, case-insensitive
+- Widget: `RecentlyDeletedScreen` lists trashed QuKis; restore tap calls storage + updates index
+- Widget: swipe to hard-delete shows confirmation; confirm → row removed
+
+Use `path_provider`'s `setMockInitialValues` / a temp directory in tests — do not use real filesystem paths.
+
+---
 
 ### Checklist
 
-- `just lint` and `just test` before committing.
-- No new runtime dependencies.
-- Drift schema version bump + snapshot test required (ADR-8).
-- ADR entry not required (behavior already specified in ADR-5).
+- [ ] `just lint` and `just test` locally before committing
+- [ ] No new runtime dependency without discussing first (`path_provider` is already approved — check `notes/dev/dependencies.md`)
+- [ ] ADR-25 and manifesto already updated — do NOT re-litigate the storage choice
+- [ ] No Claude/Anthropic attribution in commits or PR body
+- [ ] `lib/core/` remains Flutter-free except `lib/core/transports/` (ADR-21); `QuKiStorage` may use `dart:io` freely, must not import Flutter widgets

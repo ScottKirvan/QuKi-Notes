@@ -10,6 +10,37 @@ Normative framing in `manifesto.md` — read that first.
 
 ---
 
+## ADR-25: Storage backend — individual `.md` files, supersedes implicit SQLite choice
+
+**Date**: 2026-06-14
+
+**What**: Replace Drift/SQLite with individual `.md` files stored in the app's documents directory. One file per QuKi, named `{uuid}.md`. `createdAt` stored in a `.meta/{uuid}.json` sidecar (SQLite cannot provide filesystem `mtime`; Android `dart:io` cannot provide file creation time reliably). `modifiedAt` is the filesystem `mtime` — only changes when the file is actually written. Recently Deleted = `.trash/` subfolder; user empties or restores manually, no timer. Search = file content scan at query time. In-memory `List<QuKiMeta>` index rebuilt on app start and updated synchronously on every write/delete.
+
+**Why**: The manifesto's open data principle says QuKi data must be directly accessible to a non-technical user as plain files — SQLite satisfies the letter but not the spirit. More concretely, SQLite introduced a class of bugs (modifiedAt bumped on open, #75, two failed fix attempts) that do not exist when `mtime` is the single source of truth for modification time. With files, you write when content changes; `mtime` reflects that automatically.
+
+**Structure**:
+```
+<app-documents>/qukis/
+  {uuid}.md          ← QuKi body, plain markdown
+  .meta/
+    {uuid}.json      ← {"createdAt": "2026-06-14T17:00:00.000Z"}
+  .trash/
+    {uuid}.md        ← soft-deleted; user restores or hard-deletes
+    .meta/
+      {uuid}.json
+```
+
+**Rejected alternatives**:
+- *Continue with SQLite + timing workarounds* — violates manifesto, #75 already had two failed fixes.
+- *SQLite + mirror mtime into DB on every save* — two sources of truth, fragile.
+- *Timestamp-embedded filename* (`{created}-{uuid}.md`) — createdAt is immutable in the name but filenames become opaque and parsing timestamps from names is fragile.
+- *Single index file* (`index.json`) — single point of failure, write contention, recreates DB problems.
+- *Parallel SQLite index alongside .md files* — two sources of truth; defeats the purpose.
+
+**Consequences**: Drift, `sqlite3_flutter_libs`, and `build_runner` drop out of the dependency tree. All schema migrations are eliminated. `lib/core/database/` is replaced by `lib/core/storage/`. `AutoSaveController` simplifies — debounce still useful to avoid thrashing disk, but `mtime` is now truth so no guard flag needed. `modifiedAt` bug (#75) is eliminated by design.
+
+---
+
 ## ADR-24: Inline markdown input reactions — custom `EditReaction` subclasses
 
 Live inline conversion (typing `**bold**` → bold span, `_italic_` → italic span, `` `code` `` → code span, `- [ ] ` → task node) is implemented as custom `EditReaction` subclasses registered after `defaultEditorReactions` in the `Editor.reactionPipeline`.
