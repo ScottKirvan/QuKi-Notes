@@ -197,7 +197,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     }
 
     _switchDocument(body);
-    _autoSave.resetForQuki(id: qukiId);
+    _autoSave.resetForQuki(id: qukiId, initialBody: body);
   }
 
   void _switchDocument(String body) {
@@ -343,7 +343,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     return serializeDocumentToMarkdown(
       _document,
       syntax: MarkdownSyntax.normal,
-    ).trim();
+    );
   }
 
   @override
