@@ -1,12 +1,13 @@
-import 'package:drift/native.dart';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 
-import 'package:quki_notes/core/database/app_database.dart';
-import 'package:quki_notes/core/database/database_provider.dart';
+import 'package:quki_notes/core/storage/quki_index.dart';
+import 'package:quki_notes/core/storage/quki_storage.dart';
 import 'package:quki_notes/features/editor/editor_screen.dart';
 import 'package:quki_notes/features/share_in/share_handler.dart';
 
@@ -101,19 +102,28 @@ void main() {
   });
 
   group('share-in navigation', () {
+    late Directory tmpDir;
+    late QuKiStorage storage;
+
+    setUp(() async {
+      tmpDir = await Directory.systemTemp.createTemp('quki_share_nav_test_');
+      storage = QuKiStorage(tmpDir);
+    });
+
+    tearDown(() async {
+      await tmpDir.delete(recursive: true);
+    });
+
     testWidgets('share-in never pushes a second EditorScreen', (tester) async {
       // Regression test for the old behaviour (Navigator.push(EditorScreen))
       // which produced a second EditorScreen with a back button. If that
       // regression returns, find.byType(EditorScreen) will return findsWidgets
       // and this test will fail.
       //
-      // The async DB insert + provider update happen on an isolate-backed
-      // database and cannot reliably be asserted in FakeAsync widget tests.
+      // The async storage insert + provider update happen on the Dart event loop
+      // and cannot reliably be asserted in FakeAsync widget tests.
       // The architectural guarantee (one root editor, never a push) is what
       // matters here; the handler logic is covered by other unit tests.
-      final db = AppDatabase(NativeDatabase.memory());
-      addTearDown(() async => db.close());
-
       ReceiveSharingIntent.setMockValues(
         initialMedia: [
           SharedMediaFile(path: 'shared text', type: SharedMediaType.text),
@@ -123,7 +133,7 @@ void main() {
 
       await tester.pumpWidget(ProviderScope(
         overrides: [
-          appDatabaseProvider.overrideWithValue(db),
+          quKiStorageProvider.overrideWithValue(storage),
           isAndroidProvider.overrideWithValue(true),
         ],
         child: const MaterialApp(home: EditorScreen()),

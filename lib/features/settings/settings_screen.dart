@@ -5,6 +5,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../../core/app_info.dart';
 import '../../core/transports/registry_provider.dart';
 import '../../core/transports/transport_settings_notifier.dart';
+import '../recently_deleted/recently_deleted_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -56,6 +57,18 @@ class SettingsScreen extends ConsumerWidget {
                 onChanged: (v) => notifier.setEnabled(p.id, v),
               );
             }),
+          const Divider(indent: 16, endIndent: 16),
+          sectionHeader('Notes'),
+          ListTile(
+            title: const Text('Trash'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.push<void>(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const RecentlyDeletedScreen(),
+              ),
+            ),
+          ),
           const Divider(indent: 16, endIndent: 16),
           sectionHeader('Sync'),
           const ListTile(

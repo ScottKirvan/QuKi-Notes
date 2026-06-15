@@ -8,7 +8,7 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:super_editor/super_editor.dart' hide Logger;
 
 import '../../app.dart';
-import '../../core/database/database_provider.dart';
+import '../../core/storage/quki_index.dart';
 import '../../core/transports/registry_provider.dart';
 import '../../core/transports/transport_plugin.dart';
 
@@ -18,14 +18,6 @@ import 'markdown_inline_reactions.dart';
 import 'toss_picker_sheet.dart';
 import '../settings/settings_screen.dart';
 import '../stream/stream_screen.dart';
-
-/// True when at least one non-deleted QuKi exists. Hand-written [StreamProvider]
-/// (not @riverpod codegen) to avoid the riverpod_generator + drift
-/// `Stream<List<T>>` InvalidTypeException — see CLAUDE.md implementation notes.
-final _hasQukisProvider = StreamProvider<bool>((ref) {
-  final db = ref.watch(appDatabaseProvider);
-  return db.qukisDao.watchAll().map((list) => list.isNotEmpty);
-});
 
 final _log = Logger('EditorScreen');
 
@@ -104,16 +96,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   final _docLayoutKey = GlobalKey();
   final _editorFocusNode = FocusNode();
 
-  /// True while [_switchDocument] is loading content into the editor.
-  /// Suppresses [_onDocumentChanged] during the initial document swap so that
-  /// opening a QuKi without editing does not bump its [modifiedAt] (#75).
-  bool _isLoadingDocument = false;
-
   /// Tracks whether the IME keyboard is currently visible. Kept separate from
   /// [FocusNode.hasFocus] because focus and keyboard visibility can diverge at
-  /// cold launch (known #72 issue): focus is granted in a post-frame callback
-  /// but the IME does not necessarily open. Left false on startup so the
-  /// toolbar shows the "show keyboard" icon, not "dismiss keyboard" (#post-96).
+  /// cold launch (#72): focus is granted in a post-frame callback but the IME
+  /// does not necessarily open. Left false on startup so the toolbar shows the
+  /// "show keyboard" icon (#post-96).
   bool _keyboardVisible = false;
 
   @override
@@ -123,9 +110,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     _composer = MutableDocumentComposer();
     _editor = _createEditor(document: _document, composer: _composer);
 
-    final db = ref.read(appDatabaseProvider);
     _autoSave = AutoSaveController(
-      dao: db.qukisDao,
+      onSave: _writeQuKi,
       getBody: _extractBody,
     );
     _autoSave.start();
@@ -174,14 +160,30 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         state == AppLifecycleState.detached) {
       _autoSave.save();
     }
+    if (state == AppLifecycleState.resumed) {
+      ref.read(quKiIndexProvider.notifier).refresh();
+    }
   }
 
   void _onDocumentChanged(DocumentChangeLog _) {
-    // Suppress during document swap — super_editor fires change events when
-    // content is first loaded, which would bump modifiedAt without user input
-    // (#75).
-    if (_isLoadingDocument) return;
     _autoSave.notifyChanged();
+  }
+
+  /// Write callback for [AutoSaveController]. Creates or updates the file and
+  /// keeps [quKiIndexProvider] in sync. Returns the QuKi ID (new or existing).
+  Future<String> _writeQuKi(String? currentId, String body) async {
+    final storage = ref.read(quKiStorageProvider);
+    if (currentId != null) {
+      await storage.update(currentId, body);
+      ref
+          .read(quKiIndexProvider.notifier)
+          .updateMeta(currentId, DateTime.now());
+      return currentId;
+    } else {
+      final meta = await storage.create(body);
+      ref.read(quKiIndexProvider.notifier).addMeta(meta);
+      return meta.id;
+    }
   }
 
   Future<void> _onActiveQukiChanged(String? qukiId) async {
@@ -190,10 +192,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
     String body = '';
     if (qukiId != null) {
-      final db = ref.read(appDatabaseProvider);
-      final quki = await db.qukisDao.getById(qukiId);
+      body = await ref.read(quKiStorageProvider).read(qukiId);
       if (!mounted) return;
-      body = quki?.body ?? '';
     }
 
     _switchDocument(body);
@@ -208,8 +208,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     final newComposer = MutableDocumentComposer();
     final newEditor = _createEditor(document: newDoc, composer: newComposer);
 
-    _isLoadingDocument = true;
-
     setState(() {
       _document = newDoc;
       _composer = newComposer;
@@ -217,28 +215,15 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     });
 
     _document.addListener(_onDocumentChanged);
-
-    // Clear the loading flag after two frames. super_editor fires
-    // DocumentChangeLog events across multiple frames during internal layout
-    // and initialisation; a single post-frame callback is insufficient and
-    // the second event arrives with _isLoadingDocument already false, bumping
-    // modifiedAt without user input (#75, #post-96).
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() => _isLoadingDocument = false);
-      });
-    });
   }
 
   Future<void> _newQuKi() async {
     if (ref.read(activeQukiIdProvider) == null) {
-      // Provider already null — listener won't fire, handle inline.
       await _autoSave.flush();
       if (!mounted) return;
       _switchDocument('');
       _autoSave.resetForQuki(id: null);
     } else {
-      // _onActiveQukiChanged(null) will handle flush + switch.
       ref.read(activeQukiIdProvider.notifier).setId(null);
     }
   }
@@ -370,8 +355,15 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       _onActiveQukiChanged(next);
     });
 
-    // Disable the QuKis icon when the DB is empty — nothing to show (#86).
-    final hasQukis = ref.watch(_hasQukisProvider).value ?? false;
+    // Pre-subscribe so SharedPreferences has loaded by the time the user taps
+    // Send — prevents the loading-state [] from triggering "No transports".
+    ref.watch(enabledTransportsProvider);
+
+    // Disable the QuKis icon when there are no saved QuKis (#86).
+    final hasQukis = ref.watch(quKiIndexProvider).maybeWhen(
+          data: (list) => list.isNotEmpty,
+          orElse: () => false,
+        );
 
     final Widget scaffold = Scaffold(
       appBar: AppBar(

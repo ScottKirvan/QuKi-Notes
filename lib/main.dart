@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app.dart';
+import 'core/storage/quki_index.dart';
+import 'core/storage/quki_storage.dart';
 import 'features/window/window_state_service.dart';
 
 void main() async {
@@ -13,5 +15,9 @@ void main() async {
     await windowManager.ensureInitialized();
     await WindowStateService.restore();
   }
-  runApp(const ProviderScope(child: QuKiNotesApp()));
+  final storage = await QuKiStorage.fromAppDir();
+  runApp(ProviderScope(
+    overrides: [quKiStorageProvider.overrideWithValue(storage)],
+    child: const QuKiNotesApp(),
+  ));
 }
