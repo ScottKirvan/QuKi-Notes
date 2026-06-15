@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.9.6](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.9.5...v0.9.6) (2026-06-15)
+
+
+### Bug Fixes
+
+* **editor:** guard Android cursor controls to Android only ([#76](https://github.com/ScottKirvan/QuKi-Notes/issues/76)) ([993637d](https://github.com/ScottKirvan/QuKi-Notes/commit/993637d9aaa1df32d35c6f121de24bfa80fae6c6))
+* **editor:** set caret color from theme so cursor is visible in dark mode ([#76](https://github.com/ScottKirvan/QuKi-Notes/issues/76)) ([7588d3e](https://github.com/ScottKirvan/QuKi-Notes/commit/7588d3e88cfb8cef6343db4340f9d28c025b5e16))
+* **theme:** shrink checkbox touch target for tighter task list spacing ([b56a47d](https://github.com/ScottKirvan/QuKi-Notes/commit/b56a47d2be3db341cffa4aa6948fa0744ea0abc4))
+
 ## [0.9.5](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.9.4...v0.9.5) (2026-06-15)
 
 
