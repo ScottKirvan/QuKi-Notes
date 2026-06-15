@@ -62,6 +62,10 @@ class QuKiNotesApp extends ConsumerWidget {
           surfaceTint: Color(0xff0550ae),
           surfaceContainerHighest: Color(0xfff6f8fa), // canvas.subtle
         ),
+        checkboxTheme: const CheckboxThemeData(
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          visualDensity: VisualDensity.compact,
+        ),
         useMaterial3: true,
       ),
       darkTheme: ThemeData(
@@ -94,6 +98,10 @@ class QuKiNotesApp extends ConsumerWidget {
           onInverseSurface: Color(0xff0a0c10),
           inversePrimary: Color(0xff0550ae),
           surfaceTint: Color(0xff71b7ff),
+        ),
+        checkboxTheme: const CheckboxThemeData(
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          visualDensity: VisualDensity.compact,
         ),
         useMaterial3: true,
       ),
