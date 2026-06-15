@@ -25,6 +25,8 @@ class AutoSaveController {
   String? _savedId;
   String? get savedId => _savedId;
 
+  String? _lastSavedBody;
+
   Timer? _debounce;
   Timer? _periodic;
 
@@ -46,17 +48,20 @@ class AutoSaveController {
   Future<void> save() async {
     final body = _getBody();
     if (body.isEmpty) return;
+    if (body == _lastSavedBody) return;
     try {
       _savedId = await _onSave(_savedId, body);
+      _lastSavedBody = body;
     } catch (e, st) {
       _log.severe('save failed', e, st);
     }
   }
 
-  void resetForQuki({String? id}) {
+  void resetForQuki({String? id, String? initialBody}) {
     _debounce?.cancel();
     _debounce = null;
     _savedId = id;
+    _lastSavedBody = initialBody;
   }
 
   void dispose() {
