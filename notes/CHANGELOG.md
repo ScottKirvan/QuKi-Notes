@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.9.5](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.9.4...v0.9.5) (2026-06-15)
+
+
+### Bug Fixes
+
+* **editor:** keyboard toggle, toolbar disable-on-no-selection, task list node insertion (#post-96, Bugs 3+4+5) ([c445b0c](https://github.com/ScottKirvan/QuKi-Notes/commit/c445b0c84c0e3968a9fe6fe906ae994fea28c9b6))
+* **editor:** prevent spurious mtime bumps on QuKi open ([#75](https://github.com/ScottKirvan/QuKi-Notes/issues/75)) ([ceece57](https://github.com/ScottKirvan/QuKi-Notes/commit/ceece57b572b2a3ba6d74991fcca0e1944ef6170))
+* **editor:** use double-nested post-frame callback to clear _isLoadingDocument ([#75](https://github.com/ScottKirvan/QuKi-Notes/issues/75) regression) ([28cff04](https://github.com/ScottKirvan/QuKi-Notes/commit/28cff04f2cc5e9d6bb29df11b6a3a7e9c0b4988d))
+* **test:** assert format buttons disabled before super_editor sets initial cursor ([0c169c3](https://github.com/ScottKirvan/QuKi-Notes/commit/0c169c301b6fc8612c6cfecf499df99dfb384a06))
+* **test:** remove unused formatting_toolbar import in toolbar test ([dbab625](https://github.com/ScottKirvan/QuKi-Notes/commit/dbab6253dca90baace4b4c9455a2ba42ffbb10ed))
+* **test:** test format button disabled state after unfocus, not at cold launch ([6c44fa5](https://github.com/ScottKirvan/QuKi-Notes/commit/6c44fa585525bec8e17c7b70c52e5a93fdaf541d))
+* **transports:** return empty list while settings loading to prevent flash (#post-96) ([1557281](https://github.com/ScottKirvan/QuKi-Notes/commit/15572811a95c85ceaf0fb872469be038478cc63f))
+
 ## [0.9.4](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.9.3...v0.9.4) (2026-06-10)
 
 
