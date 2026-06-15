@@ -428,6 +428,18 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                     enableAutocorrect: false,
                     enableSuggestions: false,
                   ),
+                  documentOverlayBuilders: [
+                    const SuperEditorIosToolbarFocalPointDocumentLayerBuilder(),
+                    const SuperEditorIosHandlesDocumentLayerBuilder(),
+                    const SuperEditorAndroidToolbarFocalPointDocumentLayerBuilder(),
+                    const SuperEditorAndroidHandlesDocumentLayerBuilder(),
+                    DefaultCaretOverlayBuilder(
+                      caretStyle: CaretStyle(
+                        width: 2,
+                        color: scheme.onSurface,
+                      ),
+                    ),
+                  ],
                   stylesheet: defaultStylesheet.copyWith(
                     inlineTextStyler: _inlineTextStyler,
                     addRulesAfter: [
