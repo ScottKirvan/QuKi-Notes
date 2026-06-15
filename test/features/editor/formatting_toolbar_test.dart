@@ -1,22 +1,28 @@
-import 'package:drift/native.dart';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:super_editor/super_editor.dart';
 
-import 'package:quki_notes/core/database/app_database.dart';
-import 'package:quki_notes/core/database/database_provider.dart';
+import 'package:quki_notes/core/storage/quki_index.dart';
+import 'package:quki_notes/core/storage/quki_storage.dart';
 import 'package:quki_notes/features/editor/editor_screen.dart';
 
 void main() {
-  late AppDatabase db;
+  late Directory tmpDir;
+  late QuKiStorage storage;
 
-  setUp(() => db = AppDatabase(NativeDatabase.memory()));
-  tearDown(() async => db.close());
+  setUp(() async {
+    tmpDir = await Directory.systemTemp.createTemp('quki_toolbar_test_');
+    storage = QuKiStorage(tmpDir);
+  });
 
-  // Replaces the widget tree with a minimal widget and drains any pending
-  // timers (e.g. drift stream-cleanup timers) left by ProviderScope disposal.
+  tearDown(() async {
+    await tmpDir.delete(recursive: true);
+  });
+
   Future<void> cleanup(WidgetTester tester) async {
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(Duration.zero);
@@ -26,7 +32,7 @@ void main() {
     Future<void> pumpEditor(WidgetTester tester) async {
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [appDatabaseProvider.overrideWithValue(db)],
+          overrides: [quKiStorageProvider.overrideWithValue(storage)],
           child: const MaterialApp(home: EditorScreen()),
         ),
       );
@@ -189,9 +195,6 @@ void main() {
         'TaskNode serializes to "- [ ] " (with space) in markdown — '
         'regression: InsertTextRequest-based approach produced "- []" missing '
         'the space between brackets (#82 regression, #post-96 Bug 5)', () {
-      // This is a unit test of the serialization — the fix converts a paragraph
-      // to TaskNode directly via ReplaceNodeRequest, bypassing the markdown
-      // reaction pipeline. Verify that a TaskNode round-trips correctly.
       final document = MutableDocument(nodes: [
         TaskNode(id: 'task1', text: AttributedText('hello'), isComplete: false),
       ]);

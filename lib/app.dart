@@ -1,13 +1,10 @@
 import 'dart:io' show Platform;
 
-import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
-import 'package:uuid/uuid.dart';
 
-import 'core/database/app_database.dart';
-import 'core/database/database_provider.dart';
+import 'core/storage/quki_index.dart';
 import 'features/editor/editor_screen.dart';
 import 'features/share_in/share_handler.dart';
 import 'features/window/window_state_scope.dart';
@@ -119,19 +116,12 @@ class _ShareAwareHome extends ConsumerWidget {
     ref.listen<AsyncValue<String?>>(shareStreamProvider, (_, next) {
       next.whenData((text) {
         if (text == null) return;
-        // Save as a new QuKi and open it in the root editor.
         () async {
           try {
-            final db = ref.read(appDatabaseProvider);
-            final id = const Uuid().v4();
-            final now = DateTime.now();
-            await db.qukisDao.insertQuki(QukisCompanion.insert(
-              id: id,
-              body: Value(text),
-              createdAt: now,
-              modifiedAt: now,
-            ));
-            ref.read(activeQukiIdProvider.notifier).setId(id);
+            final storage = ref.read(quKiStorageProvider);
+            final meta = await storage.create(text);
+            ref.read(quKiIndexProvider.notifier).addMeta(meta);
+            ref.read(activeQukiIdProvider.notifier).setId(meta.id);
           } catch (e, st) {
             _log.severe('Failed to save shared content', e, st);
             if (context.mounted) {

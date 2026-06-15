@@ -7,8 +7,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../app.dart';
-import '../../core/database/app_database.dart';
-import '../../core/database/database_provider.dart';
+import '../../core/storage/quki_index.dart';
+import '../../core/storage/quki_meta.dart';
+import '../../core/storage/quki_search.dart' as qs;
+import '../../core/storage/quki_storage.dart';
 import '../../shared/relative_time.dart';
 import '../settings/settings_screen.dart';
 
@@ -23,6 +25,8 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
   static final _headingPattern = RegExp(r'^#+\s*');
   final _searchController = TextEditingController();
   String _query = '';
+  List<QuKiMeta>? _searchResults;
+  bool _searching = false;
   Timer? _undoTimer;
 
   @override
@@ -33,7 +37,26 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
 
   void _onSearchChanged() {
     final text = _searchController.text.trim();
-    if (text != _query) setState(() => _query = text);
+    if (text == _query) return;
+    setState(() {
+      _query = text;
+      _searchResults = null;
+    });
+    if (text.isNotEmpty) {
+      _runSearch(text);
+    }
+  }
+
+  Future<void> _runSearch(String query) async {
+    setState(() => _searching = true);
+    final index = ref.read(quKiIndexProvider).asData?.value ?? [];
+    final storage = ref.read(quKiStorageProvider);
+    final results = await qs.search(query, index, storage);
+    if (!mounted || _query != query) return;
+    setState(() {
+      _searchResults = results;
+      _searching = false;
+    });
   }
 
   @override
@@ -56,29 +79,35 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
     if (mounted) Navigator.pop(context);
   }
 
-  void _openExisting(Quki quki) {
-    ref.read(activeQukiIdProvider.notifier).setId(quki.id);
+  void _openExisting(QuKiMeta meta) {
+    ref.read(activeQukiIdProvider.notifier).setId(meta.id);
     if (mounted) Navigator.pop(context);
   }
 
-  Future<void> _delete(Quki quki) async {
-    final db = ref.read(appDatabaseProvider);
-    // Capture messenger before async gap so context is never stale below.
+  Future<void> _delete(QuKiMeta meta) async {
+    final storage = ref.read(quKiStorageProvider);
     final messenger = ScaffoldMessenger.of(context);
-    await db.qukisDao.softDelete(quki.id, DateTime.now());
+    await storage.softDelete(meta.id);
+    ref.read(quKiIndexProvider.notifier).removeMeta(meta.id);
+    // If the trashed QuKi is the one currently open in the editor, reset to
+    // a blank new note so the editor isn't pointing at a deleted file.
+    if (ref.read(activeQukiIdProvider) == meta.id) {
+      ref.read(activeQukiIdProvider.notifier).setId(null);
+    }
     if (!mounted) return;
     _undoTimer?.cancel();
     messenger.clearSnackBars();
     final controller = messenger.showSnackBar(
       SnackBar(
-        content: Text('Deleted: ${_preview(quki.body)}'),
+        content: const Text('QuKi moved to Trash.'),
         duration: const Duration(seconds: 4),
         action: SnackBarAction(
           label: 'Undo',
           onPressed: () {
             _undoTimer?.cancel();
             _undoTimer = null;
-            db.qukisDao.restoreQuki(quki.id);
+            storage.restore(meta.id);
+            ref.read(quKiIndexProvider.notifier).addMeta(meta);
           },
         ),
       ),
@@ -92,7 +121,7 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
     });
   }
 
-  String _preview(String body) {
+  String _previewFromBody(String body) {
     if (body.isEmpty) return '(empty)';
     final first = body
         .split('\n')
@@ -106,14 +135,8 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final db = ref.watch(appDatabaseProvider);
-    // riverpod_generator 4.0.4-dev.1 cannot resolve drift-generated types from
-    // part files, so the stream is consumed here via StreamBuilder rather than
-    // a separate @riverpod provider. Revisit when generator handles part-file
-    // types (or when riverpod_generator stable 4.x ships).
-    final stream =
-        _query.isEmpty ? db.qukisDao.watchAll() : db.qukisDao.search(_query);
     final scheme = Theme.of(context).colorScheme;
+    final indexAsync = ref.watch(quKiIndexProvider);
 
     final Widget screen = Scaffold(
       appBar: AppBar(
@@ -145,7 +168,10 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
                         icon: const Icon(LucideIcons.x),
                         onPressed: () {
                           _searchController.clear();
-                          setState(() => _query = '');
+                          setState(() {
+                            _query = '';
+                            _searchResults = null;
+                          });
                         },
                       )
                     : null,
@@ -158,16 +184,15 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
             ),
           ),
           Expanded(
-            child: StreamBuilder<List<Quki>>(
-              stream: stream,
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                }
-                if (!snapshot.hasData) {
+            child: indexAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(child: Text('Error: $e')),
+              data: (index) {
+                if (_query.isNotEmpty && _searching) {
                   return const Center(child: CircularProgressIndicator());
                 }
-                final qukis = snapshot.data!;
+                final qukis =
+                    _query.isNotEmpty ? (_searchResults ?? []) : index;
                 if (qukis.isEmpty) {
                   return Center(
                     child: Text(
@@ -183,33 +208,15 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
                 }
                 return ListView.builder(
                   itemCount: qukis.length,
-                  itemBuilder: (context, index) {
-                    final quki = qukis[index];
-                    return Dismissible(
-                      key: ValueKey(quki.id),
-                      direction: DismissDirection.endToStart,
-                      background: Container(
-                        alignment: Alignment.centerRight,
-                        color: scheme.error,
-                        padding: const EdgeInsets.only(right: 20),
-                        child: Icon(
-                          LucideIcons.trash2,
-                          color: scheme.onError,
-                        ),
-                      ),
-                      onDismissed: (_) => _delete(quki),
-                      child: ListTile(
-                        title: Text(
-                          _preview(quki.body),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        subtitle: Text(
-                          relativeTime(quki.modifiedAt),
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                        onTap: () => _openExisting(quki),
-                      ),
+                  itemBuilder: (context, i) {
+                    final meta = qukis[i];
+                    return _QuKiTile(
+                      key: ValueKey(meta.id),
+                      meta: meta,
+                      storage: ref.read(quKiStorageProvider),
+                      previewFromBody: _previewFromBody,
+                      onDelete: _delete,
+                      onOpen: _openExisting,
                     );
                   },
                 );
@@ -230,5 +237,75 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
       );
     }
     return screen;
+  }
+}
+
+/// Stateful tile that loads and caches its body preview from the file.
+class _QuKiTile extends StatefulWidget {
+  const _QuKiTile({
+    super.key,
+    required this.meta,
+    required this.storage,
+    required this.previewFromBody,
+    required this.onDelete,
+    required this.onOpen,
+  });
+
+  final QuKiMeta meta;
+  final QuKiStorage storage;
+  final String Function(String body) previewFromBody;
+  final Future<void> Function(QuKiMeta) onDelete;
+  final void Function(QuKiMeta) onOpen;
+
+  @override
+  State<_QuKiTile> createState() => _QuKiTileState();
+}
+
+class _QuKiTileState extends State<_QuKiTile> {
+  String? _preview;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPreview();
+  }
+
+  Future<void> _loadPreview() async {
+    try {
+      final body = await widget.storage.read(widget.meta.id);
+      if (mounted) setState(() => _preview = widget.previewFromBody(body));
+    } catch (_) {
+      if (mounted) setState(() => _preview = '(empty)');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Dismissible(
+      key: ValueKey('dismiss_${widget.meta.id}'),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        alignment: Alignment.centerRight,
+        color: Theme.of(context).colorScheme.error,
+        padding: const EdgeInsets.only(right: 20),
+        child: Icon(
+          LucideIcons.trash2,
+          color: Theme.of(context).colorScheme.onError,
+        ),
+      ),
+      onDismissed: (_) => widget.onDelete(widget.meta),
+      child: ListTile(
+        title: Text(
+          _preview ?? '…',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Text(
+          relativeTime(widget.meta.modifiedAt),
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        onTap: () => widget.onOpen(widget.meta),
+      ),
+    );
   }
 }
