@@ -10,6 +10,111 @@ Normative framing in `manifesto.md` — read that first.
 
 ---
 
+## ADR-26: Replace `super_editor` with `markdown_live_editor` — Typora block-flip model
+
+**Date**: 2026-06-15
+
+**What**: Remove `super_editor` entirely. Extract the replacement editor as a standalone Flutter package (`packages/markdown_live_editor/`) within this monorepo, consumed by the app as a path dependency. The package implements a block-by-block flip model: each markdown block is rendered via `flutter_markdown` when idle; tapping switches it to a raw `TextField`; unfocusing re-renders it. A plain-text mode toggle (via `MarkdownEditorController`) collapses the whole note to a single `TextField` of raw markdown. The canonical data is always the raw markdown string — no intermediate document model exists anywhere in the stack.
+
+**Why**: `super_editor` is a dev-preview library (`0.3.0-dev.51`) that interposes a document model between the user's text and the `.md` file on disk. That model's markdown serializer/deserializer is unreliable: mixed list types (task + bullet + numbered) corrupt on round-trip, blank lines are stripped, Windows cursor was invisible by default, Android controls leaked to other platforms. Every fix broke something adjacent. The manifesto requires that `.md` files are clean, human-readable plain text — `super_editor` violates this at the data layer. The block-flip model eliminates the serializer entirely: the `TextField` content IS the stored markdown, character for character.
+
+The editor is extracted as a package rather than left as a feature module because (a) the Dart package system enforces the boundary — it cannot accidentally import QuKi business logic — and (b) no reliable lightweight Typora-model editor exists in the Flutter ecosystem; this fills a genuine gap and can be published to pub.dev if it proves solid.
+
+**Package structure**:
+```
+packages/markdown_live_editor/
+├── lib/
+│   ├── markdown_live_editor.dart      ← public barrel export
+│   └── src/
+│       ├── markdown_editor.dart       ← MarkdownEditor widget (main entry point)
+│       ├── markdown_block.dart        ← single block: render↔edit flip
+│       ├── block_splitter.dart        ← splits/joins raw markdown ↔ block list
+│       ├── editor_config.dart         ← MarkdownEditorConfig (feature flags + styles)
+│       └── editor_controller.dart     ← MarkdownEditorController (plain-text toggle, value access)
+├── test/
+│   ├── block_splitter_test.dart
+│   └── markdown_block_test.dart
+└── pubspec.yaml                       ← depends on flutter + flutter_markdown only
+```
+
+**Public API**:
+```dart
+// Main widget — drop-in for a text editor
+MarkdownEditor({
+  required String initialValue,
+  ValueChanged<String>? onChanged,
+  MarkdownEditorController? controller,
+  MarkdownEditorConfig config = const MarkdownEditorConfig(),
+  FocusNode? focusNode,
+  bool autofocus = false,
+})
+
+// Controller — held by the host (EditorScreen)
+class MarkdownEditorController {
+  bool get plainTextMode;
+  void togglePlainTextMode();
+  String get currentValue;         // read current markdown without waiting for onChanged
+}
+
+// Config — which markdown features to render
+class MarkdownEditorConfig {
+  final bool enableHeadings;        // # ## ###
+  final bool enableBold;            // **x**
+  final bool enableItalic;          // _x_ *x*
+  final bool enableStrikethrough;   // ~~x~~
+  final bool enableUnorderedLists;  // - *
+  final bool enableOrderedLists;    // 1. 2.
+  final bool enableTaskLists;       // - [ ] - [x]
+  final MarkdownStyleSheet? styleSheet;  // passed through to flutter_markdown
+  final TextStyle? textStyle;            // applied to TextFields in edit mode
+}
+```
+
+Anything not in the enabled set (code blocks, blockquotes, tables, HTML) is rendered as raw markdown text — not interpreted, not stripped.
+
+**Markdown subset rendered by QuKi-Notes** (via `MarkdownEditorConfig`):
+- Headings, bold, italic, strikethrough, unordered lists, ordered lists, task lists — all enabled.
+- Code blocks, blockquotes — disabled; render as raw markdown text so pasted code is never corrupted.
+
+**Block splitting rules**:
+- Blocks delimited by blank lines (`\n\n`).
+- Contiguous list lines (`-`, `*`, `1.`–`9.`, `- [ ]`, `- [x]`) grouped into one block regardless of blank lines between items.
+- Headings always their own block.
+- Everything else split on double-newline.
+
+**Keyboard behaviour**:
+- Enter at end of a non-list block → new empty block below, focus moves there.
+- Enter inside a list block → `TextField` native newline (stays in block).
+- Backspace at position 0 of a block → merge with block above, cursor at join point.
+
+**Plain-text mode**: `MarkdownEditorController.togglePlainTextMode()` collapses the whole note into one `TextField`. Useful for bulk edits or pasting complex content. The file on disk is identical in both modes.
+
+**Dependencies removed from app**: `super_editor`, `super_clipboard`. **Package dependencies**: `flutter` SDK + `flutter_markdown` only. App adds `markdown_live_editor` as a path dep.
+
+**Files removed from app**: `lib/features/editor/markdown_inline_reactions.dart`, `lib/features/editor/formatting_toolbar.dart`. **Files changed**: `editor_screen.dart` rewritten around `MarkdownEditor` + `MarkdownEditorController`; plain-text toggle moves to app-bar action.
+
+**Rejected alternatives**:
+- *Continue with `super_editor`* — data corruption at the storage layer is a hard blocker.
+- *`appflowy_editor`* — same document-model problem, different API.
+- *`flutter_quill`* — Delta format; markdown is bolted on.
+- *Inline feature module* — no enforced boundary; editor could couple to QuKi internals.
+- *Separate repo immediately* — extra CI/release overhead before the design is proven; monorepo path dep is lower friction and extractable later.
+- *Split-pane edit/preview* — wastes screen space on mobile.
+- *Full-note `TextField` only* — viable fallback; block-flip costs little extra and gives rendered output with zero round-trip risk.
+
+**Staged implementation** — each stage is an independently shippable PR:
+
+| Stage | What ships | Key milestone |
+|---|---|---|
+| 1 | `packages/markdown_live_editor/` scaffolded; `MarkdownEditor` wraps a single `TextField`; `super_editor` removed | Data corruption eliminated; plain markdown in, plain markdown out |
+| 2 | Wrap-selection toolbar (bold, italic, strikethrough, heading prefix); auto-continue lists on Enter; task toggle button | Editing feel without rendering |
+| 3 | `block_splitter.dart` + `markdown_block.dart`; idle blocks render via `flutter_markdown`; plain-text toggle functional | Full block-flip WYSIWYG |
+| 4 | Task checkbox tappable in rendered mode; cross-block keyboard navigation; flip animations | Polish |
+
+Stage 1 is the critical delivery — it eliminates data corruption. Stages 2–4 are enhancements on a working foundation.
+
+---
+
 ## ADR-25: Storage backend — individual `.md` files, supersedes implicit SQLite choice
 
 **Date**: 2026-06-14

@@ -82,142 +82,210 @@ Post-#96 device-testing regressions: transport enabled/disabled state (#post-96)
 
 ---
 
-## Current Task Brief — Session 5
+## Session 5 — COMPLETE
+
+Storage backend migration — Drift/SQLite → individual `.md` files (ADR-25). Merged as PR #103. Recently Deleted screen (#29) included. #75 (modifiedAt bump) resolved by design via mtime. Follow-on fixes: content-hash guard (PR #104), cursor visible on Windows / Android controls guard (PR #105).
+
+---
+
+## Current Task Brief — Session 6
 
 > Written and maintained by the Spec session.
 
-**Task**: Storage backend migration — Drift/SQLite → individual `.md` files (ADR-25)
-**Branch**: `refactor/file-storage`
-**PR title**: `refactor(storage): replace Drift/SQLite with individual .md files (ADR-25)`
-**Closes**: #29, #75
+**Task**: Replace `super_editor` with `markdown_live_editor` package — Stage 1: plain-text foundation (ADR-26)
+**Branch**: `refactor/plain-text-editor`
+**PR title**: `refactor(editor): replace super_editor with MarkdownEditor plain-text foundation (ADR-26 stage 1)`
+**Closes**: (no issue — architectural change)
 
 ---
 
 ### Context
 
-This is a foundational change driven by manifesto alignment and a recurring bug class. Read ADR-25 in `notes/dev/decisions.md` before starting. The manifesto has been updated to reflect the new storage model.
+Read ADR-26 in `notes/dev/decisions.md` before starting. This is Stage 1 of a 4-stage migration away from `super_editor`. Stage 1 goal: eliminate data corruption by removing the super_editor document model entirely. The editor becomes a single `TextField` wrapped in a new `packages/markdown_live_editor/` package. No rendering yet — that is Stage 3. The app must be fully functional (capture, save, switch notes, toss) at the end of this session.
 
-The #75 bug (modifiedAt bumped on open, two failed fix attempts) is eliminated by design: `modifiedAt` is now filesystem `mtime`, which only changes when the file is actually written.
+**Pre-existing open PR**: PR #105 (`fix/windows-cursor`) may or may not be merged before this session starts. Check `gh pr list` — if it is still open, rebase `refactor/plain-text-editor` on top of it or wait for it to merge first. Do not duplicate that work.
 
----
-
-### Directory structure
-
-```
-<app-documents>/qukis/
-  {uuid}.md              ← QuKi body, plain markdown
-  .meta/
-    {uuid}.json          ← {"createdAt": "2026-06-14T17:00:00.000Z"}
-  .trash/
-    {uuid}.md            ← soft-deleted; user restores or hard-deletes
-    .meta/
-      {uuid}.json
-```
-
-Use `path_provider` (`getApplicationDocumentsDirectory()`) to locate the root. Create `qukis/` and `qukis/.meta/` on first run.
+**Uncommitted local change**: `app.dart` has a `checkboxTheme` change (shrinkWrap + compact) that was tested but not committed. Commit it as a standalone fixup before branching for this session, or discard it — it is a cosmetic improvement that survives the super_editor removal (the Checkbox widget in Stage 3 task list rendering will benefit from it).
 
 ---
 
-### New files to create
+### Package to create: `packages/markdown_live_editor/`
 
-**`lib/core/storage/quki_meta.dart`** — pure Dart model:
+This is a new Flutter package inside the monorepo. It has no knowledge of QuKi-Notes internals.
+
+**`packages/markdown_live_editor/pubspec.yaml`**:
+```yaml
+name: markdown_live_editor
+description: Block-flip markdown editor widget for Flutter.
+version: 0.1.0
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+  flutter: ">=3.0.0"
+dependencies:
+  flutter:
+    sdk: flutter
+```
+
+Stage 1 has no `flutter_markdown` dependency yet — that arrives in Stage 3.
+
+**`packages/markdown_live_editor/lib/markdown_live_editor.dart`** — barrel:
 ```dart
-class QuKiMeta {
-  final String id;       // UUID, no extension
-  final String filePath; // absolute path to .md file
-  final DateTime createdAt;
-  final DateTime modifiedAt; // from FileStat.modified
+export 'src/markdown_editor.dart';
+export 'src/editor_controller.dart';
+export 'src/editor_config.dart';
+```
+
+**`packages/markdown_live_editor/lib/src/editor_controller.dart`**:
+```dart
+class MarkdownEditorController {
+  _MarkdownEditorState? _state;
+
+  void _attach(_MarkdownEditorState state) => _state = state;
+  void _detach() => _state = null;
+
+  String get currentValue => _state?._textController.text ?? '';
+  void setValue(String value) => _state?.setValue(value);
+
+  // Stage 1: always plain-text; toggle is a no-op.
+  bool get plainTextMode => true;
+  void togglePlainTextMode() {}
 }
 ```
 
-**`lib/core/storage/quki_storage.dart`** — file I/O service:
-- `Future<QuKiMeta> create(String body)` — write new .md + .meta JSON, return meta
-- `Future<void> update(String id, String body)` — overwrite .md; mtime updates automatically
-- `Future<void> softDelete(String id)` — move .md + .meta to `.trash/`
-- `Future<void> restore(String id)` — move back from `.trash/`
-- `Future<void> hardDelete(String id)` — delete .md + .meta from `.trash/`
-- `Future<String> read(String id)` — read .md content
-- Use write-to-temp-then-rename for all writes (atomic, avoids corruption on crash)
+**`packages/markdown_live_editor/lib/src/editor_config.dart`**:
+```dart
+class MarkdownEditorConfig {
+  const MarkdownEditorConfig({
+    this.textStyle,
+    this.contentPadding = const EdgeInsets.all(16),
+  });
+  final TextStyle? textStyle;
+  final EdgeInsets contentPadding;
+}
+```
 
-**`lib/core/storage/quki_index.dart`** — Riverpod `Notifier<List<QuKiMeta>>`:
-- Built by scanning the `qukis/` directory on startup (excludes `.trash/`)
-- Updated synchronously in-memory on every create/update/delete — no re-scan needed
-- Sorted by `modifiedAt` descending (newest first)
-- Refreshed by re-scanning on `AppLifecycleState.resumed` (catches external file changes)
+**`packages/markdown_live_editor/lib/src/markdown_editor.dart`**:
+```dart
+class MarkdownEditor extends StatefulWidget {
+  const MarkdownEditor({
+    super.key,
+    required this.initialValue,
+    this.onChanged,
+    this.controller,
+    this.config = const MarkdownEditorConfig(),
+    this.focusNode,
+    this.autofocus = false,
+  });
 
-**`lib/core/storage/trash_index.dart`** — Riverpod `Notifier<List<QuKiMeta>>`:
-- Same pattern, scans `.trash/` only
-- Sorted by `modifiedAt` descending
+  final String initialValue;
+  final ValueChanged<String>? onChanged;
+  final MarkdownEditorController? controller;
+  final MarkdownEditorConfig config;
+  final FocusNode? focusNode;
+  final bool autofocus;
 
-**`lib/core/storage/quki_search.dart`** — search function:
-- `Future<List<QuKiMeta>> search(String query, List<QuKiMeta> index)` — filters index by reading each .md file and checking `body.toLowerCase().contains(query.toLowerCase())`
-- At MVP scale this is fine; revisit if performance degrades
+  @override
+  State<MarkdownEditor> createState() => _MarkdownEditorState();
+}
+
+class _MarkdownEditorState extends State<MarkdownEditor> {
+  late final TextEditingController _textController;
+
+  @override
+  void initState() {
+    super.initState();
+    _textController = TextEditingController(text: widget.initialValue);
+    widget.controller?._attach(this);
+  }
+
+  @override
+  void dispose() {
+    widget.controller?._detach();
+    _textController.dispose();
+    super.dispose();
+  }
+
+  void setValue(String value) {
+    if (_textController.text != value) {
+      _textController.value = TextEditingValue(text: value);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: _textController,
+      focusNode: widget.focusNode,
+      autofocus: widget.autofocus,
+      maxLines: null,
+      expands: true,
+      textAlignVertical: TextAlignVertical.top,
+      style: widget.config.textStyle,
+      decoration: InputDecoration(
+        border: InputBorder.none,
+        contentPadding: widget.config.contentPadding,
+      ),
+      onChanged: widget.onChanged,
+    );
+  }
+}
+```
 
 ---
 
-### Files to delete
+### App changes
 
-- `lib/core/database/` — entire directory
-- `test/core/database/` — entire directory (tests no longer relevant)
-- `test/db/` — schema snapshots
+**`pubspec.yaml`**:
+- Remove: `super_editor`
+- Add path dep:
+  ```yaml
+  markdown_live_editor:
+    path: packages/markdown_live_editor
+  ```
+- Verify `flutter_markdown` is present (promote to direct dep if it was only transitive).
 
-Remove from `pubspec.yaml`:
-- `drift`
-- `drift_flutter`
-- `sqlite3_flutter_libs`
-- Remove `drift_dev` and `build_runner` from `dev_dependencies`
+**`lib/features/editor/editor_screen.dart`** — rewrite around `MarkdownEditor`:
+- Replace all `super_editor` imports with `package:markdown_live_editor/markdown_live_editor.dart`
+- Remove: `_document`, `_composer`, `_editor`, `_androidController`, `_docLayoutKey`, `_keyboardVisible`
+- Remove: `_createEditor`, `_parseBody`, `_switchDocument`, `_toggleKeyboard`, `_inlineTextStyler`
+- Remove: `didChangeDependencies` (Android controller gone)
+- Add: `_editorController = MarkdownEditorController()`
+- `_extractBody()` → `_editorController.currentValue`
+- `_onDocumentChanged` listener → replaced by `onChanged: (_) => _autoSave.notifyChanged()` on `MarkdownEditor`
+- `_onActiveQukiChanged`: flush → read file → `_editorController.setValue(body)` → `_autoSave.resetForQuki(id, initialBody: body)`
+- `_newQuKi`: flush → `_editorController.setValue('')` → `_autoSave.resetForQuki(id: null)`
+- `build`: replace `SuperEditor` + `FormattingToolbar` column with just `MarkdownEditor`. App bar keeps: QuKis icon, + New, hamburger menu (Send / QuKis / Settings). Add plain-text toggle icon to app bar actions (`LucideIcons.type` or similar) — in Stage 1 it is always active (no-op toggle, but the button is wired to `_editorController.togglePlainTextMode()` so Stage 3 just makes it functional). Remove keyboard toggle (desktop-only concern revisit in Stage 2).
 
----
+**Files to delete**:
+- `lib/features/editor/markdown_inline_reactions.dart`
+- `lib/features/editor/formatting_toolbar.dart`
+- `test/features/editor/formatting_toolbar_test.dart`
 
-### Files to update
-
-**`lib/features/editor/editor_screen.dart`**:
-- Replace `QukisDaoWritable` with `QuKiStorage`
-- Remove `_isLoadingDocument` flag entirely — no longer needed; `mtime` is truth
-- `AutoSaveController` still uses debounce (avoid disk thrashing), but the `notifyChanged` / `_onDocumentChanged` guard is gone
-- `activeQukiIdProvider` still works; IDs are UUIDs (now filenames without extension)
-- On load: call `QuKiStorage.read(id)` to get body; on save: call `QuKiStorage.update(id, body)`
-- On new QuKi: call `QuKiStorage.create('')` to get ID, then load it
-
-**`lib/features/stream/stream_screen.dart`**:
-- Replace `StreamBuilder` over Drift DAO with `Consumer` over `quKiIndexProvider`
-- Search now calls `QuKiSearch.search(query, index)` instead of SQL LIKE
-
-**`lib/features/settings/`** and any other Drift call sites — audit and replace.
-
-**`AutoSaveController`**: remove `QukisDaoWritable` dependency; accept a write callback `Future<void> Function(String body)` instead. Simpler and decoupled.
-
----
-
-### Recently Deleted screen (included in this PR — closes #29)
-
-The storage layer already has `.trash/` and `trashIndexProvider`. Wire up the UI:
-
-- **Access**: Settings screen → "Recently Deleted" entry
-- **Screen**: `RecentlyDeletedScreen` — `Consumer` over `trashIndexProvider`, newest-first list
-- **Tap a row** → `QuKiStorage.restore(id)`, update both indexes, pop
-- **Swipe a row** → show confirmation dialog → `QuKiStorage.hardDelete(id)`, update trash index
-- No sorting, filtering, tags, or retention timer
+**`test/features/editor/editor_screen_test.dart`**: all tests were already skipped due to FakeAsync/dart:io deadlock. Delete the file entirely — tests will be rewritten against the new editor in Stage 2/3 when the widget interface stabilises.
 
 ---
 
 ### Tests required
 
-- Unit: `QuKiStorage.create` writes `.md` + `.meta` files; `read` returns the body
-- Unit: `QuKiStorage.softDelete` moves files to `.trash/`; `restore` moves them back; `hardDelete` removes from `.trash/`
-- Unit: `QuKiIndex` sorted newest-first by mtime; updates correctly on create/delete
-- Unit: `QuKiSearch` filters by body content, case-insensitive
-- Widget: `RecentlyDeletedScreen` lists trashed QuKis; restore tap calls storage + updates index
-- Widget: swipe to hard-delete shows confirmation; confirm → row removed
+Package unit tests (`packages/markdown_live_editor/test/`):
+- `MarkdownEditorController.currentValue` returns `initialValue` before any edits
+- `MarkdownEditorController.setValue` updates the displayed text
+- `onChanged` fires when text changes
 
-Use `path_provider`'s `setMockInitialValues` / a temp directory in tests — do not use real filesystem paths.
+Widget tests (`test/features/editor/editor_screen_test.dart`), new file:
+- EditorScreen renders `MarkdownEditor` on launch
+- Typing triggers `AutoSaveController.notifyChanged` (mock the write callback)
+- Switching QuKi (`activeQukiIdProvider` change) flushes then loads the new body
+
+These can use a temp-dir `QuKiStorage` directly — the FakeAsync/dart:io deadlock only hit because `insertQuki()` was called inside `testWidgets`. Tests that call storage in `setUp` (outside `testWidgets`) are fine.
 
 ---
 
 ### Checklist
 
-- [ ] `just lint` and `just test` locally before committing
-- [ ] No new runtime dependency without discussing first (`path_provider` is already approved — check `notes/dev/dependencies.md`)
-- [ ] ADR-25 and manifesto already updated — do NOT re-litigate the storage choice
+- [ ] `just lint` and `just test` pass locally
+- [ ] No `super_editor` import remains anywhere in `lib/` or `test/`
+- [ ] `MarkdownEditor` is the only editor widget; no super_editor types referenced
+- [ ] App functions end-to-end: new QuKi, type, switch note, come back, content preserved, toss works
+- [ ] ADR-26 and staged plan already written — do NOT re-litigate the architecture
 - [ ] No Claude/Anthropic attribution in commits or PR body
-- [ ] `lib/core/` remains Flutter-free except `lib/core/transports/` (ADR-21); `QuKiStorage` may use `dart:io` freely, must not import Flutter widgets
