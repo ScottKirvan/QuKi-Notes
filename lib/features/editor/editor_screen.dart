@@ -127,11 +127,13 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final primary = Theme.of(context).colorScheme.primary;
-    _androidController?.dispose();
-    _androidController = SuperEditorAndroidControlsController(
-      controlsColor: primary,
-    );
+    if (Platform.isAndroid) {
+      final primary = Theme.of(context).colorScheme.primary;
+      _androidController?.dispose();
+      _androidController = SuperEditorAndroidControlsController(
+        controlsColor: primary,
+      );
+    }
   }
 
   MutableDocument _parseBody(String body) {
@@ -346,6 +348,16 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     );
   }
 
+  Widget _wrapAndroidControls(Widget child) {
+    if (Platform.isAndroid && _androidController != null) {
+      return SuperEditorAndroidControlsScope(
+        controller: _androidController!,
+        child: child,
+      );
+    }
+    return child;
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -407,9 +419,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         child: Column(
           children: [
             Expanded(
-              child: SuperEditorAndroidControlsScope(
-                controller: _androidController!,
-                child: SuperEditor(
+              child: _wrapAndroidControls(
+                SuperEditor(
                   editor: _editor,
                   focusNode: _editorFocusNode,
                   documentLayoutKey: _docLayoutKey,
