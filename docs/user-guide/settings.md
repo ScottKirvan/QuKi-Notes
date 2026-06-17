@@ -13,7 +13,11 @@ Each built-in transport appears as a toggle. Enable or disable transports to con
 | Transport | Platforms | Description |
 |---|---|---|
 | Clipboard | Android, Windows, Linux | Copies the QuKi text to the system clipboard |
-| Share Sheet | Android only | Opens the Android share dialog |
+| Share Sheet | Android, Windows | Opens the system share dialog |
+
+## Recently Deleted
+
+Shows QuKis you have deleted. Tap to restore; swipe to permanently delete.
 
 ## Sync
 

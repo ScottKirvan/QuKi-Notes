@@ -23,13 +23,13 @@ Available on: Android, Windows, Linux.
 
 ### Share Sheet
 
-Opens the Android system share dialog. Choose any app to receive the text.
+Opens the system share dialog. Choose any app to receive the text.
 
-Available on: Android only.
+Available on: Android, Windows. Not available on Linux.
 
 ## After sending
 
-A brief confirmation appears at the bottom of the screen. If the send fails, the message includes a **Retry** option where supported.
+A brief confirmation appears at the bottom of the screen. If the send fails, a **Retry** option appears.
 
 ## When nothing happens
 
