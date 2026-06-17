@@ -60,15 +60,17 @@ Calm, present-tense, slightly dry. Match the manifesto's voice. Not marketing co
 
 ## Current state of docs
 
-- **`README.md`** — exists but may be outdated; review against current phase status before editing
-- **`docs/`** — VitePress source; the build pipeline exists (`docs.yml`) but deployment is not yet working (DevOps session task). Write content freely — the build issue is not your problem.
-- **`CONTRIBUTING.md`** — may not exist yet; create if tasked
+- **`README.md`** — updated to v0.9.6 (PR `a2e1212`). Currently accurate.
+- **`docs/`** — VitePress source; the build pipeline exists (`docs.yml`). Write content freely — build/deploy config is DevOps.
+- **`CONTRIBUTING.md`** — may not exist yet; create if tasked.
 
 ---
 
-## Previous task — COMPLETE
+## Previous tasks — COMPLETE
 
-README and VitePress user guide updated to v0.9.1; privacy policy created. Merged as PR #62.
+- README and VitePress user guide updated to v0.9.1; privacy policy created. Merged as PR #62.
+- README and VitePress user guide updated to v0.9.2 / v0.9.3. Merged as PR after #62.
+- README and user guide updated to v0.9.6. Merged (`a2e1212`).
 
 ---
 
@@ -76,63 +78,6 @@ README and VitePress user guide updated to v0.9.1; privacy policy created. Merge
 
 > Written and maintained by the Spec session. If this says "no task", ask Scott what's next.
 
-**Task**: Bring README and user guide up to v0.9.2 / v0.9.3
-**Branch**: `docs/user-docs-v0.9.3`
+**No task currently in progress.**
 
-### Context
-
-Three releases have shipped since the last docs update (PR #62, v0.9.1):
-
-- **v0.9.2** — Primer DHC theme, editor auto-focus on launch, keyboard dismiss button, Android release signing fix
-- **v0.9.3** — Error handling hardening, case-insensitive search, `relativeTime` utility (internal; no direct user-visible change beyond search behaviour)
-
-The README and user guide need to reflect these. The app is now at **v0.9.3** (release-please PR #93 open; treat as current).
-
-### Changes required
-
-#### 1 — README.md
-
-- Update the status badge / version note to `v0.9.3`.
-- Add or update these rows in the Features table:
-
-| Feature | Details |
-|---|---|
-| **Primer Dark High Contrast theme** | GitHub Primer DHC colour palette in dark mode; Primer LHC in light mode |
-| **Editor auto-focus on launch** | Cursor ready and keyboard raised immediately on Android cold launch |
-| **Keyboard dismiss button** | Toolbar button (keyboard-off icon) dismisses the software keyboard without losing cursor position |
-| **Case-insensitive search** | Search "milk" finds "Buy Milk" |
-
-- Do **not** add "Recently Deleted" — it has not shipped yet.
-
-#### 2 — `docs/user-guide/capturing-qukis.md`
-
-- Add a note that the editor auto-focuses on launch — no tap required to start typing.
-- Add a note about the keyboard dismiss button (right end of the formatting toolbar).
-- Verify the auto-capitalization note is accurate: the workaround in v0.9.2 is **not fully effective** — the IME may still auto-cap on Android. Do not promise this is fixed; note it as a known issue.
-
-#### 3 — `docs/user-guide/searching-qukis.md` (or wherever search is documented)
-
-- Confirm search is documented as case-insensitive (as of v0.9.3). Add this fact if missing.
-
-### What NOT to do
-
-- Do not document "Recently Deleted" — it has not shipped.
-- Do not document any sync features.
-- Do not change `.github/workflows/docs.yml` or any VitePress config files.
-- Do not edit anything under `notes/dev/` — that is the Spec session's domain.
-- Do not invent features or behaviors not confirmed in root `CLAUDE.md` or `notes/dev/design_spec.md`.
-
-### Checklist
-
-- [ ] README version note updated to v0.9.3
-- [ ] README features table updated with v0.9.2 / v0.9.3 items
-- [ ] `capturing-qukis.md` reflects auto-focus and keyboard dismiss
-- [ ] Auto-cap note is accurate (partial workaround, not fixed)
-- [ ] Search documented as case-insensitive
-- [ ] No new files created beyond what is explicitly listed above
-- [ ] Commit with message: `docs: update README and user guide to v0.9.3`
-
-### PR
-
-Title: `docs: update README and user guide to v0.9.3`
-Base: `main`
+Next docs update is expected after Session 6 (ADR-26 Stage 1) merges — the editor surface will change meaningfully (formatting toolbar removed, plain-text editor in place) and user guide screenshots/descriptions will need updating.

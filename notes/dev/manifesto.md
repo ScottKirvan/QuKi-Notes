@@ -11,7 +11,7 @@ QuKi-Notes is **not** "Drafts for Android". It is a personal capture environment
 1. **Velocity** — open the app, type, done. No "+ New", no template picker, no title field, no folder choice. A copious notetaker (Scott captures many QuKis per day) cannot afford one second of friction per capture.
 2. **Open data** — individual `.md` files on disk, no proprietary serialization, no cloud lock-in, no "export your data" button needed because the data was never locked up in the first place. A non-technical user can browse the app's documents folder and read every QuKi as a plain text file. "No closed formats" is a hard requirement, not just a preference.
 3. **Information-first UI** — minimal chrome. The QuKi is the interface; the app gets out of the way.
-4. **Extensible dispatch** — the value of a QuKi is realized when it gets used or goes somewhere else (a short-term todo list, a daily log, a chat, a task tracker, a wiki entry, a draft). That "somewhere else" is highly personal, so it must be customizable; a **plug-in**. Hard-coded integrations age badly; transports are the answer.
+4. **Extensibility** — what you do with a QuKi is personal. You might use it right there in the app. It might fade into the list as newer thoughts arrive. When you do want to send it somewhere else (a daily log, a chat, a GitHub issue, a wiki entry), that destination must be customizable; a **plug-in**. Hard-coded integrations age badly; transports are the answer.
 
 Reference points (none of which fit):
 
@@ -22,7 +22,7 @@ Reference points (none of which fit):
 
 QuKi-Notes exists in the gap: the velocity of Drafts, the openness of MIT licensing and plain markdown, the extensibility of a plugin model, the mobile-and-desktop reach of Flutter, on a stack of strict, function-first controls end-to-end.
 
-This origin shapes every decision below. When in doubt, ask: *does this serve velocity, openness, information-first, or extensible dispatch?* If none of the four — push back.
+This origin shapes every decision below. When in doubt, ask: *does this serve velocity, openness, information-first, or extensibility?* If none of the four — push back.
 
 ---
 
@@ -43,7 +43,7 @@ A QuKi is, under the hood, a markdown file with optional attached images. That i
 
 ## What QuKi-Notes Is
 
-**QuKi-Notes** is the app — the capture surface and the transport hub. One blank editor on launch. No friction.
+**QuKi-Notes** is the app — the capture surface. One blank editor on launch. No friction. Transports are there when you want them.
 
 - **QuKi** — a single ephemeral note.
 - **QuKi-Notes** — the application.
@@ -93,7 +93,7 @@ The editor is **one widget**. Its content changes (blank QuKi, or a specific loa
 
 ## The Three Plugin Axes
 
-QuKi-Notes is a **capture + dispatch** app with three independent plugin layers:
+QuKi-Notes is a **capture-first** app with three independent plugin layers:
 
 | Layer        | What it does                                                                 | MVP status                            |
 | ------------ | ---------------------------------------------------------------------------- | ------------------------------------- |
@@ -179,4 +179,4 @@ That's it. Anything beyond this list is post-MVP unless explicitly promoted via 
 
 ---
 
-**Last Updated**: 2026-06-14
+**Last Updated**: 2026-06-17

@@ -47,48 +47,11 @@ You do NOT touch app code (`lib/`, `test/`) or `notes/dev/` docs. If a CI fix re
 
 > Written and maintained by the Spec session. If this says "no task", ask Scott what's next.
 
-### Previous task — COMPLETE
+### Previous tasks — COMPLETE
 
-Android release signing fix — `build.gradle.kts` wired to CI keystore env vars. Merged as PR #70 (v0.9.2).
+- Android release signing fix — `build.gradle.kts` wired to CI keystore env vars. Merged as PR #70 (v0.9.2).
+- Add release build mode to `just android` — `android-release`, `windows-release`, `linux-release` recipes added. Merged (`4dbd27c`).
 
 ---
 
-### Add release build mode to `just android` — issue #88
-
-**Priority:** Low — quality-of-life for local testing of release behaviour.
-
-`just android` always runs in debug mode. Testing in debug mode can mask tree-shaking, AOT compilation, and ProGuard issues that only appear in release builds.
-
-#### Changes required
-
-**`justfile` only** — no app code, no CI workflow changes.
-
-Add a `just android-release` recipe:
-
-```just
-android-release:
-    flutter run --release -d android
-```
-
-Keep the existing `just android` recipe unchanged (debug, hot reload works).
-
-Optionally add a `windows-release` and `linux-release` pair for consistency:
-
-```just
-windows-release:
-    flutter run --release -d windows
-linux-release:
-    flutter run --release -d linux
-```
-
-#### Commit message
-
-```
-chore(justfile): add android-release, windows-release, linux-release recipes
-```
-
-#### Definition of done
-
-- `just android-release` launches the app on a connected Android device in release mode
-- `just android` still works (debug, unchanged)
-- `just --list` shows the new recipes
+**No task currently in progress.**

@@ -6,10 +6,10 @@
 
 ## TL;DR
 
-QuKi-Notes is a **capture-and-dispatch** app:
+QuKi-Notes is a **capture-first** app:
 
 - **Capture**: open the app → blank editor, cursor ready. Type, paste images, hit back. Done.
-- **Dispatch (toss)**: when you want a QuKi to go somewhere, fire a transport plugin (a "QuKi-Toss") at it. The QuKi is delivered; the local copy stays in the stream.
+- **Use it, send it, or let it fade**: use the content right there, fire a transport plugin to send the QuKi somewhere (a "QuKi-Toss"), or just let it drift down the stream as newer entries arrive. All three are valid outcomes.
 - **History**: the stream surfaces newest-first. Older QuKis age off the top but stay searchable. Nothing auto-deletes.
 
 Single-device, local-only in MVP. Sync is a deferred plugin axis. MCP is reserved for v2.
@@ -50,7 +50,7 @@ Linux note: `flutter_secure_storage` on Linux uses `libsecret` (gnome-keyring / 
   ┌────────────────────────────────────────────────────────────┐
   │                       QuKi-Notes Core                      │
   │                                                            │
-  │   Editor   ──►   Stream   ──►   SQLite (drift)             │
+  │   Editor   ──►   Stream   ──►   .md files (ADR-25)         │
   │                     │                                      │
   │                     ▼                                      │
   │                Plugin Registry                             │

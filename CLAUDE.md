@@ -1,6 +1,6 @@
 # QuKi-Notes — Project Overview
 
-A personal **capture-and-dispatch** app: ephemeral notes (**QuKis**) captured frictionlessly on whichever device is at hand, then **tossed** to a destination via a transport plugin. No vault. No organization. No backup ritual.
+A personal **capture** app: ephemeral notes (**QuKis**) captured frictionlessly on whichever device is at hand. Transport plugins let you send a QuKi somewhere when you're ready — or just let it live in the stream. No vault. No organization. No backup ritual.
 
 **Philosophy first.** Read `notes/dev/manifesto.md` before anything else. The manifesto is normative; all other docs must stay consistent with it.
 
