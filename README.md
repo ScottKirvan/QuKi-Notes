@@ -28,33 +28,35 @@ Ephemeral notes captured on whatever device is at hand, dispatched wherever they
 
 ## What is QuKi-Notes?
 
-QuKi-Notes is a **capture-and-dispatch** app. You open it, type a thought (a **QuKi**), and send it somewhere — the clipboard, a share sheet, or any transport plugin you wire up. There is no vault, no folder structure, no organization ritual. Capture is the point; dispatch is the exit.
+QuKi-Notes is a capture app. You open it, type a thought (a **QuKi**), and close it. That's it.
 
-A QuKi is intentionally ephemeral by framing. It lives on the device until you send it or delete it, but nothing is hidden and nothing auto-deletes. The newest QuKis surface to the top; older ones stay searchable. It is closer to an outbox than a notebook.
+A QuKi doesn't need a destination. Sometimes it's just something that needed somewhere to live — off your mind, available if it ever turns out to be useful. When it does need to go somewhere, there's a Send action: clipboard, Android share sheet, or any transport plugin you wire up. No vault, no folder structure, no organization ritual.
 
 The project prioritizes **radical simplicity** in the UI (one screen, no navigation depth, no configuration required to start) and **open extensibility** in the backend — a plugin axis for transports, a reserved axis for sync, and a reserved axis for MCP integration. Read the [manifesto](notes/dev/manifesto.md) for the full philosophy.
 
 > [!NOTE]
-> **Status: v0.9.1 · Phase 3 in progress.**
-> Core capture, local storage, transport plugins, and WYSIWYG markdown editing are complete. Recently Deleted and theme polish are in progress. All design docs and Claude session directives are committed to the repo — start with the [manifesto](notes/dev/manifesto.md).
+> **Status: v0.9.6 · Phase 3 in progress.**
+> Core capture, local storage, transport plugins, WYSIWYG markdown editing, and Recently Deleted are complete. All design docs and Claude session directives are committed to the repo — start with the [manifesto](notes/dev/manifesto.md).
 
 ---
 
 ## Features
 
-Shipped and working in v0.9.1:
+Shipped and working in v0.9.6:
 
 | Feature | Details |
 |---|---|
 | **Instant capture** | App opens to a blank editor — no title field, no setup, cursor ready |
 | **Auto-save** | 2 s idle debounce + 30 s periodic + app lifecycle hooks; no save button |
-| **QuKis list** | Newest-first, full-text search, swipe-to-delete with 4 s undo |
+| **QuKis list** | Newest-first, case-insensitive search, swipe-to-delete |
+| **Recently Deleted** | Soft-deleted QuKis held until you remove them; restore or permanently delete |
 | **Transport plugins** | Compile-time registry; two built-in transports |
 | **Clipboard transport** | Copies full QuKi text to system clipboard; Android, Windows, Linux |
-| **Share Sheet transport** | Opens Android share dialog; Android only |
+| **Share Sheet transport** | Opens the system share dialog; Android and Windows |
 | **Android share-in** | Receive text shared from any other app into a new QuKi |
 | **WYSIWYG markdown** | Bold, italic, inline code, task lists render as you type; GFM-compatible storage |
 | **Inline markdown shortcuts** | `**x**` → bold, `_x_` / `*x*` → italic, `` `x` `` → code, `- [ ] ` → task item |
+| **Primer High Contrast theme** | GitHub Primer Dark HC in dark mode; Primer Light HC in light mode |
 | **Desktop keyboard shortcuts** | Ctrl+T (Send...), Ctrl+N (new QuKi) on Windows / Linux |
 | **Window-state persistence** | Size and position remembered between sessions (Windows / Linux) |
 | **Settings** | Per-transport enable/disable; theme follows system |
@@ -63,7 +65,6 @@ Shipped and working in v0.9.1:
 Not in this release:
 
 - Image paste — upstream CargoKit blocker; deferred
-- Recently Deleted screen — soft-delete is in the database; the UI screen is not built yet
 - Sync — v1.1+ opt-in plugin axis
 - iOS / macOS builds — codebase supports them; CI deferred
 
@@ -126,7 +127,7 @@ All common tasks are in the [`justfile`](justfile):
 | `just linux` | Run Linux desktop build |
 | `just test` | Run the test suite |
 | `just lint` | `flutter analyze` + `dart format` check |
-| `just gen` | Regenerate Riverpod + Drift code after schema or provider changes |
+| `just gen` | Regenerate Riverpod code after touching `@riverpod`-annotated providers |
 | `just build-android-release` | Build release APK |
 | `just build-windows` | Build release Windows bundle |
 | `just build-linux` | Build release Linux bundle |
@@ -134,13 +135,11 @@ All common tasks are in the [`justfile`](justfile):
 
 ### Code Generation
 
-This project uses `build_runner` for both Riverpod (`@riverpod` annotations) and Drift (ORM DAOs and schema snapshots). After touching any `@riverpod`-annotated provider or any Drift table / DAO, run:
+This project uses `build_runner` for Riverpod (`@riverpod` annotations). After touching any `@riverpod`-annotated provider, run:
 
 ```sh
 just gen
 ```
-
-Drift also requires schema snapshots in `test/db/schemas/` for migration tests. `just gen` handles both.
 
 ### CI
 
@@ -162,7 +161,7 @@ Platform release builds (Android APK, Windows bundle, Linux tarball) are trigger
 |---|---|---|
 | Framework | Flutter / Dart | Single codebase; all active platforms |
 | State / DI | `flutter_riverpod` + `riverpod_generator` | `@riverpod` code-gen throughout |
-| Local storage | `drift` (SQLite ORM) | Schema v1; snapshot tests per version bump |
+| Local storage | Individual `.md` files + `.meta/{uuid}.json` sidecars | `dart:io`; no ORM; `mtime` is the source of truth for `modifiedAt` |
 | Editor | `super_editor` | WYSIWYG markdown with inline shortcuts; GFM-compatible storage |
 | Icons | `lucide_flutter` | Migrated from Material icons in v0.8.0 |
 | Desktop window | `window_manager` | Size/position persistence on Windows + Linux |
@@ -178,7 +177,7 @@ lib/
 ├── main.dart                    # entry point; desktop window init
 ├── app.dart                     # MaterialApp root; Android share-in routing
 ├── core/
-│   ├── database/                # Drift schema: Qukis + Images tables + DAOs
+│   ├── storage/                 # QuKiStorage (file I/O), QuKiIndex, TrashIndex, QuKiSearch
 │   ├── transports/              # TransportPlugin interface + compile-time registry
 │   │   └── plugins/             # ClipboardToss, ShareSheetToss
 │   ├── auth/                    # Reserved — OAuth device flow (ADR-9, v1.1+)
@@ -187,6 +186,7 @@ lib/
 ├── features/
 │   ├── editor/                  # EditorScreen, AutoSaveController, formatting toolbar
 │   ├── stream/                  # StreamScreen — QuKis list, search, swipe-delete
+│   ├── recently_deleted/        # RecentlyDeletedScreen — restore or hard-delete
 │   ├── settings/                # SettingsScreen
 │   ├── share_in/                # Android text share-in receiver (Platform-guarded)
 │   └── window/                  # Desktop window-state listener and service
@@ -218,7 +218,8 @@ Architecture decisions are logged as ADRs in [notes/dev/decisions.md](notes/dev/
 |---|---|---|
 | No dynamic plugin loading | Transport plugins compiled in; no runtime discovery | ADR-14 |
 | `lib/core/` Flutter-free | Preserves a future CLI sharing core logic | ADR-16 |
-| Soft-delete with sweep | `deletedAt` column; `restoreQuki()` for undo; 24 h sweep | ADR-5 |
+| File-based storage | Individual `.md` files; no ORM; `mtime` is `modifiedAt` | ADR-25 |
+| Soft-delete → `.trash/` | Swipe moves to `.trash/`; restore or hard-delete from Recently Deleted | ADR-5 |
 | Save vs. send | Auto-save always on; send is always user-initiated | ADR-6 |
 | No sync in MVP | Local-only; sync is opt-in plugin axis, not a core feature | ADR-18 |
 | No telemetry, ever | Not deferred, not opt-in — permanently out of scope | ADR-12 |
@@ -274,7 +275,7 @@ All planning documents live in `notes/dev/`. Read these before proposing structu
 |---|---|
 | [manifesto.md](notes/dev/manifesto.md) | Normative philosophy — read this first |
 | [design_spec.md](notes/dev/design_spec.md) | Full feature spec, vocabulary, development phases |
-| [decisions.md](notes/dev/decisions.md) | Architecture Decision Records (ADR-1 → ADR-23) |
+| [decisions.md](notes/dev/decisions.md) | Architecture Decision Records (ADR-1 → ADR-26) |
 | [open_questions.md](notes/dev/open_questions.md) | Active blockers and unresolved questions |
 | [dependencies.md](notes/dev/dependencies.md) | Approved packages and rationale by phase |
 | [testing.md](notes/dev/testing.md) | Test strategy and conventions |
@@ -295,9 +296,12 @@ All planning documents live in `notes/dev/`. Read these before proposing structu
 | &ensp;3.3 | Platform guard: share-in on desktop | Complete |
 | &ensp;3.4 | Desktop keyboard shortcuts + window-state | Complete (v0.7–v0.8) |
 | &ensp;3.5 | WYSIWYG markdown rendering | Complete (v0.9.1) |
-| &ensp;3.6 | Recently Deleted screen | In progress |
-| &ensp;3.7 | Theme polish | In progress |
-| &ensp;3.8 | Stream performance (lazy loading) | Deferred — threshold not hit |
+| &ensp;3.6 | Primer High Contrast theme | Complete (v0.9.2) |
+| &ensp;3.7 | Editor UX polish batch | Complete (v0.9.4–v0.9.5) |
+| &ensp;3.8 | Storage migration: Drift → individual `.md` files | Complete (v0.9.6) |
+| &ensp;3.9 | Recently Deleted screen | Complete (v0.9.6) |
+| &ensp;3.10 | WYSIWYG editor rewrite (ADR-26) | In progress |
+| &ensp;3.11 | Stream performance (lazy loading) | Deferred — threshold not hit |
 | 4 | Sync plugin axis + first sync backend | v1.1+ |
 | 5 | iOS / iPadOS / macOS builds | Deferred |
 | 6 | MCP plugin axis | v2.0+ |

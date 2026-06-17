@@ -2,7 +2,7 @@ import { defineConfig } from 'vitepress'
 
 export default defineConfig({
   title: 'QuKi-Notes',
-  description: 'Capture and dispatch ephemeral notes.',
+  description: 'Capture ephemeral notes, frictionlessly.',
   base: '/QuKi-Notes/',
   themeConfig: {
     nav: [

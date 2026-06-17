@@ -13,7 +13,7 @@ QuKis are listed newest first. Each entry shows:
 
 ## Searching
 
-Type in the **Search** bar at the top to filter by content. Tap **×** to clear the search.
+Type in the **Search** bar at the top to filter by content. Search is case-insensitive. Tap **×** to clear.
 
 ## Opening a QuKi
 
@@ -21,4 +21,11 @@ Tap any entry to open it in the editor.
 
 ## Deleting a QuKi
 
-Swipe left on a QuKi to delete it. A snackbar appears for 4 seconds with an **Undo** option. After 4 seconds, the deletion is permanent.
+Swipe left on a QuKi to delete it. An **Undo** option appears briefly. After that, the QuKi moves to **Recently Deleted**.
+
+## Recently Deleted
+
+Deleted QuKis are held in Recently Deleted until you remove them permanently. Open it from **Settings → Recently Deleted**.
+
+- Tap a QuKi to restore it.
+- Swipe to permanently delete it (confirmation required).

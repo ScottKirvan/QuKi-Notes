@@ -16,19 +16,19 @@ QuKi-Notes has no way to organize QuKis into folders, add tags, create backlinks
 
 Organization takes time. Deciding where something goes, maintaining a taxonomy, keeping it consistent — these are tasks that slow down capture and turn a note app into a productivity system. QuKi-Notes is not a productivity system.
 
-If a QuKi needs to live somewhere specific, the answer is to send it there using a transport. The clipboard, a share sheet, a GitHub file, a wiki — these are the destinations. QuKi-Notes is the staging area before dispatch, not the destination itself.
+Most QuKis don't need to go anywhere. Sometimes a thought just needs somewhere to live — off your mind, available if it ever turns out to be useful. If something does need to live somewhere specific, you can send it there using a transport.
 
 ## Nothing auto-deletes
 
-QuKis are ephemeral in framing — the newest ones surface to the top, older ones age off-screen — but nothing is automatically deleted. Your QuKis stay in the database until you delete them or send them somewhere.
+QuKis are ephemeral in framing — the newest ones surface to the top, older ones age off-screen — but nothing is automatically deleted. Your QuKis stay on your device until you delete them.
 
-Think of it like email: your inbox is focused on what's recent, but old messages do not vanish without your involvement. QuKi-Notes works the same way. The app trusts you to decide when something is done.
+The app trusts you to decide when something is done.
 
-## Send is the exit
+## Sending
 
-The intended workflow is: capture a thought, then send it somewhere when you are ready. The send action is always user-initiated — QuKi-Notes never pushes anything anywhere on its own.
+The Send action is there when a QuKi needs to go somewhere — clipboard, share sheet, or any transport you wire up. Tap Menu → Send... in the editor, pick a transport, done. It is always user-initiated; QuKi-Notes never pushes anything anywhere on its own.
 
-A QuKi that never gets sent is fine. It stays available, searchable, and editable. There is no pressure to act on it. But when you are ready, the send sheet gives you a menu of transports and gets out of your way.
+A QuKi that never gets sent is fine. It stays available, searchable, and editable for as long as you want it.
 
 ---
 
