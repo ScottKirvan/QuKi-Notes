@@ -89,19 +89,22 @@ Fix CI failures directly (they are always small). Use `mcp__github__subscribe_pr
 
 See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phase table.
 
-**Current version**: v0.9.3 (PR #99 merged 2026-06-14).
+**Current version**: v0.9.6 (released 2026-06-15, PR #106).
 
-**Next implementation task — Session 5**: Storage backend migration — Drift/SQLite → individual `.md` files (ADR-25). Brief is in `Agents/quiki-dev/CLAUDE.md`. Branch: `refactor/file-storage`. Closes #29 (Recently Deleted) and #75 (modifiedAt bump).
+**Current implementation task — Session 6**: Replace `super_editor` with `markdown_live_editor` monorepo package, Stage 1 plain-text foundation (ADR-26). Branch: `refactor/plain-text-editor`. Brief is in `Agents/quiki-dev/CLAUDE.md`.
 
-**Phase 3 remaining after Session 5:**
-- Auto-cap root fix (#74) — partial workaround shipped; proper fix awaits `super_editor` exposing `textCapitalization`
+**Resolved since last spec sync:**
+- PR #103 (v0.9.5): Storage migration (ADR-25) — Drift/SQLite replaced with individual `.md` files; Recently Deleted screen (#29) shipped; #75 (modifiedAt) eliminated by design
+- PR #104: Content-hash guard in `AutoSaveController` — belt-and-suspenders fix for #75 while super_editor still present
+- PR #105: Android cursor controls guarded to Android only — fixed #76 (cursor not visible on Windows)
+- PR #107: Checkbox theme (shrinkWrap + compact task list spacing)
+- PR #108: ADR-26 written + Session 6 brief
+
+**Phase 3 remaining after Session 6:**
 - Stream performance / lazy loading — defer until threshold is hit
+- Issues #79, #80, #87 (UX improvements) — not yet scoped
 
-**Resolved by PR #99 (merged 2026-06-14):** Transport enabled/disabled state race (#post-96), save-on-load guard re-fix (#75), keyboard icon at cold launch (#78), toolbar disable-on-no-selection (#82 post-96), task list `- [ ] ` space fix (#82 regression).
-
-**Still open bugs:** #71 list formatting lost on round-trip, #72 keyboard not raised on cold launch, #73 rapid shares may lose content, #74 auto-cap persists, #75 modifiedAt bump (two failed attempts — eliminated by design in ADR-25), #76 cursor not visible on Windows, #77 tab/indent not working on lists.
-
-**Architecture decision (ADR-25, 2026-06-14):** Storage backend replaced — Drift/SQLite dropped in favour of individual `.md` files in the app documents directory. `createdAt` in `.meta/{uuid}.json` sidecar. `modifiedAt` = filesystem `mtime`. Recently Deleted = `.trash/` subfolder, user-managed. Search = content scan. See `notes/dev/decisions.md` for full rationale.
+**Still open bugs:** #72 keyboard not raised on cold launch; #73 rapid shares may lose content. Issues #71/#74/#77/#81/#83 are super_editor-specific and will be resolved when ADR-26 Stage 1 merges.
 
 **Phase 4+:** Sync plugin axis (v1.1+), MCP (v2.0+) — not in scope until Phase 3 is complete.
 
