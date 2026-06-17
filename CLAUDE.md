@@ -40,7 +40,7 @@ Each folder has its own `CLAUDE.md` with role-specific instructions and the curr
 | Active platforms | Android first, then Windows + Linux |
 | Deferred platforms | iPadOS / iOS / macOS (codebase supports; builds deferred) |
 | Markdown flavor | GFM |
-| WYSIWYG editor | `markdown_live_editor` (monorepo package, ADR-26) — Stage 1 in progress |
+| WYSIWYG editor | `markdown_live_editor` (monorepo package, ADR-26) — Stage 1 complete; Stages 2–4 in progress |
 | Local storage | Individual `.md` files + `.meta/{uuid}.json` sidecar (ADR-25) |
 | Sync (MVP) | None — opt-in plugin axis v1.1+ (ADR-17, ADR-18) |
 | Transports (MVP) | Built-in compile-time registry; ClipboardToss + ShareSheetToss shipped (ADR-14) |
@@ -121,7 +121,7 @@ QuKi-Notes/
 | | 3.14 Post-#96 device regressions (transport state, #75 re-fix, #78 re-fix, #82 format fix) | Complete (PR #99) |
 | | 3.15 Storage migration: Drift/SQLite → individual .md files (ADR-25) | Complete (PRs #103, #104, #105, v0.9.6) |
 | | 3.16 Recently Deleted screen (#29) | Complete (PR #103) |
-| | 3.17 Replace super_editor with markdown_live_editor (ADR-26 Stage 1) | In progress |
+| | 3.17 Replace super_editor with markdown_live_editor (ADR-26) | Stage 1 complete; Stages 2–4 in progress |
 | | 3.18 Stream performance (lazy loading) | Defer until threshold hit |
 | 4 | Sync plugin axis + first sync backend | v1.1+ |
 | 5 | iPadOS / iOS / macOS builds | Deferred |
