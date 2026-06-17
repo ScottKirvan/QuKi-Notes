@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
-import 'package:super_editor/super_editor.dart' hide Logger;
+import 'package:markdown_live_editor/markdown_live_editor.dart';
 
 import '../../app.dart';
 import '../../core/storage/quki_index.dart';
@@ -13,45 +13,11 @@ import '../../core/transports/registry_provider.dart';
 import '../../core/transports/transport_plugin.dart';
 
 import 'auto_save_controller.dart';
-import 'formatting_toolbar.dart';
-import 'markdown_inline_reactions.dart';
 import 'toss_picker_sheet.dart';
 import '../settings/settings_screen.dart';
 import '../stream/stream_screen.dart';
 
 final _log = Logger('EditorScreen');
-
-/// Builds an [Editor] with the default reaction pipeline plus custom inline
-/// markdown reactions (bold, italic, code, task list).
-Editor _createEditor({
-  required MutableDocument document,
-  required MutableDocumentComposer composer,
-}) {
-  return Editor(
-    editables: {
-      Editor.documentKey: document,
-      Editor.composerKey: composer,
-    },
-    requestHandlers: List.from(defaultRequestHandlers),
-    reactionPipeline: [
-      ...defaultEditorReactions,
-      const BoldInlineMarkdownReaction(),
-      const ItalicInlineMarkdownReaction(),
-      const ItalicStarInlineMarkdownReaction(),
-      const CodeInlineMarkdownReaction(),
-      const TaskListMarkdownReaction(),
-    ],
-  );
-}
-
-TextStyle _inlineTextStyler(
-    Set<Attribution> attributions, TextStyle existingStyle) {
-  var style = defaultInlineTextStyler(attributions, existingStyle);
-  if (attributions.contains(codeAttribution)) {
-    style = style.copyWith(fontFamily: 'monospace');
-  }
-  return style;
-}
 
 PageRouteBuilder<void> _slideFromLeft(Widget screen) {
   return PageRouteBuilder<void>(
@@ -88,35 +54,21 @@ class EditorScreen extends ConsumerStatefulWidget {
 
 class _EditorScreenState extends ConsumerState<EditorScreen>
     with WidgetsBindingObserver {
-  late MutableDocument _document;
-  late MutableDocumentComposer _composer;
-  late Editor _editor;
-  SuperEditorAndroidControlsController? _androidController;
+  late final MarkdownEditorController _editorController;
   late final AutoSaveController _autoSave;
-  final _docLayoutKey = GlobalKey();
   final _editorFocusNode = FocusNode();
-
-  /// Tracks whether the IME keyboard is currently visible. Kept separate from
-  /// [FocusNode.hasFocus] because focus and keyboard visibility can diverge at
-  /// cold launch (#72): focus is granted in a post-frame callback but the IME
-  /// does not necessarily open. Left false on startup so the toolbar shows the
-  /// "show keyboard" icon (#post-96).
-  bool _keyboardVisible = false;
 
   @override
   void initState() {
     super.initState();
-    _document = MutableDocument.empty();
-    _composer = MutableDocumentComposer();
-    _editor = _createEditor(document: _document, composer: _composer);
+    _editorController = MarkdownEditorController();
 
     _autoSave = AutoSaveController(
       onSave: _writeQuKi,
-      getBody: _extractBody,
+      getBody: () => _editorController.currentValue,
     );
     _autoSave.start();
 
-    _document.addListener(_onDocumentChanged);
     WidgetsBinding.instance.addObserver(this);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -125,32 +77,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (Platform.isAndroid) {
-      final primary = Theme.of(context).colorScheme.primary;
-      _androidController?.dispose();
-      _androidController = SuperEditorAndroidControlsController(
-        controlsColor: primary,
-      );
-    }
-  }
-
-  MutableDocument _parseBody(String body) {
-    if (body.trim().isEmpty) return MutableDocument.empty();
-    return deserializeMarkdownToDocument(
-      body,
-      syntax: MarkdownSyntax.normal,
-    );
-  }
-
-  @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _document.removeListener(_onDocumentChanged);
     _autoSave.dispose();
-    _androidController?.dispose();
-    _editor.dispose();
     _editorFocusNode.dispose();
     super.dispose();
   }
@@ -165,10 +94,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     if (state == AppLifecycleState.resumed) {
       ref.read(quKiIndexProvider.notifier).refresh();
     }
-  }
-
-  void _onDocumentChanged(DocumentChangeLog _) {
-    _autoSave.notifyChanged();
   }
 
   /// Write callback for [AutoSaveController]. Creates or updates the file and
@@ -198,50 +123,18 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       if (!mounted) return;
     }
 
-    _switchDocument(body);
+    _editorController.setValue(body);
     _autoSave.resetForQuki(id: qukiId, initialBody: body);
-  }
-
-  void _switchDocument(String body) {
-    _document.removeListener(_onDocumentChanged);
-    _editor.dispose();
-
-    final newDoc = _parseBody(body);
-    final newComposer = MutableDocumentComposer();
-    final newEditor = _createEditor(document: newDoc, composer: newComposer);
-
-    setState(() {
-      _document = newDoc;
-      _composer = newComposer;
-      _editor = newEditor;
-    });
-
-    _document.addListener(_onDocumentChanged);
   }
 
   Future<void> _newQuKi() async {
     if (ref.read(activeQukiIdProvider) == null) {
       await _autoSave.flush();
       if (!mounted) return;
-      _switchDocument('');
+      _editorController.setValue('');
       _autoSave.resetForQuki(id: null);
     } else {
       ref.read(activeQukiIdProvider.notifier).setId(null);
-    }
-  }
-
-  /// Toggles the IME keyboard. When visible, drops focus to dismiss it and
-  /// sets [_keyboardVisible] to false. When hidden, requests focus to raise it
-  /// and sets [_keyboardVisible] to true. Decoupled from [FocusNode.hasFocus]
-  /// because focus and keyboard visibility can diverge at cold launch (#72,
-  /// #post-96).
-  void _toggleKeyboard() {
-    if (_keyboardVisible) {
-      FocusScope.of(context).unfocus();
-      setState(() => _keyboardVisible = false);
-    } else {
-      _editorFocusNode.requestFocus();
-      setState(() => _keyboardVisible = true);
     }
   }
 
@@ -257,7 +150,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   Future<void> _onToss() async {
-    final body = _extractBody();
+    final body = _editorController.currentValue;
     if (body.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -341,23 +234,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     );
   }
 
-  String _extractBody() {
-    return serializeDocumentToMarkdown(
-      _document,
-      syntax: MarkdownSyntax.normal,
-    );
-  }
-
-  Widget _wrapAndroidControls(Widget child) {
-    if (Platform.isAndroid && _androidController != null) {
-      return SuperEditorAndroidControlsScope(
-        controller: _androidController!,
-        child: child,
-      );
-    }
-    return child;
-  }
-
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -386,6 +262,13 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           onPressed: hasQukis ? _openQuKisList : null,
         ),
         actions: [
+          // Plain-text mode toggle — always active in Stage 1 (no-op).
+          // Stage 3 makes this functional when block-flip rendering ships.
+          IconButton(
+            icon: const Icon(LucideIcons.type),
+            tooltip: 'Plain text mode',
+            onPressed: _editorController.togglePlainTextMode,
+          ),
           IconButton(
             icon: const Icon(LucideIcons.plus),
             tooltip: 'New QuKi',
@@ -416,96 +299,18 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         ],
       ),
       body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: _wrapAndroidControls(
-                SuperEditor(
-                  editor: _editor,
-                  focusNode: _editorFocusNode,
-                  documentLayoutKey: _docLayoutKey,
-                  imeConfiguration: const SuperEditorImeConfiguration(
-                    enableAutocorrect: false,
-                    enableSuggestions: false,
-                  ),
-                  documentOverlayBuilders: [
-                    const SuperEditorIosToolbarFocalPointDocumentLayerBuilder(),
-                    const SuperEditorIosHandlesDocumentLayerBuilder(),
-                    const SuperEditorAndroidToolbarFocalPointDocumentLayerBuilder(),
-                    const SuperEditorAndroidHandlesDocumentLayerBuilder(),
-                    DefaultCaretOverlayBuilder(
-                      caretStyle: CaretStyle(
-                        width: 2,
-                        color: scheme.onSurface,
-                      ),
-                    ),
-                  ],
-                  stylesheet: defaultStylesheet.copyWith(
-                    inlineTextStyler: _inlineTextStyler,
-                    addRulesAfter: [
-                      StyleRule(
-                        BlockSelector.all,
-                        (doc, node) => {
-                          Styles.maxWidth: double.infinity,
-                          Styles.padding: const CascadingPadding.symmetric(
-                            horizontal: 16,
-                            vertical: 0,
-                          ),
-                          Styles.textStyle: TextStyle(
-                            color: scheme.onSurface,
-                            fontSize: 16,
-                            height: 1.4,
-                          ),
-                        },
-                      ),
-                      StyleRule(
-                        const BlockSelector('header1'),
-                        (doc, node) => {
-                          Styles.textStyle: TextStyle(
-                            color: scheme.onSurface,
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
-                            height: 1.3,
-                          ),
-                        },
-                      ),
-                      StyleRule(
-                        const BlockSelector('header2'),
-                        (doc, node) => {
-                          Styles.textStyle: TextStyle(
-                            color: scheme.onSurface,
-                            fontSize: 22,
-                            fontWeight: FontWeight.bold,
-                            height: 1.3,
-                          ),
-                        },
-                      ),
-                      StyleRule(
-                        const BlockSelector('header3'),
-                        (doc, node) => {
-                          Styles.textStyle: TextStyle(
-                            color: scheme.onSurface,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            height: 1.3,
-                          ),
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+        child: MarkdownEditor(
+          initialValue: '',
+          onChanged: (_) => _autoSave.notifyChanged(),
+          controller: _editorController,
+          focusNode: _editorFocusNode,
+          config: MarkdownEditorConfig(
+            textStyle: TextStyle(
+              color: scheme.onSurface,
+              fontSize: 16,
+              height: 1.4,
             ),
-            FormattingToolbar(
-              editor: _editor,
-              document: _document,
-              composer: _composer,
-              documentLayoutResolver: () =>
-                  _docLayoutKey.currentState as DocumentLayout,
-              keyboardVisible: _keyboardVisible,
-              onToggleKeyboard: _toggleKeyboard,
-            ),
-          ],
+          ),
         ),
       ),
     );
