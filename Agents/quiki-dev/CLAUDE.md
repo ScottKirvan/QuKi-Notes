@@ -88,204 +88,330 @@ Storage backend migration — Drift/SQLite → individual `.md` files (ADR-25). 
 
 ---
 
-## Current Task Brief — Session 6
+## Session 6 — COMPLETE
+
+Replace `super_editor` with `markdown_live_editor` package — Stage 1: plain-text foundation (ADR-26). Merged.
+
+---
+
+## Current Task Brief — Session 7
 
 > Written and maintained by the Spec session.
 
-**Task**: Replace `super_editor` with `markdown_live_editor` package — Stage 1: plain-text foundation (ADR-26)
-**Branch**: `refactor/plain-text-editor`
-**PR title**: `refactor(editor): replace super_editor with MarkdownEditor plain-text foundation (ADR-26 stage 1)`
-**Closes**: (no issue — architectural change)
+**Task**: `markdown_live_editor` Stages 2, 3, and 4 — formatting toolbar, block-flip WYSIWYG, and polish (ADR-26)
+**Closes**: (no issue — architectural continuation)
+
+Work all three stages sequentially in one session. Each stage is its own branch and PR. Do not open the next PR until Scott has tested the previous stage on device and confirmed it is working. Branch each stage from `main` after the previous stage merges.
+
+Read ADR-26 in `notes/dev/decisions.md` in full before starting — the design rationale and all architectural constraints are there.
 
 ---
 
-### Context
+### Stage 2 — Formatting toolbar + list auto-continue
 
-Read ADR-26 in `notes/dev/decisions.md` before starting. This is Stage 1 of a 4-stage migration away from `super_editor`. Stage 1 goal: eliminate data corruption by removing the super_editor document model entirely. The editor becomes a single `TextField` wrapped in a new `packages/markdown_live_editor/` package. No rendering yet — that is Stage 3. The app must be fully functional (capture, save, switch notes, toss) at the end of this session.
+**Branch**: `feat/markdown-editor-stage-2`
+**PR title**: `feat(editor): formatting toolbar and list auto-continue (ADR-26 stage 2)`
 
-**Pre-existing open PR**: PR #105 (`fix/windows-cursor`) may or may not be merged before this session starts. Check `gh pr list` — if it is still open, rebase `refactor/plain-text-editor` on top of it or wait for it to merge first. Do not duplicate that work.
+The app currently has a plain-text `TextField` editor with no formatting affordances. Stage 2 brings back the toolbar (now living inside `packages/markdown_live_editor/`) and restores the keyboard dismiss button.
 
-**Uncommitted local change**: `app.dart` has a `checkboxTheme` change (shrinkWrap + compact) that was tested but not committed. Commit it as a standalone fixup before branching for this session, or discard it — it is a cosmetic improvement that survives the super_editor removal (the Checkbox widget in Stage 3 task list rendering will benefit from it).
+### Package changes (Stage 2)
+
+**`packages/markdown_live_editor/lib/src/editor_controller.dart`** — extend `MarkdownEditorController` with formatting methods. `_activeTextController` is `_state?._textController` in Stage 2 (single TextField); in Stage 3 it will be the currently focused block's controller:
+
+```dart
+void wrapSelection(String prefix, String suffix) {
+  final tc = _activeTextController;
+  if (tc == null) return;
+  final sel = tc.selection;
+  if (!sel.isValid) return;
+  final text = tc.text;
+  final selected = sel.textInside(text);
+  final newText = text.replaceRange(sel.start, sel.end, '$prefix$selected$suffix');
+  tc.value = TextEditingValue(
+    text: newText,
+    selection: TextSelection.collapsed(
+        offset: sel.start + prefix.length + selected.length + suffix.length),
+  );
+}
+
+// Adds prefix to current line if absent; removes it if present.
+void toggleLinePrefix(String prefix) {
+  final tc = _activeTextController;
+  if (tc == null) return;
+  final text = tc.text;
+  final offset = tc.selection.baseOffset.clamp(0, text.length);
+  final lineStart = text.lastIndexOf('\n', offset - 1) + 1;
+  final lineEnd =
+      text.indexOf('\n', offset).let((i) => i == -1 ? text.length : i);
+  final line = text.substring(lineStart, lineEnd);
+  final String newLine;
+  final int newOffset;
+  if (line.startsWith(prefix)) {
+    newLine = line.substring(prefix.length);
+    newOffset = (offset - prefix.length).clamp(lineStart, lineStart + newLine.length);
+  } else {
+    newLine = '$prefix$line';
+    newOffset = offset + prefix.length;
+  }
+  tc.value = TextEditingValue(
+    text: text.replaceRange(lineStart, lineEnd, newLine),
+    selection: TextSelection.collapsed(offset: newOffset),
+  );
+}
+
+void dismissKeyboard() => _state?._focusNode?.unfocus();
+```
+
+Update `_MarkdownEditorState` to own its FocusNode: add `late final FocusNode _focusNode`, initialised as `widget.focusNode ?? FocusNode()`, disposed in `dispose()`, passed to `TextField`. Expose it so `dismissKeyboard()` can reach it.
+
+**`packages/markdown_live_editor/lib/src/formatting_toolbar.dart`** — new file. The package can only use `Icons.*` (part of Flutter SDK material); it does not depend on `lucide_flutter`:
+
+```dart
+class FormattingToolbar extends StatelessWidget {
+  const FormattingToolbar({super.key, required this.controller});
+  final MarkdownEditorController controller;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      IconButton(icon: const Icon(Icons.format_bold),
+          onPressed: () => controller.wrapSelection('**', '**')),
+      IconButton(icon: const Icon(Icons.format_italic),
+          onPressed: () => controller.wrapSelection('_', '_')),
+      IconButton(icon: const Icon(Icons.format_strikethrough),
+          onPressed: () => controller.wrapSelection('~~', '~~')),
+      IconButton(icon: const Icon(Icons.title),
+          onPressed: () => controller.toggleLinePrefix('# ')),
+      IconButton(icon: const Icon(Icons.checklist),
+          onPressed: () => controller.toggleLinePrefix('- [ ] ')),
+      const Spacer(),
+      if (Platform.isAndroid)
+        IconButton(
+            icon: const Icon(Icons.keyboard_hide),
+            onPressed: controller.dismissKeyboard),
+    ],
+  );
+}
+```
+
+**List auto-continue** — in `_MarkdownEditorState.initState()`, attach a listener to `_textController`. On each value change, compare the new text to the previous. When a `\n` was just inserted (length increased by 1, new char at cursor − 1 is `\n`), inspect the line that just ended. If it matches `^\s*([-*]|\d+\.)\s` or `^\s*- \[[ x]\] `, insert the same list prefix on the new line. If the completed line's content after stripping the prefix is empty (user pressed Enter on a blank list item), remove the prefix instead (standard list-exit). Update `_textController` and call `widget.onChanged`.
+
+**Barrel** — add `export 'src/formatting_toolbar.dart';`
+
+### App changes (Stage 2)
+
+**`lib/features/editor/editor_screen.dart`**:
+- Replace standalone `MarkdownEditor` with a `Column`: `Expanded(child: MarkdownEditor(...))` + `FormattingToolbar(controller: _editorController)` below.
+- Remove the plain-text toggle no-op from the app bar — it will be restored in Stage 3 when it becomes functional.
+
+### Tests (Stage 2)
+
+`packages/markdown_live_editor/test/formatting_toolbar_test.dart`:
+- `wrapSelection` wraps selected text with bold markers
+- `wrapSelection` inserts markers at cursor when no selection
+- `toggleLinePrefix` adds `# ` when absent; removes it when present
+- `dismissKeyboard` calls `unfocus()` on the FocusNode (mock it)
+- List auto-continue: Enter after `- item` produces `- ` on next line
+- List auto-continue: Enter after `- [ ] item` produces `- [ ] ` on next line
+- List auto-continue: Enter on empty `- ` line removes the prefix (list exit)
+
+### Checklist (Stage 2)
+
+- [ ] `just lint` and `just test` pass
+- [ ] Toolbar visible below editor on Android and desktop
+- [ ] Keyboard dismiss button visible on Android only
+- [ ] Bold, italic, strikethrough wrap selected text; insert markers at cursor when no selection
+- [ ] Heading toggle adds/removes `# ` prefix on the current line
+- [ ] Task toggle adds/removes `- [ ] ` prefix on the current line
+- [ ] List auto-continue works for unordered, ordered, and task list items
+- [ ] Enter on an empty list item exits the list
+- [ ] No Claude/Anthropic attribution in commits or PR body
 
 ---
 
-### Package to create: `packages/markdown_live_editor/`
+## Stage 3 — Block splitter + block-flip WYSIWYG
 
-This is a new Flutter package inside the monorepo. It has no knowledge of QuKi-Notes internals.
+**Branch**: `feat/markdown-editor-stage-3` (branch from `main` after Stage 2 merges)
+**PR title**: `feat(editor): block-flip WYSIWYG rendering (ADR-26 stage 3)`
 
-**`packages/markdown_live_editor/pubspec.yaml`**:
+This is the main delivery: idle blocks render markdown; tapping one flips to a TextField.
+
+### New package files (Stage 3)
+
+**`packages/markdown_live_editor/pubspec.yaml`** — add `flutter_markdown`:
 ```yaml
-name: markdown_live_editor
-description: Block-flip markdown editor widget for Flutter.
-version: 0.1.0
-environment:
-  sdk: ">=3.0.0 <4.0.0"
-  flutter: ">=3.0.0"
 dependencies:
   flutter:
     sdk: flutter
+  flutter_markdown: ^0.7.0
 ```
+Verify the exact version in `notes/dev/dependencies.md`.
 
-Stage 1 has no `flutter_markdown` dependency yet — that arrives in Stage 3.
+**`packages/markdown_live_editor/lib/src/block_splitter.dart`** — pure Dart, no Flutter imports:
 
-**`packages/markdown_live_editor/lib/markdown_live_editor.dart`** — barrel:
 ```dart
-export 'src/markdown_editor.dart';
-export 'src/editor_controller.dart';
-export 'src/editor_config.dart';
-```
-
-**`packages/markdown_live_editor/lib/src/editor_controller.dart`**:
-```dart
-class MarkdownEditorController {
-  _MarkdownEditorState? _state;
-
-  void _attach(_MarkdownEditorState state) => _state = state;
-  void _detach() => _state = null;
-
-  String get currentValue => _state?._textController.text ?? '';
-  void setValue(String value) => _state?.setValue(value);
-
-  // Stage 1: always plain-text; toggle is a no-op.
-  bool get plainTextMode => true;
-  void togglePlainTextMode() {}
+class BlockSplitter {
+  static List<String> split(String markdown) { ... }
+  static String join(List<String> blocks) { ... }
 }
 ```
 
-**`packages/markdown_live_editor/lib/src/editor_config.dart`**:
-```dart
-class MarkdownEditorConfig {
-  const MarkdownEditorConfig({
-    this.textStyle,
-    this.contentPadding = const EdgeInsets.all(16),
-  });
-  final TextStyle? textStyle;
-  final EdgeInsets contentPadding;
-}
-```
+Splitting rules (from ADR-26):
+- Split on `\n\n` by default.
+- Headings (`^#{1,6} `) always start a new block, ending the previous block even without a blank line.
+- Contiguous list lines (`^\s*([-*]|\d+\.)\s` or `^\s*- \[[ x]\] `) are grouped into one block regardless of blank lines between them.
+- `split('')` → `['']` (always at least one block).
 
-**`packages/markdown_live_editor/lib/src/markdown_editor.dart`**:
+`join`: `blocks.join('\n\n')`. No trailing newline.
+
+**`packages/markdown_live_editor/lib/src/markdown_block.dart`**:
+
 ```dart
-class MarkdownEditor extends StatefulWidget {
-  const MarkdownEditor({
+class MarkdownBlock extends StatefulWidget {
+  const MarkdownBlock({
     super.key,
-    required this.initialValue,
-    this.onChanged,
-    this.controller,
-    this.config = const MarkdownEditorConfig(),
-    this.focusNode,
+    required this.content,
+    required this.onChanged,
+    required this.config,
+    this.onFocused,           // fires with this block's TextEditingController on edit-mode entry
+    this.onUnfocused,
+    this.onMergeWithPrevious, // Backspace at position 0
+    this.onEnterAtEnd,        // Enter at end of non-list block
     this.autofocus = false,
   });
 
-  final String initialValue;
-  final ValueChanged<String>? onChanged;
-  final MarkdownEditorController? controller;
+  final String content;
+  final ValueChanged<String> onChanged;
   final MarkdownEditorConfig config;
-  final FocusNode? focusNode;
+  final ValueChanged<TextEditingController>? onFocused;
+  final VoidCallback? onUnfocused;
+  final VoidCallback? onMergeWithPrevious;
+  final VoidCallback? onEnterAtEnd;
   final bool autofocus;
-
-  @override
-  State<MarkdownEditor> createState() => _MarkdownEditorState();
-}
-
-class _MarkdownEditorState extends State<MarkdownEditor> {
-  late final TextEditingController _textController;
-
-  @override
-  void initState() {
-    super.initState();
-    _textController = TextEditingController(text: widget.initialValue);
-    widget.controller?._attach(this);
-  }
-
-  @override
-  void dispose() {
-    widget.controller?._detach();
-    _textController.dispose();
-    super.dispose();
-  }
-
-  void setValue(String value) {
-    if (_textController.text != value) {
-      _textController.value = TextEditingValue(text: value);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return TextField(
-      controller: _textController,
-      focusNode: widget.focusNode,
-      autofocus: widget.autofocus,
-      maxLines: null,
-      expands: true,
-      textAlignVertical: TextAlignVertical.top,
-      style: widget.config.textStyle,
-      decoration: InputDecoration(
-        border: InputBorder.none,
-        contentPadding: widget.config.contentPadding,
-      ),
-      onChanged: widget.onChanged,
-    );
-  }
 }
 ```
 
+State: `bool _editing`. Render mode: `GestureDetector(onTap: _enterEditMode, child: MarkdownBody(...))`. Edit mode: `TextField(...)` with a `FocusNode` listener: on focus gained → call `widget.onFocused(_textController)`; on focus lost → `setState(() => _editing = false)`, call `widget.onUnfocused`.
+
+Keyboard callbacks (in edit mode via `TextField.onKeyEvent`):
+- Backspace at offset 0 → call `widget.onMergeWithPrevious()`.
+- Enter at `offset == text.length` and the block is not a list block → call `widget.onEnterAtEnd()`.
+
+### MarkdownEditor rewrite (Stage 3)
+
+`_MarkdownEditorState` now manages `List<String> _blocks` and `bool _plainTextMode`.
+
+- `initState`: `_blocks = BlockSplitter.split(widget.initialValue)`.
+- `setValue(value)`: `_blocks = BlockSplitter.split(value); setState(...)`. In plain-text mode also updates `_textController`.
+- `currentValue`: plain-text mode → `_textController.text`; block mode → `BlockSplitter.join(_blocks)`.
+
+Build (block mode): `ListView.builder` of `MarkdownBlock` widgets.
+- `onChanged(newContent)` at index `i`: `_blocks[i] = newContent`; call `widget.onChanged(BlockSplitter.join(_blocks))`.
+- `onFocused(tc)`: call `_editorController?._setActiveTextController(tc)`.
+- `onUnfocused()`: call `_editorController?._setActiveTextController(null)`.
+- `onEnterAtEnd()` at index `i`: insert `''` at `i+1`; `setState`; mark block `i+1` for autofocus.
+- `onMergeWithPrevious()` at index `i > 0`: append `_blocks[i]` to `_blocks[i-1]`; remove `_blocks[i]`; `setState`; schedule focus on block `i-1` at the join offset.
+
+Build (plain-text mode): single `TextField` populated with `BlockSplitter.join(_blocks)`, same as Stage 1/2 single-TextField mode.
+
+**`MarkdownEditorController`** additions:
+- `void _setActiveTextController(TextEditingController? tc)` — `wrapSelection` and `toggleLinePrefix` now route through whichever controller is active (focused block in block mode; single controller in plain-text mode).
+- `togglePlainTextMode()` becomes functional: calls `_state?._togglePlainTextMode()`.
+- `bool get plainTextMode` reads from state.
+
+**Plain-text toggle** — restore to `EditorScreen` app bar now that `togglePlainTextMode()` works. Use `LucideIcons.type` (or `Icons.text_fields`).
+
+### Tests (Stage 3)
+
+`packages/markdown_live_editor/test/block_splitter_test.dart`:
+- Splits on double newline
+- Groups contiguous list items into one block
+- Separates headings as their own block
+- `split('')` → `['']`
+- `join(split(s)) == s` round-trip for representative inputs (headings, lists, mixed)
+
+`packages/markdown_live_editor/test/markdown_block_test.dart`:
+- Tapping a rendered block enters edit mode
+- Unfocusing exits edit mode and shows rendered markdown
+- `onChanged` fires with updated content
+- `onEnterAtEnd` fires when Enter pressed at end of non-list block
+- `onMergeWithPrevious` fires on Backspace at position 0
+
+### Checklist (Stage 3)
+
+- [ ] `just lint` and `just test` pass
+- [ ] Idle blocks render markdown: bold, italic, headings, lists, task checkboxes
+- [ ] Tapping a block enters edit mode; tapping away exits
+- [ ] Toolbar formatting buttons operate on the currently focused block
+- [ ] Plain-text toggle collapses all blocks to one TextField; toggling back re-renders
+- [ ] Switching QuKi resets blocks correctly — no stale content
+- [ ] Content round-trips cleanly: open QuKi, edit, save, reopen — no changes
+- [ ] Issues #71, #74, #77, #81, #83 confirmed resolved (all were super_editor-specific)
+- [ ] No Claude/Anthropic attribution in commits or PR body
+
 ---
 
-### App changes
+## Stage 4 — Task checkbox tap, cross-block keyboard nav, flip animations
 
-**`pubspec.yaml`**:
-- Remove: `super_editor`
-- Add path dep:
-  ```yaml
-  markdown_live_editor:
-    path: packages/markdown_live_editor
-  ```
-- Verify `flutter_markdown` is present (promote to direct dep if it was only transitive).
+**Branch**: `feat/markdown-editor-stage-4` (branch from `main` after Stage 3 merges)
+**PR title**: `feat(editor): task checkbox tap, keyboard navigation, flip animations (ADR-26 stage 4)`
 
-**`lib/features/editor/editor_screen.dart`** — rewrite around `MarkdownEditor`:
-- Replace all `super_editor` imports with `package:markdown_live_editor/markdown_live_editor.dart`
-- Remove: `_document`, `_composer`, `_editor`, `_androidController`, `_docLayoutKey`, `_keyboardVisible`
-- Remove: `_createEditor`, `_parseBody`, `_switchDocument`, `_toggleKeyboard`, `_inlineTextStyler`
-- Remove: `didChangeDependencies` (Android controller gone)
-- Add: `_editorController = MarkdownEditorController()`
-- `_extractBody()` → `_editorController.currentValue`
-- `_onDocumentChanged` listener → replaced by `onChanged: (_) => _autoSave.notifyChanged()` on `MarkdownEditor`
-- `_onActiveQukiChanged`: flush → read file → `_editorController.setValue(body)` → `_autoSave.resetForQuki(id, initialBody: body)`
-- `_newQuKi`: flush → `_editorController.setValue('')` → `_autoSave.resetForQuki(id: null)`
-- `build`: replace `SuperEditor` + `FormattingToolbar` column with just `MarkdownEditor`. App bar keeps: QuKis icon, + New, hamburger menu (Send / QuKis / Settings). Add plain-text toggle icon to app bar actions (`LucideIcons.type` or similar) — in Stage 1 it is always active (no-op toggle, but the button is wired to `_editorController.togglePlainTextMode()` so Stage 3 just makes it functional). Remove keyboard toggle (desktop-only concern revisit in Stage 2).
+### Task checkbox tap
 
-**Files to delete**:
-- `lib/features/editor/markdown_inline_reactions.dart`
-- `lib/features/editor/formatting_toolbar.dart`
-- `test/features/editor/formatting_toolbar_test.dart`
+In `MarkdownBlock` rendered mode, pass a custom `checkboxBuilder` to `MarkdownBody`:
 
-**`test/features/editor/editor_screen_test.dart`**: all tests were already skipped due to FakeAsync/dart:io deadlock. Delete the file entirely — tests will be rewritten against the new editor in Stage 2/3 when the widget interface stabilises.
+```dart
+MarkdownBody(
+  data: widget.content,
+  checkboxBuilder: (bool checked) => GestureDetector(
+    onTap: () => _toggleCheckbox(checked),
+    child: Checkbox(value: checked, onChanged: null),
+  ),
+  ...
+)
+```
 
----
+`_toggleCheckbox(bool wasChecked)`: track a checkbox index counter in state (reset when `widget.content` changes). On tap, find the `n`th occurrence of `- [ ] ` or `- [x] ` in `widget.content`, toggle it, call `widget.onChanged(updatedContent)`. Do not enter edit mode.
 
-### Tests required
+### Cross-block keyboard navigation
 
-Package unit tests (`packages/markdown_live_editor/test/`):
-- `MarkdownEditorController.currentValue` returns `initialValue` before any edits
-- `MarkdownEditorController.setValue` updates the displayed text
-- `onChanged` fires when text changes
+In `MarkdownBlock` edit mode, handle arrow keys on the block's `FocusNode` (or via `TextField.onKeyEvent`):
 
-Widget tests (`test/features/editor/editor_screen_test.dart`), new file:
-- EditorScreen renders `MarkdownEditor` on launch
-- Typing triggers `AutoSaveController.notifyChanged` (mock the write callback)
-- Switching QuKi (`activeQukiIdProvider` change) flushes then loads the new body
+- **Arrow down** when cursor is on the last line of the block → call `widget.onArrowDownAtEnd()`. `MarkdownEditor` focuses the next block at offset 0.
+- **Arrow up** when cursor is on the first line of the block → call `widget.onArrowUpAtStart()`. `MarkdownEditor` focuses the previous block at its last character.
 
-These can use a temp-dir `QuKiStorage` directly — the FakeAsync/dart:io deadlock only hit because `insertQuki()` was called inside `testWidgets`. Tests that call storage in `setUp` (outside `testWidgets`) are fine.
+Add `onArrowDownAtEnd` and `onArrowUpAtStart` callbacks to `MarkdownBlock`.
 
----
+### Flip animations
 
-### Checklist
+Wrap the render↔edit switch in `AnimatedSwitcher`:
 
-- [ ] `just lint` and `just test` pass locally
-- [ ] No `super_editor` import remains anywhere in `lib/` or `test/`
-- [ ] `MarkdownEditor` is the only editor widget; no super_editor types referenced
-- [ ] App functions end-to-end: new QuKi, type, switch note, come back, content preserved, toss works
-- [ ] ADR-26 and staged plan already written — do NOT re-litigate the architecture
+```dart
+AnimatedSwitcher(
+  duration: const Duration(milliseconds: 150),
+  child: _editing
+    ? TextField(key: const ValueKey('edit'), ...)
+    : GestureDetector(key: const ValueKey('render'), child: MarkdownBody(...)),
+)
+```
+
+Do **not** animate programmatic `setValue` calls — only user-initiated focus/blur transitions. Note switching must be instant.
+
+### Tests (Stage 4)
+
+`packages/markdown_live_editor/test/markdown_block_test.dart` additions:
+- Tapping a checkbox calls `onChanged` with toggled content, does not enter edit mode
+- Multiple task items in one block each toggle independently by index
+- `onArrowDownAtEnd` fires when down arrow pressed at end of block
+- `onArrowUpAtStart` fires when up arrow pressed at start of block
+
+### Checklist (Stage 4)
+
+- [ ] `just lint` and `just test` pass
+- [ ] Tapping a task checkbox toggles it without entering edit mode
+- [ ] Multiple task items in one block toggle independently
+- [ ] Arrow down at end of block moves focus to next block
+- [ ] Arrow up at start of block moves focus to previous block
+- [ ] Flip between render and edit is animated (150ms); note switching is instant
+- [ ] Full end-to-end device test on Android: capture, format, task checkboxes, note switching, toss
 - [ ] No Claude/Anthropic attribution in commits or PR body
