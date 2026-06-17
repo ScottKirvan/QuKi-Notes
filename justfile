@@ -30,6 +30,15 @@ windows:
 linux:
     flutter run -d linux
 
+android-release:
+    flutter run --release -d android
+
+windows-release:
+    flutter run --release -d windows
+
+linux-release:
+    flutter run --release -d linux
+
 test:
     flutter test
 
@@ -39,7 +48,6 @@ lint:
 
 gen:
     dart run build_runner build --delete-conflicting-outputs
-    dart run drift_dev schema dump lib/core/database/app_database.dart test/db/schemas/
 
 build-android-debug:
     flutter build apk --debug
