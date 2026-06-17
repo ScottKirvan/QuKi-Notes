@@ -138,7 +138,7 @@ Single Flutter codebase. No platform-specific rewrites. Deferred platforms only 
 - **Markdown WYSIWYG editor** — live rendering as you type. Typing `**text**` renders bold; `- [ ]` renders a task list item; `# ` renders a heading; etc. This is a hard requirement, not a nice-to-have.
 - Image paste / share-in.
 - QuKis list (newest-first, search, delete).
-- **Recently Deleted** — data recovery screen; user-configurable retention; hard-delete from there is permanent.
+- **Recently Deleted** — data recovery screen; items stay until the user restores or permanently deletes them; hard-delete is permanent and immediate.
 - **At least one transport plugin** (built-in) — proves the plugin loader + the Send UX.
 - Settings for transport configuration.
 - No sync. No GitHub OAuth. No MCP.

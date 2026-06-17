@@ -40,8 +40,8 @@ Each folder has its own `CLAUDE.md` with role-specific instructions and the curr
 | Active platforms | Android first, then Windows + Linux |
 | Deferred platforms | iPadOS / iOS / macOS (codebase supports; builds deferred) |
 | Markdown flavor | GFM |
-| WYSIWYG editor | `super_editor` |
-| Local storage | `drift` (SQLite ORM) |
+| WYSIWYG editor | `markdown_live_editor` (monorepo package, ADR-26) — Stage 1 in progress |
+| Local storage | Individual `.md` files + `.meta/{uuid}.json` sidecar (ADR-25) |
 | Sync (MVP) | None — opt-in plugin axis v1.1+ (ADR-17, ADR-18) |
 | Transports (MVP) | Built-in compile-time registry; ClipboardToss + ShareSheetToss shipped (ADR-14) |
 | `lib/core/transports/` | Flutter import allowed for `settingsView()` (ADR-21) |
@@ -49,11 +49,10 @@ Each folder has its own `CLAUDE.md` with role-specific instructions and the curr
 | Auth | None in MVP; GitHub Device Flow when a plugin needs it (ADR-9) |
 | Token storage | `flutter_secure_storage`, namespaced per plugin (ADR-2) |
 | Image storage | Separate binary files; `![](../images/...)`; never base64 (ADR-4) |
-| Deletion | Soft-delete via `deletedAt`; 24h sweep (ADR-5) |
+| Deletion | `.trash/` subfolder; user-managed, no timer (ADR-25) |
 | Save vs toss | Save: 2s debounce + 30s periodic + lifecycle. Toss: user-initiated only (ADR-6) |
 | Ephemerality | Gmail-style: framed ephemeral, persisted forever locally (ADR-15) |
 | CLI | Working hypothesis; not in MVP; `lib/core/` stays Flutter-free for it (ADR-16) |
-| Drift migrations | Integer `schemaVersion` + snapshot tests per bump (ADR-8) |
 | Theme / Logging / Privacy | System theme; `logging` package; no analytics ever (ADR-12) |
 | Versioning | Semantic versioning via release-please (`dart` type) |
 | Commits | Conventional commits; rebase & merge |
@@ -73,7 +72,7 @@ QuKi-Notes/
 ├── lib/
 │   ├── main.dart
 │   ├── app.dart
-│   ├── core/       ← database/, transports/, auth/, settings/ (Flutter-free except transports/)
+│   ├── core/       ← storage/, transports/, auth/, settings/ (Flutter-free except transports/)
 │   ├── features/   ← editor/, stream/, settings/, share_in/
 │   └── shared/     ← models/ (pure Dart; CLI-safe)
 ├── android/
@@ -120,8 +119,10 @@ QuKi-Notes/
 | | 3.12 Error handling + case-insensitive search + relativeTime utility | Complete (v0.9.3) |
 | | 3.13 Editor UX polish batch (#75, #78, #82, #85, #86, #92) | Complete (PR #96) |
 | | 3.14 Post-#96 device regressions (transport state, #75 re-fix, #78 re-fix, #82 format fix) | Complete (PR #99) |
-| | 3.15 Recently Deleted screen (#29) | Not started |
-| | 3.15 Stream performance (lazy loading) | Defer until threshold hit |
+| | 3.15 Storage migration: Drift/SQLite → individual .md files (ADR-25) | Complete (PRs #103, #104, #105, v0.9.6) |
+| | 3.16 Recently Deleted screen (#29) | Complete (PR #103) |
+| | 3.17 Replace super_editor with markdown_live_editor (ADR-26 Stage 1) | In progress |
+| | 3.18 Stream performance (lazy loading) | Defer until threshold hit |
 | 4 | Sync plugin axis + first sync backend | v1.1+ |
 | 5 | iPadOS / iOS / macOS builds | Deferred |
 | 6 | MCP plugin axis | v2.0+ |
@@ -140,50 +141,32 @@ QuKi-Notes/
 
 ---
 
-## Implementation Notes (current as of v0.9.3)
+## Implementation Notes (current as of v0.9.6)
 
 **Navigation**: Editor is the permanent root. `app.dart` home = `EditorScreen`; it never has a back button. `activeQukiIdProvider` (NotifierProvider<String?>) controls which QuKi is loaded. `StreamScreen` sets `activeQukiIdProvider` and pops — no second `EditorScreen` is ever pushed. QuKis list slides in from the left; Settings slides in from the right (directional per affordance position).
 
-**Auto-save**: `AutoSaveController` implements ADR-6 — 2s idle debounce + 30s periodic + lifecycle hooks. `resetForQuki(id:)` switches the save target when the active QuKi changes without disposing the controller.
+**Storage layer (ADR-25, v0.9.6)**: `lib/core/storage/` — `QuKiStorage` (file I/O, write-to-temp-then-rename for atomicity), `QuKiIndex` (Riverpod `Notifier<List<QuKiMeta>>`, in-memory, rescanned on `AppLifecycleState.resumed`), `TrashIndex` (same pattern for `.trash/`), `QuKiSearch` (content scan at query time). Directory structure: `<app-docs>/qukis/{uuid}.md` + `.meta/{uuid}.json` (createdAt) + `.trash/` for soft-deleted items. `modifiedAt` = filesystem `mtime` — only changes on actual write, eliminating the #75 bug class by design.
 
-**Markdown round-trip**: `_parseBody` uses `deserializeMarkdownToDocument(body, syntax: MarkdownSyntax.normal)`; `_extractBody` uses `serializeDocumentToMarkdown(_document, syntax: MarkdownSyntax.normal).trim()`. Both from `super_editor` directly (`super_editor_markdown` is deprecated and merged upstream). `MarkdownSyntax.normal` keeps stored markdown GFM-compatible.
+**Auto-save (ADR-6, v0.9.6)**: `AutoSaveController` — 2s idle debounce + 30s periodic + lifecycle hooks. Accepts a `Future<void> Function(String body)` write callback (decoupled from storage). Tracks `_lastSavedBody` and skips the write when content is identical — event-based guard, immune to frame-timing issues (PR #104). `resetForQuki(id:, initialBody:)` switches the save target without disposing the controller.
 
-**Inline markdown reactions**: `lib/features/editor/markdown_inline_reactions.dart` — custom `EditReaction` subclasses: `BoldInlineMarkdownReaction` (`**x**`), `ItalicInlineMarkdownReaction` (`_x_`), `ItalicStarInlineMarkdownReaction` (`*x*`), `CodeInlineMarkdownReaction` (`` `x` ``), `TaskListMarkdownReaction` (`- [ ] `). Registered in `_createEditor()` after `defaultEditorReactions`. ADR-24.
+**Editor (ADR-26 Stage 1 — in progress)**: `super_editor` is being replaced by `packages/markdown_live_editor/` — a monorepo Flutter package implementing a block-flip Typora model. Stage 1 (`refactor/plain-text-editor`): single `TextField`, no rendering, `super_editor` fully removed. `MarkdownEditorController.setValue()` is the seam between `EditorScreen` and the package. `onChanged` → `_autoSave.notifyChanged()`. Stages 2–4 add toolbar, block rendering, and task checkbox interaction.
 
-**riverpod_generator 4.0.4-dev.1 + drift types**: `@riverpod` functions returning `Stream<List<Quki>>` fail with `InvalidTypeException`. Workaround: `StreamScreen` calls the drift DAO directly via `StreamBuilder`. Revisit when riverpod_generator stable 4.x ships.
+**Recently Deleted (PR #103)**: `lib/features/recently_deleted/recently_deleted_screen.dart` — `Consumer` over `trashIndexProvider`, newest-first list. Tap → restore (moves files back from `.trash/`). Swipe → confirmation dialog → hard delete. Accessible via Settings → Recently Deleted.
 
-**Transport registry**: Plugins registered at compile time in `lib/core/transports/registry.dart`. `TransportSettingsNotifier` persists enabled state via `shared_preferences`. `enabledTransportsProvider` filters to enabled plugins only.
+**Transport registry**: Plugins registered at compile time in `lib/core/transports/registry.dart`. `TransportSettingsNotifier` persists enabled state via `shared_preferences`. `enabledTransportsProvider` `loading:` branch returns `[]` — prevents disabled transports flashing as enabled on startup.
 
-**Share-in**: `lib/features/share_in/share_handler.dart` — guarded with `Platform.isAndroid`; inserts a new QuKi in the DB and routes via `activeQukiIdProvider` (no second screen).
+**Share-in**: `lib/features/share_in/share_handler.dart` — guarded with `Platform.isAndroid`; creates a new QuKi via `QuKiStorage.create()` and routes via `activeQukiIdProvider` (no second screen).
 
-**Snackbar workaround**: Flutter 3.44 + Material 3 — `SnackBar` with `SnackBarAction` does not auto-dismiss when `duration` is set. Fix: capture `ScaffoldFeatureController` from `showSnackBar()`, start an explicit `Timer(duration, controller.close)`, cancel the timer in `onPressed` so Undo works correctly.
+**Smart send (#85)**: `_onToss()` skips the picker sheet when `enabled.length == 1` and fires the single transport directly. Picker shown for 2+ transports.
 
-**APK signing**: Fixed in v0.9.2 (PR #70). `android/app/build.gradle.kts` now reads `STORE_FILE` / `STORE_PASSWORD` / `KEY_ALIAS` / `KEY_PASSWORD` env vars from CI; falls back to debug signing only when env vars are absent (local dev). Confirm the four GitHub Actions secrets are populated before each release.
+**QuKis icon disabled when empty (#86)**: `_hasQukisProvider` (`StreamProvider<bool>`) watches `quKiIndexProvider` — drives `onPressed: hasQukis ? _openQuKisList : null`.
 
-**Editor focus**: `FocusNode` added to `SuperEditor`; `requestFocus()` called in a post-frame callback from `initState`. Cursor is visible and keyboard raised on Android cold launch. `SuperEditorAndroidControlsController` is constructed in `didChangeDependencies` and uses `colorScheme.primary` for cursor/handle colour (no longer hardcoded white).
+**Snackbar workaround**: Flutter 3.44 + Material 3 — `SnackBar` with `SnackBarAction` does not auto-dismiss when `duration` is set. Fix: capture `ScaffoldFeatureController`, start explicit `Timer(duration, controller.close)`, cancel in `onPressed`.
 
-**Keyboard toggle (PR #99)**: `_EditorScreenState` tracks `bool _keyboardVisible = false`. `FormattingToolbar` receives `keyboardVisible` + `onToggleKeyboard` callback — no direct `FocusNode` access. Icon: `keyboardVisible ? LucideIcons.keyboardOff : LucideIcons.keyboard`. Toggle: if visible → `FocusScope.unfocus()` + `_keyboardVisible = false`; if hidden → `focusNode.requestFocus()` + `_keyboardVisible = true`. Default `false` means cold-launch icon correctly shows "show keyboard". Decouples icon from `FocusNode.hasFocus` which diverges at launch (#72). Fixed #78.
+**APK signing**: `android/app/build.gradle.kts` reads `STORE_FILE` / `STORE_PASSWORD` / `KEY_ALIAS` / `KEY_PASSWORD` env vars; falls back to debug signing when absent (local dev). Four GitHub Actions secrets required for release builds.
 
-**Auto-capitalization workaround (insufficient)**: `SuperEditorImeConfiguration(enableAutocorrect: false, enableSuggestions: false)` was applied in v0.9.2 (#63) as a proxy for `textCapitalization: none` (not yet exposed by `super_editor 0.3.0-dev.51`). The workaround does not fully suppress IME auto-cap on Android. Root issue tracked as #74. Also disables spell check and swipe-to-type (#83) — re-enable those once a proper `textCapitalization` API is available.
+**ShareSheetToss always succeeds (#92)**: `share_plus` fires `ShareResultStatus.dismissed` on Android even on success. Dropped the status check; always returns `TossResult(success: true, message: 'Shared.')`.
 
-**Smart send (#85)**: `_onToss()` skips the picker sheet when `enabled.length == 1` and fires the single transport directly. Picker still shown for 2+ transports.
+**Known bugs (open)**: #72 keyboard not raised on cold launch; #73 rapid shares may lose content; #79 auto-new note after idle; #80 hamburger → icon toolbar; #87 partial-width panels. Issues #71/#74/#77/#81/#83 will be resolved when ADR-26 Stage 1 merges (all are super_editor-specific).
 
-**QuKis icon disabled when empty (#86)**: `_hasQukisProvider` (`StreamProvider<bool>`, hand-written — not `@riverpod` codegen, avoids riverpod_generator + drift `Stream<List<T>>` bug) drives `onPressed: hasQukis ? _openQuKisList : null`.
-
-**Save-on-load guard (#75, PR #99 re-fix)**: `_isLoadingDocument` flag set `true` before `_switchDocument` swap, cleared via double-nested `addPostFrameCallback` (two frames to cover `super_editor`'s multi-frame init events). Suppresses `_onDocumentChanged` during load. NOTE: this is the second fix attempt — if device testing shows `modifiedAt` still bumps, see #75 for the recommended content-hash approach.
-
-**Task list toolbar button (#82, PR #99 re-fix)**: Code button replaced with `LucideIcons.listChecks`. Uses `ReplaceNodeRequest` to convert the current `TextNode` directly to `TaskNode(isComplete: false)` — bypasses `TaskListMarkdownReaction` entirely (reaction uses `findLastTextUserTyped` which returns null for programmatic insertions, causing `- []` instead of `- [ ] `). Serializes correctly to `- [ ] text`.
-
-**Transport enabled state (PR #99)**: `enabledTransportsProvider` `loading:` branch returns `[]` instead of all plugins — prevents disabled transports from flashing as enabled during the async SharedPreferences read on startup.
-
-**Toolbar format buttons disabled when no selection (PR #99)**: `FormattingToolbar.build` wrapped in `ListenableBuilder(listenable: composer)`. All format buttons get `onPressed: hasSelection ? action : null`. Link and keyboard toggle always enabled. Removed "Place cursor in editor first" snackbar.
-
-**ShareSheetToss always succeeds (#92)**: `share_plus` fires `ShareResultStatus.dismissed` on Android even when the user completes a share. Dropped the status check; always returns `TossResult(success: true, message: 'Shared.')`.
-
-**Known bugs (open)**: #71 blank lines between list items stripped on round-trip; #72 keyboard not raised on cold launch (focus correct, IME not raised); #75 modifiedAt bump on open (two fix attempts; see issue for content-hash approach); #76 cursor not visible on Windows.
-
-**Error handling (v0.9.3)**: try/catch added to share-in async closure (`app.dart`), `plugin.toss()` (`editor_screen.dart`), and `AutoSaveController` save paths. Transport settings error branch now logs via `logging`. Static `_headingPattern` regex extracted in `stream_screen.dart`. Case-insensitive search via `t.body.lower().like(...)`. `relativeTime()` extracted to `lib/shared/relative_time.dart` with injected `now:` param for testability.
-
-**`flutter test` on Windows**: If `flutter test` crashes with `PathAccessException: sqlite3.dll Access is denied`, run `flutter clean` in a fresh terminal (close VS Code first).
-
-**Last Updated**: 2026-06-14
+**Last Updated**: 2026-06-17
