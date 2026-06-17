@@ -136,13 +136,12 @@ void main() {
     });
 
     testWidgets(
-        'shows QuKis icon, plain-text toggle, + button, hamburger — no back button',
+        'shows QuKis icon, + button, hamburger — no back button',
         (tester) async {
       await tester.pumpWidget(_buildEditor());
       await tester.pump();
 
       expect(find.byIcon(LucideIcons.fileStack), findsOneWidget);
-      expect(find.byIcon(LucideIcons.type), findsOneWidget);
       expect(find.byIcon(LucideIcons.plus), findsOneWidget);
       expect(find.byIcon(LucideIcons.menu), findsOneWidget);
       expect(find.byIcon(LucideIcons.arrowLeft), findsNothing);
