@@ -13,6 +13,7 @@ import '../../core/transports/registry_provider.dart';
 import '../../core/transports/transport_plugin.dart';
 
 import 'auto_save_controller.dart';
+import 'formatting_toolbar.dart';
 import 'toss_picker_sheet.dart';
 import '../settings/settings_screen.dart';
 import '../stream/stream_screen.dart';
@@ -57,6 +58,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   late final MarkdownEditorController _editorController;
   late final AutoSaveController _autoSave;
   final _editorFocusNode = FocusNode();
+  bool _keyboardVisible = false;
 
   @override
   void initState() {
@@ -135,6 +137,16 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       _autoSave.resetForQuki(id: null);
     } else {
       ref.read(activeQukiIdProvider.notifier).setId(null);
+    }
+  }
+
+  void _toggleKeyboard() {
+    if (_keyboardVisible) {
+      FocusScope.of(context).unfocus();
+      setState(() => _keyboardVisible = false);
+    } else {
+      _editorFocusNode.requestFocus();
+      setState(() => _keyboardVisible = true);
     }
   }
 
@@ -262,13 +274,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           onPressed: hasQukis ? _openQuKisList : null,
         ),
         actions: [
-          // Plain-text mode toggle — always active in Stage 1 (no-op).
-          // Stage 3 makes this functional when block-flip rendering ships.
-          IconButton(
-            icon: const Icon(LucideIcons.type),
-            tooltip: 'Plain text mode',
-            onPressed: _editorController.togglePlainTextMode,
-          ),
           IconButton(
             icon: const Icon(LucideIcons.plus),
             tooltip: 'New QuKi',
@@ -299,18 +304,28 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         ],
       ),
       body: SafeArea(
-        child: MarkdownEditor(
-          initialValue: '',
-          onChanged: (_) => _autoSave.notifyChanged(),
-          controller: _editorController,
-          focusNode: _editorFocusNode,
-          config: MarkdownEditorConfig(
-            textStyle: TextStyle(
-              color: scheme.onSurface,
-              fontSize: 16,
-              height: 1.4,
+        child: Column(
+          children: [
+            Expanded(
+              child: MarkdownEditor(
+                initialValue: '',
+                onChanged: (_) => _autoSave.notifyChanged(),
+                controller: _editorController,
+                focusNode: _editorFocusNode,
+                config: MarkdownEditorConfig(
+                  textStyle: TextStyle(
+                    color: scheme.onSurface,
+                    fontSize: 16,
+                    height: 1.4,
+                  ),
+                ),
+              ),
             ),
-          ),
+            FormattingToolbar(
+              keyboardVisible: _keyboardVisible,
+              onToggleKeyboard: _toggleKeyboard,
+            ),
+          ],
         ),
       ),
     );
