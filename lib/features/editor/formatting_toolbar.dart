@@ -23,9 +23,11 @@ class FormattingToolbar extends StatelessWidget {
           children: [
             _StubButton(icon: LucideIcons.bold, tooltip: 'Bold'),
             _StubButton(icon: LucideIcons.italic, tooltip: 'Italic'),
-            _StubButton(icon: LucideIcons.strikethrough, tooltip: 'Strikethrough'),
+            _StubButton(
+                icon: LucideIcons.strikethrough, tooltip: 'Strikethrough'),
             _StubButton(icon: LucideIcons.list, tooltip: 'Bullet list'),
-            _StubButton(icon: LucideIcons.listOrdered, tooltip: 'Numbered list'),
+            _StubButton(
+                icon: LucideIcons.listOrdered, tooltip: 'Numbered list'),
             _StubButton(icon: LucideIcons.listChecks, tooltip: 'Task list'),
             _StubButton(icon: LucideIcons.link, tooltip: 'Link'),
             const Spacer(),

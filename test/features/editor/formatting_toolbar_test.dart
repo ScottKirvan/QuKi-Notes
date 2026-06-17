@@ -98,7 +98,8 @@ void main() {
       await cleanup(tester);
     });
 
-    testWidgets('formatting buttons are all disabled in Stage 1', (tester) async {
+    testWidgets('formatting buttons are all disabled in Stage 1',
+        (tester) async {
       await _pumpEditor(tester);
 
       IconButton getButton(IconData icon) => tester.widget<IconButton>(
@@ -130,13 +131,15 @@ void main() {
       await tester.pump(); // process post-frame focus request
 
       expect(find.byIcon(LucideIcons.keyboard), findsOneWidget,
-          reason: 'At cold launch keyboard is not visible — show-keyboard icon expected');
+          reason:
+              'At cold launch keyboard is not visible — show-keyboard icon expected');
       expect(find.byIcon(LucideIcons.keyboardOff), findsNothing);
 
       await cleanup(tester);
     });
 
-    testWidgets('shows keyboardOff after tapping show-keyboard', (tester) async {
+    testWidgets('shows keyboardOff after tapping show-keyboard',
+        (tester) async {
       await _pumpEditor(tester);
       await tester.pump();
 
@@ -149,7 +152,8 @@ void main() {
       await cleanup(tester);
     });
 
-    testWidgets('shows keyboard icon after tapping keyboardOff', (tester) async {
+    testWidgets('shows keyboard icon after tapping keyboardOff',
+        (tester) async {
       await _pumpEditor(tester);
       await tester.pump();
 
@@ -168,7 +172,8 @@ void main() {
   });
 
   group('FormattingToolbar direct widget', () {
-    testWidgets('renders standalone with keyboardVisible=false', (tester) async {
+    testWidgets('renders standalone with keyboardVisible=false',
+        (tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
