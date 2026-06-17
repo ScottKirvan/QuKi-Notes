@@ -72,8 +72,7 @@ class _FakeQuKiIndex extends QuKiIndexNotifier {
   @override
   void removeMeta(String id) {
     state.whenData(
-      (list) =>
-          state = AsyncValue.data(list.where((m) => m.id != id).toList()),
+      (list) => state = AsyncValue.data(list.where((m) => m.id != id).toList()),
     );
   }
 
@@ -135,8 +134,7 @@ void main() {
       await cleanup(tester);
     });
 
-    testWidgets(
-        'shows QuKis icon, + button, hamburger — no back button',
+    testWidgets('shows QuKis icon, + button, hamburger — no back button',
         (tester) async {
       await tester.pumpWidget(_buildEditor());
       await tester.pump();
@@ -374,8 +372,7 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      final statAfter =
-          await tester.runAsync(() => File(meta.filePath).stat());
+      final statAfter = await tester.runAsync(() => File(meta.filePath).stat());
 
       expect(statAfter!.modified, equals(statBefore!.modified),
           reason:
