@@ -14,10 +14,8 @@ dependencies:
   path: ^1.9.1
   path_provider: ^2.1.5
   uuid: ^4.5.3
-  # super_editor and super_clipboard deferred to Phase 1 — their transitive dep
-  # irondash_engine_context bundles a CargoKit Gradle plugin that uses exec(),
-  # which was removed in Gradle 9. Add them back at Phase 1 kickoff.
-  super_editor: ^0.3.0-dev.51
+  markdown_live_editor:
+    path: packages/markdown_live_editor
   shared_preferences: ^2.5.5
   logging: ^1.3.0
   package_info_plus: ^8.0.0
