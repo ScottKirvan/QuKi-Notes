@@ -13,7 +13,6 @@ import '../../core/transports/registry_provider.dart';
 import '../../core/transports/transport_plugin.dart';
 
 import 'auto_save_controller.dart';
-import 'formatting_toolbar.dart';
 import 'toss_picker_sheet.dart';
 import '../settings/settings_screen.dart';
 import '../stream/stream_screen.dart';
@@ -57,8 +56,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     with WidgetsBindingObserver {
   late final MarkdownEditorController _editorController;
   late final AutoSaveController _autoSave;
-  final _editorFocusNode = FocusNode();
-  bool _keyboardVisible = false;
 
   @override
   void initState() {
@@ -72,17 +69,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     _autoSave.start();
 
     WidgetsBinding.instance.addObserver(this);
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _editorFocusNode.requestFocus();
-    });
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _autoSave.dispose();
-    _editorFocusNode.dispose();
     super.dispose();
   }
 
@@ -137,16 +129,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       _autoSave.resetForQuki(id: null);
     } else {
       ref.read(activeQukiIdProvider.notifier).setId(null);
-    }
-  }
-
-  void _toggleKeyboard() {
-    if (_keyboardVisible) {
-      FocusScope.of(context).unfocus();
-      setState(() => _keyboardVisible = false);
-    } else {
-      _editorFocusNode.requestFocus();
-      setState(() => _keyboardVisible = true);
     }
   }
 
@@ -311,7 +293,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                 initialValue: '',
                 onChanged: (_) => _autoSave.notifyChanged(),
                 controller: _editorController,
-                focusNode: _editorFocusNode,
+                autofocus: true,
                 config: MarkdownEditorConfig(
                   textStyle: TextStyle(
                     color: scheme.onSurface,
@@ -321,10 +303,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                 ),
               ),
             ),
-            FormattingToolbar(
-              keyboardVisible: _keyboardVisible,
-              onToggleKeyboard: _toggleKeyboard,
-            ),
+            FormattingToolbar(controller: _editorController),
           ],
         ),
       ),

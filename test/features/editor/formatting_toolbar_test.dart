@@ -3,13 +3,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:lucide_flutter/lucide_flutter.dart';
 
 import 'package:quki_notes/core/storage/quki_index.dart';
 import 'package:quki_notes/core/storage/quki_meta.dart';
 import 'package:quki_notes/core/storage/quki_storage.dart';
 import 'package:quki_notes/features/editor/editor_screen.dart';
-import 'package:quki_notes/features/editor/formatting_toolbar.dart';
 
 Future<void> cleanup(WidgetTester tester) async {
   await tester.pumpWidget(const SizedBox.shrink());
@@ -71,34 +69,20 @@ Future<void> _pumpEditor(WidgetTester tester) async {
 }
 
 void main() {
-  group('FormattingToolbar icon presence', () {
-    test('all toolbar icon constants are defined', () {
-      expect(LucideIcons.bold, isNotNull);
-      expect(LucideIcons.italic, isNotNull);
-      expect(LucideIcons.strikethrough, isNotNull);
-      expect(LucideIcons.list, isNotNull);
-      expect(LucideIcons.listOrdered, isNotNull);
-      expect(LucideIcons.listChecks, isNotNull);
-      expect(LucideIcons.link, isNotNull);
-      expect(LucideIcons.keyboard, isNotNull);
-      expect(LucideIcons.keyboardOff, isNotNull);
-    });
-
+  group('FormattingToolbar — Stage 2 (package toolbar)', () {
     testWidgets('renders all expected toolbar buttons', (tester) async {
       await _pumpEditor(tester);
 
-      expect(find.byIcon(LucideIcons.bold), findsOneWidget);
-      expect(find.byIcon(LucideIcons.italic), findsOneWidget);
-      expect(find.byIcon(LucideIcons.strikethrough), findsOneWidget);
-      expect(find.byIcon(LucideIcons.list), findsOneWidget);
-      expect(find.byIcon(LucideIcons.listOrdered), findsOneWidget);
-      expect(find.byIcon(LucideIcons.listChecks), findsOneWidget);
-      expect(find.byIcon(LucideIcons.link), findsOneWidget);
+      expect(find.byIcon(Icons.format_bold), findsOneWidget);
+      expect(find.byIcon(Icons.format_italic), findsOneWidget);
+      expect(find.byIcon(Icons.format_strikethrough), findsOneWidget);
+      expect(find.byIcon(Icons.title), findsOneWidget);
+      expect(find.byIcon(Icons.checklist), findsOneWidget);
 
       await cleanup(tester);
     });
 
-    testWidgets('formatting buttons are all disabled in Stage 1',
+    testWidgets('formatting buttons are all enabled in Stage 2',
         (tester) async {
       await _pumpEditor(tester);
 
@@ -109,100 +93,13 @@ void main() {
             ),
           );
 
-      expect(getButton(LucideIcons.bold).onPressed, isNull);
-      expect(getButton(LucideIcons.italic).onPressed, isNull);
-      expect(getButton(LucideIcons.strikethrough).onPressed, isNull);
-      expect(getButton(LucideIcons.list).onPressed, isNull);
-      expect(getButton(LucideIcons.listOrdered).onPressed, isNull);
-      expect(getButton(LucideIcons.listChecks).onPressed, isNull);
-      expect(getButton(LucideIcons.link).onPressed, isNull);
+      expect(getButton(Icons.format_bold).onPressed, isNotNull);
+      expect(getButton(Icons.format_italic).onPressed, isNotNull);
+      expect(getButton(Icons.format_strikethrough).onPressed, isNotNull);
+      expect(getButton(Icons.title).onPressed, isNotNull);
+      expect(getButton(Icons.checklist).onPressed, isNotNull);
 
       await cleanup(tester);
-    });
-  });
-
-  group('FormattingToolbar keyboard toggle', () {
-    testWidgets(
-        'shows keyboard icon at cold launch — '
-        'regression: showed keyboardOff at launch because FocusNode.hasFocus '
-        'was true even though IME was not visible (#post-96, #72)',
-        (tester) async {
-      await _pumpEditor(tester);
-      await tester.pump(); // process post-frame focus request
-
-      expect(find.byIcon(LucideIcons.keyboard), findsOneWidget,
-          reason:
-              'At cold launch keyboard is not visible — show-keyboard icon expected');
-      expect(find.byIcon(LucideIcons.keyboardOff), findsNothing);
-
-      await cleanup(tester);
-    });
-
-    testWidgets('shows keyboardOff after tapping show-keyboard',
-        (tester) async {
-      await _pumpEditor(tester);
-      await tester.pump();
-
-      await tester.tap(find.byIcon(LucideIcons.keyboard));
-      await tester.pump();
-
-      expect(find.byIcon(LucideIcons.keyboardOff), findsOneWidget);
-      expect(find.byIcon(LucideIcons.keyboard), findsNothing);
-
-      await cleanup(tester);
-    });
-
-    testWidgets('shows keyboard icon after tapping keyboardOff',
-        (tester) async {
-      await _pumpEditor(tester);
-      await tester.pump();
-
-      await tester.tap(find.byIcon(LucideIcons.keyboard));
-      await tester.pump();
-      expect(find.byIcon(LucideIcons.keyboardOff), findsOneWidget);
-
-      await tester.tap(find.byIcon(LucideIcons.keyboardOff));
-      await tester.pump();
-
-      expect(find.byIcon(LucideIcons.keyboard), findsOneWidget);
-      expect(find.byIcon(LucideIcons.keyboardOff), findsNothing);
-
-      await cleanup(tester);
-    });
-  });
-
-  group('FormattingToolbar direct widget', () {
-    testWidgets('renders standalone with keyboardVisible=false',
-        (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: FormattingToolbar(
-              keyboardVisible: false,
-              onToggleKeyboard: () {},
-            ),
-          ),
-        ),
-      );
-
-      expect(find.byIcon(LucideIcons.keyboard), findsOneWidget);
-      expect(find.byIcon(LucideIcons.keyboardOff), findsNothing);
-    });
-
-    testWidgets('renders standalone with keyboardVisible=true', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: FormattingToolbar(
-              keyboardVisible: true,
-              onToggleKeyboard: () {},
-            ),
-          ),
-        ),
-      );
-
-      expect(find.byIcon(LucideIcons.keyboardOff), findsOneWidget);
-      expect(find.byIcon(LucideIcons.keyboard), findsNothing);
     });
   });
 }
