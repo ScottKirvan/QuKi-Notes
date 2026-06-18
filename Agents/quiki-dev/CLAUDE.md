@@ -164,7 +164,16 @@ void dismissKeyboard() => _state?._focusNode?.unfocus();
 
 Update `_MarkdownEditorState` to own its FocusNode: add `late final FocusNode _focusNode`, initialised as `widget.focusNode ?? FocusNode()`, disposed in `dispose()`, passed to `TextField`. Expose it so `dismissKeyboard()` can reach it.
 
-**`packages/markdown_live_editor/lib/src/formatting_toolbar.dart`** — new file. The package can only use `Icons.*` (part of Flutter SDK material); it does not depend on `lucide_flutter`:
+**`packages/markdown_live_editor/pubspec.yaml`** — add `lucide_flutter` (ADR-23; Lucide is the project icon standard and the package must match):
+```yaml
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_markdown: ^0.7.0
+  lucide_flutter: ^1.17.0
+```
+
+**`packages/markdown_live_editor/lib/src/formatting_toolbar.dart`** — new file:
 
 ```dart
 class FormattingToolbar extends StatelessWidget {
@@ -174,20 +183,20 @@ class FormattingToolbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Row(
     children: [
-      IconButton(icon: const Icon(Icons.format_bold),
+      IconButton(icon: const Icon(LucideIcons.bold),
           onPressed: () => controller.wrapSelection('**', '**')),
-      IconButton(icon: const Icon(Icons.format_italic),
+      IconButton(icon: const Icon(LucideIcons.italic),
           onPressed: () => controller.wrapSelection('_', '_')),
-      IconButton(icon: const Icon(Icons.format_strikethrough),
+      IconButton(icon: const Icon(LucideIcons.strikethrough),
           onPressed: () => controller.wrapSelection('~~', '~~')),
-      IconButton(icon: const Icon(Icons.title),
+      IconButton(icon: const Icon(LucideIcons.heading),
           onPressed: () => controller.toggleLinePrefix('# ')),
-      IconButton(icon: const Icon(Icons.checklist),
+      IconButton(icon: const Icon(LucideIcons.listChecks),
           onPressed: () => controller.toggleLinePrefix('- [ ] ')),
       const Spacer(),
       if (Platform.isAndroid)
         IconButton(
-            icon: const Icon(Icons.keyboard_hide),
+            icon: const Icon(LucideIcons.keyboardOff),
             onPressed: controller.dismissKeyboard),
     ],
   );
@@ -319,7 +328,7 @@ Build (plain-text mode): single `TextField` populated with `BlockSplitter.join(_
 - `togglePlainTextMode()` becomes functional: calls `_state?._togglePlainTextMode()`.
 - `bool get plainTextMode` reads from state.
 
-**Plain-text toggle** — restore to `EditorScreen` app bar now that `togglePlainTextMode()` works. Use `LucideIcons.type` (or `Icons.text_fields`).
+**Plain-text toggle** — restore to `EditorScreen` app bar now that `togglePlainTextMode()` works. Use `LucideIcons.type`.
 
 ### Tests (Stage 3)
 

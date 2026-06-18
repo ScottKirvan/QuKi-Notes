@@ -89,7 +89,7 @@ Anything not in the enabled set (code blocks, blockquotes, tables, HTML) is rend
 
 **Plain-text mode**: `MarkdownEditorController.togglePlainTextMode()` collapses the whole note into one `TextField`. Useful for bulk edits or pasting complex content. The file on disk is identical in both modes.
 
-**Dependencies removed from app**: `super_editor`, `super_clipboard`. **Package dependencies**: `flutter` SDK + `flutter_markdown` only. App adds `markdown_live_editor` as a path dep.
+**Dependencies removed from app**: `super_editor`, `super_clipboard`. **Package dependencies**: `flutter` SDK + `flutter_markdown` + `lucide_flutter` (ADR-23 — Lucide is the project icon standard). App adds `markdown_live_editor` as a path dep.
 
 **Files removed from app**: `lib/features/editor/markdown_inline_reactions.dart`, `lib/features/editor/formatting_toolbar.dart`. **Files changed**: `editor_screen.dart` rewritten around `MarkdownEditor` + `MarkdownEditorController`; plain-text toggle moves to app-bar action.
 
