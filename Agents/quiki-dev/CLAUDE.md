@@ -150,7 +150,7 @@ class FormattingToolbar extends StatelessWidget {
       IconButton(icon: const Icon(LucideIcons.listChecks),
           onPressed: () => controller.toggleLinePrefix('- [ ] ')),
       const Spacer(),
-      if (Platform.isAndroid)
+      if (Platform.isAndroid || Platform.isIOS)
         IconButton(
             icon: const Icon(LucideIcons.keyboardOff),
             onPressed: controller.dismissKeyboard),
@@ -184,7 +184,7 @@ class FormattingToolbar extends StatelessWidget {
 
 - [ ] `just lint` and `just test` pass
 - [ ] Toolbar visible below editor on Android and desktop
-- [ ] Keyboard dismiss button visible on Android only
+- [ ] Keyboard dismiss button visible on mobile (Android + iOS), not on desktop
 - [ ] Bold, italic, strikethrough wrap selected text; insert markers at cursor when no selection
 - [ ] Heading toggle adds/removes `# ` prefix on the current line
 - [ ] Task toggle adds/removes `- [ ] ` prefix on the current line
