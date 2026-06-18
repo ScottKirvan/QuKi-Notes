@@ -34,6 +34,11 @@ class FormattingToolbar extends StatelessWidget {
               onPressed: () => controller.wrapSelection('~~', '~~'),
             ),
             IconButton(
+              icon: const Icon(LucideIcons.heading1),
+              tooltip: 'Heading',
+              onPressed: () => controller.toggleLinePrefix('# '),
+            ),
+            IconButton(
               icon: const Icon(LucideIcons.list),
               tooltip: 'Unordered list',
               onPressed: controller.toggleUnorderedList,
@@ -42,11 +47,6 @@ class FormattingToolbar extends StatelessWidget {
               icon: const Icon(LucideIcons.listOrdered),
               tooltip: 'Ordered list',
               onPressed: controller.toggleOrderedList,
-            ),
-            IconButton(
-              icon: const Icon(LucideIcons.heading1),
-              tooltip: 'Heading',
-              onPressed: () => controller.toggleLinePrefix('# '),
             ),
             IconButton(
               icon: const Icon(LucideIcons.listChecks),
