@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.10.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.9.6...v0.10.0) (2026-06-18)
+
+
+### Features
+
+* **editor:** add markdown_live_editor monorepo package (ADR-26 stage 1) ([06fc4e8](https://github.com/ScottKirvan/QuKi-Notes/commit/06fc4e846cd0a5193b61599a5d28e21db9064fb7))
+* **editor:** add unordered and ordered list toolbar buttons (ADR-26 stage 2) ([3bb0461](https://github.com/ScottKirvan/QuKi-Notes/commit/3bb04611ec5c5c71c586ac530b45b90ae2ebbf91))
+* **editor:** formatting toolbar and list auto-continue (ADR-26 stage 2) ([3224409](https://github.com/ScottKirvan/QuKi-Notes/commit/322440956f22acc3a476f0ff3598f4ec4fbb0f3e))
+
+
+### Bug Fixes
+
+* **editor:** restore FormattingToolbar and keyboard toggle (stage 1 stub) ([647338d](https://github.com/ScottKirvan/QuKi-Notes/commit/647338db1cd71221625a9816ade49c7a1cbfa8a4))
+* **ios:** extend mobile platform guards to include iOS ([ebf3e86](https://github.com/ScottKirvan/QuKi-Notes/commit/ebf3e8629e5f57e301316aedf3f2182f2987b713))
+
 ## [0.9.6](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.9.5...v0.9.6) (2026-06-15)
 
 
