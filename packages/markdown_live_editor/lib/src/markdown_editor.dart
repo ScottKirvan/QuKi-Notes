@@ -66,6 +66,70 @@ class MarkdownEditorController {
     _state?._notifyChanged(newText);
   }
 
+  /// Toggles an unordered list prefix (`- `) on the current line.
+  /// Strips any existing list prefix (including task list `- [ ] `) before
+  /// deciding whether to add `- `, so that toggling off always works cleanly.
+  void toggleUnorderedList() {
+    final tc = _activeTextController;
+    if (tc == null) return;
+    final text = tc.text;
+    final offset = tc.selection.baseOffset.clamp(0, text.length);
+    final lineStart = offset > 0 ? text.lastIndexOf('\n', offset - 1) + 1 : 0;
+    final rawEnd = text.indexOf('\n', offset);
+    final lineEnd = rawEnd == -1 ? text.length : rawEnd;
+    final line = text.substring(lineStart, lineEnd);
+    final existingMatch =
+        RegExp(r'^(- \[[ x]\] |[-*] )').firstMatch(line);
+    final String newLine;
+    final int newOffset;
+    if (existingMatch != null) {
+      final prefixLen = existingMatch.group(1)!.length;
+      newLine = line.substring(prefixLen);
+      newOffset =
+          (offset - prefixLen).clamp(lineStart, lineStart + newLine.length);
+    } else {
+      newLine = '- $line';
+      newOffset = offset + 2;
+    }
+    final newText = text.replaceRange(lineStart, lineEnd, newLine);
+    tc.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newOffset),
+    );
+    _state?._notifyChanged(newText);
+  }
+
+  /// Toggles an ordered list prefix (`1. `) on the current line.
+  /// Removes any existing `N. ` prefix regardless of the number.
+  void toggleOrderedList() {
+    final tc = _activeTextController;
+    if (tc == null) return;
+    final text = tc.text;
+    final offset = tc.selection.baseOffset.clamp(0, text.length);
+    final lineStart = offset > 0 ? text.lastIndexOf('\n', offset - 1) + 1 : 0;
+    final rawEnd = text.indexOf('\n', offset);
+    final lineEnd = rawEnd == -1 ? text.length : rawEnd;
+    final line = text.substring(lineStart, lineEnd);
+    final orderedMatch = RegExp(r'^(\d+\. )').firstMatch(line);
+    final String newLine;
+    final int newOffset;
+    if (orderedMatch != null) {
+      final prefixLen = orderedMatch.group(1)!.length;
+      newLine = line.substring(prefixLen);
+      newOffset =
+          (offset - prefixLen).clamp(lineStart, lineStart + newLine.length);
+    } else {
+      newLine = '1. $line';
+      newOffset = offset + 3;
+    }
+    final newText = text.replaceRange(lineStart, lineEnd, newLine);
+    tc.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: newOffset),
+    );
+    _state?._notifyChanged(newText);
+  }
+
   void dismissKeyboard() => _state?._focusNode.unfocus();
 }
 

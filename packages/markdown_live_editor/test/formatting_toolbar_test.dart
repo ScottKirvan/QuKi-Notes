@@ -246,14 +246,106 @@ void main() {
     });
   });
 
-  group('FormattingToolbar widget', () {
-    testWidgets('renders bold/italic/strikethrough/heading/checklist buttons',
+  group('toggleUnorderedList', () {
+    testWidgets('adds "- " prefix when line has no list marker', (tester) async {
+      final controller = await pumpEditor(tester, initialValue: 'plain item');
+      final tf = tester.widget<TextField>(find.byType(TextField));
+      tf.controller!.selection = const TextSelection.collapsed(offset: 5);
+      await tester.pump();
+
+      controller.toggleUnorderedList();
+      await tester.pump();
+
+      expect(controller.currentValue, '- plain item');
+    });
+
+    testWidgets('removes "- " prefix when already present', (tester) async {
+      final controller = await pumpEditor(tester, initialValue: '- plain item');
+      final tf = tester.widget<TextField>(find.byType(TextField));
+      tf.controller!.selection = const TextSelection.collapsed(offset: 5);
+      await tester.pump();
+
+      controller.toggleUnorderedList();
+      await tester.pump();
+
+      expect(controller.currentValue, 'plain item');
+    });
+
+    testWidgets('strips full task list prefix when toggling off', (tester) async {
+      final controller =
+          await pumpEditor(tester, initialValue: '- [ ] task item');
+      final tf = tester.widget<TextField>(find.byType(TextField));
+      tf.controller!.selection = const TextSelection.collapsed(offset: 8);
+      await tester.pump();
+
+      controller.toggleUnorderedList();
+      await tester.pump();
+
+      expect(controller.currentValue, 'task item');
+    });
+
+    testWidgets('removes "* " prefix when present', (tester) async {
+      final controller = await pumpEditor(tester, initialValue: '* asterisk');
+      final tf = tester.widget<TextField>(find.byType(TextField));
+      tf.controller!.selection = const TextSelection.collapsed(offset: 3);
+      await tester.pump();
+
+      controller.toggleUnorderedList();
+      await tester.pump();
+
+      expect(controller.currentValue, 'asterisk');
+    });
+  });
+
+  group('toggleOrderedList', () {
+    testWidgets('adds "1. " prefix when line has no ordered marker',
         (tester) async {
+      final controller = await pumpEditor(tester, initialValue: 'first item');
+      final tf = tester.widget<TextField>(find.byType(TextField));
+      tf.controller!.selection = const TextSelection.collapsed(offset: 5);
+      await tester.pump();
+
+      controller.toggleOrderedList();
+      await tester.pump();
+
+      expect(controller.currentValue, '1. first item');
+    });
+
+    testWidgets('removes ordered prefix regardless of number', (tester) async {
+      final controller = await pumpEditor(tester, initialValue: '3. third item');
+      final tf = tester.widget<TextField>(find.byType(TextField));
+      tf.controller!.selection = const TextSelection.collapsed(offset: 5);
+      await tester.pump();
+
+      controller.toggleOrderedList();
+      await tester.pump();
+
+      expect(controller.currentValue, 'third item');
+    });
+
+    testWidgets('removes multi-digit ordered prefix', (tester) async {
+      final controller =
+          await pumpEditor(tester, initialValue: '10. tenth item');
+      final tf = tester.widget<TextField>(find.byType(TextField));
+      tf.controller!.selection = const TextSelection.collapsed(offset: 5);
+      await tester.pump();
+
+      controller.toggleOrderedList();
+      await tester.pump();
+
+      expect(controller.currentValue, 'tenth item');
+    });
+  });
+
+  group('FormattingToolbar widget', () {
+    testWidgets('renders all toolbar buttons', (tester) async {
       await pumpEditor(tester);
 
       expect(find.byIcon(LucideIcons.bold), findsOneWidget);
       expect(find.byIcon(LucideIcons.italic), findsOneWidget);
       expect(find.byIcon(LucideIcons.strikethrough), findsOneWidget);
+      expect(find.byIcon(LucideIcons.list), findsOneWidget);
+      expect(find.byIcon(LucideIcons.listOrdered), findsOneWidget);
       expect(find.byIcon(LucideIcons.heading1), findsOneWidget);
       expect(find.byIcon(LucideIcons.listChecks), findsOneWidget);
     });
@@ -304,6 +396,33 @@ void main() {
       await tester.pump();
 
       expect(controller.currentValue, '- [ ] task item');
+    });
+
+    testWidgets('tapping list button toggles unordered prefix', (tester) async {
+      final controller = await pumpEditor(tester, initialValue: 'an item');
+
+      final tf = tester.widget<TextField>(find.byType(TextField));
+      tf.controller!.selection = const TextSelection.collapsed(offset: 0);
+      await tester.pump();
+
+      await tester.tap(find.byIcon(LucideIcons.list));
+      await tester.pump();
+
+      expect(controller.currentValue, '- an item');
+    });
+
+    testWidgets('tapping listOrdered button toggles ordered prefix',
+        (tester) async {
+      final controller = await pumpEditor(tester, initialValue: 'an item');
+
+      final tf = tester.widget<TextField>(find.byType(TextField));
+      tf.controller!.selection = const TextSelection.collapsed(offset: 0);
+      await tester.pump();
+
+      await tester.tap(find.byIcon(LucideIcons.listOrdered));
+      await tester.pump();
+
+      expect(controller.currentValue, '1. an item');
     });
   });
 }
