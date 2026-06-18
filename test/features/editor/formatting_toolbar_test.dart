@@ -77,6 +77,8 @@ void main() {
       expect(find.byIcon(LucideIcons.bold), findsOneWidget);
       expect(find.byIcon(LucideIcons.italic), findsOneWidget);
       expect(find.byIcon(LucideIcons.strikethrough), findsOneWidget);
+      expect(find.byIcon(LucideIcons.list), findsOneWidget);
+      expect(find.byIcon(LucideIcons.listOrdered), findsOneWidget);
       expect(find.byIcon(LucideIcons.heading1), findsOneWidget);
       expect(find.byIcon(LucideIcons.listChecks), findsOneWidget);
 
@@ -97,6 +99,8 @@ void main() {
       expect(getButton(LucideIcons.bold).onPressed, isNotNull);
       expect(getButton(LucideIcons.italic).onPressed, isNotNull);
       expect(getButton(LucideIcons.strikethrough).onPressed, isNotNull);
+      expect(getButton(LucideIcons.list).onPressed, isNotNull);
+      expect(getButton(LucideIcons.listOrdered).onPressed, isNotNull);
       expect(getButton(LucideIcons.heading1).onPressed, isNotNull);
       expect(getButton(LucideIcons.listChecks).onPressed, isNotNull);
 
