@@ -257,6 +257,13 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         ),
         actions: [
           IconButton(
+            icon: const Icon(LucideIcons.type),
+            tooltip:
+                _editorController.plainTextMode ? 'Block mode' : 'Plain text',
+            onPressed: () =>
+                setState(() => _editorController.togglePlainTextMode()),
+          ),
+          IconButton(
             icon: const Icon(LucideIcons.plus),
             tooltip: 'New QuKi',
             onPressed: _newQuKi,
