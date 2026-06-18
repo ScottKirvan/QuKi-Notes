@@ -154,14 +154,14 @@ Not designed in detail. Architectural intent: an embedded MCP server inside the 
 
 | Capability                                  | Source                                       |
 | ------------------------------------------- | -------------------------------------------- |
-| Text selection, cursor, caret               | `super_editor` (built-in)                    |
-| Copy / cut / paste / select-all (text)      | `super_editor` (standard keyboard + context menu — built-in) |
-| Undo / redo                                 | `super_editor` (built-in)                    |
-| Image paste from clipboard                  | `super_clipboard` + custom paste handler we write in Phase 1 (covers OQ-2) |
-| Drag-and-drop image onto editor (desktop)   | Verify in Phase 3 (likely free, may need wiring) |
-| Formatting toolbar buttons → markdown       | We wire — Phase 1 |
-| Markdown ↔ editor doc round-trip            | `super_editor` markdown serializer, gaps tracked in OQ-1 |
-| Spellcheck                                  | Platform-native (OS-provided) — verified per-platform in Phase 3 |
+| Text selection, cursor, caret               | `TextField` (Flutter built-in)               |
+| Copy / cut / paste / select-all (text)      | `TextField` (standard keyboard + context menu — built-in) |
+| Undo / redo                                 | `TextField` (built-in)                       |
+| Image paste from clipboard                  | Deferred — CargoKit archived, OQ-2 open      |
+| Drag-and-drop image onto editor (desktop)   | Deferred — revisit after ADR-26 Stage 4      |
+| Formatting toolbar buttons → markdown       | `FormattingToolbar` in `markdown_live_editor` package (ADR-26 Stage 2) |
+| Markdown rendering                          | `flutter_markdown` via block-flip model (ADR-26 Stage 3) |
+| Spellcheck                                  | Platform-native (OS-provided)                |
 
 ### 2. QuKis list
 

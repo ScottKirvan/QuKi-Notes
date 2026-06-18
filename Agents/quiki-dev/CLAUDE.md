@@ -50,50 +50,6 @@ Read in this order — do not skip:
 
 ---
 
-## Session 1 — COMPLETE
-
-Primer DHC color palette + auto-capitalization fix. Merged as PR #63.
-
----
-
-## Session 2 — COMPLETE
-
-Editor focus on launch + keyboard dismiss button. Merged as PR #66.
-
----
-
-## Session 3 — COMPLETE
-
-Error handling, case-insensitive search, and stream utility extraction. Merged as PR #90 (v0.9.3).
-
----
-
-## Session 4a — COMPLETE
-
-Editor UX polish batch: ShareSheetToss false-negative (#92), smart send (#85), QuKis icon disabled when empty (#86), save-on-load guard (#75), task list toolbar button (#82), keyboard toggle (#78). Merged as PR #96.
-
----
-
-## Session 4b — COMPLETE
-
-Post-#96 device-testing regressions: transport enabled/disabled state (#post-96), save-on-load guard (#75 re-fix), keyboard icon at cold launch (#78 re-fix), toolbar disable-on-no-selection (#82), task list `- [ ] ` space fix (#82). Merged as PR #99.
-
-> **Note**: #75 (modifiedAt bump on open) remains open — the double-nested post-frame approach in PR #99 is the second attempt; device testing needed to confirm. See issue #75 for full fix history and recommended robust approach (content-hash comparison).
-
----
-
-## Session 5 — COMPLETE
-
-Storage backend migration — Drift/SQLite → individual `.md` files (ADR-25). Merged as PR #103. Recently Deleted screen (#29) included. #75 (modifiedAt bump) resolved by design via mtime. Follow-on fixes: content-hash guard (PR #104), cursor visible on Windows / Android controls guard (PR #105).
-
----
-
-## Session 6 — COMPLETE
-
-Replace `super_editor` with `markdown_live_editor` package — Stage 1: plain-text foundation (ADR-26). Merged.
-
----
-
 ## Current Task Brief — Session 7
 
 > Written and maintained by the Spec session.
