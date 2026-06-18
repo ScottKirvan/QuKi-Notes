@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.1](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.10.0...v0.10.1) (2026-06-18)
+
+
+### Bug Fixes
+
+* Change app label from 'quki_notes' to 'QuKi Notes' ([a13e159](https://github.com/ScottKirvan/QuKi-Notes/commit/a13e15989e828631af130f81ea54a35bcb6e4bd1))
+
 ## [0.10.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.9.6...v0.10.0) (2026-06-18)
 
 
