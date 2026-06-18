@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lucide_flutter/lucide_flutter.dart';
 
 import 'package:quki_notes/core/storage/quki_index.dart';
 import 'package:quki_notes/core/storage/quki_meta.dart';
@@ -73,11 +74,11 @@ void main() {
     testWidgets('renders all expected toolbar buttons', (tester) async {
       await _pumpEditor(tester);
 
-      expect(find.byIcon(Icons.format_bold), findsOneWidget);
-      expect(find.byIcon(Icons.format_italic), findsOneWidget);
-      expect(find.byIcon(Icons.format_strikethrough), findsOneWidget);
-      expect(find.byIcon(Icons.title), findsOneWidget);
-      expect(find.byIcon(Icons.checklist), findsOneWidget);
+      expect(find.byIcon(LucideIcons.bold), findsOneWidget);
+      expect(find.byIcon(LucideIcons.italic), findsOneWidget);
+      expect(find.byIcon(LucideIcons.strikethrough), findsOneWidget);
+      expect(find.byIcon(LucideIcons.heading1), findsOneWidget);
+      expect(find.byIcon(LucideIcons.listChecks), findsOneWidget);
 
       await cleanup(tester);
     });
@@ -93,11 +94,11 @@ void main() {
             ),
           );
 
-      expect(getButton(Icons.format_bold).onPressed, isNotNull);
-      expect(getButton(Icons.format_italic).onPressed, isNotNull);
-      expect(getButton(Icons.format_strikethrough).onPressed, isNotNull);
-      expect(getButton(Icons.title).onPressed, isNotNull);
-      expect(getButton(Icons.checklist).onPressed, isNotNull);
+      expect(getButton(LucideIcons.bold).onPressed, isNotNull);
+      expect(getButton(LucideIcons.italic).onPressed, isNotNull);
+      expect(getButton(LucideIcons.strikethrough).onPressed, isNotNull);
+      expect(getButton(LucideIcons.heading1).onPressed, isNotNull);
+      expect(getButton(LucideIcons.listChecks).onPressed, isNotNull);
 
       await cleanup(tester);
     });

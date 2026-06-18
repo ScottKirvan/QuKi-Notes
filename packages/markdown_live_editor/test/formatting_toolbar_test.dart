@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:markdown_live_editor/markdown_live_editor.dart';
 
 // Helper: pump the editor with an initial value and return the controller.
@@ -250,11 +251,11 @@ void main() {
         (tester) async {
       await pumpEditor(tester);
 
-      expect(find.byIcon(Icons.format_bold), findsOneWidget);
-      expect(find.byIcon(Icons.format_italic), findsOneWidget);
-      expect(find.byIcon(Icons.format_strikethrough), findsOneWidget);
-      expect(find.byIcon(Icons.title), findsOneWidget);
-      expect(find.byIcon(Icons.checklist), findsOneWidget);
+      expect(find.byIcon(LucideIcons.bold), findsOneWidget);
+      expect(find.byIcon(LucideIcons.italic), findsOneWidget);
+      expect(find.byIcon(LucideIcons.strikethrough), findsOneWidget);
+      expect(find.byIcon(LucideIcons.heading1), findsOneWidget);
+      expect(find.byIcon(LucideIcons.listChecks), findsOneWidget);
     });
 
     testWidgets('tapping bold button wraps cursor text with **',
@@ -267,7 +268,7 @@ void main() {
           const TextSelection(baseOffset: 0, extentOffset: 7);
       await tester.pump();
 
-      await tester.tap(find.byIcon(Icons.format_bold));
+      await tester.tap(find.byIcon(LucideIcons.bold));
       await tester.pump();
 
       expect(controller.currentValue, '**bold me**');
@@ -280,12 +281,12 @@ void main() {
       tf.controller!.selection = const TextSelection.collapsed(offset: 3);
       await tester.pump();
 
-      await tester.tap(find.byIcon(Icons.title));
+      await tester.tap(find.byIcon(LucideIcons.heading1));
       await tester.pump();
 
       expect(controller.currentValue, '# a heading');
 
-      await tester.tap(find.byIcon(Icons.title));
+      await tester.tap(find.byIcon(LucideIcons.heading1));
       await tester.pump();
 
       expect(controller.currentValue, 'a heading');
@@ -299,7 +300,7 @@ void main() {
       tf.controller!.selection = const TextSelection.collapsed(offset: 0);
       await tester.pump();
 
-      await tester.tap(find.byIcon(Icons.checklist));
+      await tester.tap(find.byIcon(LucideIcons.listChecks));
       await tester.pump();
 
       expect(controller.currentValue, '- [ ] task item');
