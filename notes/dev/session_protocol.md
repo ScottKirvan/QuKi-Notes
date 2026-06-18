@@ -65,6 +65,7 @@ What to do at the **start** and **end** of every implementation session, and the
 | Any plugin secret (OAuth token, API key) lives in `flutter_secure_storage`, namespaced per plugin. Never in `shared_preferences`, files, or source. | ADR-2 |
 | No analytics, no crash reporting, no telemetry SDK. Ever. | ADR-12 |
 | `build-ios.yml` is a stub and must NOT be wired to trigger automatically | CLAUDE.md |
+| Platform guards must use the mobile/desktop distinction — never `Platform.isAndroid` alone for anything that will apply to iOS. Use `Platform.isAndroid \|\| Platform.isIOS` (or a `_isMobile` helper). iOS builds are deferred but the codebase must be iOS-compatible from day one — no regression testing from scratch when iOS activates. | Scott's explicit requirement |
 | Plugin secrets and full QuKi contents are never logged. | ADR-12 |
 | Image base64-embedding in markdown is forbidden. Images are separate binary files referenced as `![](../images/...)`. | ADR-4 |
 | `deletedAt` is the only correct way to delete a QuKi. Background sweep hard-deletes after 24h in MVP. | ADR-5 |
