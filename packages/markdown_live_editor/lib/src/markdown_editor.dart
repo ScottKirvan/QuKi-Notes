@@ -1,25 +1,33 @@
 import 'package:flutter/material.dart';
 
+import 'block_splitter.dart';
 import 'editor_config.dart';
+import 'markdown_block.dart';
 
 class MarkdownEditorController {
   _MarkdownEditorState? _state;
+  TextEditingController? _activeTextController;
 
-  void _attach(_MarkdownEditorState state) => _state = state;
-  void _detach() => _state = null;
+  void _attach(_MarkdownEditorState state) {
+    _state = state;
+    if (state._plainTextMode) _activeTextController = state._textController;
+  }
 
-  TextEditingController? get _activeTextController => _state?._textController;
+  void _detach() {
+    _state = null;
+    _activeTextController = null;
+  }
 
-  String get currentValue => _state?._textController.text ?? '';
+  void _setActiveTextController(TextEditingController? tc) {
+    _activeTextController = tc;
+  }
 
+  String get currentValue => _state?.currentValue ?? '';
   void setValue(String value) => _state?.setValue(value);
 
-  // Stage 1/2: always plain-text; becomes functional in Stage 3.
-  bool get plainTextMode => true;
-  void togglePlainTextMode() {}
+  bool get plainTextMode => _state?._plainTextMode ?? false;
+  void togglePlainTextMode() => _state?._togglePlainTextMode();
 
-  /// Wraps the current selection with [prefix] and [suffix].
-  /// If nothing is selected, inserts markers at the cursor position.
   void wrapSelection(String prefix, String suffix) {
     final tc = _activeTextController;
     if (tc == null) return;
@@ -38,7 +46,6 @@ class MarkdownEditorController {
     _state?._notifyChanged(newText);
   }
 
-  /// Adds [prefix] to the current line if absent; removes it if present.
   void toggleLinePrefix(String prefix) {
     final tc = _activeTextController;
     if (tc == null) return;
@@ -66,9 +73,6 @@ class MarkdownEditorController {
     _state?._notifyChanged(newText);
   }
 
-  /// Toggles an unordered list prefix (`- `) on the current line.
-  /// Strips any existing list prefix (including task list `- [ ] `) before
-  /// deciding whether to add `- `, so that toggling off always works cleanly.
   void toggleUnorderedList() {
     final tc = _activeTextController;
     if (tc == null) return;
@@ -78,8 +82,7 @@ class MarkdownEditorController {
     final rawEnd = text.indexOf('\n', offset);
     final lineEnd = rawEnd == -1 ? text.length : rawEnd;
     final line = text.substring(lineStart, lineEnd);
-    final existingMatch =
-        RegExp(r'^(- \[[ x]\] |[-*] )').firstMatch(line);
+    final existingMatch = RegExp(r'^(- \[[ x]\] |[-*] )').firstMatch(line);
     final String newLine;
     final int newOffset;
     if (existingMatch != null) {
@@ -99,8 +102,6 @@ class MarkdownEditorController {
     _state?._notifyChanged(newText);
   }
 
-  /// Toggles an ordered list prefix (`1. `) on the current line.
-  /// Removes any existing `N. ` prefix regardless of the number.
   void toggleOrderedList() {
     final tc = _activeTextController;
     if (tc == null) return;
@@ -130,7 +131,7 @@ class MarkdownEditorController {
     _state?._notifyChanged(newText);
   }
 
-  void dismissKeyboard() => _state?._focusNode.unfocus();
+  void dismissKeyboard() => FocusManager.instance.primaryFocus?.unfocus();
 }
 
 class MarkdownEditor extends StatefulWidget {
@@ -156,21 +157,38 @@ class MarkdownEditor extends StatefulWidget {
 }
 
 class _MarkdownEditorState extends State<MarkdownEditor> {
+  // Plain-text mode fields (always initialised; active in plain-text mode only).
   late final TextEditingController _textController;
   late final FocusNode _focusNode;
   late final bool _ownsFocusNode;
   TextEditingValue _previousValue = TextEditingValue.empty;
   bool _suppressListener = false;
 
+  // Block mode fields.
+  late List<String> _blocks;
+  bool _plainTextMode = false;
+  int? _autofocusIndex;
+  // Incremented on setValue() to force-recreate all MarkdownBlock widgets,
+  // discarding any in-progress edit state when content is switched externally.
+  int _resetCounter = 0;
+
   @override
   void initState() {
     super.initState();
+    _blocks = BlockSplitter.split(widget.initialValue);
     _textController = TextEditingController(text: widget.initialValue);
     _previousValue = _textController.value;
     _ownsFocusNode = widget.focusNode == null;
     _focusNode = widget.focusNode ?? FocusNode();
     widget.controller?._attach(this);
     _textController.addListener(_onTextChanged);
+
+    if (widget.autofocus && !_plainTextMode && _blocks.isNotEmpty) {
+      _autofocusIndex = 0;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _autofocusIndex = null);
+      });
+    }
   }
 
   @override
@@ -182,16 +200,41 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     super.dispose();
   }
 
+  String get currentValue =>
+      _plainTextMode ? _textController.text : BlockSplitter.join(_blocks);
+
   void setValue(String value) {
-    if (_textController.text != value) {
-      _suppressListener = true;
-      _textController.value = TextEditingValue(text: value);
-      _previousValue = _textController.value;
-      _suppressListener = false;
-    }
+    setState(() {
+      _blocks = BlockSplitter.split(value);
+      _autofocusIndex = null;
+      _resetCounter++;
+    });
+    _suppressListener = true;
+    _textController.value = TextEditingValue(text: value);
+    _previousValue = _textController.value;
+    _suppressListener = false;
+    widget.controller?._setActiveTextController(null);
   }
 
   void _notifyChanged(String value) => widget.onChanged?.call(value);
+
+  void _togglePlainTextMode() {
+    if (_plainTextMode) {
+      setState(() {
+        _blocks = BlockSplitter.split(_textController.text);
+        _plainTextMode = false;
+      });
+      widget.controller?._setActiveTextController(null);
+    } else {
+      final joined = BlockSplitter.join(_blocks);
+      _suppressListener = true;
+      _textController.value = TextEditingValue(text: joined);
+      _previousValue = _textController.value;
+      _suppressListener = false;
+      setState(() => _plainTextMode = true);
+      widget.controller?._setActiveTextController(_textController);
+    }
+  }
 
   void _onTextChanged() {
     if (_suppressListener) return;
@@ -200,32 +243,28 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     final previous = _previousValue;
     _previousValue = current;
 
-    // Only act on a single \n insertion (user pressed Enter).
     if (current.text.length != previous.text.length + 1) return;
     final cursor = current.selection.baseOffset;
     if (cursor < 1) return;
     if (current.text[cursor - 1] != '\n') return;
 
-    // Locate the completed line (everything before the inserted \n).
     final insertPos = cursor - 1;
     final lineStart = current.text.lastIndexOf('\n', insertPos - 1) + 1;
     final completedLine = current.text.substring(lineStart, insertPos);
 
-    final info = _listPrefixInfo(completedLine);
-    if (info == null) return;
+    final continuation = BlockSplitter.listContinuation(completedLine);
+    if (continuation == null) return;
 
-    final content = completedLine.substring(info.currentLength);
+    final prefixLength = _listPrefixLength(completedLine);
+    final content = completedLine.substring(prefixLength);
     if (content.isEmpty) {
-      // Empty list item — exit the list by removing the prefix on this line.
       final newText = current.text.replaceRange(lineStart, insertPos + 1, '\n');
       _setValueSilently(newText, lineStart);
       return;
     }
 
-    // Auto-continue: insert the continuation prefix on the new line.
-    final newText =
-        current.text.replaceRange(cursor, cursor, info.continuation);
-    _setValueSilently(newText, cursor + info.continuation.length);
+    final newText = current.text.replaceRange(cursor, cursor, continuation);
+    _setValueSilently(newText, cursor + continuation.length);
     widget.onChanged?.call(newText);
   }
 
@@ -239,58 +278,77 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     _suppressListener = false;
   }
 
-  static _ListPrefixResult? _listPrefixInfo(String line) {
-    // Task list: - [ ] or - [x] — always continue with unchecked.
-    final taskMatch = RegExp(r'^(- \[[ x]\] )').firstMatch(line);
-    if (taskMatch != null) {
-      return _ListPrefixResult(
-        currentLength: taskMatch.group(1)!.length,
-        continuation: '- [ ] ',
-      );
-    }
-    // Unordered: - or *
-    final unorderedMatch = RegExp(r'^([-*] )').firstMatch(line);
-    if (unorderedMatch != null) {
-      final prefix = unorderedMatch.group(1)!;
-      return _ListPrefixResult(
-          currentLength: prefix.length, continuation: prefix);
-    }
-    // Ordered: 1. 2. etc. — increment the number.
-    final orderedMatch = RegExp(r'^(\d+)\. ').firstMatch(line);
-    if (orderedMatch != null) {
-      final numStr = orderedMatch.group(1)!;
-      final num = int.parse(numStr);
-      final currentLength = numStr.length + 2; // digits + ". "
-      return _ListPrefixResult(
-        currentLength: currentLength,
-        continuation: '${num + 1}. ',
-      );
-    }
-    return null;
+  static int _listPrefixLength(String line) {
+    final task = RegExp(r'^(- \[[ x]\] )').firstMatch(line);
+    if (task != null) return task.group(1)!.length;
+    final unordered = RegExp(r'^([-*] )').firstMatch(line);
+    if (unordered != null) return unordered.group(1)!.length;
+    final ordered = RegExp(r'^(\d+\. )').firstMatch(line);
+    if (ordered != null) return ordered.group(1)!.length;
+    return 0;
+  }
+
+  void _onBlockChanged(int i, String newContent) {
+    _blocks[i] = newContent;
+    widget.onChanged?.call(BlockSplitter.join(_blocks));
+  }
+
+  void _onEnterAtEnd(int i) {
+    setState(() {
+      _blocks.insert(i + 1, '');
+      _autofocusIndex = i + 1;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _autofocusIndex = null);
+    });
+  }
+
+  void _onMergeWithPrevious(int i) {
+    if (i == 0) return;
+    setState(() {
+      _blocks[i - 1] = '${_blocks[i - 1]}\n${_blocks[i]}';
+      _blocks.removeAt(i);
+      _autofocusIndex = i - 1;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _autofocusIndex = null);
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      controller: _textController,
-      focusNode: _focusNode,
-      autofocus: widget.autofocus,
-      maxLines: null,
-      expands: true,
-      textAlignVertical: TextAlignVertical.top,
-      style: widget.config.textStyle,
-      decoration: InputDecoration(
-        border: InputBorder.none,
-        contentPadding: widget.config.contentPadding,
-      ),
-      onChanged: widget.onChanged,
+    if (_plainTextMode) {
+      return TextField(
+        controller: _textController,
+        focusNode: _focusNode,
+        autofocus: widget.autofocus,
+        maxLines: null,
+        expands: true,
+        textAlignVertical: TextAlignVertical.top,
+        style: widget.config.textStyle,
+        decoration: InputDecoration(
+          border: InputBorder.none,
+          contentPadding: widget.config.contentPadding,
+        ),
+        onChanged: widget.onChanged,
+      );
+    }
+
+    return ListView.builder(
+      itemCount: _blocks.length,
+      itemBuilder: (context, i) {
+        return MarkdownBlock(
+          key: ValueKey('$_resetCounter-$i'),
+          content: _blocks[i],
+          config: widget.config,
+          autofocus: i == _autofocusIndex,
+          onChanged: (c) => _onBlockChanged(i, c),
+          onFocused: widget.controller?._setActiveTextController,
+          onUnfocused: () => widget.controller?._setActiveTextController(null),
+          onEnterAtEnd: () => _onEnterAtEnd(i),
+          onMergeWithPrevious: i == 0 ? null : () => _onMergeWithPrevious(i),
+        );
+      },
     );
   }
-}
-
-class _ListPrefixResult {
-  const _ListPrefixResult(
-      {required this.currentLength, required this.continuation});
-  final int currentLength;
-  final String continuation;
 }
