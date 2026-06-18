@@ -18,14 +18,15 @@ class ShareHandler {
   }
 }
 
-/// Overridable platform check. Override with false in tests to simulate non-Android.
-final isAndroidProvider = Provider<bool>((ref) => Platform.isAndroid);
+/// Overridable platform check. Override with false in tests to simulate non-mobile.
+final isMobileProvider =
+    Provider<bool>((ref) => Platform.isAndroid || Platform.isIOS);
 
 /// Emits shared text when another app shares into QuKi-Notes, then null after
 /// the intent is consumed. Null emissions are a reset signal — listeners should
 /// only act on non-null values.
 final shareStreamProvider = StreamProvider<String?>((ref) async* {
-  if (!ref.read(isAndroidProvider)) return;
+  if (!ref.read(isMobileProvider)) return;
 
   // Cold start: text shared while the app was not running.
   final initial = await ReceiveSharingIntent.instance.getInitialMedia();

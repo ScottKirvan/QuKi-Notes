@@ -67,12 +67,12 @@ void main() {
 
   group('platform guard', () {
     test(
-        'shareStreamProvider emits nothing when not on Android '
+        'shareStreamProvider emits nothing when not on mobile '
         '— regression: Platform guard missing', () async {
       // FIXME: failing — guard not yet implemented; shareStreamProvider calls
       // ReceiveSharingIntent regardless of platform. On real Windows/Linux this
       // causes MissingPluginException at runtime; here mock values prove that
-      // RSI is still invoked even when isAndroidProvider=false.
+      // RSI is still invoked even when isMobileProvider=false.
       ReceiveSharingIntent.setMockValues(
         initialMedia: [
           SharedMediaFile(
@@ -82,7 +82,7 @@ void main() {
       );
 
       final container = ProviderContainer(
-        overrides: [isAndroidProvider.overrideWithValue(false)],
+        overrides: [isMobileProvider.overrideWithValue(false)],
       );
       addTearDown(container.dispose);
 
@@ -134,7 +134,7 @@ void main() {
       await tester.pumpWidget(ProviderScope(
         overrides: [
           quKiStorageProvider.overrideWithValue(storage),
-          isAndroidProvider.overrideWithValue(true),
+          isMobileProvider.overrideWithValue(true),
         ],
         child: const MaterialApp(home: EditorScreen()),
       ));

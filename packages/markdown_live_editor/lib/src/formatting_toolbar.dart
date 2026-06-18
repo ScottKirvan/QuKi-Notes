@@ -44,7 +44,7 @@ class FormattingToolbar extends StatelessWidget {
               onPressed: () => controller.toggleLinePrefix('- [ ] '),
             ),
             const Spacer(),
-            if (Platform.isAndroid)
+            if (Platform.isAndroid || Platform.isIOS)
               IconButton(
                 icon: const Icon(LucideIcons.keyboardOff),
                 tooltip: 'Dismiss keyboard',
