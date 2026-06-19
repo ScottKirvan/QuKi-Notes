@@ -7,19 +7,25 @@ import 'markdown_block.dart';
 class MarkdownEditorController {
   _MarkdownEditorState? _state;
   TextEditingController? _activeTextController;
+  ValueChanged<String>? _activeOnChanged;
 
   void _attach(_MarkdownEditorState state) {
     _state = state;
-    if (state._plainTextMode) _activeTextController = state._textController;
+    if (state._plainTextMode) {
+      _activeTextController = state._textController;
+      _activeOnChanged = (text) => state.widget.onChanged?.call(text);
+    }
   }
 
   void _detach() {
     _state = null;
     _activeTextController = null;
+    _activeOnChanged = null;
   }
 
-  void _setActiveTextController(TextEditingController? tc) {
+  void _setActive(TextEditingController? tc, ValueChanged<String>? onChanged) {
     _activeTextController = tc;
+    _activeOnChanged = onChanged;
   }
 
   String get currentValue => _state?.currentValue ?? '';
@@ -43,7 +49,7 @@ class MarkdownEditorController {
         offset: sel.start + prefix.length + selected.length + suffix.length,
       ),
     );
-    _state?._notifyChanged(newText);
+    _activeOnChanged?.call(newText);
   }
 
   void toggleLinePrefix(String prefix) {
@@ -70,7 +76,7 @@ class MarkdownEditorController {
       text: newText,
       selection: TextSelection.collapsed(offset: newOffset),
     );
-    _state?._notifyChanged(newText);
+    _activeOnChanged?.call(newText);
   }
 
   void toggleUnorderedList() {
@@ -99,7 +105,7 @@ class MarkdownEditorController {
       text: newText,
       selection: TextSelection.collapsed(offset: newOffset),
     );
-    _state?._notifyChanged(newText);
+    _activeOnChanged?.call(newText);
   }
 
   void toggleOrderedList() {
@@ -128,7 +134,7 @@ class MarkdownEditorController {
       text: newText,
       selection: TextSelection.collapsed(offset: newOffset),
     );
-    _state?._notifyChanged(newText);
+    _activeOnChanged?.call(newText);
   }
 
   void dismissKeyboard() => FocusManager.instance.primaryFocus?.unfocus();
@@ -213,10 +219,8 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     _textController.value = TextEditingValue(text: value);
     _previousValue = _textController.value;
     _suppressListener = false;
-    widget.controller?._setActiveTextController(null);
+    widget.controller?._setActive(null, null);
   }
-
-  void _notifyChanged(String value) => widget.onChanged?.call(value);
 
   void _togglePlainTextMode() {
     if (_plainTextMode) {
@@ -224,7 +228,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
         _blocks = BlockSplitter.split(_textController.text);
         _plainTextMode = false;
       });
-      widget.controller?._setActiveTextController(null);
+      widget.controller?._setActive(null, null);
     } else {
       final joined = BlockSplitter.join(_blocks);
       _suppressListener = true;
@@ -232,7 +236,10 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
       _previousValue = _textController.value;
       _suppressListener = false;
       setState(() => _plainTextMode = true);
-      widget.controller?._setActiveTextController(_textController);
+      widget.controller?._setActive(
+        _textController,
+        (text) => widget.onChanged?.call(text),
+      );
     }
   }
 
@@ -315,6 +322,14 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     });
   }
 
+  void _activateLastBlock() {
+    if (_blocks.isEmpty) return;
+    setState(() => _autofocusIndex = _blocks.length - 1);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _autofocusIndex = null);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_plainTextMode) {
@@ -334,21 +349,30 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
       );
     }
 
-    return ListView.builder(
-      itemCount: _blocks.length,
-      itemBuilder: (context, i) {
-        return MarkdownBlock(
-          key: ValueKey('$_resetCounter-$i'),
-          content: _blocks[i],
-          config: widget.config,
-          autofocus: i == _autofocusIndex,
-          onChanged: (c) => _onBlockChanged(i, c),
-          onFocused: widget.controller?._setActiveTextController,
-          onUnfocused: () => widget.controller?._setActiveTextController(null),
-          onEnterAtEnd: () => _onEnterAtEnd(i),
-          onMergeWithPrevious: i == 0 ? null : () => _onMergeWithPrevious(i),
-        );
-      },
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: _activateLastBlock,
+      child: ListView.builder(
+        itemCount: _blocks.length,
+        itemBuilder: (context, i) {
+          return MarkdownBlock(
+            key: ValueKey('$_resetCounter-$i'),
+            content: _blocks[i],
+            config: widget.config,
+            autofocus: i == _autofocusIndex,
+            onChanged: (c) => _onBlockChanged(i, c),
+            onFocused: widget.controller == null
+                ? null
+                : (tc) => widget.controller!._setActive(
+                      tc,
+                      (text) => _onBlockChanged(i, text),
+                    ),
+            onUnfocused: () => widget.controller?._setActive(null, null),
+            onEnterAtEnd: () => _onEnterAtEnd(i),
+            onMergeWithPrevious: i == 0 ? null : () => _onMergeWithPrevious(i),
+          );
+        },
+      ),
     );
   }
 }
