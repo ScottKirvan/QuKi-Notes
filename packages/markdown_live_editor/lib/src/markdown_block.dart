@@ -35,15 +35,19 @@ class _MarkdownBlockState extends State<MarkdownBlock> {
   late final TextEditingController _textController;
   late final FocusNode _focusNode;
   late bool _editing;
+  TextEditingValue _previousValue = TextEditingValue.empty;
+  bool _suppressListener = false;
 
   @override
   void initState() {
     super.initState();
     _textController = TextEditingController(text: widget.content);
+    _previousValue = _textController.value;
     _focusNode = FocusNode();
     _focusNode.addListener(_onFocusChanged);
-    // Start in edit mode immediately when autofocused so the TextField is
-    // visible on the very first frame — avoids an invisible blank render view.
+    _textController.addListener(_onTextChanged);
+    // Start in edit mode immediately when autofocused so the first frame shows
+    // a TextField — avoids an invisible blank render view on new notes.
     _editing = widget.autofocus;
     if (widget.autofocus) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -57,6 +61,7 @@ class _MarkdownBlockState extends State<MarkdownBlock> {
 
   @override
   void dispose() {
+    _textController.removeListener(_onTextChanged);
     _focusNode.removeListener(_onFocusChanged);
     _focusNode.dispose();
     _textController.dispose();
@@ -72,7 +77,10 @@ class _MarkdownBlockState extends State<MarkdownBlock> {
       });
     }
     if (!_editing && widget.content != oldWidget.content) {
+      _suppressListener = true;
       _textController.text = widget.content;
+      _previousValue = _textController.value;
+      _suppressListener = false;
     }
   }
 
@@ -88,6 +96,61 @@ class _MarkdownBlockState extends State<MarkdownBlock> {
     setState(() => _editing = true);
     _focusNode.requestFocus();
     widget.onFocused?.call(_textController);
+  }
+
+  // List auto-continue: mirrors the plain-text mode logic in _MarkdownEditorState.
+  void _onTextChanged() {
+    if (_suppressListener) return;
+
+    final current = _textController.value;
+    final previous = _previousValue;
+    _previousValue = current;
+
+    if (current.text.length != previous.text.length + 1) return;
+    final cursor = current.selection.baseOffset;
+    if (cursor < 1) return;
+    if (current.text[cursor - 1] != '\n') return;
+
+    final insertPos = cursor - 1;
+    final lineStart = current.text.lastIndexOf('\n', insertPos - 1) + 1;
+    final completedLine = current.text.substring(lineStart, insertPos);
+
+    final continuation = BlockSplitter.listContinuation(completedLine);
+    if (continuation == null) return;
+
+    final prefixLength = _listPrefixLength(completedLine);
+    final content = completedLine.substring(prefixLength);
+    if (content.isEmpty) {
+      // Empty list item → exit list.
+      final newText = current.text.replaceRange(lineStart, insertPos + 1, '\n');
+      _setValueSilently(newText, lineStart + 1);
+      widget.onChanged(newText);
+      return;
+    }
+
+    final newText = current.text.replaceRange(cursor, cursor, continuation);
+    _setValueSilently(newText, cursor + continuation.length);
+    widget.onChanged(newText);
+  }
+
+  void _setValueSilently(String text, int cursorOffset) {
+    _suppressListener = true;
+    _textController.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: cursorOffset),
+    );
+    _previousValue = _textController.value;
+    _suppressListener = false;
+  }
+
+  static int _listPrefixLength(String line) {
+    final task = RegExp(r'^(- \[[ x]\] )').firstMatch(line);
+    if (task != null) return task.group(1)!.length;
+    final unordered = RegExp(r'^([-*] )').firstMatch(line);
+    if (unordered != null) return unordered.group(1)!.length;
+    final ordered = RegExp(r'^(\d+\. )').firstMatch(line);
+    if (ordered != null) return ordered.group(1)!.length;
+    return 0;
   }
 
   bool _isListBlock(String text) {
@@ -127,6 +190,9 @@ class _MarkdownBlockState extends State<MarkdownBlock> {
         child: TextField(
           controller: _textController,
           focusNode: _focusNode,
+          // autofocus raises the soft keyboard on Android/iOS when the block
+          // was created with autofocus: true.
+          autofocus: widget.autofocus,
           maxLines: null,
           style: widget.config.textStyle,
           decoration: InputDecoration(
