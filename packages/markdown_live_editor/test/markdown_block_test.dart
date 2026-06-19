@@ -74,10 +74,8 @@ void main() {
       await tester.pumpWidget(_buildBlock(
         content: '',
         onChanged: changes.add,
+        autofocus: true,
       ));
-
-      await tester.tap(find.byType(MarkdownBody));
-      await tester.pump();
 
       await tester.enterText(find.byType(TextField), 'typed');
       await tester.pump();
@@ -192,14 +190,13 @@ void main() {
   });
 
   group('MarkdownBlock autofocus', () {
-    testWidgets('autofocus: true enters edit mode on first build',
+    testWidgets('autofocus: true shows TextField on the very first frame',
         (tester) async {
       await tester.pumpWidget(_buildBlock(
         content: 'hello',
         autofocus: true,
       ));
-      await tester.pump(); // postFrameCallback fires
-
+      // No pump needed — _editing starts true, TextField is in first build.
       expect(find.byType(TextField), findsOneWidget);
     });
   });
