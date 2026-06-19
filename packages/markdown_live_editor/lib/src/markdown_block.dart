@@ -205,6 +205,13 @@ class _MarkdownBlockState extends State<MarkdownBlock> {
                     p: widget.config.textStyle,
                   ),
                   softLineBreak: true,
+                  checkboxBuilder: (bool checked) => Padding(
+                    padding: const EdgeInsetsDirectional.only(end: 4),
+                    child: Icon(
+                      checked ? Icons.check_box : Icons.check_box_outline_blank,
+                      size: 18,
+                    ),
+                  ),
                 ),
         ),
       ),
