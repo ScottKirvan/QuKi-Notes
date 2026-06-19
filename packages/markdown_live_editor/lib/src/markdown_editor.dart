@@ -179,6 +179,10 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   // Incremented on setValue() to force-recreate all MarkdownBlock widgets,
   // discarding any in-progress edit state when content is switched externally.
   int _resetCounter = 0;
+  // Index of the block currently in edit mode, or null when no block is
+  // editing.  Used by _tappedEmptySpace to decide whether to unfocus (render)
+  // or activate the last block (enter edit mode).
+  int? _activeEditIndex;
 
   @override
   void initState() {
@@ -212,6 +216,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
       _plainTextMode ? _textController.text : BlockSplitter.join(_blocks);
 
   void setValue(String value) {
+    _activeEditIndex = null;
     setState(() {
       _blocks = BlockSplitter.split(value);
       _autofocusIndex = null;
@@ -225,6 +230,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   }
 
   void _togglePlainTextMode() {
+    _activeEditIndex = null;
     if (_plainTextMode) {
       setState(() {
         _blocks = BlockSplitter.split(_textController.text);
@@ -332,6 +338,17 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     });
   }
 
+  // Tap on the empty space below all blocks.
+  // If a block is editing: unfocus so it renders.
+  // If nothing is editing: enter the last block so the user can start typing.
+  void _tappedEmptySpace() {
+    if (_activeEditIndex != null) {
+      FocusManager.instance.primaryFocus?.unfocus();
+    } else {
+      _activateLastBlock();
+    }
+  }
+
   void _requestFocus() {
     if (_plainTextMode) {
       _focusNode.requestFocus();
@@ -378,13 +395,15 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
               config: widget.config,
               autofocus: i == _autofocusIndex,
               onChanged: (c) => _onBlockChanged(i, c),
-              onFocused: widget.controller == null
-                  ? null
-                  : (tc) => widget.controller!._setActive(
-                        tc,
-                        (text) => _onBlockChanged(i, text),
-                      ),
-              onUnfocused: () => widget.controller?._setActive(null, null),
+              onFocused: (tc) {
+                _activeEditIndex = i;
+                widget.controller
+                    ?._setActive(tc, (text) => _onBlockChanged(i, text));
+              },
+              onUnfocused: () {
+                if (_activeEditIndex == i) _activeEditIndex = null;
+                widget.controller?._setActive(null, null);
+              },
               onEnterAtEnd: () => _onEnterAtEnd(i),
               onMergeWithPrevious:
                   i == 0 ? null : () => _onMergeWithPrevious(i),
@@ -396,7 +415,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
           hasScrollBody: false,
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
-            onTap: _activateLastBlock,
+            onTap: _tappedEmptySpace,
             child: const SizedBox.expand(),
           ),
         ),
