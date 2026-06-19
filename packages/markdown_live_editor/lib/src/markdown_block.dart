@@ -34,7 +34,7 @@ class MarkdownBlock extends StatefulWidget {
 class _MarkdownBlockState extends State<MarkdownBlock> {
   late final TextEditingController _textController;
   late final FocusNode _focusNode;
-  bool _editing = false;
+  late bool _editing;
 
   @override
   void initState() {
@@ -42,9 +42,15 @@ class _MarkdownBlockState extends State<MarkdownBlock> {
     _textController = TextEditingController(text: widget.content);
     _focusNode = FocusNode();
     _focusNode.addListener(_onFocusChanged);
+    // Start in edit mode immediately when autofocused so the TextField is
+    // visible on the very first frame — avoids an invisible blank render view.
+    _editing = widget.autofocus;
     if (widget.autofocus) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _enterEditMode();
+        if (mounted) {
+          _focusNode.requestFocus();
+          widget.onFocused?.call(_textController);
+        }
       });
     }
   }
@@ -135,14 +141,20 @@ class _MarkdownBlockState extends State<MarkdownBlock> {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: _enterEditMode,
-      child: Padding(
-        padding: widget.config.contentPadding,
-        child: MarkdownBody(
-          data: widget.content.isEmpty ? '​' : widget.content,
-          styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
-            p: widget.config.textStyle,
-          ),
-          softLineBreak: true,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 44),
+        child: Padding(
+          padding: widget.config.contentPadding,
+          child: widget.content.isEmpty
+              ? const SizedBox.shrink()
+              : MarkdownBody(
+                  data: widget.content,
+                  styleSheet:
+                      MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
+                    p: widget.config.textStyle,
+                  ),
+                  softLineBreak: true,
+                ),
         ),
       ),
     );
