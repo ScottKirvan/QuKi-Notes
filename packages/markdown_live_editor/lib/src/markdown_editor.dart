@@ -138,6 +138,8 @@ class MarkdownEditorController {
   }
 
   void dismissKeyboard() => FocusManager.instance.primaryFocus?.unfocus();
+
+  void requestFocus() => _state?._requestFocus();
 }
 
 class MarkdownEditor extends StatefulWidget {
@@ -330,6 +332,18 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     });
   }
 
+  void _requestFocus() {
+    if (_plainTextMode) {
+      _focusNode.requestFocus();
+      return;
+    }
+    if (_blocks.isEmpty) return;
+    setState(() => _autofocusIndex = 0);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _autofocusIndex = null);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_plainTextMode) {
@@ -349,30 +363,44 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
       );
     }
 
-    return GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onTap: _activateLastBlock,
-      child: ListView.builder(
-        itemCount: _blocks.length,
-        itemBuilder: (context, i) {
-          return MarkdownBlock(
-            key: ValueKey('$_resetCounter-$i'),
-            content: _blocks[i],
-            config: widget.config,
-            autofocus: i == _autofocusIndex,
-            onChanged: (c) => _onBlockChanged(i, c),
-            onFocused: widget.controller == null
-                ? null
-                : (tc) => widget.controller!._setActive(
-                      tc,
-                      (text) => _onBlockChanged(i, text),
-                    ),
-            onUnfocused: () => widget.controller?._setActive(null, null),
-            onEnterAtEnd: () => _onEnterAtEnd(i),
-            onMergeWithPrevious: i == 0 ? null : () => _onMergeWithPrevious(i),
-          );
-        },
-      ),
+    // CustomScrollView with SliverFillRemaining keeps the "tap empty space →
+    // activate last block" affordance without interfering with individual block
+    // taps.  A translucent outer GestureDetector fires on BOTH the block tap
+    // and the empty-space tap (double-fire), which caused _activateLastBlock to
+    // steal _activeTextController from the tapped block.
+    return CustomScrollView(
+      slivers: [
+        SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, i) => MarkdownBlock(
+              key: ValueKey('$_resetCounter-$i'),
+              content: _blocks[i],
+              config: widget.config,
+              autofocus: i == _autofocusIndex,
+              onChanged: (c) => _onBlockChanged(i, c),
+              onFocused: widget.controller == null
+                  ? null
+                  : (tc) => widget.controller!._setActive(
+                        tc,
+                        (text) => _onBlockChanged(i, text),
+                      ),
+              onUnfocused: () => widget.controller?._setActive(null, null),
+              onEnterAtEnd: () => _onEnterAtEnd(i),
+              onMergeWithPrevious:
+                  i == 0 ? null : () => _onMergeWithPrevious(i),
+            ),
+            childCount: _blocks.length,
+          ),
+        ),
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _activateLastBlock,
+            child: const SizedBox.expand(),
+          ),
+        ),
+      ],
     );
   }
 }

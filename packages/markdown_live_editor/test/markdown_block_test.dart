@@ -118,31 +118,6 @@ void main() {
   });
 
   group('MarkdownBlock keyboard callbacks', () {
-    testWidgets(
-        'onEnterAtEnd fires when Enter pressed at end of non-list block',
-        (tester) async {
-      var enterAtEndCalled = false;
-
-      await tester.pumpWidget(_buildBlock(
-        content: 'hello',
-        onEnterAtEnd: () => enterAtEndCalled = true,
-      ));
-
-      await tester.tap(find.byType(MarkdownBody));
-      await tester.pump();
-
-      // Move cursor to end.
-      final tf = tester.widget<TextField>(find.byType(TextField));
-      tf.controller!.selection =
-          TextSelection.collapsed(offset: tf.controller!.text.length);
-      await tester.pump();
-
-      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-      await tester.pump();
-
-      expect(enterAtEndCalled, isTrue);
-    });
-
     testWidgets('onMergeWithPrevious fires on Backspace at position 0',
         (tester) async {
       var mergeCalled = false;
@@ -164,28 +139,6 @@ void main() {
       await tester.pump();
 
       expect(mergeCalled, isTrue);
-    });
-
-    testWidgets('onEnterAtEnd does NOT fire for list blocks', (tester) async {
-      var enterAtEndCalled = false;
-
-      await tester.pumpWidget(_buildBlock(
-        content: '- list item',
-        onEnterAtEnd: () => enterAtEndCalled = true,
-      ));
-
-      await tester.tap(find.byType(MarkdownBody));
-      await tester.pump();
-
-      final tf = tester.widget<TextField>(find.byType(TextField));
-      tf.controller!.selection =
-          TextSelection.collapsed(offset: tf.controller!.text.length);
-      await tester.pump();
-
-      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
-      await tester.pump();
-
-      expect(enterAtEndCalled, isFalse);
     });
   });
 

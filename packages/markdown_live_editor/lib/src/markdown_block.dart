@@ -153,12 +153,6 @@ class _MarkdownBlockState extends State<MarkdownBlock> {
     return 0;
   }
 
-  bool _isListBlock(String text) {
-    final firstLine =
-        text.contains('\n') ? text.substring(0, text.indexOf('\n')) : text;
-    return BlockSplitter.listContinuation(firstLine) != null;
-  }
-
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
@@ -166,15 +160,6 @@ class _MarkdownBlockState extends State<MarkdownBlock> {
       final sel = _textController.selection;
       if (sel.isCollapsed && sel.baseOffset == 0) {
         widget.onMergeWithPrevious?.call();
-        return KeyEventResult.handled;
-      }
-    }
-
-    if (event.logicalKey == LogicalKeyboardKey.enter) {
-      final text = _textController.text;
-      final offset = _textController.selection.baseOffset;
-      if (offset == text.length && !_isListBlock(text)) {
-        widget.onEnterAtEnd?.call();
         return KeyEventResult.handled;
       }
     }

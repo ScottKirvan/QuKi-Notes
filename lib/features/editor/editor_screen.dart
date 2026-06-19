@@ -118,6 +118,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     }
 
     _editorController.setValue(body);
+    if (qukiId == null) _editorController.requestFocus();
     _autoSave.resetForQuki(id: qukiId, initialBody: body);
   }
 
@@ -126,6 +127,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       await _autoSave.flush();
       if (!mounted) return;
       _editorController.setValue('');
+      _editorController.requestFocus();
       _autoSave.resetForQuki(id: null);
     } else {
       ref.read(activeQukiIdProvider.notifier).setId(null);
