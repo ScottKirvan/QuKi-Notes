@@ -35,6 +35,8 @@ flutter_launcher_icons:
   android: true
   ios: true
   image_path: "media/QuKiNotesColorIcon.png"
+  adaptive_icon_background: "#371991"
+  adaptive_icon_foreground: "media/QuKiNotesColorIcon.png"
   windows:
     generate: true
     image_path: "media/QuKiNotesColorIcon.png"
