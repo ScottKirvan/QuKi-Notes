@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.11.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.10.1...v0.11.0) (2026-06-20)
+
+
+### Features
+
+* **editor:** block-flip WYSIWYG rendering (ADR-26 stage 3) ([c3e42b1](https://github.com/ScottKirvan/QuKi-Notes/commit/c3e42b12ad6f01c93ae94befe4c4ec8c51d3590c))
+
+
+### Bug Fixes
+
+* **editor:** autofocus block enters edit mode on first frame (ADR-26 stage 3) ([b71cbf4](https://github.com/ScottKirvan/QuKi-Notes/commit/b71cbf4a42080ade2057acb1fcdcf7bad8d67998))
+* **editor:** checkbox rendering, block stuck in edit mode (ADR-26 stage 3) ([c66c908](https://github.com/ScottKirvan/QuKi-Notes/commit/c66c9087d242c35bfcfbfdb2c92b24dd5d1cda5f))
+* **editor:** guard MarkdownBody against bare list-prefix blocks ([c4b0a6c](https://github.com/ScottKirvan/QuKi-Notes/commit/c4b0a6cda8f05a58e4ef403e1537c6ba54f557ce))
+* **editor:** new-note focus, toolbar on existing notes, double Enter (ADR-26 stage 3) ([683ae04](https://github.com/ScottKirvan/QuKi-Notes/commit/683ae04eebb63e0ed1e93637c1f50d17d61e6796))
+* **editor:** reduce block spacing, prevent double-split on Android IME ([16fce2d](https://github.com/ScottKirvan/QuKi-Notes/commit/16fce2d8eea3b94e09dc2323335cd173f962be9e))
+* **editor:** remove minHeight from non-empty blocks to fix double-spacing (ADR-26 stage 3) ([35d8548](https://github.com/ScottKirvan/QuKi-Notes/commit/35d8548a5382004589fe3c9a920874b254b56306))
+* **editor:** render bare list markers via zero-width space instead of blank ([1546f30](https://github.com/ScottKirvan/QuKi-Notes/commit/1546f305685ee46b9c0ab0f3abba3cfd3fc522da))
+* **editor:** toolbar, autofocus keyboard, list auto-continue (ADR-26 stage 3) ([4b92fda](https://github.com/ScottKirvan/QuKi-Notes/commit/4b92fda653a9e95ffccdfd13e2ac7c0fcdf60106))
+
 ## [0.10.1](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.10.0...v0.10.1) (2026-06-18)
 
 
