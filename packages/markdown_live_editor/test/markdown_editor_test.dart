@@ -20,7 +20,7 @@ void main() {
       expect(controller.currentValue, 'hello world');
     });
 
-    testWidgets('setValue updates the displayed text', (tester) async {
+    testWidgets('setValue updates currentValue', (tester) async {
       final controller = MarkdownEditorController();
 
       await tester.pumpWidget(MaterialApp(
@@ -36,7 +36,6 @@ void main() {
       await tester.pump();
 
       expect(controller.currentValue, 'updated text');
-      expect(find.text('updated text'), findsOneWidget);
     });
 
     testWidgets('setValue is a no-op when value is unchanged', (tester) async {
@@ -57,30 +56,77 @@ void main() {
       expect(controller.currentValue, 'same');
     });
 
-    test('plainTextMode is always true in Stage 1', () {
+    test('plainTextMode defaults to false (block mode)', () {
       final controller = MarkdownEditorController();
-      expect(controller.plainTextMode, isTrue);
+      expect(controller.plainTextMode, isFalse);
     });
 
-    test('togglePlainTextMode is a no-op in Stage 1', () {
+    testWidgets('togglePlainTextMode switches between block and plain-text',
+        (tester) async {
       final controller = MarkdownEditorController();
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: MarkdownEditor(
+            initialValue: 'hello',
+            controller: controller,
+          ),
+        ),
+      ));
+
+      expect(controller.plainTextMode, isFalse);
+
       controller.togglePlainTextMode();
+      await tester.pump();
       expect(controller.plainTextMode, isTrue);
+
+      controller.togglePlainTextMode();
+      await tester.pump();
+      expect(controller.plainTextMode, isFalse);
+    });
+
+    testWidgets('content is preserved across plain-text toggle',
+        (tester) async {
+      final controller = MarkdownEditorController();
+
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: MarkdownEditor(
+            initialValue: 'some text',
+            controller: controller,
+          ),
+        ),
+      ));
+
+      controller.togglePlainTextMode();
+      await tester.pump();
+      expect(controller.currentValue, 'some text');
+
+      controller.togglePlainTextMode();
+      await tester.pump();
+      expect(controller.currentValue, 'some text');
     });
   });
 
   group('MarkdownEditor onChanged', () {
-    testWidgets('fires onChanged when text changes', (tester) async {
+    testWidgets('fires onChanged when text changes in plain-text mode',
+        (tester) async {
+      final controller = MarkdownEditorController();
       final changes = <String>[];
 
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(
           body: MarkdownEditor(
             initialValue: '',
+            controller: controller,
             onChanged: changes.add,
           ),
         ),
       ));
+
+      // Switch to plain-text mode so we can type into the single TextField.
+      controller.togglePlainTextMode();
+      await tester.pump();
 
       await tester.enterText(find.byType(TextField), 'new text');
       await tester.pump();
@@ -106,31 +152,38 @@ void main() {
       controller.setValue('programmatic');
       await tester.pump();
 
-      // setValue uses TextEditingValue directly, bypassing onChanged.
       expect(changes, isEmpty);
     });
   });
 
   group('MarkdownEditor widget structure', () {
-    testWidgets('renders a TextField', (tester) async {
+    testWidgets('renders MarkdownBlock widgets in block mode', (tester) async {
       await tester.pumpWidget(const MaterialApp(
         home: Scaffold(
-          body: MarkdownEditor(initialValue: ''),
+          body: MarkdownEditor(initialValue: 'hello'),
         ),
       ));
 
-      expect(find.byType(TextField), findsOneWidget);
+      expect(find.byType(MarkdownBlock), findsOneWidget);
     });
 
-    testWidgets('TextField has null maxLines (unlimited)', (tester) async {
-      await tester.pumpWidget(const MaterialApp(
+    testWidgets('renders a single TextField in plain-text mode',
+        (tester) async {
+      final controller = MarkdownEditorController();
+
+      await tester.pumpWidget(MaterialApp(
         home: Scaffold(
-          body: MarkdownEditor(initialValue: ''),
+          body: MarkdownEditor(
+            initialValue: '',
+            controller: controller,
+          ),
         ),
       ));
 
-      final tf = tester.widget<TextField>(find.byType(TextField));
-      expect(tf.maxLines, isNull);
+      controller.togglePlainTextMode();
+      await tester.pump();
+
+      expect(find.byType(TextField), findsOneWidget);
     });
 
     testWidgets('controller detaches on dispose', (tester) async {
@@ -150,7 +203,6 @@ void main() {
       await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
       await tester.pump();
 
-      // After dispose the state is detached — returns empty string.
       expect(controller.currentValue, '');
     });
   });

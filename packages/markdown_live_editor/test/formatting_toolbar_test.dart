@@ -3,7 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:markdown_live_editor/markdown_live_editor.dart';
 
-// Helper: pump the editor with an initial value and return the controller.
+// Helper: pump the editor in plain-text mode so tests can access the single
+// TextField and set selection directly. Toolbar formatting operations are
+// mode-agnostic; block rendering is covered by markdown_block_test.dart.
 Future<MarkdownEditorController> pumpEditor(
   WidgetTester tester, {
   String initialValue = '',
@@ -24,6 +26,8 @@ Future<MarkdownEditorController> pumpEditor(
       ),
     ),
   ));
+  await tester.pump();
+  controller.togglePlainTextMode();
   await tester.pump();
   return controller;
 }
@@ -218,36 +222,43 @@ void main() {
   });
 
   group('dismissKeyboard', () {
-    testWidgets('unfocuses the internal FocusNode', (tester) async {
+    testWidgets('exits edit mode and returns block to render view',
+        (tester) async {
       final controller = MarkdownEditorController();
-      final focusSpy = FocusNode();
 
       await tester.pumpWidget(MaterialApp(
         home: Scaffold(
-          body: MarkdownEditor(
-            initialValue: '',
-            controller: controller,
-            focusNode: focusSpy,
-            autofocus: true,
+          body: Column(
+            children: [
+              Expanded(
+                child: MarkdownEditor(
+                  initialValue: 'hello',
+                  controller: controller,
+                ),
+              ),
+              FormattingToolbar(controller: controller),
+            ],
           ),
         ),
       ));
       await tester.pump();
 
-      // Confirm focus is held
-      expect(focusSpy.hasFocus, isTrue);
+      // Tap block to enter edit mode.
+      await tester.tap(find.byType(MarkdownBlock));
+      await tester.pump();
+      expect(find.byType(TextField), findsOneWidget);
 
       controller.dismissKeyboard();
       await tester.pump();
 
-      expect(focusSpy.hasFocus, isFalse);
-
-      focusSpy.dispose();
+      // Block should return to render mode.
+      expect(find.byType(TextField), findsNothing);
     });
   });
 
   group('toggleUnorderedList', () {
-    testWidgets('adds "- " prefix when line has no list marker', (tester) async {
+    testWidgets('adds "- " prefix when line has no list marker',
+        (tester) async {
       final controller = await pumpEditor(tester, initialValue: 'plain item');
       final tf = tester.widget<TextField>(find.byType(TextField));
       tf.controller!.selection = const TextSelection.collapsed(offset: 5);
@@ -271,7 +282,8 @@ void main() {
       expect(controller.currentValue, 'plain item');
     });
 
-    testWidgets('strips full task list prefix when toggling off', (tester) async {
+    testWidgets('strips full task list prefix when toggling off',
+        (tester) async {
       final controller =
           await pumpEditor(tester, initialValue: '- [ ] task item');
       final tf = tester.widget<TextField>(find.byType(TextField));
@@ -312,7 +324,8 @@ void main() {
     });
 
     testWidgets('removes ordered prefix regardless of number', (tester) async {
-      final controller = await pumpEditor(tester, initialValue: '3. third item');
+      final controller =
+          await pumpEditor(tester, initialValue: '3. third item');
       final tf = tester.widget<TextField>(find.byType(TextField));
       tf.controller!.selection = const TextSelection.collapsed(offset: 5);
       await tester.pump();

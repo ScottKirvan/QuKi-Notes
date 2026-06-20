@@ -118,6 +118,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     }
 
     _editorController.setValue(body);
+    if (qukiId == null) _editorController.requestFocus();
     _autoSave.resetForQuki(id: qukiId, initialBody: body);
   }
 
@@ -126,6 +127,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       await _autoSave.flush();
       if (!mounted) return;
       _editorController.setValue('');
+      _editorController.requestFocus();
       _autoSave.resetForQuki(id: null);
     } else {
       ref.read(activeQukiIdProvider.notifier).setId(null);
@@ -256,6 +258,13 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           onPressed: hasQukis ? _openQuKisList : null,
         ),
         actions: [
+          IconButton(
+            icon: const Icon(LucideIcons.type),
+            tooltip:
+                _editorController.plainTextMode ? 'Block mode' : 'Plain text',
+            onPressed: () =>
+                setState(() => _editorController.togglePlainTextMode()),
+          ),
           IconButton(
             icon: const Icon(LucideIcons.plus),
             tooltip: 'New QuKi',

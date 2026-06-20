@@ -415,6 +415,11 @@ void main() {
       await tester.pump();
       await tester.pump();
 
+      // In block mode the content is rendered via MarkdownBlock, not a bare
+      // TextField. Tap the block to enter edit mode and confirm the text.
+      await tester.tap(find.byType(MarkdownBlock).first);
+      await tester.pump();
+
       final tf = tester.widget<TextField>(find.byType(TextField));
       expect(tf.controller!.text, 'switched content',
           reason: 'Editor must display the loaded QuKi body after switch');
