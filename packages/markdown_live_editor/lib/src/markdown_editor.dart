@@ -176,6 +176,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   late List<String> _blocks;
   bool _plainTextMode = false;
   int? _autofocusIndex;
+  bool _autofocusAtEnd = false;
   // Incremented on setValue() to force-recreate all MarkdownBlock widgets,
   // discarding any in-progress edit state when content is switched externally.
   int _resetCounter = 0;
@@ -333,6 +334,33 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     });
   }
 
+  void _onArrowDownAtEnd(int i) {
+    if (i >= _blocks.length - 1) return;
+    setState(() {
+      _autofocusIndex = i + 1;
+      _autofocusAtEnd = false;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _autofocusIndex = null);
+    });
+  }
+
+  void _onArrowUpAtStart(int i) {
+    if (i <= 0) return;
+    setState(() {
+      _autofocusIndex = i - 1;
+      _autofocusAtEnd = true;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        setState(() {
+          _autofocusIndex = null;
+          _autofocusAtEnd = false;
+        });
+      }
+    });
+  }
+
   void _activateLastBlock() {
     if (_blocks.isEmpty) return;
     setState(() => _autofocusIndex = _blocks.length - 1);
@@ -397,6 +425,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
               content: _blocks[i],
               config: widget.config,
               autofocus: i == _autofocusIndex,
+              autofocusAtEnd: i == _autofocusIndex && _autofocusAtEnd,
               onChanged: (c) => _onBlockChanged(i, c),
               onSplit: (before, after) => _onBlockSplit(i, before, after),
               onFocused: (tc) {
@@ -412,6 +441,10 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
               },
               onMergeWithPrevious:
                   i == 0 ? null : () => _onMergeWithPrevious(i),
+              onArrowDownAtEnd:
+                  i < _blocks.length - 1 ? () => _onArrowDownAtEnd(i) : null,
+              onArrowUpAtStart:
+                  i > 0 ? () => _onArrowUpAtStart(i) : null,
             ),
             childCount: _blocks.length,
           ),
