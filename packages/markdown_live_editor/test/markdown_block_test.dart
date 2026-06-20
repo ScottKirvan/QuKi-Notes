@@ -50,19 +50,20 @@ void main() {
     });
 
     testWidgets(
-        'bare list prefix with no content does not throw (flutter_markdown regression)',
+        'bare list/heading marker renders without throwing (flutter_markdown regression)',
         (tester) async {
       // A line such as "- [ ] " (empty task item) was crashing flutter_markdown
-      // with '_inlines.isEmpty': is not true.  The render path must treat these
-      // as empty blocks rather than passing them to MarkdownBody.
+      // with '_inlines.isEmpty': is not true.  A zero-width space is appended
+      // so the parser has one inline while the marker (checkbox/bullet) still
+      // renders visually.
       await tester.pumpWidget(_buildBlock(content: '- [ ] '));
-      expect(find.byType(MarkdownBody), findsNothing);
+      expect(find.byType(MarkdownBody), findsOneWidget);
 
       await tester.pumpWidget(_buildBlock(content: '- '));
-      expect(find.byType(MarkdownBody), findsNothing);
+      expect(find.byType(MarkdownBody), findsOneWidget);
 
       await tester.pumpWidget(_buildBlock(content: '1. '));
-      expect(find.byType(MarkdownBody), findsNothing);
+      expect(find.byType(MarkdownBody), findsOneWidget);
     });
   });
 
