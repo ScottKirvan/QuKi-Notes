@@ -336,14 +336,14 @@ MarkdownBody(
 )
 ```
 
-`_toggleCheckbox(bool wasChecked)`: track a checkbox index counter in state (reset when `widget.content` changes). On tap, find the `n`th occurrence of `- [ ] ` or `- [x] ` in `widget.content`, toggle it, call `widget.onChanged(updatedContent)`. Do not enter edit mode.
+`_toggleCheckbox(bool wasChecked)`: with line-based blocks each block contains at most one checkbox, so no counter is needed. Use `replaceFirst` on `widget.content` to toggle the single `- [ ] ` ↔ `- [x] ` occurrence, call `widget.onChanged(updatedContent)`. Do not enter edit mode.
 
 ### Cross-block keyboard navigation
 
 In `MarkdownBlock` edit mode, handle arrow keys on the block's `FocusNode` (or via `TextField.onKeyEvent`):
 
-- **Arrow down** when cursor is on the last line of the block → call `widget.onArrowDownAtEnd()`. `MarkdownEditor` focuses the next block at offset 0.
-- **Arrow up** when cursor is on the first line of the block → call `widget.onArrowUpAtStart()`. `MarkdownEditor` focuses the previous block at its last character.
+- **Arrow down** when `selection.baseOffset == text.length` (cursor at end — with line-based blocks there is no "next visual line" within the block) → call `widget.onArrowDownAtEnd()`. `MarkdownEditor` focuses the next block at offset 0.
+- **Arrow up** when `selection.baseOffset == 0` (cursor at start) → call `widget.onArrowUpAtStart()`. `MarkdownEditor` focuses the previous block at its last character.
 
 Add `onArrowDownAtEnd` and `onArrowUpAtStart` callbacks to `MarkdownBlock`.
 
@@ -355,26 +355,27 @@ Wrap the render↔edit switch in `AnimatedSwitcher`:
 AnimatedSwitcher(
   duration: const Duration(milliseconds: 150),
   child: _editing
-    ? TextField(key: const ValueKey('edit'), ...)
-    : GestureDetector(key: const ValueKey('render'), child: MarkdownBody(...)),
+    ? Focus(key: const ValueKey('edit'), onKeyEvent: _handleKeyEvent, child: TextField(...))
+    : GestureDetector(key: const ValueKey('render'), onTap: _enterEditMode, child: ConstrainedBox(...)),
 )
 ```
+
+The key must be on the outermost widget of each branch so `AnimatedSwitcher` detects the switch. `setValue` increments `_resetCounter` which replaces all block widget keys — new `AnimatedSwitcher` instances have no prior child, so note switching is naturally instant.
 
 Do **not** animate programmatic `setValue` calls — only user-initiated focus/blur transitions. Note switching must be instant.
 
 ### Tests (Stage 4)
 
 `packages/markdown_live_editor/test/markdown_block_test.dart` additions:
-- Tapping a checkbox calls `onChanged` with toggled content, does not enter edit mode
-- Multiple task items in one block each toggle independently by index
-- `onArrowDownAtEnd` fires when down arrow pressed at end of block
-- `onArrowUpAtStart` fires when up arrow pressed at start of block
+- Tapping an unchecked checkbox calls `onChanged` with `- [x]` content, does not enter edit mode
+- Tapping a checked checkbox calls `onChanged` with `- [ ]` content
+- `onArrowDownAtEnd` fires when down arrow pressed with cursor at `text.length`
+- `onArrowUpAtStart` fires when up arrow pressed with cursor at offset 0
 
 ### Checklist (Stage 4)
 
 - [ ] `just lint` and `just test` pass
 - [ ] Tapping a task checkbox toggles it without entering edit mode
-- [ ] Multiple task items in one block toggle independently
 - [ ] Arrow down at end of block moves focus to next block
 - [ ] Arrow up at start of block moves focus to previous block
 - [ ] Flip between render and edit is animated (150ms); note switching is instant

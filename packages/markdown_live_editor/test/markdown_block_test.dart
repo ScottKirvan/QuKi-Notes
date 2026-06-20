@@ -11,7 +11,10 @@ Widget _buildBlock({
   VoidCallback? onUnfocused,
   VoidCallback? onMergeWithPrevious,
   void Function(String, String)? onSplit,
+  VoidCallback? onArrowDownAtEnd,
+  VoidCallback? onArrowUpAtStart,
   bool autofocus = false,
+  bool autofocusAtEnd = false,
 }) {
   return MaterialApp(
     home: Scaffold(
@@ -23,7 +26,10 @@ Widget _buildBlock({
         onUnfocused: onUnfocused,
         onMergeWithPrevious: onMergeWithPrevious,
         onSplit: onSplit,
+        onArrowDownAtEnd: onArrowDownAtEnd,
+        onArrowUpAtStart: onArrowUpAtStart,
         autofocus: autofocus,
+        autofocusAtEnd: autofocusAtEnd,
       ),
     ),
   );
@@ -43,7 +49,8 @@ void main() {
       await tester.pumpWidget(_buildBlock(content: 'hello'));
 
       await tester.tap(find.byType(MarkdownBody));
-      await tester.pump();
+      // pumpAndSettle lets the AnimatedSwitcher finish its 150ms fade.
+      await tester.pumpAndSettle();
 
       expect(find.byType(TextField), findsOneWidget);
       expect(find.byType(MarkdownBody), findsNothing);
@@ -74,12 +81,12 @@ void main() {
 
       // Enter edit mode.
       await tester.tap(find.byType(MarkdownBody));
-      await tester.pump();
+      await tester.pumpAndSettle();
       expect(find.byType(TextField), findsOneWidget);
 
       // Remove focus to exit edit mode.
       FocusManager.instance.primaryFocus?.unfocus();
-      await tester.pump();
+      await tester.pumpAndSettle();
 
       expect(find.byType(MarkdownBody), findsOneWidget);
       expect(find.byType(TextField), findsNothing);
@@ -228,6 +235,107 @@ void main() {
       ));
       // No pump needed — _editing starts true, TextField is in first build.
       expect(find.byType(TextField), findsOneWidget);
+    });
+  });
+
+  group('MarkdownBlock checkbox tap', () {
+    testWidgets('tapping unchecked checkbox calls onChanged with checked content',
+        (tester) async {
+      String? changed;
+
+      await tester.pumpWidget(_buildBlock(
+        content: '- [ ] task',
+        onChanged: (s) => changed = s,
+      ));
+
+      await tester.tap(find.byIcon(Icons.check_box_outline_blank));
+      await tester.pump();
+
+      expect(changed, '- [x] task');
+      // Must not enter edit mode.
+      expect(find.byType(TextField), findsNothing);
+    });
+
+    testWidgets('tapping checked checkbox calls onChanged with unchecked content',
+        (tester) async {
+      String? changed;
+
+      await tester.pumpWidget(_buildBlock(
+        content: '- [x] done',
+        onChanged: (s) => changed = s,
+      ));
+
+      await tester.tap(find.byIcon(Icons.check_box));
+      await tester.pump();
+
+      expect(changed, '- [ ] done');
+    });
+  });
+
+  group('MarkdownBlock keyboard navigation', () {
+    testWidgets('onArrowUpAtStart fires when up-arrow pressed at offset 0',
+        (tester) async {
+      var fired = false;
+
+      await tester.pumpWidget(_buildBlock(
+        content: 'hello',
+        autofocus: true,
+        onArrowUpAtStart: () => fired = true,
+      ));
+      await tester.pump();
+
+      final tf = tester.widget<TextField>(find.byType(TextField));
+      tf.controller!.selection = const TextSelection.collapsed(offset: 0);
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pump();
+
+      expect(fired, isTrue);
+    });
+
+    testWidgets('onArrowDownAtEnd fires when down-arrow pressed at end of text',
+        (tester) async {
+      var fired = false;
+
+      await tester.pumpWidget(_buildBlock(
+        content: 'hello',
+        autofocus: true,
+        onArrowDownAtEnd: () => fired = true,
+      ));
+      await tester.pump();
+
+      final tf = tester.widget<TextField>(find.byType(TextField));
+      tf.controller!.selection = TextSelection.collapsed(
+        offset: tf.controller!.text.length,
+      );
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+      await tester.pump();
+
+      expect(fired, isTrue);
+    });
+
+    testWidgets('onArrowUpAtStart does not fire when cursor is not at offset 0',
+        (tester) async {
+      var fired = false;
+
+      await tester.pumpWidget(_buildBlock(
+        content: 'hello',
+        autofocus: true,
+        onArrowUpAtStart: () => fired = true,
+      ));
+      await tester.pump();
+
+      final tf = tester.widget<TextField>(find.byType(TextField));
+      tf.controller!.selection = const TextSelection.collapsed(offset: 3);
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+      await tester.pump();
+
+      expect(fired, isFalse);
     });
   });
 }

@@ -15,7 +15,10 @@ class MarkdownBlock extends StatefulWidget {
     this.onUnfocused,
     this.onMergeWithPrevious,
     this.onSplit,
+    this.onArrowDownAtEnd,
+    this.onArrowUpAtStart,
     this.autofocus = false,
+    this.autofocusAtEnd = false,
   });
 
   final String content;
@@ -25,7 +28,12 @@ class MarkdownBlock extends StatefulWidget {
   final VoidCallback? onUnfocused;
   final VoidCallback? onMergeWithPrevious;
   final void Function(String before, String after)? onSplit;
+  final VoidCallback? onArrowDownAtEnd;
+  final VoidCallback? onArrowUpAtStart;
   final bool autofocus;
+  // When true, the cursor is placed at the end of the content on focus
+  // (used when navigating up from a block below).
+  final bool autofocusAtEnd;
 
   @override
   State<MarkdownBlock> createState() => _MarkdownBlockState();
@@ -51,6 +59,11 @@ class _MarkdownBlockState extends State<MarkdownBlock> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
           _focusNode.requestFocus();
+          if (widget.autofocusAtEnd) {
+            _textController.selection = TextSelection.collapsed(
+              offset: _textController.text.length,
+            );
+          }
           widget.onFocused?.call(_textController);
         }
       });
@@ -71,7 +84,20 @@ class _MarkdownBlockState extends State<MarkdownBlock> {
     super.didUpdateWidget(oldWidget);
     if (widget.autofocus && !oldWidget.autofocus) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _enterEditMode();
+        if (mounted) {
+          _enterEditMode();
+          if (widget.autofocusAtEnd) {
+            // _enterEditMode() schedules a rebuild; wait one more frame for the
+            // TextField to be present before setting the selection.
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) {
+                _textController.selection = TextSelection.collapsed(
+                  offset: _textController.text.length,
+                );
+              }
+            });
+          }
+        }
       });
     }
     if (widget.content != oldWidget.content) {
@@ -147,13 +173,37 @@ class _MarkdownBlockState extends State<MarkdownBlock> {
     return 0;
   }
 
+  // Each block is one physical line, so there is at most one checkbox per
+  // block. replaceFirst is sufficient — no index counter needed.
+  void _toggleCheckbox(bool wasChecked) {
+    final newContent = wasChecked
+        ? widget.content.replaceFirst(RegExp(r'- \[[xX]\] '), '- [ ] ')
+        : widget.content.replaceFirst('- [ ] ', '- [x] ');
+    widget.onChanged(newContent);
+  }
+
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
+    final sel = _textController.selection;
+
     if (event.logicalKey == LogicalKeyboardKey.backspace) {
-      final sel = _textController.selection;
       if (sel.isCollapsed && sel.baseOffset == 0) {
         widget.onMergeWithPrevious?.call();
+        return KeyEventResult.handled;
+      }
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      if (sel.isCollapsed && sel.baseOffset == 0) {
+        widget.onArrowUpAtStart?.call();
+        return KeyEventResult.handled;
+      }
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      if (sel.isCollapsed && sel.baseOffset == _textController.text.length) {
+        widget.onArrowDownAtEnd?.call();
         return KeyEventResult.handled;
       }
     }
@@ -163,26 +213,6 @@ class _MarkdownBlockState extends State<MarkdownBlock> {
 
   @override
   Widget build(BuildContext context) {
-    if (_editing) {
-      return Focus(
-        onKeyEvent: _handleKeyEvent,
-        child: TextField(
-          controller: _textController,
-          focusNode: _focusNode,
-          // autofocus raises the soft keyboard on Android/iOS when the block
-          // was created with autofocus: true.
-          autofocus: widget.autofocus,
-          maxLines: null,
-          style: widget.config.textStyle,
-          decoration: InputDecoration(
-            border: InputBorder.none,
-            isDense: true,
-            contentPadding: widget.config.contentPadding,
-          ),
-        ),
-      );
-    }
-
     // Empty blocks (blank lines between paragraphs) need a minimum height so
     // they are visible and tappable. Non-empty blocks size to their content.
     //
@@ -196,7 +226,9 @@ class _MarkdownBlockState extends State<MarkdownBlock> {
     final isBareMarker = trimmed.isNotEmpty &&
         RegExp(r'^(- \[[ x]\]|[-*]|#{1,6}|\d+\.)$').hasMatch(trimmed);
     final isEmpty = widget.content.isEmpty;
-    return GestureDetector(
+
+    final renderChild = GestureDetector(
+      key: const ValueKey('render'),
       behavior: HitTestBehavior.opaque,
       onTap: _enterEditMode,
       child: ConstrainedBox(
@@ -216,16 +248,45 @@ class _MarkdownBlockState extends State<MarkdownBlock> {
                     listBulletPadding: EdgeInsets.zero,
                   ),
                   softLineBreak: true,
-                  checkboxBuilder: (bool checked) => Padding(
-                    padding: const EdgeInsetsDirectional.only(end: 4),
-                    child: Icon(
-                      checked ? Icons.check_box : Icons.check_box_outline_blank,
-                      size: 18,
+                  checkboxBuilder: (bool checked) => GestureDetector(
+                    onTap: () => _toggleCheckbox(checked),
+                    child: Padding(
+                      padding: const EdgeInsetsDirectional.only(end: 4),
+                      child: Icon(
+                        checked
+                            ? Icons.check_box
+                            : Icons.check_box_outline_blank,
+                        size: 18,
+                      ),
                     ),
                   ),
                 ),
         ),
       ),
+    );
+
+    final editChild = Focus(
+      key: const ValueKey('edit'),
+      onKeyEvent: _handleKeyEvent,
+      child: TextField(
+        controller: _textController,
+        focusNode: _focusNode,
+        // autofocus raises the soft keyboard on Android/iOS when the block
+        // was created with autofocus: true.
+        autofocus: widget.autofocus,
+        maxLines: null,
+        style: widget.config.textStyle,
+        decoration: InputDecoration(
+          border: InputBorder.none,
+          isDense: true,
+          contentPadding: widget.config.contentPadding,
+        ),
+      ),
+    );
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 150),
+      child: _editing ? editChild : renderChild,
     );
   }
 }
