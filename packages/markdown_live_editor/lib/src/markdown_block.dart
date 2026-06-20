@@ -173,14 +173,17 @@ class _MarkdownBlockState extends State<MarkdownBlock> {
       );
     }
 
+    // Empty blocks (blank lines between paragraphs) need a minimum height so
+    // they are visible and tappable. Non-empty blocks size to their content.
+    final isEmpty = widget.content.isEmpty;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: _enterEditMode,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 44),
+        constraints: BoxConstraints(minHeight: isEmpty ? 22 : 0),
         child: Padding(
           padding: widget.config.contentPadding,
-          child: widget.content.isEmpty
+          child: isEmpty
               ? const SizedBox.shrink()
               : MarkdownBody(
                   data: widget.content,
