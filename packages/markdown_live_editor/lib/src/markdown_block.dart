@@ -286,6 +286,15 @@ class _MarkdownBlockState extends State<MarkdownBlock> {
 
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 150),
+      // Default layoutBuilder uses Alignment.center; override to top-start so
+      // blocks stay left-aligned during the crossfade.
+      layoutBuilder: (currentChild, previousChildren) => Stack(
+        alignment: AlignmentDirectional.topStart,
+        children: [
+          ...previousChildren,
+          if (currentChild != null) currentChild,
+        ],
+      ),
       child: _editing ? editChild : renderChild,
     );
   }
