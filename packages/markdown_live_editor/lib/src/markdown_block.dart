@@ -113,6 +113,15 @@ class _MarkdownBlockState extends State<MarkdownBlock> {
     final before = text.substring(0, newlineIdx);
     final after = text.substring(newlineIdx + 1);
 
+    // Reset immediately so that Android IME re-fires of the same change do not
+    // trigger a second split.
+    _suppressListener = true;
+    _textController.value = TextEditingValue(
+      text: before,
+      selection: TextSelection.collapsed(offset: before.length),
+    );
+    _suppressListener = false;
+
     final continuation = BlockSplitter.listContinuation(before);
     if (continuation != null) {
       final prefixLength = _listPrefixLength(before);
@@ -167,6 +176,7 @@ class _MarkdownBlockState extends State<MarkdownBlock> {
           style: widget.config.textStyle,
           decoration: InputDecoration(
             border: InputBorder.none,
+            isDense: true,
             contentPadding: widget.config.contentPadding,
           ),
         ),
@@ -190,6 +200,8 @@ class _MarkdownBlockState extends State<MarkdownBlock> {
                   styleSheet:
                       MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
                     p: widget.config.textStyle,
+                    blockSpacing: 0,
+                    listBulletPadding: EdgeInsets.zero,
                   ),
                   softLineBreak: true,
                   checkboxBuilder: (bool checked) => Padding(

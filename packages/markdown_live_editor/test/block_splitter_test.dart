@@ -81,11 +81,13 @@ void main() {
     }
 
     test('single line', () => roundTrip('hello world'));
-    test('two paragraphs separated by blank line', () => roundTrip('one\n\ntwo'));
+    test('two paragraphs separated by blank line',
+        () => roundTrip('one\n\ntwo'));
     test('heading only', () => roundTrip('# My Heading'));
     test('heading and paragraph on consecutive lines',
         () => roundTrip('# Title\nparagraph'));
-    test('heading blank-line paragraph', () => roundTrip('# Title\n\nbody text'));
+    test('heading blank-line paragraph',
+        () => roundTrip('# Title\n\nbody text'));
     test('unordered list items', () => roundTrip('- a\n- b\n- c'));
     test('ordered list items', () => roundTrip('1. first\n2. second'));
     test('task list items', () => roundTrip('- [ ] todo\n- [x] done'));
