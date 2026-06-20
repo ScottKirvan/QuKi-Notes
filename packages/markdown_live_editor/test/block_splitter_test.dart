@@ -7,78 +7,49 @@ void main() {
       expect(BlockSplitter.split(''), ['']);
     });
 
-    test('single paragraph with no blank lines is one block', () {
+    test('single line is one block', () {
       expect(BlockSplitter.split('hello world'), ['hello world']);
     });
 
-    test('splits on double newline', () {
-      expect(
-        BlockSplitter.split('first\n\nsecond'),
-        ['first', 'second'],
-      );
+    test('two lines produce two blocks', () {
+      expect(BlockSplitter.split('first\nsecond'), ['first', 'second']);
     });
 
-    test('three paragraphs produce three blocks', () {
-      expect(
-        BlockSplitter.split('one\n\ntwo\n\nthree'),
-        ['one', 'two', 'three'],
-      );
+    test('blank line produces an empty-string block', () {
+      expect(BlockSplitter.split('one\n\ntwo'), ['one', '', 'two']);
     });
 
-    test('heading always starts its own block even without blank line', () {
+    test('three lines produce three blocks', () {
+      expect(BlockSplitter.split('one\ntwo\nthree'), ['one', 'two', 'three']);
+    });
+
+    test('heading is its own block with no special treatment needed', () {
       expect(
         BlockSplitter.split('some text\n# Heading'),
         ['some text', '# Heading'],
       );
     });
 
-    test('heading followed by paragraph is two blocks', () {
-      expect(
-        BlockSplitter.split('# Title\nparagraph'),
-        ['# Title', 'paragraph'],
-      );
+    test('list items are separate blocks', () {
+      expect(BlockSplitter.split('- a\n- b\n- c'), ['- a', '- b', '- c']);
     });
 
-    test('contiguous unordered list lines are grouped into one block', () {
-      expect(
-        BlockSplitter.split('- a\n- b\n- c'),
-        ['- a\n- b\n- c'],
-      );
-    });
-
-    test('contiguous list lines separated by blank lines stay one block', () {
-      expect(
-        BlockSplitter.split('- a\n\n- b'),
-        ['- a\n\n- b'],
-      );
-    });
-
-    test('task list lines are grouped into one block', () {
+    test('task list items are separate blocks', () {
       expect(
         BlockSplitter.split('- [ ] task one\n- [x] task two'),
-        ['- [ ] task one\n- [x] task two'],
+        ['- [ ] task one', '- [x] task two'],
       );
     });
 
-    test('ordered list lines are grouped into one block', () {
+    test('ordered list items are separate blocks', () {
       expect(
-        BlockSplitter.split('1. first\n2. second\n3. third'),
-        ['1. first\n2. second\n3. third'],
+        BlockSplitter.split('1. first\n2. second'),
+        ['1. first', '2. second'],
       );
     });
 
-    test('list followed by paragraph splits into two blocks', () {
-      expect(
-        BlockSplitter.split('- item\n\nparagraph'),
-        ['- item', 'paragraph'],
-      );
-    });
-
-    test('mixed: heading + paragraph + list', () {
-      expect(
-        BlockSplitter.split('# Title\n\nparagraph\n\n- item one\n- item two'),
-        ['# Title', 'paragraph', '- item one\n- item two'],
-      );
+    test('trailing newline produces trailing empty block', () {
+      expect(BlockSplitter.split('hello\n'), ['hello', '']);
     });
   });
 
@@ -87,12 +58,16 @@ void main() {
       expect(BlockSplitter.join(['hello']), 'hello');
     });
 
-    test('two blocks joined with double newline', () {
-      expect(BlockSplitter.join(['first', 'second']), 'first\n\nsecond');
+    test('two blocks joined with single newline', () {
+      expect(BlockSplitter.join(['first', 'second']), 'first\nsecond');
     });
 
     test('empty list produces empty string', () {
       expect(BlockSplitter.join([]), '');
+    });
+
+    test('empty block in list produces blank line', () {
+      expect(BlockSplitter.join(['one', '', 'two']), 'one\n\ntwo');
     });
   });
 
@@ -105,13 +80,15 @@ void main() {
       );
     }
 
-    test('single paragraph', () => roundTrip('hello world'));
-    test('two paragraphs', () => roundTrip('one\n\ntwo'));
+    test('single line', () => roundTrip('hello world'));
+    test('two paragraphs separated by blank line', () => roundTrip('one\n\ntwo'));
     test('heading only', () => roundTrip('# My Heading'));
-    test('heading + paragraph', () => roundTrip('# Title\n\nbody text'));
-    test('unordered list', () => roundTrip('- a\n- b\n- c'));
-    test('ordered list', () => roundTrip('1. first\n2. second'));
-    test('task list', () => roundTrip('- [ ] todo\n- [x] done'));
+    test('heading and paragraph on consecutive lines',
+        () => roundTrip('# Title\nparagraph'));
+    test('heading blank-line paragraph', () => roundTrip('# Title\n\nbody text'));
+    test('unordered list items', () => roundTrip('- a\n- b\n- c'));
+    test('ordered list items', () => roundTrip('1. first\n2. second'));
+    test('task list items', () => roundTrip('- [ ] todo\n- [x] done'));
     test('mixed content', () {
       roundTrip('# Title\n\nParagraph text.\n\n- list item\n- another');
     });

@@ -14,7 +14,7 @@ class MarkdownBlock extends StatefulWidget {
     this.onFocused,
     this.onUnfocused,
     this.onMergeWithPrevious,
-    this.onEnterAtEnd,
+    this.onSplit,
     this.autofocus = false,
   });
 
@@ -24,7 +24,7 @@ class MarkdownBlock extends StatefulWidget {
   final ValueChanged<TextEditingController>? onFocused;
   final VoidCallback? onUnfocused;
   final VoidCallback? onMergeWithPrevious;
-  final VoidCallback? onEnterAtEnd;
+  final void Function(String before, String after)? onSplit;
   final bool autofocus;
 
   @override
@@ -35,14 +35,12 @@ class _MarkdownBlockState extends State<MarkdownBlock> {
   late final TextEditingController _textController;
   late final FocusNode _focusNode;
   late bool _editing;
-  TextEditingValue _previousValue = TextEditingValue.empty;
   bool _suppressListener = false;
 
   @override
   void initState() {
     super.initState();
     _textController = TextEditingController(text: widget.content);
-    _previousValue = _textController.value;
     _focusNode = FocusNode();
     _focusNode.addListener(_onFocusChanged);
     _textController.addListener(_onTextChanged);
@@ -76,10 +74,9 @@ class _MarkdownBlockState extends State<MarkdownBlock> {
         if (mounted) _enterEditMode();
       });
     }
-    if (!_editing && widget.content != oldWidget.content) {
+    if (widget.content != oldWidget.content) {
       _suppressListener = true;
       _textController.text = widget.content;
-      _previousValue = _textController.value;
       _suppressListener = false;
     }
   }
@@ -98,49 +95,37 @@ class _MarkdownBlockState extends State<MarkdownBlock> {
     widget.onFocused?.call(_textController);
   }
 
-  // List auto-continue: mirrors the plain-text mode logic in _MarkdownEditorState.
+  // Detects newline insertion and splits the block. Normal edits propagate
+  // through this listener so TextField.onChanged is not wired separately.
   void _onTextChanged() {
     if (_suppressListener) return;
 
-    final current = _textController.value;
-    final previous = _previousValue;
-    _previousValue = current;
+    final text = _textController.text;
+    final newlineIdx = text.indexOf('\n');
 
-    if (current.text.length != previous.text.length + 1) return;
-    final cursor = current.selection.baseOffset;
-    if (cursor < 1) return;
-    if (current.text[cursor - 1] != '\n') return;
-
-    final insertPos = cursor - 1;
-    final lineStart = current.text.lastIndexOf('\n', insertPos - 1) + 1;
-    final completedLine = current.text.substring(lineStart, insertPos);
-
-    final continuation = BlockSplitter.listContinuation(completedLine);
-    if (continuation == null) return;
-
-    final prefixLength = _listPrefixLength(completedLine);
-    final content = completedLine.substring(prefixLength);
-    if (content.isEmpty) {
-      // Empty list item → exit list.
-      final newText = current.text.replaceRange(lineStart, insertPos + 1, '\n');
-      _setValueSilently(newText, lineStart + 1);
-      widget.onChanged(newText);
+    if (newlineIdx == -1) {
+      // Normal edit within the line.
+      widget.onChanged(text);
       return;
     }
 
-    final newText = current.text.replaceRange(cursor, cursor, continuation);
-    _setValueSilently(newText, cursor + continuation.length);
-    widget.onChanged(newText);
-  }
+    // Newline detected — split this block into two.
+    final before = text.substring(0, newlineIdx);
+    final after = text.substring(newlineIdx + 1);
 
-  void _setValueSilently(String text, int cursorOffset) {
-    _suppressListener = true;
-    _textController.value = TextEditingValue(
-      text: text,
-      selection: TextSelection.collapsed(offset: cursorOffset),
-    );
-    _previousValue = _textController.value;
-    _suppressListener = false;
+    final continuation = BlockSplitter.listContinuation(before);
+    if (continuation != null) {
+      final prefixLength = _listPrefixLength(before);
+      if (before.substring(prefixLength).isEmpty) {
+        // Empty list item → exit list (current line becomes empty).
+        widget.onSplit?.call('', after);
+        return;
+      }
+      widget.onSplit?.call(before, '$continuation$after');
+      return;
+    }
+
+    widget.onSplit?.call(before, after);
   }
 
   static int _listPrefixLength(String line) {
@@ -184,7 +169,6 @@ class _MarkdownBlockState extends State<MarkdownBlock> {
             border: InputBorder.none,
             contentPadding: widget.config.contentPadding,
           ),
-          onChanged: widget.onChanged,
         ),
       );
     }
