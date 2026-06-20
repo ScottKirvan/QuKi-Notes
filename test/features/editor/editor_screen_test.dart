@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:markdown_live_editor/markdown_live_editor.dart';
 
@@ -415,13 +416,10 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      // In block mode the content is rendered via MarkdownBlock, not a bare
-      // TextField. Tap the block to enter edit mode and confirm the text.
-      await tester.tap(find.byType(MarkdownBlock).first);
-      await tester.pump();
-
-      final tf = tester.widget<TextField>(find.byType(TextField));
-      expect(tf.controller!.text, 'switched content',
+      // In block mode content is rendered by MarkdownBody.  Read its data
+      // directly — no need to enter edit mode to verify the load.
+      final body = tester.widget<MarkdownBody>(find.byType(MarkdownBody).first);
+      expect(body.data, 'switched content',
           reason: 'Editor must display the loaded QuKi body after switch');
 
       await cleanup(tester);

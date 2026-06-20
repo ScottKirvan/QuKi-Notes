@@ -167,7 +167,7 @@ packages:
     source: hosted
     version: "6.0.0"
   flutter_markdown:
-    dependency: transitive
+    dependency: "direct dev"
     description:
       name: flutter_markdown
       sha256: "08fb8315236099ff8e90cb87bb2b935e0a724a3af1623000a9cec930468e0f27"
