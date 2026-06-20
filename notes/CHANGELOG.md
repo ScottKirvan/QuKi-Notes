@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.12.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.11.0...v0.12.0) (2026-06-20)
+
+
+### Features
+
+* **editor:** task checkbox tap, keyboard navigation, flip animations (ADR-26 stage 4) ([acee992](https://github.com/ScottKirvan/QuKi-Notes/commit/acee99248f91076457fd2a0126b54e805d20c7e6))
+
+
+### Bug Fixes
+
+* **assets:** increase adaptive icon inset to 8% ([5928211](https://github.com/ScottKirvan/QuKi-Notes/commit/59282114cecab1cbd92bf028de3c35427a151940))
+* **assets:** reduce adaptive icon inset from 16% to 6% ([82ba985](https://github.com/ScottKirvan/QuKi-Notes/commit/82ba9850dc3f14c789bd2e15345dab91a2d9bd08))
+* **assets:** restore default 16% adaptive icon inset ([b9a0ba7](https://github.com/ScottKirvan/QuKi-Notes/commit/b9a0ba72ccaedd02a1c8cf6a12f696ee9dd41ea1))
+* **assets:** set adaptive icon background color, remove auto-inset ([e0a769b](https://github.com/ScottKirvan/QuKi-Notes/commit/e0a769ba27f108b6781f6f2d91d902d19f4fa525))
+* **editor:** left-align AnimatedSwitcher crossfade + test fix ([d2e51bc](https://github.com/ScottKirvan/QuKi-Notes/commit/d2e51bcf41bd094ece3b27b84b4c6fe02eacdd01))
+
 ## [0.11.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.10.1...v0.11.0) (2026-06-20)
 
 
