@@ -48,6 +48,22 @@ void main() {
       expect(find.byType(TextField), findsOneWidget);
       expect(find.byType(MarkdownBody), findsNothing);
     });
+
+    testWidgets(
+        'bare list prefix with no content does not throw (flutter_markdown regression)',
+        (tester) async {
+      // A line such as "- [ ] " (empty task item) was crashing flutter_markdown
+      // with '_inlines.isEmpty': is not true.  The render path must treat these
+      // as empty blocks rather than passing them to MarkdownBody.
+      await tester.pumpWidget(_buildBlock(content: '- [ ] '));
+      expect(find.byType(MarkdownBody), findsNothing);
+
+      await tester.pumpWidget(_buildBlock(content: '- '));
+      expect(find.byType(MarkdownBody), findsNothing);
+
+      await tester.pumpWidget(_buildBlock(content: '1. '));
+      expect(find.byType(MarkdownBody), findsNothing);
+    });
   });
 
   group('MarkdownBlock edit mode', () {
