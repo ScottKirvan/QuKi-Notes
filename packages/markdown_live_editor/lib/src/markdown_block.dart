@@ -186,15 +186,16 @@ class _MarkdownBlockState extends State<MarkdownBlock> {
     // Empty blocks (blank lines between paragraphs) need a minimum height so
     // they are visible and tappable. Non-empty blocks size to their content.
     //
-    // A line that is only a list marker with no following text (e.g. "- [ ] ",
-    // "- ", "1. ") causes a flutter_markdown assertion ('_inlines.isEmpty': is
-    // not true) because the parser produces a list item with zero inlines.
-    // Trimming trailing whitespace before passing to MarkdownBody fixes this,
-    // and we also detect the resulting bare marker and treat it as empty so
-    // nothing is passed to MarkdownBody at all.
+    // A line containing only a list/heading marker with no following text
+    // (e.g. "- [ ] ", "- ", "# ") causes flutter_markdown to assert
+    // '_inlines.isEmpty': is not true because the parser produces a block
+    // element with zero inline children.  Appending a zero-width space (​)
+    // gives the parser one inline to work with while remaining visually
+    // invisible, so the checkbox/bullet/heading renders normally.
     final trimmed = widget.content.trimRight();
-    final isEmpty = trimmed.isEmpty ||
-        RegExp(r'^(- \[[ x]\]|[-*]|\d+\.)$').hasMatch(trimmed);
+    final isBareMarker = trimmed.isNotEmpty &&
+        RegExp(r'^(- \[[ x]\]|[-*]|#{1,6}|\d+\.)$').hasMatch(trimmed);
+    final isEmpty = widget.content.isEmpty;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: _enterEditMode,
@@ -205,7 +206,9 @@ class _MarkdownBlockState extends State<MarkdownBlock> {
           child: isEmpty
               ? const SizedBox.shrink()
               : MarkdownBody(
-                  data: trimmed,
+                  data: isBareMarker
+                      ? '${widget.content}​'
+                      : widget.content,
                   styleSheet:
                       MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
                     p: widget.config.textStyle,
