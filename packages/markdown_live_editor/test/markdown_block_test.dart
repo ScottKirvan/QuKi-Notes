@@ -10,7 +10,7 @@ Widget _buildBlock({
   ValueChanged<TextEditingController>? onFocused,
   VoidCallback? onUnfocused,
   VoidCallback? onMergeWithPrevious,
-  VoidCallback? onEnterAtEnd,
+  void Function(String, String)? onSplit,
   bool autofocus = false,
 }) {
   return MaterialApp(
@@ -22,7 +22,7 @@ Widget _buildBlock({
         onFocused: onFocused,
         onUnfocused: onUnfocused,
         onMergeWithPrevious: onMergeWithPrevious,
-        onEnterAtEnd: onEnterAtEnd,
+        onSplit: onSplit,
         autofocus: autofocus,
       ),
     ),
@@ -139,6 +139,66 @@ void main() {
       await tester.pump();
 
       expect(mergeCalled, isTrue);
+    });
+
+    testWidgets('onSplit fires with correct before/after when Enter is pressed',
+        (tester) async {
+      String? splitBefore;
+      String? splitAfter;
+
+      await tester.pumpWidget(_buildBlock(
+        content: 'hello',
+        autofocus: true,
+        onSplit: (b, a) {
+          splitBefore = b;
+          splitAfter = a;
+        },
+      ));
+      await tester.pump();
+
+      // Simulate Enter at end by setting text with newline via controller.
+      final tf = tester.widget<TextField>(find.byType(TextField));
+      tf.controller!.text = 'hello\n';
+      await tester.pump();
+
+      expect(splitBefore, 'hello');
+      expect(splitAfter, '');
+    });
+
+    testWidgets('onSplit with list prefix continues list on next block',
+        (tester) async {
+      String? splitAfter;
+
+      await tester.pumpWidget(_buildBlock(
+        content: '- item',
+        autofocus: true,
+        onSplit: (_, a) => splitAfter = a,
+      ));
+      await tester.pump();
+
+      final tf = tester.widget<TextField>(find.byType(TextField));
+      tf.controller!.text = '- item\n';
+      await tester.pump();
+
+      expect(splitAfter, '- ');
+    });
+
+    testWidgets('onSplit exits list when Enter on empty list item',
+        (tester) async {
+      String? splitBefore;
+
+      await tester.pumpWidget(_buildBlock(
+        content: '- ',
+        autofocus: true,
+        onSplit: (b, _) => splitBefore = b,
+      ));
+      await tester.pump();
+
+      final tf = tester.widget<TextField>(find.byType(TextField));
+      tf.controller!.text = '- \n';
+      await tester.pump();
+
+      expect(splitBefore, '');
     });
   });
 

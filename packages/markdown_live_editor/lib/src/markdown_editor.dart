@@ -308,11 +308,13 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     widget.onChanged?.call(BlockSplitter.join(_blocks));
   }
 
-  void _onEnterAtEnd(int i) {
+  void _onBlockSplit(int i, String before, String after) {
     setState(() {
-      _blocks.insert(i + 1, '');
+      _blocks[i] = before;
+      _blocks.insert(i + 1, after);
       _autofocusIndex = i + 1;
     });
+    widget.onChanged?.call(BlockSplitter.join(_blocks));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) setState(() => _autofocusIndex = null);
     });
@@ -321,10 +323,11 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   void _onMergeWithPrevious(int i) {
     if (i == 0) return;
     setState(() {
-      _blocks[i - 1] = '${_blocks[i - 1]}\n${_blocks[i]}';
+      _blocks[i - 1] = _blocks[i - 1] + _blocks[i];
       _blocks.removeAt(i);
       _autofocusIndex = i - 1;
     });
+    widget.onChanged?.call(BlockSplitter.join(_blocks));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) setState(() => _autofocusIndex = null);
     });
@@ -395,16 +398,18 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
               config: widget.config,
               autofocus: i == _autofocusIndex,
               onChanged: (c) => _onBlockChanged(i, c),
+              onSplit: (before, after) => _onBlockSplit(i, before, after),
               onFocused: (tc) {
                 _activeEditIndex = i;
                 widget.controller
                     ?._setActive(tc, (text) => _onBlockChanged(i, text));
               },
               onUnfocused: () {
+                // Guard with index so that when focus moves A→B, B's onFocused
+                // (which sets _activeEditIndex = B) fires before A's onUnfocused,
+                // so this condition is false and the toolbar state is preserved.
                 if (_activeEditIndex == i) _activeEditIndex = null;
-                widget.controller?._setActive(null, null);
               },
-              onEnterAtEnd: () => _onEnterAtEnd(i),
               onMergeWithPrevious:
                   i == 0 ? null : () => _onMergeWithPrevious(i),
             ),
