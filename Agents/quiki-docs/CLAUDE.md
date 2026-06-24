@@ -48,7 +48,11 @@ See `notes/dev/design_spec.md` → Vocabulary for the full table.
 
 ## Tone
 
-Calm, present-tense, slightly dry. Match the manifesto's voice. Not marketing copy, not technical jargon, not productivity-bro. If the manifesto wouldn't say it, don't write it.
+**Calm, present-tense, slightly dry.** Not marketing copy, not technical jargon, not productivity-bro. Not aggressively minimalist. Not zen-app preachy.
+
+- Error states are matter-of-fact. "Send failed — try again" not "Oops! Something went wrong 😅".
+- No emoji in UI strings or docs unless the user typed them.
+- If the manifesto wouldn't say it, don't write it.
 
 ---
 
