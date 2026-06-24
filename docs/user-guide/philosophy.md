@@ -32,4 +32,4 @@ A QuKi that never gets sent is fine. It stays available, searchable, and editabl
 
 ---
 
-If you would like to read the full design philosophy, see the [manifesto](https://github.com/ScottKirvan/QuKi-Notes/blob/main/notes/dev/manifesto.md) in the project repository.
+If you would like to read the original, core design philosophy, see the [manifesto](https://github.com/ScottKirvan/QuKi-Notes/blob/main/notes/dev/manifesto.md) in the project repository.
