@@ -217,15 +217,70 @@ class _MarkdownBlockState extends State<MarkdownBlock> {
     // they are visible and tappable. Non-empty blocks size to their content.
     //
     // A line containing only a list/heading marker with no following text
-    // (e.g. "- [ ] ", "- ", "# ") causes flutter_markdown to assert
+    // (e.g. "- ", "# ") causes flutter_markdown to assert
     // '_inlines.isEmpty': is not true because the parser produces a block
     // element with zero inline children.  Appending a zero-width space (​)
     // gives the parser one inline to work with while remaining visually
-    // invisible, so the checkbox/bullet/heading renders normally.
+    // invisible, so the bullet/heading renders normally.
+    //
+    // Bare task items (e.g. "- [ ] ") hit the same assertion via a different
+    // path: the checkbox WidgetSpan is added to _inlines but has no inline
+    // sibling, so the builder asserts on close.  The zero-width-space trick
+    // does not fix this case.  Instead, render bare task items directly as
+    // Flutter widgets, bypassing MarkdownBody entirely (#138).
     final trimmed = widget.content.trimRight();
     final isBareMarker = trimmed.isNotEmpty &&
         RegExp(r'^(- \[[ x]\]|[-*]|#{1,6}|\d+\.)$').hasMatch(trimmed);
+    final isBareTask =
+        isBareMarker && RegExp(r'^- \[[ xX]\]$').hasMatch(trimmed);
     final isEmpty = widget.content.isEmpty;
+
+    Widget renderBody;
+    if (isEmpty) {
+      renderBody = const SizedBox.shrink();
+    } else if (isBareTask) {
+      final checked = trimmed.contains('[x]') || trimmed.contains('[X]');
+      renderBody = Row(
+        children: [
+          GestureDetector(
+            onTap: () => _toggleCheckbox(checked),
+            child: Padding(
+              padding: const EdgeInsetsDirectional.only(end: 4),
+              child: Transform.translate(
+                offset: const Offset(0, 5),
+                child: Icon(
+                  checked ? Icons.check_box : Icons.check_box_outline_blank,
+                  size: 18,
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    } else {
+      renderBody = MarkdownBody(
+        data: isBareMarker ? '${widget.content}​' : widget.content,
+        styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
+          p: widget.config.textStyle,
+          blockSpacing: 0,
+          listBulletPadding: EdgeInsets.zero,
+        ),
+        softLineBreak: true,
+        checkboxBuilder: (bool checked) => GestureDetector(
+          onTap: () => _toggleCheckbox(checked),
+          child: Padding(
+            padding: const EdgeInsetsDirectional.only(end: 4),
+            child: Transform.translate(
+              offset: const Offset(0, 5),
+              child: Icon(
+                checked ? Icons.check_box : Icons.check_box_outline_blank,
+                size: 18,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
 
     final renderChild = GestureDetector(
       key: const ValueKey('render'),
@@ -235,33 +290,7 @@ class _MarkdownBlockState extends State<MarkdownBlock> {
         constraints: BoxConstraints(minHeight: isEmpty ? 22 : 0),
         child: Padding(
           padding: widget.config.contentPadding,
-          child: isEmpty
-              ? const SizedBox.shrink()
-              : MarkdownBody(
-                  data: isBareMarker ? '${widget.content}​' : widget.content,
-                  styleSheet:
-                      MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
-                    p: widget.config.textStyle,
-                    blockSpacing: 0,
-                    listBulletPadding: EdgeInsets.zero,
-                  ),
-                  softLineBreak: true,
-                  checkboxBuilder: (bool checked) => GestureDetector(
-                    onTap: () => _toggleCheckbox(checked),
-                    child: Padding(
-                      padding: const EdgeInsetsDirectional.only(end: 4),
-                      child: Transform.translate(
-                        offset: const Offset(0, 5),
-                        child: Icon(
-                          checked
-                              ? Icons.check_box
-                              : Icons.check_box_outline_blank,
-                          size: 18,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
+          child: renderBody,
         ),
       ),
     );
