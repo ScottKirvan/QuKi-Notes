@@ -39,11 +39,11 @@ flutter_launcher_icons:
   adaptive_icon_foreground: "media/QuKiNotes_v2_Rainbow.png"
   windows:
     generate: true
-    image_path: "media/QuKiNotes_v2_Rainbow.png"
+    image_path: "media/QuKiNotes_v2_Rainbow_transparent.png"
     icon_size: 48
   linux:
     generate: true
-    image_path: "media/QuKiNotes_v2_Rainbow.png"
+    image_path: "media/QuKiNotes_v2_Rainbow_transparent.png"
 
 flutter:
   uses-material-design: true
