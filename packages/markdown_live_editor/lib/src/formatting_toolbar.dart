@@ -1,5 +1,3 @@
-import 'dart:io' show Platform;
-
 import 'package:flutter/material.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 
@@ -53,13 +51,6 @@ class FormattingToolbar extends StatelessWidget {
               tooltip: 'Task list',
               onPressed: () => controller.toggleLinePrefix('- [ ] '),
             ),
-            const Spacer(),
-            if (Platform.isAndroid || Platform.isIOS)
-              IconButton(
-                icon: const Icon(LucideIcons.keyboardOff),
-                tooltip: 'Dismiss keyboard',
-                onPressed: controller.dismissKeyboard,
-              ),
           ],
         ),
       ),
