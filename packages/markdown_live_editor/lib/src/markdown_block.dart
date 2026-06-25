@@ -251,7 +251,7 @@ class _MarkdownBlockState extends State<MarkdownBlock> {
                     child: Padding(
                       padding: const EdgeInsetsDirectional.only(end: 4),
                       child: Transform.translate(
-                        offset: const Offset(0, 2),
+                        offset: const Offset(0, 5),
                         child: Icon(
                           checked
                               ? Icons.check_box
