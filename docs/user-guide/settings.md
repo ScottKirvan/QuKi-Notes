@@ -25,4 +25,4 @@ Sync is not available in the current release. It is planned as an opt-in feature
 
 ## About
 
-Shows the installed version of QuKi-Notes.
+Shows the installed version of QuKi Notes.

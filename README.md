@@ -1,8 +1,8 @@
-# QuKi-Notes &nbsp; [![starline](https://starlines.qoo.monster/assets/ScottKirvan/QuKi-Notes)](https://github.com/qoomon/starline)
+# QuKi Notes &nbsp; [![starline](https://starlines.qoo.monster/assets/ScottKirvan/QuKi-Notes)](https://github.com/qoomon/starline)
 
 <div align="center">
 
-<img src="assets/media/logo.jpg" alt="QuKi-Notes" width="160" />
+<img src="assets/media/logo.jpg" alt="QuKi Notes" width="160" />
 
 **Open the app. Type. Done.**
 
@@ -26,17 +26,17 @@ Ephemeral notes captured on whatever device is at hand, dispatched wherever they
 
 ---
 
-## What is QuKi-Notes?
+## What is QuKi Notes?
 
-QuKi-Notes is a capture app. You open it, type a thought (a **QuKi**), and close it. That's it.
+QuKi Notes is a capture app. You open it, type a thought (a **QuKi**), and close it. That's it.
 
 A QuKi doesn't need a destination. Sometimes it's just something that needed somewhere to live — off your mind, available if it ever turns out to be useful. When it does need to go somewhere, there's a Send action: clipboard, Android share sheet, or any transport plugin you wire up. No vault, no folder structure, no organization ritual.
 
 The project prioritizes **radical simplicity** in the UI (one screen, no navigation depth, no configuration required to start) and **open extensibility** in the backend — a plugin axis for transports, a reserved axis for sync, and a reserved axis for MCP integration. Read the [manifesto](notes/dev/manifesto.md) for the full philosophy.
 
 > [!NOTE]
-> **Status: v0.9.6 · Phase 3 in progress.**
-> Core capture, local storage, transport plugins, WYSIWYG markdown editing, and Recently Deleted are complete. All design docs and Claude session directives are committed to the repo — start with the [manifesto](notes/dev/manifesto.md).
+> **Status: v0.13.0 · Phase 3 complete.**
+> Core capture, local storage, transport plugins, block-flip WYSIWYG markdown editing, and Recently Deleted are all shipped. All design docs and Claude session directives are committed to the repo — start with the [manifesto](notes/dev/manifesto.md).
 
 ---
 
@@ -54,8 +54,13 @@ Shipped and working in v0.9.6:
 | **Clipboard transport** | Copies full QuKi text to system clipboard; Android, Windows, Linux |
 | **Share Sheet transport** | Opens the system share dialog; Android and Windows |
 | **Android share-in** | Receive text shared from any other app into a new QuKi |
-| **WYSIWYG markdown** | Bold, italic, inline code, task lists render as you type; GFM-compatible storage |
+| **Block-flip WYSIWYG editor** | Document split into one block per line; idle blocks render via `flutter_markdown`; tap a block to edit, tap away to render |
+| **Formatting toolbar** | Bold, italic, strikethrough, H1, unordered list, ordered list, task list |
+| **List auto-continue** | Press Enter at the end of a list item to continue the list; Enter on an empty item exits the list |
 | **Inline markdown shortcuts** | `**x**` → bold, `_x_` / `*x*` → italic, `` `x` `` → code, `- [ ] ` → task item |
+| **Task checkbox tap** | Tap a rendered checkbox to toggle `[ ]` ↔ `[x]` without entering edit mode |
+| **Cross-block keyboard navigation** | Arrow-up/down at block boundaries moves focus to the adjacent block |
+| **Plain-text toggle** | T icon in the app bar — switch between block-flip WYSIWYG and a single plain-text field |
 | **Primer High Contrast theme** | GitHub Primer Dark HC in dark mode; Primer Light HC in light mode |
 | **Desktop keyboard shortcuts** | Ctrl+T (Send...), Ctrl+N (new QuKi) on Windows / Linux |
 | **Window-state persistence** | Size and position remembered between sessions (Windows / Linux) |
@@ -162,7 +167,7 @@ Platform release builds (Android APK, Windows bundle, Linux tarball) are trigger
 | Framework | Flutter / Dart | Single codebase; all active platforms |
 | State / DI | `flutter_riverpod` + `riverpod_generator` | `@riverpod` code-gen throughout |
 | Local storage | Individual `.md` files + `.meta/{uuid}.json` sidecars | `dart:io`; no ORM; `mtime` is the source of truth for `modifiedAt` |
-| Editor | `super_editor` | WYSIWYG markdown with inline shortcuts; GFM-compatible storage |
+| Editor | `markdown_live_editor` (monorepo package) | Block-flip WYSIWYG; `flutter_markdown` for rendering, `TextField` per block for editing; GFM-compatible storage |
 | Icons | `lucide_flutter` | Migrated from Material icons in v0.8.0 |
 | Desktop window | `window_manager` | Size/position persistence on Windows + Linux |
 | Clipboard / share | `share_plus` | Cross-platform clipboard; Android share dialog |
@@ -198,13 +203,13 @@ lib/
 
 ### The Three Plugin Axes
 
-QuKi-Notes is built around three extension points. Only the first is active in the current release:
+QuKi Notes is built around three extension points. Only the first is active in the current release:
 
 | Axis | Purpose | Status |
 |---|---|---|
 | **Transports** | Deliver a QuKi to a destination (clipboard, share sheet, webhook, …) | Active — 2 built-in plugins |
 | **Sync** | Move QuKis across a user's own devices, opt-in per backend | Reserved skeleton — v1.1+ |
-| **MCP** | Expose QuKi-Notes to AI agents over Model Context Protocol | Reserved — v2.0+ |
+| **MCP** | Expose QuKi Notes to AI agents over Model Context Protocol | Reserved — v2.0+ |
 
 Transports are registered at compile time in `lib/core/transports/registry.dart`. The interface is `TransportPlugin` — implement `toss()` + `settingsView()` and add to the registry.
 
@@ -290,7 +295,7 @@ All planning documents live in `notes/dev/`. Read these before proposing structu
 | 0 | Bootstrap scaffold | Complete |
 | 1 | Local QuKi capture on Android | Complete (v0.3.0) |
 | 2 | Transport plugin system + built-in transports | Complete (v0.5.0) |
-| 3 | Polish, share-in, desktop | In progress |
+| 3 | Polish, share-in, desktop | Complete (v0.13.0) |
 | &ensp;3.1 | Android share-in | Complete |
 | &ensp;3.2 | Windows + Linux CI verification | Complete |
 | &ensp;3.3 | Platform guard: share-in on desktop | Complete |
@@ -300,7 +305,7 @@ All planning documents live in `notes/dev/`. Read these before proposing structu
 | &ensp;3.7 | Editor UX polish batch | Complete (v0.9.4–v0.9.5) |
 | &ensp;3.8 | Storage migration: Drift → individual `.md` files | Complete (v0.9.6) |
 | &ensp;3.9 | Recently Deleted screen | Complete (v0.9.6) |
-| &ensp;3.10 | WYSIWYG editor rewrite (ADR-26) | In progress |
+| &ensp;3.10 | WYSIWYG editor rewrite (ADR-26) — all 4 stages | Complete (v0.10.0–v0.12.0) |
 | &ensp;3.11 | Stream performance (lazy loading) | Deferred — threshold not hit |
 | 4 | Sync plugin axis + first sync backend | v1.1+ |
 | 5 | iOS / iPadOS / macOS builds | Deferred |

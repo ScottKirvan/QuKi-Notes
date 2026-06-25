@@ -1,7 +1,7 @@
 ---
 layout: home
 hero:
-  name: QuKi-Notes
+  name: QuKi Notes
   text: Open the app. Type. Done.
   tagline: Ephemeral notes captured on whatever device is at hand, sent wherever they need to go.
   actions:
