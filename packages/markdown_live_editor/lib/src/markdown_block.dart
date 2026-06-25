@@ -238,9 +238,7 @@ class _MarkdownBlockState extends State<MarkdownBlock> {
           child: isEmpty
               ? const SizedBox.shrink()
               : MarkdownBody(
-                  data: isBareMarker
-                      ? '${widget.content}​'
-                      : widget.content,
+                  data: isBareMarker ? '${widget.content}​' : widget.content,
                   styleSheet:
                       MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
                     p: widget.config.textStyle,
@@ -252,11 +250,14 @@ class _MarkdownBlockState extends State<MarkdownBlock> {
                     onTap: () => _toggleCheckbox(checked),
                     child: Padding(
                       padding: const EdgeInsetsDirectional.only(end: 4),
-                      child: Icon(
-                        checked
-                            ? Icons.check_box
-                            : Icons.check_box_outline_blank,
-                        size: 18,
+                      child: Transform.translate(
+                        offset: const Offset(0, 2),
+                        child: Icon(
+                          checked
+                              ? Icons.check_box
+                              : Icons.check_box_outline_blank,
+                          size: 18,
+                        ),
                       ),
                     ),
                   ),

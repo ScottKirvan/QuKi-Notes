@@ -137,8 +137,6 @@ class MarkdownEditorController {
     _activeOnChanged?.call(newText);
   }
 
-  void dismissKeyboard() => FocusManager.instance.primaryFocus?.unfocus();
-
   void requestFocus() => _state?._requestFocus();
 }
 
@@ -443,8 +441,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
                   i == 0 ? null : () => _onMergeWithPrevious(i),
               onArrowDownAtEnd:
                   i < _blocks.length - 1 ? () => _onArrowDownAtEnd(i) : null,
-              onArrowUpAtStart:
-                  i > 0 ? () => _onArrowUpAtStart(i) : null,
+              onArrowUpAtStart: i > 0 ? () => _onArrowUpAtStart(i) : null,
             ),
             childCount: _blocks.length,
           ),
