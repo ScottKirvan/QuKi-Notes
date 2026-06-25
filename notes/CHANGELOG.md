@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.13.1](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.13.0...v0.13.1) (2026-06-25)
+
+
+### Bug Fixes
+
+* **editor:** adjust checkbox vertical offset to 5px ([77bd32a](https://github.com/ScottKirvan/QuKi-Notes/commit/77bd32ace3ec7acb06e3e40ad3ff53da8ee5ed61))
+* **editor:** bypass MarkdownBody for bare task items to prevent assertion crash ([#138](https://github.com/ScottKirvan/QuKi-Notes/issues/138)) ([8891822](https://github.com/ScottKirvan/QuKi-Notes/commit/8891822a1c1935c9bae839d69561f841c4fb42f1))
+* **editor:** remove keyboard dismiss button; nudge checkbox alignment ([28875d5](https://github.com/ScottKirvan/QuKi-Notes/commit/28875d5739b403717684970ab247743f0842ad8d))
+* **editor:** render all task items directly, bypassing flutter_markdown task list ([151413b](https://github.com/ScottKirvan/QuKi-Notes/commit/151413b58bf96bc31be9ddef6264e947711a6da5))
+* **test:** remove dismissKeyboard test — method removed in [#132](https://github.com/ScottKirvan/QuKi-Notes/issues/132) ([f951aa7](https://github.com/ScottKirvan/QuKi-Notes/commit/f951aa7569c8fe15b27883e5ce9501ca2da03369))
+
 ## [0.13.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.12.0...v0.13.0) (2026-06-25)
 
 
