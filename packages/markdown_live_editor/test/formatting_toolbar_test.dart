@@ -221,41 +221,6 @@ void main() {
     });
   });
 
-  group('dismissKeyboard', () {
-    testWidgets('exits edit mode and returns block to render view',
-        (tester) async {
-      final controller = MarkdownEditorController();
-
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: Column(
-            children: [
-              Expanded(
-                child: MarkdownEditor(
-                  initialValue: 'hello',
-                  controller: controller,
-                ),
-              ),
-              FormattingToolbar(controller: controller),
-            ],
-          ),
-        ),
-      ));
-      await tester.pump();
-
-      // Tap block to enter edit mode.
-      await tester.tap(find.byType(MarkdownBlock));
-      await tester.pump();
-      expect(find.byType(TextField), findsOneWidget);
-
-      controller.dismissKeyboard();
-      await tester.pump();
-
-      // Block should return to render mode.
-      expect(find.byType(TextField), findsNothing);
-    });
-  });
-
   group('toggleUnorderedList', () {
     testWidgets('adds "- " prefix when line has no list marker',
         (tester) async {

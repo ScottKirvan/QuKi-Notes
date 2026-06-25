@@ -239,7 +239,8 @@ void main() {
   });
 
   group('MarkdownBlock checkbox tap', () {
-    testWidgets('tapping unchecked checkbox calls onChanged with checked content',
+    testWidgets(
+        'tapping unchecked checkbox calls onChanged with checked content',
         (tester) async {
       String? changed;
 
@@ -256,7 +257,8 @@ void main() {
       expect(find.byType(TextField), findsNothing);
     });
 
-    testWidgets('tapping checked checkbox calls onChanged with unchecked content',
+    testWidgets(
+        'tapping checked checkbox calls onChanged with unchecked content',
         (tester) async {
       String? changed;
 
