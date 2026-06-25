@@ -223,24 +223,28 @@ class _MarkdownBlockState extends State<MarkdownBlock> {
     // gives the parser one inline to work with while remaining visually
     // invisible, so the bullet/heading renders normally.
     //
-    // Bare task items (e.g. "- [ ] ") hit the same assertion via a different
-    // path: the checkbox WidgetSpan is added to _inlines but has no inline
-    // sibling, so the builder asserts on close.  The zero-width-space trick
-    // does not fix this case.  Instead, render bare task items directly as
-    // Flutter widgets, bypassing MarkdownBody entirely (#138).
+    // ALL task items bypass flutter_markdown's task list rendering entirely
+    // (#138). The body content after the "- [ ] " prefix can contain
+    // markdown-special characters (e.g. "-") that the parser misinterprets
+    // as nested blocks, triggering the _inlines.isEmpty assertion.  We parse
+    // the checkbox state ourselves and render only the body through MarkdownBody
+    // (without task syntax), so the parser never sees a task list at all.
     final trimmed = widget.content.trimRight();
-    final isBareMarker = trimmed.isNotEmpty &&
-        RegExp(r'^(- \[[ x]\]|[-*]|#{1,6}|\d+\.)$').hasMatch(trimmed);
-    final isBareTask =
-        isBareMarker && RegExp(r'^- \[[ xX]\]$').hasMatch(trimmed);
+    final taskMatch =
+        RegExp(r'^- \[([ xX])\] ?(.*)$').firstMatch(widget.content);
+    final isBareMarker = taskMatch == null &&
+        trimmed.isNotEmpty &&
+        RegExp(r'^([-*]|#{1,6}|\d+\.)$').hasMatch(trimmed);
     final isEmpty = widget.content.isEmpty;
 
     Widget renderBody;
     if (isEmpty) {
       renderBody = const SizedBox.shrink();
-    } else if (isBareTask) {
-      final checked = trimmed.contains('[x]') || trimmed.contains('[X]');
+    } else if (taskMatch != null) {
+      final checked = taskMatch.group(1) != ' ';
+      final body = taskMatch.group(2)!;
       renderBody = Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           GestureDetector(
             onTap: () => _toggleCheckbox(checked),
@@ -255,6 +259,19 @@ class _MarkdownBlockState extends State<MarkdownBlock> {
               ),
             ),
           ),
+          if (body.isNotEmpty)
+            Expanded(
+              child: MarkdownBody(
+                data: body,
+                styleSheet:
+                    MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
+                  p: widget.config.textStyle,
+                  blockSpacing: 0,
+                  listBulletPadding: EdgeInsets.zero,
+                ),
+                softLineBreak: true,
+              ),
+            ),
         ],
       );
     } else {
@@ -266,19 +283,6 @@ class _MarkdownBlockState extends State<MarkdownBlock> {
           listBulletPadding: EdgeInsets.zero,
         ),
         softLineBreak: true,
-        checkboxBuilder: (bool checked) => GestureDetector(
-          onTap: () => _toggleCheckbox(checked),
-          child: Padding(
-            padding: const EdgeInsetsDirectional.only(end: 4),
-            child: Transform.translate(
-              offset: const Offset(0, 5),
-              child: Icon(
-                checked ? Icons.check_box : Icons.check_box_outline_blank,
-                size: 18,
-              ),
-            ),
-          ),
-        ),
       );
     }
 
