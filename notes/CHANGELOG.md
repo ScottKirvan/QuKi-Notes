@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.13.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.12.0...v0.13.0) (2026-06-25)
+
+
+### Features
+
+* **assets:** add v2 icon source files, remove superseded originals ([d496495](https://github.com/ScottKirvan/QuKi-Notes/commit/d49649574dbda4b057db2902a0c98c1919277544))
+* **assets:** update app icon to QuKiNotes v2 Rainbow ([d9e6975](https://github.com/ScottKirvan/QuKi-Notes/commit/d9e69757a83c5cd2140a6380f18e8666a2200a13))
+
 ## [0.12.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.11.0...v0.12.0) (2026-06-20)
 
 
