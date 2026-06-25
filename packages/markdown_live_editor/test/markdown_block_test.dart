@@ -68,22 +68,35 @@ void main() {
       expect(find.byType(MarkdownBody), findsOneWidget);
     });
 
-    testWidgets(
-        'bare task item renders checkbox directly without crashing (#138)',
+    testWidgets('task items render checkbox directly without crashing (#138)',
         (tester) async {
-      // "- [ ] -" + Enter produces a bare task continuation "- [ ] ".
-      // flutter_markdown asserts '_inlines.isEmpty' on bare task items because
-      // the checkbox WidgetSpan has no inline sibling.  Fix: render the
-      // checkbox directly, bypassing MarkdownBody.
+      // flutter_markdown asserts '_inlines.isEmpty' for task items when the
+      // body is a markdown-special character (e.g. "-").  Fix: all task items
+      // bypass flutter_markdown's task list rendering — the checkbox is a
+      // Flutter widget and only the body text goes to MarkdownBody.
+
+      // Bare task continuation ("- [ ] -" + Enter → "- [ ] ")
       await tester.pumpWidget(_buildBlock(content: '- [ ] '));
       expect(tester.takeException(), isNull);
       expect(find.byIcon(Icons.check_box_outline_blank), findsOneWidget);
       expect(find.byType(MarkdownBody), findsNothing);
 
+      // Bare checked task
       await tester.pumpWidget(_buildBlock(content: '- [x] '));
       expect(tester.takeException(), isNull);
       expect(find.byIcon(Icons.check_box), findsOneWidget);
       expect(find.byType(MarkdownBody), findsNothing);
+
+      // Task with dash body — original crash repro: the BEFORE block
+      // "- [ ] -" renders after focus leaves, body "-" was misparse as nested list
+      await tester.pumpWidget(_buildBlock(content: '- [ ] -'));
+      expect(tester.takeException(), isNull);
+      expect(find.byIcon(Icons.check_box_outline_blank), findsOneWidget);
+
+      // Task with normal text body
+      await tester.pumpWidget(_buildBlock(content: '- [ ] task'));
+      expect(tester.takeException(), isNull);
+      expect(find.byIcon(Icons.check_box_outline_blank), findsOneWidget);
     });
   });
 
