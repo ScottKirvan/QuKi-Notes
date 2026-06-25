@@ -2,7 +2,7 @@
 
 ## How sending works
 
-QuKi-Notes dispatches a QuKi via a **transport** — a plugin that delivers the text to a destination. Two transports are built in. You can enable or disable each in Settings.
+QuKi Notes dispatches a QuKi via a **transport** — a plugin that delivers the text to a destination. Two transports are built in. You can enable or disable each in Settings.
 
 ## Opening the send sheet
 

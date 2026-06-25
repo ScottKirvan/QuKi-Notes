@@ -1,8 +1,8 @@
 # Getting Started
 
-## What is QuKi-Notes?
+## What is QuKi Notes?
 
-QuKi-Notes is a capture app. You open it, type a thought (a QuKi), and close it. There is no vault, no folder structure, no organization ritual. When a QuKi needs to go somewhere, there's a Send action — clipboard, share sheet, or any transport you enable. 
+QuKi Notes is a capture app. You open it, type a thought (a QuKi), and close it. There is no vault, no folder structure, no organization ritual. When a QuKi needs to go somewhere, there's a Send action — clipboard, share sheet, or any transport you enable. 
 
 ## Platforms
 
