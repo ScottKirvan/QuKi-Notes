@@ -57,20 +57,33 @@ void main() {
     });
 
     testWidgets(
-        'bare list/heading marker renders without throwing (flutter_markdown regression)',
+        'bare bullet/heading marker renders without throwing (flutter_markdown regression)',
         (tester) async {
-      // A line such as "- [ ] " (empty task item) was crashing flutter_markdown
-      // with '_inlines.isEmpty': is not true.  A zero-width space is appended
-      // so the parser has one inline while the marker (checkbox/bullet) still
-      // renders visually.
-      await tester.pumpWidget(_buildBlock(content: '- [ ] '));
-      expect(find.byType(MarkdownBody), findsOneWidget);
-
+      // Zero-width-space workaround keeps MarkdownBody working for non-task
+      // bare markers.
       await tester.pumpWidget(_buildBlock(content: '- '));
       expect(find.byType(MarkdownBody), findsOneWidget);
 
       await tester.pumpWidget(_buildBlock(content: '1. '));
       expect(find.byType(MarkdownBody), findsOneWidget);
+    });
+
+    testWidgets(
+        'bare task item renders checkbox directly without crashing (#138)',
+        (tester) async {
+      // "- [ ] -" + Enter produces a bare task continuation "- [ ] ".
+      // flutter_markdown asserts '_inlines.isEmpty' on bare task items because
+      // the checkbox WidgetSpan has no inline sibling.  Fix: render the
+      // checkbox directly, bypassing MarkdownBody.
+      await tester.pumpWidget(_buildBlock(content: '- [ ] '));
+      expect(tester.takeException(), isNull);
+      expect(find.byIcon(Icons.check_box_outline_blank), findsOneWidget);
+      expect(find.byType(MarkdownBody), findsNothing);
+
+      await tester.pumpWidget(_buildBlock(content: '- [x] '));
+      expect(tester.takeException(), isNull);
+      expect(find.byIcon(Icons.check_box), findsOneWidget);
+      expect(find.byType(MarkdownBody), findsNothing);
     });
   });
 
