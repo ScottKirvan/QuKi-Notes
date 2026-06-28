@@ -40,7 +40,7 @@ Each folder has its own `CLAUDE.md` with role-specific instructions and the curr
 | Active platforms | Android first, then Windows + Linux |
 | Deferred platforms | iPadOS / iOS / macOS (codebase supports; builds deferred) |
 | Markdown flavor | GFM |
-| WYSIWYG editor | `markdown_live_editor` (monorepo package, ADR-26) — Stage 1 complete; Stages 2–4 in progress |
+| WYSIWYG editor | `markdown_live_editor` (monorepo package, ADR-26) — All stages complete (v0.11.0) |
 | Local storage | Individual `.md` files + `.meta/{uuid}.json` sidecar (ADR-25) |
 | Sync (MVP) | None — opt-in plugin axis v1.1+ (ADR-17, ADR-18) |
 | Transports (MVP) | Built-in compile-time registry; ClipboardToss + ShareSheetToss shipped (ADR-14) |
@@ -121,8 +121,9 @@ QuKi-Notes/
 | | 3.14 Post-#96 device regressions (transport state, #75 re-fix, #78 re-fix, #82 format fix) | Complete (PR #99) |
 | | 3.15 Storage migration: Drift/SQLite → individual .md files (ADR-25) | Complete (PRs #103, #104, #105, v0.9.6) |
 | | 3.16 Recently Deleted screen (#29) | Complete (PR #103) |
-| | 3.17 Replace super_editor with markdown_live_editor (ADR-26) | Stage 1 complete; Stages 2–4 in progress |
-| | 3.18 Stream performance (lazy loading) | Defer until threshold hit |
+| | 3.17 Replace super_editor with markdown_live_editor (ADR-26) | Complete (v0.11.0) |
+| | 3.18 App icon — Android adaptive, iOS, Windows, Linux | Complete (v0.12.0–v0.13.0) |
+| | 3.19 Stream performance (lazy loading) | Defer until threshold hit |
 | 4 | Sync plugin axis + first sync backend | v1.1+ |
 | 5 | iPadOS / iOS / macOS builds | Deferred |
 | 6 | MCP plugin axis | v2.0+ |
@@ -151,7 +152,7 @@ QuKi-Notes/
 
 **Auto-save (ADR-6, v0.9.6)**: `AutoSaveController` — 2s idle debounce + 30s periodic + lifecycle hooks. Accepts a `Future<void> Function(String body)` write callback (decoupled from storage). Tracks `_lastSavedBody` and skips the write when content is identical — event-based guard, immune to frame-timing issues (PR #104). `resetForQuki(id:, initialBody:)` switches the save target without disposing the controller.
 
-**Editor (ADR-26 Stage 1 — in progress)**: `super_editor` is being replaced by `packages/markdown_live_editor/` — a monorepo Flutter package implementing a block-flip Typora model. Stage 1 (`refactor/plain-text-editor`): single `TextField`, no rendering, `super_editor` fully removed. `MarkdownEditorController.setValue()` is the seam between `EditorScreen` and the package. `onChanged` → `_autoSave.notifyChanged()`. Stages 2–4 add toolbar, block rendering, and task checkbox interaction.
+**Editor (ADR-26 — all stages complete, v0.11.0)**: `packages/markdown_live_editor/` (monorepo path dep) implements a block-flip Typora model. Each markdown block renders via `flutter_markdown` when idle; tapping flips it to a `TextField`. `MarkdownEditorController` provides `wrapSelection()`, `toggleLinePrefix()`, and `togglePlainTextMode()`. `FormattingToolbar` lives in the package. Task checkboxes tap-to-toggle without entering edit mode. Arrow keys navigate across blocks. Flip transitions are 150ms; note switching is instant. `MarkdownEditorController.setValue()` is the seam between `EditorScreen` and the package; `onChanged` → `_autoSave.notifyChanged()`.
 
 **Recently Deleted (PR #103)**: `lib/features/recently_deleted/recently_deleted_screen.dart` — `Consumer` over `trashIndexProvider`, newest-first list. Tap → restore (moves files back from `.trash/`). Swipe → confirmation dialog → hard delete. Accessible via Settings → Recently Deleted.
 
@@ -169,6 +170,6 @@ QuKi-Notes/
 
 **ShareSheetToss always succeeds (#92)**: `share_plus` fires `ShareResultStatus.dismissed` on Android even on success. Dropped the status check; always returns `TossResult(success: true, message: 'Shared.')`.
 
-**Known bugs (open)**: #72 keyboard not raised on cold launch; #73 rapid shares may lose content; #79 auto-new note after idle; #80 hamburger → icon toolbar; #87 partial-width panels. Issues #71/#74/#77/#81/#83 will be resolved when ADR-26 Stage 1 merges (all are super_editor-specific).
+**Known bugs (open)**: #72 keyboard not raised on cold launch; #73 rapid shares may lose content; #75 opening a note moves it to top of list (ADR-25 did not fully resolve — still reproducing); #77 tabs/indenting broken in lists; #129 cursor jumps to end of line on tap; #130 checkbox toggle unacceptably slow; #133 share-in QuKi doesn't appear in QuKis list.
 
-**Last Updated**: 2026-06-17
+**Last Updated**: 2026-06-28

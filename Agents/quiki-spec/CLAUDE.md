@@ -89,22 +89,25 @@ Fix CI failures directly (they are always small). Use `mcp__github__subscribe_pr
 
 See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phase table.
 
-**Current version**: v0.9.6 (released 2026-06-15, PR #106).
+**Current version**: v0.13.1 (released 2026-06-25).
 
-**Current implementation task — Session 6**: Replace `super_editor` with `markdown_live_editor` monorepo package, Stage 1 plain-text foundation (ADR-26). Branch: `refactor/plain-text-editor`. Brief is in `Agents/quiki-dev/CLAUDE.md`.
+**No implementation session currently in progress.**
 
 **Resolved since last spec sync:**
-- PR #103 (v0.9.5): Storage migration (ADR-25) — Drift/SQLite replaced with individual `.md` files; Recently Deleted screen (#29) shipped; #75 (modifiedAt) eliminated by design
-- PR #104: Content-hash guard in `AutoSaveController` — belt-and-suspenders fix for #75 while super_editor still present
-- PR #105: Android cursor controls guarded to Android only — fixed #76 (cursor not visible on Windows)
-- PR #107: Checkbox theme (shrinkWrap + compact task list spacing)
-- PR #108: ADR-26 written + Session 6 brief
+- ADR-26 Stage 2 (v0.10.0): Formatting toolbar (bold, italic, strikethrough, heading, task list) + list auto-continue — `FormattingToolbar` in `markdown_live_editor` package
+- ADR-26 Stage 3 (v0.10.1): Block-flip WYSIWYG — idle blocks render via `flutter_markdown`; tapping flips to `TextField`; multiple post-merge fixes for autofocus, toolbar, double-enter, bare list markers, block spacing
+- ADR-26 Stage 4 (v0.11.0): Task checkbox tap-to-toggle (no edit mode); cross-block arrow-key navigation; 150ms flip animations
+- App label renamed from `quki_notes` to `QuKi Notes`
+- App icon v1 (v0.12.0, PR #124): QuKi Notes icon — Android adaptive, iOS, Windows
+- App icon v2 Rainbow (v0.13.0, PRs #126 + #128): updated design; transparent background for Windows + Linux
+- Keyboard dismiss button removed; checkbox vertical alignment nudged (v0.13.1, PR #137)
+- Fix #138 — `MarkdownBody` assertion crash on bare task items; bypass `flutter_markdown` task list rendering (v0.13.1, PR #139)
 
-**Phase 3 remaining after Session 6:**
-- Stream performance / lazy loading — defer until threshold is hit
-- Issues #79, #80, #87 (UX improvements) — not yet scoped
-
-**Still open bugs:** #72 keyboard not raised on cold launch; #73 rapid shares may lose content. Issues #71/#74/#77/#81/#83 are super_editor-specific and will be resolved when ADR-26 Stage 1 merges.
+**Phase 3 remaining:**
+- **Open bugs**: #72 keyboard not raised on cold launch; #73 rapid shares may lose content; #75 opening a note moves it to top of list (ADR-25 did NOT fully resolve — still reproducing); #77 tabs/indenting broken in lists; #129 cursor jumps to end of line on tap; #130 checkbox toggle unacceptably slow; #133 share-in QuKi doesn't appear in QuKis list
+- **Housekeeping**: #88 (release build modes already merged as `4dbd27c`) — close the issue
+- **Unscoped features**: #79 (auto-start after idle), #80 (replace hamburger with icon toolbar), #81 (hyperlink insert/edit), #83 (spell check / swipe-to-type), #87 (partial-width panels), #134 (storage location choice), #135 (find in page), #136 (word/char count)
+- Stream performance / lazy loading — defer until threshold hit
 
 **Phase 4+:** Sync plugin axis (v1.1+), MCP (v2.0+) — not in scope until Phase 3 is complete.
 

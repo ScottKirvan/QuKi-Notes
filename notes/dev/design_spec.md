@@ -300,10 +300,10 @@ Device-backed enrichments (GPS today; camera/mic/contacts later if transports de
 
 - **Framework**: Flutter (Dart) — single codebase, Android + Windows + Linux active.
 - **State / DI**: `riverpod` + `riverpod_generator` (`@riverpod` annotation). ADR-1.
-- **Editor**: `super_editor` (WYSIWYG, full-featured) — fallback: `appflowy_editor` (OQ-1).
+- **Editor**: `markdown_live_editor` (monorepo path dep `packages/markdown_live_editor/`, ADR-26) — block-flip Typora model; `flutter_markdown` for rendering.
 - **Markdown flavor**: GFM (GitHub Flavored Markdown).
-- **Local storage**: `drift` (type-safe SQLite ORM).
-- **Image clipboard**: `super_clipboard`.
+- **Local storage**: individual `.md` files via `dart:io` + `path_provider` (ADR-25).
+- **Image clipboard**: `super_clipboard` — deferred; CargoKit archived 2026-03-26.
 - **Share-in**: `receive_sharing_intent` (Android; Windows/Linux equivalents TBD).
 - **Share-out / toss-to-share-sheet**: `share_plus`.
 - **GPS** (per-toss opt-in only): `geolocator` + `geocoding` for reverse-geocoded address strings (platform-native, no API key).
@@ -344,50 +344,37 @@ Device-backed enrichments (GPS today; camera/mic/contacts later if transports de
 
 ### Save semantics (ADR-6)
 
-- **Save** (local SQLite): 2s idle debounce + 30s periodic + lifecycle `inactive`/`paused`/`detached`. Never blocks the UI.
+- **Save** (local file): 2s idle debounce + 30s periodic + lifecycle `inactive`/`paused`/`detached`. Never blocks the UI.
 - **Toss** (transport): user-initiated. Pressing the toss button is the only path; no auto-toss.
 - **Push** (sync, when sync exists): same debounce shape as save, but only triggers from foreground + manual sync button, never from periodic/lifecycle saves.
 
-### Drift schema (v1, MVP)
+### Storage — individual `.md` files (ADR-25, supersedes Drift schema)
 
-```dart
-class Qukis extends Table {
-  TextColumn get id => text()();                       // UUID v4
-  TextColumn get body => text().withDefault(const Constant(''))();
-  DateTimeColumn get createdAt => dateTime()();
-  DateTimeColumn get modifiedAt => dateTime()();
-  DateTimeColumn get deletedAt => dateTime().nullable()();
+**Drift/SQLite removed in v0.9.5.** See ADR-25 in `notes/dev/decisions.md` for full rationale. Directory structure:
 
-  @override Set<Column> get primaryKey => {id};
-}
-
-class Images extends Table {
-  TextColumn get id => text()();                       // UUID v4
-  TextColumn get qukiId => text().references(Qukis, #id)();
-  TextColumn get filename => text()();                 // YYYY-MM-DD-{uuid8}.ext
-  TextColumn get localPath => text().nullable()();
-  IntColumn get bytes => integer().nullable()();
-
-  @override Set<Column> get primaryKey => {id};
-}
+```
+<app-documents>/qukis/
+  {uuid}.md          ← body, plain markdown
+  .meta/{uuid}.json  ← {"createdAt": "..."}
+  .trash/            ← soft-deleted QuKis; user restores or hard-deletes
+  .trash/.meta/
+    {uuid}.json
 ```
 
-Sync columns (e.g. `syncStatus`, `remoteIdentifier`, `etag`) are **not** added in v1. They land in the schema bump when the first sync plugin ships.
-
-Migration discipline per ADR-8: every `schemaVersion` bump ships a migration test against the prior snapshot under `test/db/schemas/`.
+`modifiedAt` = filesystem `mtime` — changes only on actual write. `lib/core/storage/` owns all file I/O (`QuKiStorage`, `QuKiIndex`, `TrashIndex`, `QuKiSearch`). No schema migrations.
 
 ### Image handling (ADR-4)
 
-- On paste / share-in: copy bytes to `<app docs>/images/YYYY-MM-DD-{uuid8}.{ext}`; insert `Images` row; reference in QuKi markdown as `![](../images/{filename})`.
+- On paste / share-in: copy bytes to `<app docs>/images/YYYY-MM-DD-{uuid8}.{ext}`; reference in QuKi markdown as `![](../images/{filename})`.
 - The `../images/` prefix keeps the markdown portable into a tossed destination (transports may rewrite to whatever path makes sense at the destination).
 - Cascade delete on QuKi delete.
 - No base64-embed, ever (file bloat + editor perf + unreadable when tossed).
 
-### Deletion (ADR-5)
+### Deletion (ADR-5, updated by ADR-25)
 
-- User deletes a QuKi from the stream → set `deletedAt`. Row hidden from queries immediately.
-- Background sweep at 24h hard-deletes soft-deleted rows + cascades to images.
-- When a sync plugin is active: replace the 24h sweep with sync-aware behavior (queue remote DELETE; hard-delete on ack).
+- User deletes a QuKi from the stream → file moved to `.trash/` subfolder. Hidden from main index immediately.
+- Background sweep at user-configurable retention period (default 7 days) hard-deletes `.trash/` files.
+- When a sync plugin is active: replace the sweep with sync-aware behavior (queue remote DELETE; hard-delete on ack).
 
 ### Logging & privacy (ADR-12)
 
@@ -407,7 +394,7 @@ quki_notes/
 │   ├── main.dart
 │   ├── app.dart
 │   ├── core/                  ← Flutter-free except where noted
-│   │   ├── database/          ← drift, pure Dart
+│   │   ├── storage/           ← file I/O, pure Dart (ADR-25)
 │   │   ├── transports/        ← plugin loader + base interfaces, pure Dart
 │   │   ├── auth/              ← Device Flow helper (lazy-init by plugins)
 │   │   └── settings/          ← shared_prefs wrapper
@@ -456,7 +443,7 @@ quki_notes/
 | 0     | Bootstrap scaffold (project, CI, docs)                                 | Complete       |
 | 1     | Local QuKi capture on Android — editor, stream, drift, auto-save       | Complete (v0.3.0) |
 | 2     | Transport plugin loader + built-in QuKi-Tosses + Settings → Tosses     | Complete (v0.5.0) |
-| 3     | Polish + share-in + Windows + Linux desktop ports                      | In progress (v0.9.3) |
+| 3     | Polish + share-in + Windows + Linux desktop ports                      | In progress (v0.13.1) |
 | 4     | Sync plugin axis (`core/sync/`) + first sync backend (probably GitHub) | v1.1+       |
 | 5     | iPadOS / iOS / macOS builds (CI wiring + device QA)                    | Deferred    |
 | 6     | MCP plugin axis                                                        | v2.0+       |
@@ -499,12 +486,14 @@ Sub-tasks in priority order:
 6. **Editor single-root architecture** — replaced push-based QuKi loading with `activeQukiIdProvider` (NotifierProvider<String?>); editor is now the permanent root, `StreamScreen` sets the provider and pops; `AutoSaveController.resetForQuki(id:)` switches save target without disposal; share-in routes through provider (no second EditorScreen). ✓ Complete (v0.8.1).
 7. **WYSIWYG markdown rendering (OQ-1 / #27)** — live GFM rendering (bold, italic, headings, task lists, code blocks, etc.). ✓ Complete (v0.9.1). Fenced code block rendering deferred per Scott's decision.
 8. **Primer DHC color palette (#37)** — replace `Colors.deepPurple` seed with GitHub Primer Dark High Contrast `ColorScheme`. ✓ Complete (v0.9.2, PR #63). Primer LHC for light mode also applied.
-9. **Auto-capitalization bug (#32)** — `TextCapitalization.none` on editor IME config. Partially addressed (v0.9.2): `enableAutocorrect: false` / `enableSuggestions: false` applied as a proxy since `super_editor 0.3.0-dev.51` does not expose `textCapitalization`. Root issue persists and is tracked as #74. Also disables spell check and swipe-to-type (#83).
-10. **Editor auto-focus + keyboard dismiss** — cursor visible and keyboard raised on Android cold launch; keyboard dismiss button in toolbar. ✓ Complete (v0.9.2, PR #66). Known follow-up: #72 keyboard not always raised, #78 keyboard button should toggle.
+9. **Auto-capitalization bug (#32)** — `TextCapitalization.none` on editor IME config. Partially addressed (v0.9.2). #74 (super_editor-specific root cause) closed when super_editor removed. Spell check (#83) and swipe-to-type remain open features — unblocked now that `markdown_live_editor` uses plain `TextField`.
+10. **Editor auto-focus + keyboard dismiss** — cursor visible and keyboard raised on Android cold launch; keyboard dismiss button added then later removed (PR #137). Known follow-up: #72 keyboard not always raised on cold launch.
 11. **Error handling + code review fixes** — share-in, toss, auto-save wrapped in try/catch; case-insensitive search; `relativeTime` utility extracted. ✓ Complete (v0.9.3, PR #90).
-12. **Recently Deleted screen (#29)** — data recovery UI; user-configurable retention; background sweep. Not started (drift schema bump required per ADR-8).
-13. **Stream performance** — lazy loading / pagination for large QuKi counts. Defer until a real threshold is hit.
-14. **Onboarding** — drops straight to editor; coachmarks deferred unless user testing reveals a need.
+12. **Storage migration + Recently Deleted (#29)** — Drift/SQLite replaced with individual `.md` files (ADR-25); Recently Deleted screen (#29) shipped. ✓ Complete (v0.9.5–v0.9.6, PRs #103–#105).
+13. **Replace `super_editor` with `markdown_live_editor` (ADR-26)** — block-flip Typora model in `packages/markdown_live_editor/`. ✓ Complete (v0.10.0–v0.11.0): Stage 1 plain-text foundation, Stage 2 formatting toolbar + list auto-continue, Stage 3 block-flip WYSIWYG, Stage 4 task checkbox tap / cross-block nav / flip animations.
+14. **App icon** — QuKi Notes branded icon: Android adaptive, iOS, Windows, Linux. ✓ Complete (v0.12.0–v0.13.0, PRs #124, #126, #128).
+15. **Stream performance** — lazy loading / pagination for large QuKi counts. Defer until a real threshold is hit.
+16. **Onboarding** — drops straight to editor; coachmarks deferred unless user testing reveals a need.
 
 #### Share-in: behavior spec
 
@@ -615,4 +604,4 @@ Tracked in `notes/dev/open_questions.md`. Snapshot of what's outstanding at spec
 
 ---
 
-**Last Updated**: 2026-06-09
+**Last Updated**: 2026-06-28
