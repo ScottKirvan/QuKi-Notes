@@ -64,8 +64,8 @@ See `notes/dev/design_spec.md` → Vocabulary for the full table.
 
 ## Current state of docs
 
-- **`README.md`** — updated to v0.9.6 (PR `a2e1212`). Currently accurate.
-- **`docs/`** — VitePress source; the build pipeline exists (`docs.yml`). Write content freely — build/deploy config is DevOps.
+- **`README.md`** — updated to v0.13.0 (PR #141). Currently accurate.
+- **`docs/`** — VitePress source updated to v0.13.0 (PR #141); user guide covers block-flip WYSIWYG, formatting toolbar, task checkboxes. The build pipeline exists (`docs.yml`). Write content freely — build/deploy config is DevOps.
 - **`CONTRIBUTING.md`** — may not exist yet; create if tasked.
 
 ---
@@ -73,8 +73,9 @@ See `notes/dev/design_spec.md` → Vocabulary for the full table.
 ## Previous tasks — COMPLETE
 
 - README and VitePress user guide updated to v0.9.1; privacy policy created. Merged as PR #62.
-- README and VitePress user guide updated to v0.9.2 / v0.9.3. Merged as PR after #62.
+- README and VitePress user guide updated to v0.9.2 / v0.9.3.
 - README and user guide updated to v0.9.6. Merged (`a2e1212`).
+- README and user guide updated to v0.13.0 (post-ADR-26: block-flip editor, formatting toolbar, task checkboxes, app icon). Merged as PR #141.
 
 ---
 
@@ -83,5 +84,3 @@ See `notes/dev/design_spec.md` → Vocabulary for the full table.
 > Written and maintained by the Spec session. If this says "no task", ask Scott what's next.
 
 **No task currently in progress.**
-
-Next docs update is expected after Session 6 (ADR-26 Stage 1) merges — the editor surface will change meaningfully (formatting toolbar removed, plain-text editor in place) and user guide screenshots/descriptions will need updating.
