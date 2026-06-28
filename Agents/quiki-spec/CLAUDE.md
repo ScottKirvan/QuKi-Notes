@@ -16,17 +16,27 @@ You are the **Spec session**. You own the planning docs in `notes/dev/`, scope w
 
 ## What to read at session start
 
-1. Root `CLAUDE.md` — project overview + current phase status
-2. `notes/dev/design_spec.md` — current phase detail and what's in progress
-3. `notes/dev/decisions.md` — locked decisions (most recent first)
-4. `notes/dev/open_questions.md` — anything unresolved that may need scoping
-5. `Agents/quiki-dev/CLAUDE.md` — current implementation task brief
-6. `Agents/quiki-devops/CLAUDE.md` — current devops task brief
-7. `Agents/quiki-docs/CLAUDE.md` — current docs task brief
+1. `notes/dev/manifesto.md` — **read this first, every session.** The manifesto is normative and overrides everything else including this file. If anything in the spec, decisions, or a proposed task conflicts with the manifesto, the manifesto wins.
+2. Root `CLAUDE.md` — project overview + current phase status
+3. `notes/dev/design_spec.md` — current phase detail and what's in progress
+4. `notes/dev/decisions.md` — locked decisions (most recent first)
+5. `notes/dev/open_questions.md` — anything unresolved that may need scoping
+6. `Agents/quiki-dev/CLAUDE.md` — current implementation task brief
+7. `Agents/quiki-devops/CLAUDE.md` — current devops task brief
+8. `Agents/quiki-docs/CLAUDE.md` — current docs task brief
 
 ---
 
 ## How to brief another session
+
+**Before writing any brief — manifesto check:**
+Ask: does this task serve the four manifesto principles?
+- **Velocity** — does it make capture faster or at least not slower?
+- **Open data** — does it keep QuKis as accessible plain-text files the user owns?
+- **Information-first UI** — does it reduce chrome, not add it?
+- **Extensibility** — does it enable user-defined destinations, or at least not foreclose them?
+
+If a proposed task conflicts with any of these, push back before scoping — do not brief an implementation session to build something that violates the manifesto.
 
 **To assign an implementation task:**
 1. Edit `Agents/quiki-dev/CLAUDE.md` → replace the "Current Task Brief" section with the new brief.
@@ -115,7 +125,7 @@ See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phas
 
 ## Key doc discipline
 
-- `notes/dev/manifesto.md` is normative. Do not propose spec changes that conflict with it.
+- **`notes/dev/manifesto.md` is normative and overrides everything.** It was written by Scott and represents the product's reason for existing. The spec, ADRs, and task briefs are all subordinate to it. When in doubt about whether something belongs in QuKi-Notes, the manifesto is the answer.
 - `notes/dev/decisions.md` entries are most-recent-first.
 - `notes/dev/open_questions.md`: when resolved, move to the Resolved section with resolution + PR reference.
 - Date format in docs: `YYYY-MM-DD`.
