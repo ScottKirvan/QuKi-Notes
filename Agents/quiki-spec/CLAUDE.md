@@ -125,7 +125,7 @@ See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phas
 
 ## Key doc discipline
 
-- **`notes/dev/manifesto.md` is normative and overrides everything.** It was written by Scott and represents the product's reason for existing. The spec, ADRs, and task briefs are all subordinate to it. When in doubt about whether something belongs in QuKi-Notes, the manifesto is the answer.
+- **`notes/dev/manifesto.md` is normative and overrides everything.** It is the authoritative statement of what QuKi-Notes is and why it exists — the product vision, not a spec or design document. The spec, ADRs, and task briefs are all subordinate to it. When in doubt about whether something belongs in QuKi-Notes, the manifesto is the answer.
 - `notes/dev/decisions.md` entries are most-recent-first.
 - `notes/dev/open_questions.md`: when resolved, move to the Resolved section with resolution + PR reference.
 - Date format in docs: `YYYY-MM-DD`.
