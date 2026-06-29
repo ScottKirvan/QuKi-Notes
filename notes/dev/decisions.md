@@ -10,6 +10,46 @@ Normative framing in `manifesto.md` — read that first.
 
 ---
 
+## ADR-27: Storage location — first-launch modal, SAF or app storage
+
+**Date**: 2026-06-28
+
+**What**: On first launch, before the editor appears, show a one-time setup modal with two choices:
+
+1. **Filesystem storage** — user-chosen folder via the platform's native directory picker (SAF on Android; native dialog on Windows/Linux). Files stored there survive uninstall and are accessible via file manager without opening the app.
+2. **App storage** — standard sandboxed app documents directory (`getApplicationDocumentsDirectory()`). Files are private to the app and deleted on uninstall.
+
+The choice is saved to `shared_preferences`. The modal never appears again. The editor opens immediately after.
+
+**Behavior details**:
+
+- **"Filesystem storage" chosen**: native directory picker opens (SAF on Android, native dialog on desktop). User picks folder → path saved → editor opens. If the user cancels the picker, return to the modal — do not fall back silently to app storage.
+- **Modal dismissed without choosing**: app storage is used; `storage.location_chosen = true` saved to prefs so the modal does not reappear; persistent warning shown in Settings → Storage.
+- **Settings → Storage** (always accessible): shows current storage path. "Change location" button reopens the picker. On change, new QuKis go to the new path; existing files remain in the old location. A note in Settings explains this. No automated migration in v1.
+- **App storage warning**: shown as a subtitle in Settings → Storage — "Files will be removed on uninstall. Change location." Always visible when app storage is active; not a one-time dismissible toast.
+- **Subsequent launches**: path read from `shared_preferences`; `QuKiStorage` initialized with that path. No modal.
+
+**Implementation notes**:
+
+- New `shared_preferences` keys: `storage.base_path` (resolved absolute path), `storage.location_chosen` (bool — suppresses modal on subsequent launches).
+- `QuKiStorage` base directory injected at construction time (read from `StorageLocationService`) rather than hardcoded.
+- New `StorageLocationService` in `lib/core/storage/` — reads/writes prefs, exposes `isFirstLaunch()`, `basePath`, `setPath(String)`, `isAppStorage` (comparison against `getApplicationDocumentsDirectory()`).
+- New `StorageSetupScreen` in `lib/features/setup/` — shown as the app home when `isFirstLaunch()` is true; navigates to `EditorScreen` after choice is saved.
+- New dependency: `file_picker` — cross-platform directory picker; SAF on Android, native dialogs on Windows/Linux. Also supports iOS (Files.app) so no code changes will be needed when iOS builds are enabled.
+
+**Why**: The manifesto promises "you can read, copy, or move [QuKis] without opening the app." App storage violates this on Android — files are inaccessible via file manager and deleted on uninstall. This is especially acute during beta when testers reinstall frequently. The first-launch modal ensures users make an informed choice rather than being silently locked into an unsafe default.
+
+The modal appears before the editor, which adds one step to first launch. This is acceptable: (a) it happens exactly once; (b) the manifesto's velocity intent applies to the ongoing capture experience, not a one-time setup; (c) silently defaulting to app storage causes data loss.
+
+**Rejected alternatives**:
+- *`getExternalFilesDir()` as a third option* — accessible via USB but still deleted on uninstall; relevant only to developers, not users.
+- *Three-option modal* — unnecessary complexity for no user benefit.
+- *Silent default to app storage* — testers lose notes on reinstall; violates manifesto open-data promise.
+- *Trigger picker on first save* — interrupts the capture flow with a dialog; worse than a one-time setup step before the editor.
+- *Migration on location change* — deferred to v1.1+; files are plain markdown and user-moveable manually.
+
+---
+
 ## ADR-26: Replace `super_editor` with `markdown_live_editor` — Typora block-flip model
 
 **Date**: 2026-06-15

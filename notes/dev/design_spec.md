@@ -195,6 +195,7 @@ In the editor, **Send...** in the hamburger menu (≡) opens a sheet listing con
 
 - Theme: follow system (ADR-12). No manual override in v1. **Color palette: GitHub Primer Dark High Contrast** (`primer.style/primitives/colors`). Key tokens mapped to Flutter `ColorScheme`: canvas `#0a0c10`, surface `#272b33`, foreground `#f0f3f9`, muted `#9ea7b4`, accent/primary `#71b7ff` / `#1f6feb`, borders `#7a828e`. Light system theme uses Primer Light High Contrast. Do not use Flutter's default `Colors.deepPurple` seed.
 - Tosses (transports): list installed plugins, configure each via its `settingsView`.
+- **Storage** (ADR-27): shows current storage path. "Change location" button opens the native directory picker; new QuKis go to the new path, existing files stay put (no migration in v1). When app storage is active, a persistent subtitle reads "Files will be removed on uninstall. Change location." — always visible, not dismissible.
 - Sync: empty in MVP ("No sync backends installed" placeholder; copy hints at v1.1+).
 - **Privacy**: per-capability opt-in toggles (GPS first; camera/mic/etc. as transports require). All default OFF. See Privacy & Permissions below.
 - About: version, link to docs, link to manifesto, no telemetry disclosure.
@@ -492,8 +493,9 @@ Sub-tasks in priority order:
 12. **Storage migration + Recently Deleted (#29)** — Drift/SQLite replaced with individual `.md` files (ADR-25); Recently Deleted screen (#29) shipped. ✓ Complete (v0.9.5–v0.9.6, PRs #103–#105).
 13. **Replace `super_editor` with `markdown_live_editor` (ADR-26)** — block-flip Typora model in `packages/markdown_live_editor/`. ✓ Complete (v0.10.0–v0.11.0): Stage 1 plain-text foundation, Stage 2 formatting toolbar + list auto-continue, Stage 3 block-flip WYSIWYG, Stage 4 task checkbox tap / cross-block nav / flip animations.
 14. **App icon** — QuKi Notes branded icon: Android adaptive, iOS, Windows, Linux. ✓ Complete (v0.12.0–v0.13.0, PRs #124, #126, #128).
-15. **Stream performance** — lazy loading / pagination for large QuKi counts. Defer until a real threshold is hit.
-16. **Onboarding** — drops straight to editor; coachmarks deferred unless user testing reveals a need.
+15. **Storage location choice + first-launch setup (ADR-27, #134)** — one-time modal on first launch: Filesystem (SAF/directory picker) or App storage. `StorageSetupScreen`, `StorageLocationService`, `file_picker` dep, Settings → Storage section. Not started.
+16. **Stream performance** — lazy loading / pagination for large QuKi counts. Defer until a real threshold is hit.
+17. **Onboarding** — drops straight to editor; coachmarks deferred unless user testing reveals a need.
 
 #### Share-in: behavior spec
 
