@@ -123,8 +123,9 @@ QuKi-Notes/
 | | 3.16 Recently Deleted screen (#29) | Complete (PR #103) |
 | | 3.17 Replace super_editor with markdown_live_editor (ADR-26) | Complete (v0.11.0) |
 | | 3.18 App icon — Android adaptive, iOS, Windows, Linux | Complete (v0.12.0–v0.13.0) |
-| | 3.19 Storage location choice + first-launch setup (ADR-27, #134) | Not started |
-| | 3.20 Stream performance (lazy loading) | Defer until threshold hit |
+| | 3.19 Storage location choice + first-launch setup (ADR-27, #134) | In device testing (PR #145) |
+| | 3.20 Edit mode preference + keyboard on cold launch (#72) | In device testing (PR #146) |
+| | 3.21 Stream performance (lazy loading) | Defer until threshold hit |
 | 4 | Sync plugin axis + first sync backend | v1.1+ |
 | 5 | iPadOS / iOS / macOS builds | Deferred |
 | 6 | MCP plugin axis | v2.0+ |
@@ -171,6 +172,6 @@ QuKi-Notes/
 
 **ShareSheetToss always succeeds (#92)**: `share_plus` fires `ShareResultStatus.dismissed` on Android even on success. Dropped the status check; always returns `TossResult(success: true, message: 'Shared.')`.
 
-**Known bugs (open)**: #72 keyboard not raised on cold launch; #73 rapid shares may lose content; #75 opening a note moves it to top of list (ADR-25 did not fully resolve — still reproducing); #77 tabs/indenting broken in lists; #129 cursor jumps to end of line on tap; #130 checkbox toggle unacceptably slow; #133 share-in QuKi doesn't appear in QuKis list.
+**Known bugs (open)**: #72 keyboard not raised on cold launch (fix in PR #146); #73 rapid shares may lose content; #75 opening a note moves it to top of list (ADR-25 did not fully resolve — still reproducing); #77 tabs/indenting broken in lists; #129 cursor jumps to end of line on tap; #130 checkbox toggle unacceptably slow; #133 share-in QuKi doesn't appear in QuKis list.
 
-**Last Updated**: 2026-06-28
+**Last Updated**: 2026-06-29

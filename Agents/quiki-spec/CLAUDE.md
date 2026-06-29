@@ -101,7 +101,9 @@ See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phas
 
 **Current version**: v0.13.1 (released 2026-06-25).
 
-**No implementation session currently in progress.**
+**PRs open and awaiting device testing (2026-06-29):**
+- PR #145 `feat/storage-location-setup` — ADR-27 first-launch storage location choice (closes #134). Session 8. CI green.
+- PR #146 `feat/editor-edit-mode-preference` — Edit mode preference + keyboard on cold launch (closes #72). Session 9. CI pending.
 
 **Resolved since last spec sync:**
 - ADR-26 Stage 2 (v0.10.0): Formatting toolbar (bold, italic, strikethrough, heading, task list) + list auto-continue — `FormattingToolbar` in `markdown_live_editor` package
@@ -112,11 +114,14 @@ See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phas
 - App icon v2 Rainbow (v0.13.0, PRs #126 + #128): updated design; transparent background for Windows + Linux
 - Keyboard dismiss button removed; checkbox vertical alignment nudged (v0.13.1, PR #137)
 - Fix #138 — `MarkdownBody` assertion crash on bare task items; bypass `flutter_markdown` task list rendering (v0.13.1, PR #139)
+- Spec sync to v0.13.1 (PR #142): all agent briefs, phase table, design_spec, decisions updated
+- ADR-27 spec + Session 8 brief + manifesto alignment audit (PR #144): storage location feature fully specified; three manifesto promise gaps documented with priority order
 
 **Phase 3 remaining:**
-- **Open bugs**: #72 keyboard not raised on cold launch; #73 rapid shares may lose content; #75 opening a note moves it to top of list (ADR-25 did NOT fully resolve — still reproducing); #77 tabs/indenting broken in lists; #129 cursor jumps to end of line on tap; #130 checkbox toggle unacceptably slow; #133 share-in QuKi doesn't appear in QuKis list
+- **PRs in device testing**: #145 (storage location), #146 (keyboard/edit mode)
+- **Open bugs**: #73 rapid shares may lose content; #75 opening a note moves it to top of list (ADR-25 did NOT fully resolve — still reproducing); #77 tabs/indenting broken in lists; #129 cursor jumps to end of line on tap; #130 checkbox toggle unacceptably slow; #133 share-in QuKi doesn't appear in QuKis list
 - **Housekeeping**: #88 (release build modes already merged as `4dbd27c`) — close the issue
-- **Unscoped features**: #79 (auto-start after idle), #80 (replace hamburger with icon toolbar), #81 (hyperlink insert/edit), #83 (spell check / swipe-to-type), #87 (partial-width panels), #134 (storage location choice), #135 (find in page), #136 (word/char count)
+- **Unscoped features**: #79 (auto-start after idle), #80 (replace hamburger with icon toolbar), #81 (hyperlink insert/edit), #83 (spell check / swipe-to-type), #87 (partial-width panels), #135 (find in page), #136 (word/char count)
 - Stream performance / lazy loading — defer until threshold hit
 
 **Phase 4+:** Sync plugin axis (v1.1+), MCP (v2.0+) — not in scope until Phase 3 is complete.
