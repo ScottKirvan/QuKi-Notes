@@ -50,8 +50,160 @@ Read in this order — do not skip:
 
 ---
 
-## Current Task Brief
+## Current Task Brief — Session 8
 
-> Written and maintained by the Spec session. If this says "no task", ask Scott what's next.
+> Written and maintained by the Spec session.
 
-**No task currently in progress.**
+**Task**: Storage location choice + first-launch setup (ADR-27)
+**Closes**: #134
+**Branch**: `feat/storage-location-setup`
+**PR title**: `feat(storage): first-launch storage location choice (ADR-27)`
+
+Read ADR-27 in `notes/dev/decisions.md` in full before starting.
+
+---
+
+### Overview
+
+Users currently have no control over where their QuKi files are stored. On Android, they live in app-sandboxed storage — inaccessible via file manager and **deleted on uninstall**. This is a data safety problem for beta testers who reinstall frequently, and it violates the manifesto's open-data promise.
+
+This session adds a one-time setup modal on first launch where the user chooses between filesystem storage (SAF on Android, native directory picker on desktop) and app storage. The editor opens immediately after the choice is made.
+
+---
+
+### New dependency
+
+**`file_picker`** — cross-platform directory picker. Supports SAF on Android, native dialogs on Windows/Linux, and Files.app on iOS (for when iOS builds are enabled — no extra work needed now).
+
+Add to `pubspec.yaml`. Add an entry to `notes/dev/dependencies.md`. ADR-27 already documents this decision.
+
+---
+
+### New files
+
+**`lib/core/storage/storage_location_service.dart`**
+
+Pure Dart (no Flutter imports). Owns reading/writing the storage location to `shared_preferences`.
+
+```dart
+class StorageLocationService {
+  static const _keyBasePath = 'storage.base_path';
+  static const _keyChosen = 'storage.location_chosen';
+
+  final SharedPreferences _prefs;
+  final String _appStoragePath; // result of getApplicationDocumentsDirectory()
+
+  StorageLocationService(this._prefs, this._appStoragePath);
+
+  bool get isFirstLaunch => !_prefs.containsKey(_keyChosen);
+
+  String get basePath =>
+      _prefs.getString(_keyBasePath) ?? _appStoragePath;
+
+  bool get isAppStorage => basePath == _appStoragePath;
+
+  Future<void> setPath(String path) async {
+    await _prefs.setString(_keyBasePath, path);
+    await _prefs.setBool(_keyChosen, true);
+  }
+
+  Future<void> useAppStorage() async {
+    await _prefs.setString(_keyBasePath, _appStoragePath);
+    await _prefs.setBool(_keyChosen, true);
+  }
+}
+```
+
+Expose via a `@riverpod` provider. `StorageLocationService` must be initialized before `QuKiStorage` — handle this in `main()` where `SharedPreferences` and `getApplicationDocumentsDirectory()` are already awaited.
+
+**`lib/features/setup/storage_setup_screen.dart`**
+
+The first-launch modal. Shown as the app's home route when `isFirstLaunch` is true.
+
+Two options — keep the copy honest and brief:
+
+- **"Choose a folder"** — "Your QuKis are saved as plain files you can access anytime. They survive uninstall."
+- **"Use app storage"** — "QuKis are kept private to this app. They will be removed if you uninstall."
+
+Tapping "Choose a folder":
+1. Open `FilePicker.platform.getDirectoryPath()`.
+2. If the user picks a path: call `storageLocationService.setPath(path)`, then navigate to `EditorScreen`.
+3. If the user cancels (returns `null`): stay on `StorageSetupScreen` — do not fall back silently.
+
+Tapping "Use app storage":
+1. Call `storageLocationService.useAppStorage()`.
+2. Navigate to `EditorScreen`.
+
+Dismissing the modal (back button / system back on Android):
+- If `isFirstLaunch` is still true (nothing saved yet): call `useAppStorage()` and navigate to `EditorScreen`. The user gets the app-storage warning in Settings.
+- Handle `WillPopScope` or `PopScope` for this.
+
+No back button in the app bar on this screen — it is the root on first launch.
+
+---
+
+### Modified files
+
+**`lib/app.dart`**
+
+Change the home route: check `storageLocationService.isFirstLaunch`. If true → `StorageSetupScreen`. If false → `EditorScreen` (current behaviour).
+
+Pass the resolved `basePath` from `StorageLocationService` to `QuKiStorage` via the provider graph. `QuKiStorage` must not resolve its own path independently.
+
+**`lib/core/storage/quki_storage.dart`**
+
+Remove the hardcoded `getApplicationDocumentsDirectory()` call. Accept the base path as a constructor parameter (or read it from `StorageLocationService` via Riverpod). The `qukis/` subdirectory structure underneath stays the same — only the root changes.
+
+**`lib/features/settings/settings_screen.dart`**
+
+Add a **Storage** section (above Privacy, below Sync):
+
+- Row: current storage path (truncated if long). Tapping opens `StorageDetailScreen` or an inline expansion.
+- **When app storage is active**: persistent subtitle — `"Files will be removed if you uninstall. Change location."` This is always visible, not a dismissible banner.
+- **"Change location" button**: opens `FilePicker.platform.getDirectoryPath()`. On success: `storageLocationService.setPath(newPath)`. On cancel: no change. After change: show a snackbar — `"New QuKis will be saved to the new location. Existing files were not moved."` (auto-dismiss, 4s).
+- **When filesystem storage is active**: show the path. No warning. "Change location" still available.
+
+---
+
+### Tests
+
+**`test/core/storage/storage_location_service_test.dart`**:
+- `isFirstLaunch` true when neither key is present in prefs
+- `isFirstLaunch` false after `setPath()` or `useAppStorage()`
+- `basePath` returns app storage path when no prefs key set
+- `basePath` returns saved path after `setPath()`
+- `isAppStorage` true when path matches app storage path
+- `isAppStorage` false when a custom path is set
+
+**`test/features/setup/storage_setup_screen_test.dart`**:
+- Both options rendered
+- Tapping "Use app storage" calls `useAppStorage()` and navigates to editor
+- Tapping "Choose a folder" opens file picker (mock `FilePicker`); on success navigates to editor
+- Tapping "Choose a folder" then cancelling picker stays on setup screen
+- System back when no choice made calls `useAppStorage()` and navigates to editor
+
+**`test/features/settings/settings_screen_test.dart`** (additions):
+- Storage section visible
+- App-storage warning subtitle visible when `isAppStorage` is true
+- App-storage warning not shown when filesystem storage is active
+- "Change location" tap opens picker (mock); on success shows "not moved" snackbar
+- "Change location" cancel leaves path unchanged
+
+---
+
+### Checklist
+
+- [ ] `just lint` and `just test` pass
+- [ ] First launch on Android shows setup modal before editor
+- [ ] "Choose a folder" opens SAF picker; cancel returns to modal
+- [ ] "Use app storage" goes straight to editor
+- [ ] System back on modal saves app storage and opens editor
+- [ ] Files are written to the chosen path on subsequent launches
+- [ ] Settings → Storage shows current path
+- [ ] App-storage warning visible in Settings when app storage is active
+- [ ] "Change location" in Settings opens picker; cancelling makes no change
+- [ ] Snackbar shown after location change explains files were not moved
+- [ ] Existing QuKis at old path are unaffected after changing location
+- [ ] Windows: native directory picker opens on first launch and in Settings
+- [ ] Linux: native directory picker opens on first launch and in Settings
+- [ ] No Claude/Anthropic attribution in commits or PR body

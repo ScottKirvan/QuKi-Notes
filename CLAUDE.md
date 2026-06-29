@@ -123,7 +123,8 @@ QuKi-Notes/
 | | 3.16 Recently Deleted screen (#29) | Complete (PR #103) |
 | | 3.17 Replace super_editor with markdown_live_editor (ADR-26) | Complete (v0.11.0) |
 | | 3.18 App icon — Android adaptive, iOS, Windows, Linux | Complete (v0.12.0–v0.13.0) |
-| | 3.19 Stream performance (lazy loading) | Defer until threshold hit |
+| | 3.19 Storage location choice + first-launch setup (ADR-27, #134) | Not started |
+| | 3.20 Stream performance (lazy loading) | Defer until threshold hit |
 | 4 | Sync plugin axis + first sync backend | v1.1+ |
 | 5 | iPadOS / iOS / macOS builds | Deferred |
 | 6 | MCP plugin axis | v2.0+ |
