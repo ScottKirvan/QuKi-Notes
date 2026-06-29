@@ -17,6 +17,16 @@ class QuKiStorage {
   Directory get _trashMetaDir =>
       Directory(p.join(_root.path, '.trash', '.meta'));
 
+  /// Create a [QuKiStorage] rooted at [basePath].
+  ///
+  /// [basePath] is an absolute path to the directory that will hold the
+  /// `qukis/` subdirectory (e.g. the value from [StorageLocationService.basePath]).
+  factory QuKiStorage.fromPath(String basePath) =>
+      QuKiStorage(Directory(basePath));
+
+  /// Create a [QuKiStorage] rooted at the app's sandboxed documents directory.
+  ///
+  /// Kept for use in tests that do not need a configurable path.
   static Future<QuKiStorage> fromAppDir() async {
     final appDir = await getApplicationDocumentsDirectory();
     return QuKiStorage(Directory(p.join(appDir.path, 'qukis')));

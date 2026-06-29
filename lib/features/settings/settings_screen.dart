@@ -1,17 +1,56 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../core/app_info.dart';
+import '../../core/storage/quki_index.dart';
 import '../../core/transports/registry_provider.dart';
 import '../../core/transports/transport_settings_notifier.dart';
 import '../recently_deleted/recently_deleted_screen.dart';
+import '../setup/storage_setup_screen.dart';
 
-class SettingsScreen extends ConsumerWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  bool _changingLocation = false;
+
+  Future<void> _changeLocation() async {
+    setState(() => _changingLocation = true);
+    try {
+      final path = await FilePicker.getDirectoryPath();
+      if (!mounted) return;
+      if (path == null) return; // user cancelled — no change
+
+      final svc = ref.read(storageLocationServiceProvider);
+      await svc.setPath(path);
+      if (!mounted) return;
+
+      // Refresh the active index so it re-scans from the new path on next read.
+      await ref.read(quKiIndexProvider.notifier).refresh();
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'New QuKis will be saved to the new location. '
+            'Existing files were not moved.',
+          ),
+          duration: Duration(seconds: 4),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _changingLocation = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final labelStyle = Theme.of(context).textTheme.labelSmall?.copyWith(
           color: Theme.of(context).colorScheme.primary,
           letterSpacing: 1.1,
@@ -26,6 +65,10 @@ class SettingsScreen extends ConsumerWidget {
     final settings = ref.watch(transportSettingsProvider);
     final notifier = ref.read(transportSettingsProvider.notifier);
 
+    final locationSvc = ref.watch(storageLocationServiceProvider);
+    final isAppStorage = locationSvc.isAppStorage;
+    final currentPath = locationSvc.basePath;
+
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
@@ -34,6 +77,39 @@ class SettingsScreen extends ConsumerWidget {
           const ListTile(
             title: Text('Theme'),
             trailing: Text('System'),
+          ),
+          const Divider(indent: 16, endIndent: 16),
+          sectionHeader('Storage'),
+          if (isAppStorage)
+            ListTile(
+              title: const Text('App storage (private)'),
+              subtitle: Text(
+                'Files will be removed on uninstall. Change location.',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.error,
+                ),
+              ),
+            )
+          else
+            ListTile(
+              title: const Text('Filesystem storage'),
+              subtitle: Text(
+                currentPath,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ListTile(
+            title: const Text('Change location'),
+            trailing: _changingLocation
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.chevron_right),
+            enabled: !_changingLocation,
+            onTap: _changingLocation ? null : _changeLocation,
           ),
           const Divider(indent: 16, endIndent: 16),
           sectionHeader('Transports'),
