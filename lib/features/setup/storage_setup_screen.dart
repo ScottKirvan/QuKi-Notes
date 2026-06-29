@@ -10,8 +10,8 @@ import '../editor/editor_screen.dart';
 /// Must be overridden in [main()] after [SharedPreferences] and
 /// [getApplicationDocumentsDirectory()] are resolved.
 final storageLocationServiceProvider = Provider<StorageLocationService>(
-  (ref) =>
-      throw UnimplementedError('storageLocationServiceProvider must be overridden'),
+  (ref) => throw UnimplementedError(
+      'storageLocationServiceProvider must be overridden'),
 );
 
 /// One-time setup screen shown on first launch.
@@ -113,8 +113,7 @@ class _StorageSetupScreenState extends ConsumerState<StorageSetupScreen> {
                 const SizedBox(height: 16),
                 _OptionCard(
                   title: 'Use app storage',
-                  subtitle:
-                      'QuKis are kept private to this app. '
+                  subtitle: 'QuKis are kept private to this app. '
                       'They will be removed if you uninstall.',
                   icon: Icons.lock_outline,
                   onTap: _picking ? null : _useAppStorage,
@@ -174,7 +173,8 @@ class _OptionCard extends StatelessWidget {
                               const SizedBox(
                                 width: 16,
                                 height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2),
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2),
                               ),
                             ],
                           )
