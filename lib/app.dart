@@ -6,6 +6,7 @@ import 'package:logging/logging.dart';
 
 import 'core/storage/quki_index.dart';
 import 'features/editor/editor_screen.dart';
+import 'features/setup/storage_setup_screen.dart';
 import 'features/share_in/share_handler.dart';
 import 'features/window/window_state_scope.dart';
 
@@ -105,7 +106,7 @@ class QuKiNotesApp extends ConsumerWidget {
         ),
         useMaterial3: true,
       ),
-      home: const _ShareAwareHome(),
+      home: const _AppHome(),
     );
     if (Platform.isWindows || Platform.isLinux) {
       return WindowStateScope(child: app);
@@ -114,8 +115,25 @@ class QuKiNotesApp extends ConsumerWidget {
   }
 }
 
-/// Root home widget that listens for incoming share intents and loads the
-/// shared text as a new QuKi in the root editor — never pushes a second screen.
+/// Root home widget.
+///
+/// On first launch shows [StorageSetupScreen]; on subsequent launches shows
+/// [_ShareAwareHome] directly.
+class _AppHome extends ConsumerWidget {
+  const _AppHome();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final locationSvc = ref.read(storageLocationServiceProvider);
+    if (locationSvc.isFirstLaunch) {
+      return const StorageSetupScreen();
+    }
+    return const _ShareAwareHome();
+  }
+}
+
+/// Inner home that listens for incoming share intents and loads the shared text
+/// as a new QuKi in the root editor — never pushes a second screen.
 class _ShareAwareHome extends ConsumerWidget {
   const _ShareAwareHome();
 
