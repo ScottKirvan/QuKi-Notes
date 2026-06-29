@@ -129,7 +129,8 @@ void main() {
       await cleanup(tester);
     });
 
-    testWidgets('app-storage warning subtitle visible when isAppStorage is true',
+    testWidgets(
+        'app-storage warning subtitle visible when isAppStorage is true',
         (tester) async {
       final svc = await _appStorageSvc();
       await tester.pumpWidget(_buildSettings(svc));
@@ -178,7 +179,8 @@ void main() {
       await cleanup(tester);
     });
 
-    testWidgets('"Change location" cancel leaves path unchanged', (tester) async {
+    testWidgets('"Change location" cancel leaves path unchanged',
+        (tester) async {
       mockPicker.willReturn(null); // user cancelled
 
       final svc = await _appStorageSvc();
