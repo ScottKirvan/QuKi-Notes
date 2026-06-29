@@ -43,6 +43,7 @@ Additional transport-specific packages (e.g. `dio`, `flutter_secure_storage`, `u
 |---|---|---|
 | `receive_sharing_intent` | `^1.8.1` | Android share-in (receive intents) |
 | `window_manager` | `^0.5.1` | Desktop window size/position persistence (Windows + Linux) |
+| `file_picker` | `^11.0.2` | Directory picker for storage location choice (ADR-27); SAF on Android, native dialogs on Windows/Linux/macOS, Files.app on iOS |
 | `geolocator` | TBD | GPS capture (per-toss opt-in) |
 | `geocoding` | TBD | Platform-native reverse geocoding (no API key) |
 
