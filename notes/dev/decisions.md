@@ -10,6 +10,40 @@ Normative framing in `manifesto.md` — read that first.
 
 ---
 
+## ADR-28: Android filesystem storage via MANAGE_EXTERNAL_STORAGE
+
+**Date**: 2026-06-29
+
+**What**: When the user chooses "Filesystem storage" on Android, request the `MANAGE_EXTERNAL_STORAGE` ("All files access") permission and store QuKis at a fixed well-known path: `<external storage>/Documents/QuKi_Notes/`. No folder picker is shown; the choice is binary (app storage vs filesystem storage), matching the Obsidian model. All file I/O continues to use `dart:io` — `QuKiStorage` is unchanged.
+
+**Behavior details**:
+
+- **Setup modal on Android**: "Filesystem storage" card replaces "Choose a folder" as the second option. Tapping it triggers the Android system permission flow (`Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION`). On grant → `StorageLocationService.setPath(externalDocsPath)` → editor opens. On deny → stay on modal (same cancel-stays-on-screen rule as the SAF picker cancel).
+- **Fixed path**: `Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS).path + "/QuKi_Notes"`. Created on first use if absent.
+- **Settings → Storage**: shows "Filesystem storage — /Documents/QuKi_Notes". "Change location" navigates back to `StorageSetupScreen` (the full two-choice modal) so the user can switch to app storage. No custom folder picker in settings.
+- **Reinstall**: `MANAGE_EXTERNAL_STORAGE` is revoked by the OS on uninstall (app permissions are cleared). Files remain in `Documents/QuKi_Notes`. On first launch after reinstall, setup modal appears; user picks "Filesystem storage" → grants permission in one system tap → existing notes immediately visible. Not data loss — access loss, which one tap resolves.
+- **Desktop (Windows/Linux)**: unchanged — `dart:io` + `file_picker` for optional custom path. No `MANAGE_EXTERNAL_STORAGE` needed (desktop has no scoped storage).
+
+**Implementation notes**:
+
+- Add `MANAGE_EXTERNAL_STORAGE` to `android/app/src/main/AndroidManifest.xml`.
+- In `StorageSetupScreen._pickFilesystemStorage()` (Android): check `Environment.isExternalStorageManager()`; if false → launch settings intent and await return via `AppLifecycleState.resumed`; if true → call `setPath(externalDocsPath)` → navigate to editor.
+- `externalDocsPath` is resolved in `main.dart` via a Kotlin platform channel call (one method: `getExternalDocumentsPath`) or via the `path_provider` package's `getExternalStorageDirectory()` + `Documents/QuKi_Notes` suffix.
+- `StorageLocationService` is unchanged in structure — still stores a file path. `isAppStorage` logic unchanged.
+- `file_picker` is no longer used on Android at all; the dependency stays for desktop. Guard all `file_picker` calls with `!Platform.isAndroid`.
+- Google Play declaration: select "File manager or browser" as the use-case category; justify with "QuKi-Notes stores user notes as plain .md files in a user-chosen location accessible to file managers and sync tools."
+
+**Why**: `MANAGE_EXTERNAL_STORAGE` is the only mechanism that gives `dart:io`-compatible access to shared external storage on Android 11+. Scoped storage alternatives (SAF DocumentFile API, MediaStore) require entirely different I/O APIs — a complete reimplementation of `QuKiStorage` with no material UX benefit. The open-data manifesto requires notes to be user-accessible outside the app; app-only storage violates this. Obsidian uses this same permission for the same reason. Closed-beta users who reinstall frequently are the primary audience; the one-tap re-grant is acceptable friction; actual data loss is not.
+
+**Rejected alternatives**:
+- *SAF + DocumentFile API* — correct for general use but requires reimplementing all file I/O, has no simpler UX (still needs one user tap), and is significantly more code and test surface.
+- *SAF + dart:io path conversion* — what ADR-27 originally implemented; unreliable on modern Android; notes silently disappear on restart. Rejected as broken.
+- *`getExternalFilesDir()`* — cleared on uninstall; not acceptable.
+- *`file_picker.getDirectoryPath()` + `dart:io`* — same as SAF+path conversion; broken on Android 10+ scoped storage.
+- *Custom folder picker* — adds complexity and UX friction with no benefit over a fixed well-known path for the target use case.
+
+---
+
 ## ADR-27: Storage location — first-launch modal, SAF or app storage
 
 **Date**: 2026-06-28
