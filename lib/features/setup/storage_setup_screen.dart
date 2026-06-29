@@ -33,7 +33,7 @@ class _StorageSetupScreenState extends ConsumerState<StorageSetupScreen> {
   Future<void> _pickFolder() async {
     setState(() => _picking = true);
     try {
-      final path = await FilePicker.getDirectoryPath();
+      final path = await FilePicker.platform.getDirectoryPath();
       if (!mounted) return;
       if (path == null) {
         // User cancelled — stay on this screen.
