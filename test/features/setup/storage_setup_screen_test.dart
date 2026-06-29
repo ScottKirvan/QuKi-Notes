@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:file_picker/src/platform/file_picker_platform_interface.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,12 +14,11 @@ import 'package:quki_notes/core/storage/storage_location_service.dart';
 import 'package:quki_notes/features/setup/storage_setup_screen.dart';
 
 // ---------------------------------------------------------------------------
-// FilePicker mock — extends FilePickerPlatform so default methods are inherited.
+// FilePicker mock — extends FilePicker so default methods are inherited.
 // Only getDirectoryPath() needs to be overridden for these tests.
 // ---------------------------------------------------------------------------
 
-class _MockFilePickerPlatform extends FilePickerPlatform
-    with MockPlatformInterfaceMixin {
+class _MockFilePicker extends FilePicker with MockPlatformInterfaceMixin {
   String? _returnPath;
 
   void willReturn(String? path) => _returnPath = path;
@@ -76,13 +75,25 @@ class _FakeQuKiIndex extends QuKiIndexNotifier {
 
 const _appStoragePath = '/app/documents/qukis';
 
-Widget _buildSetup(StorageLocationService svc) => ProviderScope(
+Widget _buildSetup(
+  StorageLocationService svc, {
+  bool isChangingLocation = false,
+  AndroidStorageCallbacks? androidCallbacks,
+  bool? useAndroidFlow,
+}) =>
+    ProviderScope(
       overrides: [
         storageLocationServiceProvider.overrideWithValue(svc),
         quKiStorageProvider.overrideWithValue(_FakeStorage()),
         quKiIndexProvider.overrideWith(() => _FakeQuKiIndex()),
       ],
-      child: const MaterialApp(home: StorageSetupScreen()),
+      child: MaterialApp(
+        home: StorageSetupScreen(
+          isChangingLocation: isChangingLocation,
+          androidCallbacks: androidCallbacks ?? const AndroidStorageCallbacks(),
+          useAndroidFlow: useAndroidFlow,
+        ),
+      ),
     );
 
 Future<StorageLocationService> _freshService() async {
@@ -101,11 +112,11 @@ Future<void> cleanup(WidgetTester tester) async {
 // ---------------------------------------------------------------------------
 
 void main() {
-  late _MockFilePickerPlatform mockPicker;
+  late _MockFilePicker mockPicker;
 
   setUp(() {
-    mockPicker = _MockFilePickerPlatform();
-    FilePickerPlatform.instance = mockPicker;
+    mockPicker = _MockFilePicker();
+    FilePicker.platform = mockPicker;
   });
 
   group('StorageSetupScreen renders', () {
@@ -114,8 +125,19 @@ void main() {
       await tester.pumpWidget(_buildSetup(svc));
       await tester.pump();
 
-      expect(find.text('Choose a folder'), findsOneWidget);
+      // "Use app storage" is always present regardless of platform.
       expect(find.text('Use app storage'), findsOneWidget);
+      // The filesystem option text varies by platform; just confirm one
+      // filesystem-related option is visible.
+      expect(
+        find.byWidgetPredicate(
+          (w) =>
+              w is Text &&
+              (w.data == 'Choose a folder' ||
+                  (w.data?.startsWith('Filesystem storage') ?? false)),
+        ),
+        findsOneWidget,
+      );
       await cleanup(tester);
     });
   });
@@ -138,10 +160,14 @@ void main() {
     });
   });
 
-  group('StorageSetupScreen — "Choose a folder"', () {
+  // Desktop-only path: file_picker directory picker.
+  group('StorageSetupScreen — "Choose a folder" (desktop)', () {
     testWidgets('on success calls setPath and navigates to editor',
         (tester) async {
-      mockPicker.willReturn('/sdcard/QuKiNotes');
+      // This test only applies on non-Android platforms (desktop/CI host).
+      if (Platform.isAndroid) return;
+
+      mockPicker.willReturn('/custom/QuKiNotes');
 
       final svc = await _freshService();
       await tester.pumpWidget(_buildSetup(svc));
@@ -151,12 +177,14 @@ void main() {
       await tester.pumpAndSettle(const Duration(milliseconds: 500));
 
       expect(svc.isFirstLaunch, isFalse);
-      expect(svc.basePath, '/sdcard/QuKiNotes');
+      expect(svc.basePath, '/custom/QuKiNotes');
       expect(find.byType(StorageSetupScreen), findsNothing);
       await cleanup(tester);
     });
 
     testWidgets('cancelling picker stays on setup screen', (tester) async {
+      if (Platform.isAndroid) return;
+
       mockPicker.willReturn(null); // user pressed Cancel
 
       final svc = await _freshService();
@@ -174,7 +202,180 @@ void main() {
     });
   });
 
-  group('StorageSetupScreen — system back', () {
+  // Android permission flow — injected via androidCallbacks so no real
+  // MethodChannel is needed. useAndroidFlow: true forces the Android code path
+  // regardless of the host platform.
+  group('StorageSetupScreen — Android filesystem storage', () {
+    testWidgets(
+        'permission already granted: calls setPath and navigates to editor',
+        (tester) async {
+      const externalPath = '/sdcard/Documents/QuKi_Notes';
+      final svc = await _freshService();
+
+      final callbacks = AndroidStorageCallbacks(
+        isExternalStorageManager: () async => true,
+        getExternalDocumentsPath: () async => externalPath,
+        requestAllFilesAccess: () async {},
+        createDirectory: (_) async {}, // no-op: avoid real I/O in FakeAsync
+      );
+
+      await tester.pumpWidget(_buildSetup(
+        svc,
+        androidCallbacks: callbacks,
+        useAndroidFlow: true,
+      ));
+      await tester.pump();
+
+      // With useAndroidFlow: true the card shows the Android title.
+      await tester.tap(
+          find.textContaining('Filesystem storage — Documents/QuKi_Notes'));
+      // Allow async callbacks to complete; do NOT use pumpAndSettle as
+      // EditorScreen may schedule ongoing frames (animations, timers).
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Storage choice must be saved.
+      expect(svc.isFirstLaunch, isFalse);
+      expect(svc.basePath, externalPath);
+      await cleanup(tester);
+    });
+
+    testWidgets(
+        'permission not granted: stays on screen; on resume with grant completes',
+        (tester) async {
+      const externalPath = '/sdcard/Documents/QuKi_Notes';
+      final svc = await _freshService();
+
+      // First isExternalStorageManager call returns false (before settings).
+      // Second call (on resume) returns true (user granted in settings).
+      var callCount = 0;
+      final callbacks = AndroidStorageCallbacks(
+        isExternalStorageManager: () async {
+          callCount++;
+          return callCount > 1; // false on first, true on second
+        },
+        getExternalDocumentsPath: () async => externalPath,
+        requestAllFilesAccess: () async {},
+        createDirectory: (_) async {}, // no-op: avoid real I/O in FakeAsync
+      );
+
+      await tester.pumpWidget(_buildSetup(
+        svc,
+        androidCallbacks: callbacks,
+        useAndroidFlow: true,
+      ));
+      await tester.pump();
+
+      await tester.tap(
+          find.textContaining('Filesystem storage — Documents/QuKi_Notes'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Still on setup screen — waiting for permission.
+      expect(find.byType(StorageSetupScreen), findsOneWidget);
+      expect(svc.isFirstLaunch, isTrue);
+
+      // Simulate app resume (user returned from system settings with grant).
+      WidgetsBinding.instance
+          .handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Now permission was granted — storage choice must be saved.
+      expect(svc.isFirstLaunch, isFalse);
+      expect(svc.basePath, externalPath);
+      await cleanup(tester);
+    });
+
+    testWidgets(
+        'on resume with permission still denied: returns to idle on setup screen',
+        (tester) async {
+      final svc = await _freshService();
+
+      final callbacks = AndroidStorageCallbacks(
+        isExternalStorageManager: () async => false, // always denied
+        getExternalDocumentsPath: () async => '/docs/QuKi_Notes',
+        requestAllFilesAccess: () async {},
+      );
+
+      await tester.pumpWidget(_buildSetup(
+        svc,
+        androidCallbacks: callbacks,
+        useAndroidFlow: true,
+      ));
+      await tester.pump();
+
+      await tester.tap(
+          find.textContaining('Filesystem storage — Documents/QuKi_Notes'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Simulate app resume with permission still denied.
+      WidgetsBinding.instance
+          .handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // Setup screen still visible; no choice saved.
+      expect(find.byType(StorageSetupScreen), findsOneWidget);
+      expect(svc.isFirstLaunch, isTrue);
+      await cleanup(tester);
+    });
+  });
+
+  group('StorageSetupScreen — isChangingLocation', () {
+    testWidgets('back button pops without calling useAppStorage',
+        (tester) async {
+      SharedPreferences.setMockInitialValues({
+        'storage.base_path': _appStoragePath,
+        'storage.location_chosen': true,
+      });
+      final prefs = await SharedPreferences.getInstance();
+      final svc = StorageLocationService(prefs, _appStoragePath);
+
+      bool popped = false;
+
+      await tester.pumpWidget(ProviderScope(
+        overrides: [
+          storageLocationServiceProvider.overrideWithValue(svc),
+          quKiStorageProvider.overrideWithValue(_FakeStorage()),
+          quKiIndexProvider.overrideWith(() => _FakeQuKiIndex()),
+        ],
+        child: MaterialApp(
+          home: Builder(
+            builder: (ctx) => ElevatedButton(
+              onPressed: () => Navigator.push<void>(
+                ctx,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      const StorageSetupScreen(isChangingLocation: true),
+                ),
+              ).then((_) => popped = true),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      ));
+      await tester.pump();
+
+      await tester.tap(find.text('open'));
+      await tester.pumpAndSettle();
+      expect(find.byType(StorageSetupScreen), findsOneWidget);
+
+      // Simulate back via Navigator.maybePop.
+      final NavigatorState navigator = tester.state(find.byType(Navigator));
+      navigator.maybePop();
+      await tester.pumpAndSettle();
+
+      expect(popped, isTrue);
+      // isAppStorage still true and isFirstLaunch still false — no change.
+      expect(svc.isAppStorage, isTrue);
+      expect(svc.isFirstLaunch, isFalse);
+      await cleanup(tester);
+    });
+  });
+
+  group('StorageSetupScreen — system back (first launch)', () {
     testWidgets(
         'when no choice has been made, back saves app storage and navigates',
         (tester) async {
