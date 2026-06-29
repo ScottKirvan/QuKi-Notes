@@ -9,6 +9,11 @@ class MarkdownEditorController {
   TextEditingController? _activeTextController;
   ValueChanged<String>? _activeOnChanged;
 
+  /// Called whenever the active-block state changes.
+  /// Receives `true` when a block gains focus, `false` when all blocks lose
+  /// focus (keyboard dismissed or setValue called).
+  ValueChanged<bool>? onActiveBlockChanged;
+
   void _attach(_MarkdownEditorState state) {
     _state = state;
     if (state._plainTextMode) {
@@ -24,9 +29,18 @@ class MarkdownEditorController {
   }
 
   void _setActive(TextEditingController? tc, ValueChanged<String>? onChanged) {
+    final wasActive = _activeTextController != null;
     _activeTextController = tc;
     _activeOnChanged = onChanged;
+    final isActive = tc != null;
+    if (isActive != wasActive) {
+      onActiveBlockChanged?.call(isActive);
+    }
   }
+
+  /// Whether any block is currently in edit mode (flipped to TextField).
+  /// Always `false` when no editor is attached or in plain-text mode.
+  bool get hasActiveBlock => _activeTextController != null;
 
   String get currentValue => _state?.currentValue ?? '';
   void setValue(String value) => _state?.setValue(value);
@@ -138,6 +152,11 @@ class MarkdownEditorController {
   }
 
   void requestFocus() => _state?._requestFocus();
+
+  /// Focus the first block in the editor, raising the soft keyboard on mobile.
+  /// Equivalent to [requestFocus] — provided for clarity at call sites where
+  /// the intent is "activate the first block on note load."
+  void focusFirstBlock() => _state?._requestFocus();
 }
 
 class MarkdownEditor extends StatefulWidget {
@@ -435,7 +454,14 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
                 // Guard with index so that when focus moves A→B, B's onFocused
                 // (which sets _activeEditIndex = B) fires before A's onUnfocused,
                 // so this condition is false and the toolbar state is preserved.
-                if (_activeEditIndex == i) _activeEditIndex = null;
+                if (_activeEditIndex == i) {
+                  _activeEditIndex = null;
+                  // Notify controller that no block is active (all blocks
+                  // rendered, keyboard dismissed).  The guard ensures this only
+                  // fires when the last active block truly loses focus, not
+                  // during A→B focus transitions.
+                  widget.controller?._setActive(null, null);
+                }
               },
               onMergeWithPrevious:
                   i == 0 ? null : () => _onMergeWithPrevious(i),

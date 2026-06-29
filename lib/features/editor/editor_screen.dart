@@ -13,11 +13,14 @@ import '../../core/transports/registry_provider.dart';
 import '../../core/transports/transport_plugin.dart';
 
 import 'auto_save_controller.dart';
+import 'edit_mode_preference_provider.dart';
 import 'toss_picker_sheet.dart';
 import '../settings/settings_screen.dart';
 import '../stream/stream_screen.dart';
 
 final _log = Logger('EditorScreen');
+
+bool get _isMobile => Platform.isAndroid || Platform.isIOS;
 
 PageRouteBuilder<void> _slideFromLeft(Widget screen) {
   return PageRouteBuilder<void>(
@@ -61,6 +64,22 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   void initState() {
     super.initState();
     _editorController = MarkdownEditorController();
+
+    // Track edit/browse mode transitions so editModePreferredProvider stays
+    // current.  On mobile only — desktop has no soft keyboard.
+    if (_isMobile) {
+      _editorController.onActiveBlockChanged = (isActive) {
+        // ref is not available in initState; schedule for next frame so the
+        // provider scope is guaranteed to be mounted.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            ref
+                .read(editModePreferredProvider.notifier)
+                .setPreference(isActive);
+          }
+        });
+      };
+    }
 
     _autoSave = AutoSaveController(
       onSave: _writeQuKi,
@@ -118,7 +137,21 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     }
 
     _editorController.setValue(body);
-    if (qukiId == null) _editorController.requestFocus();
+
+    // Apply edit mode preference on note load.  Cold launch hits the default
+    // `true`, so the keyboard always appears on first launch.
+    if (_isMobile) {
+      final preferEdit = ref.read(editModePreferredProvider);
+      if (preferEdit) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _editorController.focusFirstBlock();
+        });
+      }
+    } else if (qukiId == null) {
+      // Desktop: retain previous behaviour — focus on new blank QuKi.
+      _editorController.requestFocus();
+    }
+
     _autoSave.resetForQuki(id: qukiId, initialBody: body);
   }
 
@@ -135,6 +168,15 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   }
 
   Future<void> _openQuKisList() async {
+    // Snapshot the edit mode preference NOW, before navigation may blur the
+    // active block.  This ensures that if the user was typing (edit mode) when
+    // they opened the list, we remember that and restore edit mode when they
+    // return or switch notes.
+    if (_isMobile) {
+      final isActive = _editorController.hasActiveBlock;
+      ref.read(editModePreferredProvider.notifier).setPreference(isActive);
+    }
+
     await _autoSave.flush();
     if (!mounted) return;
     await Navigator.push<void>(context, _slideFromLeft(const StreamScreen()));
