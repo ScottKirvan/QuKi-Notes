@@ -1,10 +1,8 @@
 import 'dart:io';
 
-import 'package:file_picker/src/platform/file_picker_platform_interface.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:quki_notes/core/storage/quki_index.dart';
@@ -13,24 +11,6 @@ import 'package:quki_notes/core/storage/quki_storage.dart';
 import 'package:quki_notes/core/storage/storage_location_service.dart';
 import 'package:quki_notes/features/settings/settings_screen.dart';
 import 'package:quki_notes/features/setup/storage_setup_screen.dart';
-
-// ---------------------------------------------------------------------------
-// FilePicker mock
-// ---------------------------------------------------------------------------
-
-class _MockFilePicker extends FilePickerPlatform
-    with MockPlatformInterfaceMixin {
-  String? _returnPath;
-  void willReturn(String? path) => _returnPath = path;
-
-  @override
-  Future<String?> getDirectoryPath({
-    String? dialogTitle,
-    bool lockParentWindow = false,
-    String? initialDirectory,
-  }) async =>
-      _returnPath;
-}
 
 // ---------------------------------------------------------------------------
 // Fake storage / index
@@ -112,13 +92,6 @@ Future<void> cleanup(WidgetTester tester) async {
 // ---------------------------------------------------------------------------
 
 void main() {
-  late _MockFilePicker mockPicker;
-
-  setUp(() {
-    mockPicker = _MockFilePicker();
-    FilePickerPlatform.instance = mockPicker;
-  });
-
   group('SettingsScreen — Storage section', () {
     testWidgets('Storage section header is visible', (tester) async {
       final svc = await _appStorageSvc();
@@ -158,47 +131,32 @@ void main() {
       await cleanup(tester);
     });
 
-    testWidgets(
-        '"Change location" tap opens picker; on success shows "not moved" snackbar',
+    testWidgets('"Change location" tile navigates to StorageSetupScreen',
         (tester) async {
-      mockPicker.willReturn('/new/custom/path');
-
       final svc = await _appStorageSvc();
       await tester.pumpWidget(_buildSettings(svc));
       await tester.pump();
 
       await tester.tap(find.text('Change location'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
 
-      expect(
-        find.textContaining('Existing files were not moved'),
-        findsOneWidget,
-      );
-      expect(svc.basePath, '/new/custom/path');
+      expect(find.byType(StorageSetupScreen), findsOneWidget);
       await cleanup(tester);
     });
 
-    testWidgets('"Change location" cancel leaves path unchanged',
+    testWidgets(
+        'StorageSetupScreen pushed from settings has isChangingLocation true',
         (tester) async {
-      mockPicker.willReturn(null); // user cancelled
-
       final svc = await _appStorageSvc();
-      final pathBefore = svc.basePath;
-
       await tester.pumpWidget(_buildSettings(svc));
       await tester.pump();
 
       await tester.tap(find.text('Change location'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
 
-      // No snackbar, no path change.
-      expect(
-        find.textContaining('Existing files were not moved'),
-        findsNothing,
-      );
-      expect(svc.basePath, pathBefore);
+      final screen =
+          tester.widget<StorageSetupScreen>(find.byType(StorageSetupScreen));
+      expect(screen.isChangingLocation, isTrue);
       await cleanup(tester);
     });
   });
