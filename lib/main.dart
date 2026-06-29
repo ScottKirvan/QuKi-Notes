@@ -26,6 +26,8 @@ void main() async {
   final appStoragePath = p.join(appDir.path, 'qukis');
 
   final locationService = StorageLocationService(prefs, appStoragePath);
+  await locationService.adoptAppStorageIfUpgrading();
+
   final storage = QuKiStorage.fromPath(locationService.basePath);
 
   runApp(ProviderScope(

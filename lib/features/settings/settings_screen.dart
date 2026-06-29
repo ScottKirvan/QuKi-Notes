@@ -23,7 +23,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Future<void> _changeLocation() async {
     setState(() => _changingLocation = true);
     try {
-      final path = await FilePicker.getDirectoryPath();
+      final path = await FilePicker.platform.getDirectoryPath();
       if (!mounted) return;
       if (path == null) return; // user cancelled — no change
 

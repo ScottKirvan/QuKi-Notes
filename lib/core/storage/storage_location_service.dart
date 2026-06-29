@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Owns reading/writing the user-chosen storage location to [SharedPreferences].
@@ -38,5 +40,21 @@ class StorageLocationService {
   Future<void> useAppStorage() async {
     await _prefs.setString(_keyBasePath, _appStoragePath);
     await _prefs.setBool(_keyChosen, true);
+  }
+
+  /// Silently adopts app storage when upgrading from a pre-ADR-27 build.
+  ///
+  /// On a fresh install [isFirstLaunch] is true and the storage directory is
+  /// empty — the setup dialog should appear. On an upgrade the directory
+  /// already contains QuKi files even though no choice was ever recorded.
+  /// Calling this before the first frame prevents the dialog from appearing
+  /// for existing users.
+  Future<void> adoptAppStorageIfUpgrading() async {
+    if (!isFirstLaunch) return;
+    final dir = Directory(_appStoragePath);
+    if (!await dir.exists()) return;
+    final hasData =
+        await dir.list().any((e) => e is File && e.path.endsWith('.md'));
+    if (hasData) await useAppStorage();
   }
 }
