@@ -576,6 +576,56 @@ Headlines:
 
 ---
 
+## Manifesto Alignment Audit
+
+QuKi-Notes makes four promises in the manifesto: **velocity**, **open data**, **information-first UI**, and **extensibility**. This section tracks discovered gaps between those promises and the current implementation. It is a living record — resolve an entry by closing the linked issue and noting the version.
+
+### Gaps identified (2026-06-28 review)
+
+#### 1. Open data — file accessibility and uninstall safety
+
+**Gap**: The manifesto promises that QuKis are "plain files the user owns." On Android, the default storage path is app-sandboxed (`getApplicationDocumentsDirectory()`), which means:
+- Files are not accessible via any file manager.
+- Files are **permanently deleted on uninstall.**
+
+For beta testers reinstalling frequently, this makes every reinstall a data-loss event. The promise is broken at the storage layer, not at the file format layer.
+
+**Priority: Critical — address before open beta.**
+
+**Tracking**: #134 · **Spec**: ADR-27 · **Status**: Specced (phase 3.19), not yet implemented.
+
+---
+
+#### 2. Velocity — keyboard not raised on cold launch
+
+**Gap**: The manifesto promises "open the app → start typing." On cold launch on Android, the soft keyboard is not raised automatically, requiring an extra tap before the user can type. This adds friction at the most common and most manifesto-critical moment: the first capture.
+
+**Priority: High — but not data-critical. Address in phase 3 after #134.**
+
+**Tracking**: #72 · **Status**: Open, not yet scoped for implementation.
+
+---
+
+#### 3. Extensibility — transports are compile-time only
+
+**Gap**: The manifesto promises user-defined destinations. The current transport system (ADR-14) uses a compile-time registry with only ClipboardToss and ShareSheetToss built in. Users cannot add their own transport without forking the codebase and rebuilding. This is a known MVP limitation, not a regression — but the extensibility axis is the load-bearing promise that distinguishes QuKi-Notes from a plain notes app.
+
+**Priority: Medium — deferred to v1.1+ per ADR-14. The transport *architecture* is in place; the user-facing plugin discovery mechanism is not.**
+
+**Tracking**: OQ-NEW-2 (plugin discovery model) · **Status**: Deferred, not yet scoped.
+
+---
+
+### Priority order
+
+| Priority | Gap | Issue | Target |
+|---|---|---|---|
+| Critical | Open data — uninstall safety on Android | #134 | Phase 3.19 (next) |
+| High | Velocity — keyboard on cold launch | #72 | Phase 3, after #134 |
+| Medium | Extensibility — transport plugin discovery | OQ-NEW-2 | v1.1+ |
+
+---
+
 ## Open Questions
 
 Tracked in `notes/dev/open_questions.md`. Snapshot of what's outstanding at spec time:
