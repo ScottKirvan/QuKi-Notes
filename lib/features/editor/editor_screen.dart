@@ -117,6 +117,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     _editorController.setValue(body);
 
     _autoSave.resetForQuki(id: qukiId, initialBody: body);
+    if (qukiId == null) _editorController.requestFocus();
   }
 
   Future<void> _newQuKi() async {
