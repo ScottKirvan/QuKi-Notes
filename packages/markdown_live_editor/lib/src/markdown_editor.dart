@@ -187,9 +187,6 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   // Incremented on setValue() to force-recreate all MarkdownBlock widgets,
   // discarding any in-progress edit state when content is switched externally.
   int _resetCounter = 0;
-  // Index of the block currently in edit mode, or null when no block is
-  // editing.  Used by _tappedEmptySpace to decide whether to unfocus (render)
-  // or activate the last block (enter edit mode).
   int? _activeEditIndex;
 
   @override
@@ -376,15 +373,8 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     });
   }
 
-  // Tap on the empty space below all blocks.
-  // If a block is editing: unfocus so it renders.
-  // If nothing is editing: enter the last block so the user can start typing.
   void _tappedEmptySpace() {
-    if (_activeEditIndex != null) {
-      FocusManager.instance.primaryFocus?.unfocus();
-    } else {
-      _activateLastBlock();
-    }
+    _activateLastBlock();
   }
 
   void _requestFocus() {
