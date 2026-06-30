@@ -35,12 +35,11 @@ jobs:
             fi
           done
 
-          # All builds complete — find the release tag for this commit
-          TAG=$(gh api "repos/$REPO/releases" \
-            --jq "[.[] | select(.target_commitish == \"main\")] | sort_by(.created_at) | last | .tag_name")
+          # All builds complete — get the latest release tag
+          TAG=$(gh release list --repo "$REPO" --limit 1 --json tagName --jq '.[0].tagName')
 
           if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
-            echo "No matching release found, skipping"
+            echo "No release found, skipping"
             echo "all_done=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
