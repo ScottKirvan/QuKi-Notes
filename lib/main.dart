@@ -8,10 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:window_manager/window_manager.dart';
 
 import 'app.dart';
-import 'core/storage/quki_index.dart';
-import 'core/storage/quki_storage.dart';
 import 'core/storage/storage_location_service.dart';
-import 'features/setup/storage_setup_screen.dart';
 import 'features/window/window_state_service.dart';
 
 void main() async {
@@ -28,12 +25,9 @@ void main() async {
   final locationService = StorageLocationService(prefs, appStoragePath);
   await locationService.adoptAppStorageIfUpgrading();
 
-  final storage = QuKiStorage.fromPath(locationService.basePath);
-
   runApp(ProviderScope(
     overrides: [
       storageLocationServiceProvider.overrideWithValue(locationService),
-      quKiStorageProvider.overrideWithValue(storage),
     ],
     child: const QuKiNotesApp(),
   ));

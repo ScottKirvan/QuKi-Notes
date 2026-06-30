@@ -2,16 +2,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'quki_meta.dart';
 import 'quki_storage.dart';
+import 'storage_base_path_provider.dart';
 
-// Must be overridden at the app root — see main.dart.
-final quKiStorageProvider = Provider<QuKiStorage>(
-  (ref) => throw UnimplementedError('quKiStorageProvider must be overridden'),
-);
+final quKiStorageProvider = Provider<QuKiStorage>((ref) {
+  final basePath = ref.watch(storageBasePathProvider);
+  return QuKiStorage.fromPath(basePath);
+});
 
 class QuKiIndexNotifier extends AsyncNotifier<List<QuKiMeta>> {
   @override
   Future<List<QuKiMeta>> build() {
-    return ref.read(quKiStorageProvider).scanActive();
+    final storage = ref.watch(quKiStorageProvider);
+    return storage.scanActive();
   }
 
   Future<void> refresh() async {
@@ -54,7 +56,8 @@ final quKiIndexProvider =
 class TrashIndexNotifier extends AsyncNotifier<List<QuKiMeta>> {
   @override
   Future<List<QuKiMeta>> build() {
-    return ref.read(quKiStorageProvider).scanTrash();
+    final storage = ref.watch(quKiStorageProvider);
+    return storage.scanTrash();
   }
 
   Future<void> refresh() async {

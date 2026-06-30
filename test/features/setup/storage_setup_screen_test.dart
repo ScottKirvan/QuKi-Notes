@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:quki_notes/core/storage/quki_index.dart';
 import 'package:quki_notes/core/storage/quki_meta.dart';
 import 'package:quki_notes/core/storage/quki_storage.dart';
+import 'package:quki_notes/core/storage/storage_base_path_provider.dart';
 import 'package:quki_notes/core/storage/storage_location_service.dart';
 import 'package:quki_notes/features/setup/storage_setup_screen.dart';
 
@@ -399,6 +400,83 @@ void main() {
 
       expect(svc.isFirstLaunch, isFalse);
       expect(svc.isAppStorage, isTrue);
+      await cleanup(tester);
+    });
+  });
+
+  // Tests that verify storageBasePathProvider is updated after a choice is made.
+  group('StorageSetupScreen — storageBasePathProvider updates', () {
+    testWidgets(
+        '"Use app storage" pushes app storage path to storageBasePathProvider',
+        (tester) async {
+      final svc = await _freshService();
+
+      late ProviderContainer container;
+
+      await tester.pumpWidget(ProviderScope(
+        overrides: [
+          storageLocationServiceProvider.overrideWithValue(svc),
+          quKiStorageProvider.overrideWithValue(_FakeStorage()),
+          quKiIndexProvider.overrideWith(() => _FakeQuKiIndex()),
+        ],
+        child: Builder(
+          builder: (context) {
+            container = ProviderScope.containerOf(context);
+            return const MaterialApp(home: StorageSetupScreen());
+          },
+        ),
+      ));
+      await tester.pump();
+
+      await tester.tap(find.text('Use app storage'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(container.read(storageBasePathProvider), _appStoragePath);
+      await cleanup(tester);
+    });
+
+    testWidgets(
+        'Android filesystem storage pushes external path to storageBasePathProvider',
+        (tester) async {
+      const externalPath = '/sdcard/Documents/QuKi_Notes';
+      final svc = await _freshService();
+
+      final callbacks = AndroidStorageCallbacks(
+        isExternalStorageManager: () async => true,
+        getExternalDocumentsPath: () async => externalPath,
+        requestAllFilesAccess: () async {},
+        createDirectory: (_) async {},
+      );
+
+      late ProviderContainer container;
+
+      await tester.pumpWidget(ProviderScope(
+        overrides: [
+          storageLocationServiceProvider.overrideWithValue(svc),
+          quKiStorageProvider.overrideWithValue(_FakeStorage()),
+          quKiIndexProvider.overrideWith(() => _FakeQuKiIndex()),
+        ],
+        child: Builder(
+          builder: (context) {
+            container = ProviderScope.containerOf(context);
+            return MaterialApp(
+              home: StorageSetupScreen(
+                androidCallbacks: callbacks,
+                useAndroidFlow: true,
+              ),
+            );
+          },
+        ),
+      ));
+      await tester.pump();
+
+      await tester.tap(
+          find.textContaining('Filesystem storage — Documents/QuKi_Notes'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(container.read(storageBasePathProvider), externalPath);
       await cleanup(tester);
     });
   });
