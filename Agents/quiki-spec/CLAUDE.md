@@ -99,26 +99,19 @@ Fix CI failures directly (they are always small). Use `mcp__github__subscribe_pr
 
 See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phase table.
 
-**Current version**: v0.13.1 (released 2026-06-25).
+**Current version**: v0.14.4 (released 2026-06-29).
 
-**PRs open and awaiting device testing (2026-06-29):**
-- PR #145 `feat/storage-location-setup` — ADR-27 first-launch storage location choice (closes #134). Session 8. CI green.
-- PR #146 `feat/editor-edit-mode-preference` — Edit mode preference + keyboard on cold launch (closes #72). Session 9. CI pending.
+**Implementation session in progress**: Session 14 — `fix/keyboard-autofocus` (keyboard on cold launch + resume rescan removal). Brief in `Agents/quiki-dev/CLAUDE.md`.
 
-**Resolved since last spec sync:**
-- ADR-26 Stage 2 (v0.10.0): Formatting toolbar (bold, italic, strikethrough, heading, task list) + list auto-continue — `FormattingToolbar` in `markdown_live_editor` package
-- ADR-26 Stage 3 (v0.10.1): Block-flip WYSIWYG — idle blocks render via `flutter_markdown`; tapping flips to `TextField`; multiple post-merge fixes for autofocus, toolbar, double-enter, bare list markers, block spacing
-- ADR-26 Stage 4 (v0.11.0): Task checkbox tap-to-toggle (no edit mode); cross-block arrow-key navigation; 150ms flip animations
-- App label renamed from `quki_notes` to `QuKi Notes`
-- App icon v1 (v0.12.0, PR #124): QuKi Notes icon — Android adaptive, iOS, Windows
-- App icon v2 Rainbow (v0.13.0, PRs #126 + #128): updated design; transparent background for Windows + Linux
-- Keyboard dismiss button removed; checkbox vertical alignment nudged (v0.13.1, PR #137)
-- Fix #138 — `MarkdownBody` assertion crash on bare task items; bypass `flutter_markdown` task list rendering (v0.13.1, PR #139)
-- Spec sync to v0.13.1 (PR #142): all agent briefs, phase table, design_spec, decisions updated
-- ADR-27 spec + Session 8 brief + manifesto alignment audit (PR #144): storage location feature fully specified; three manifesto promise gaps documented with priority order
+**Resolved since last spec sync (Sessions 10–13, v0.14.x):**
+- ADR-27 / Phase 3.19 (PR #145): Storage location choice + first-launch setup. User picks "Filesystem storage" (Documents/QuKi_Notes) or "App storage" at first launch; changeable from Settings.
+- ADR-28 (PR #145): MANAGE_EXTERNAL_STORAGE permission on Android for `dart:io` access to shared external storage. Kotlin method channel (`StoragePlugin.kt`): `isExternalStorageManager`, `getExternalDocumentsPath`, `requestAllFilesAccess`.
+- `StorageBasePathNotifier` (reactive `NotifierProvider<String>`): cascades path changes to `quKiStorageProvider` and `quKiIndexProvider` without restart.
+- `adoptAppStorageIfUpgrading()`: detects existing `.md` files on first launch → skips setup dialog for upgrading users.
+- Phase 3.20 (PR #155): Removed all keyboard auto-focus hacks (`editModePreferredProvider`, `onActiveBlockChanged`, all `focusFirstBlock()`/`requestFocus()` calls in `EditorScreen`). Clean baseline: cold launch opens without keyboard but 1 tap raises it correctly. Home+return still drops keyboard after IME restore flash (next session: autofocus fix, Phase 3.20a).
 
 **Phase 3 remaining:**
-- **PRs in device testing**: #145 (storage location), #146 (keyboard/edit mode)
+- **#72 keyboard**: 1 tap works on cold launch; home+return drops keyboard after 1s — autofocus fix next (Phase 3.20a — see quiki-dev brief)
 - **Open bugs**: #73 rapid shares may lose content; #75 opening a note moves it to top of list (ADR-25 did NOT fully resolve — still reproducing); #77 tabs/indenting broken in lists; #129 cursor jumps to end of line on tap; #130 checkbox toggle unacceptably slow; #133 share-in QuKi doesn't appear in QuKis list
 - **Housekeeping**: #88 (release build modes already merged as `4dbd27c`) — close the issue
 - **Unscoped features**: #79 (auto-start after idle), #80 (replace hamburger with icon toolbar), #81 (hyperlink insert/edit), #83 (spell check / swipe-to-type), #87 (partial-width panels), #135 (find in page), #136 (word/char count)
