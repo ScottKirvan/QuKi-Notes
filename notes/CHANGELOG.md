@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.6](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.14.5...v0.14.6) (2026-06-30)
+
+
+### Reverts
+
+* **editor:** remove autofocus: true — made keyboard worse on Android ([#72](https://github.com/ScottKirvan/QuKi-Notes/issues/72)) ([0957d30](https://github.com/ScottKirvan/QuKi-Notes/commit/0957d30a3b62e2d6de696e58fbaee6a7f3595957))
+
 ## [0.14.5](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.14.4...v0.14.5) (2026-06-30)
 
 
