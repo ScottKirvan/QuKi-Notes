@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.5](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.14.4...v0.14.5) (2026-06-30)
+
+
+### Bug Fixes
+
+* **editor:** keyboard on cold launch + stop resume rescan dropping IME ([#72](https://github.com/ScottKirvan/QuKi-Notes/issues/72)) ([98aebd0](https://github.com/ScottKirvan/QuKi-Notes/commit/98aebd01c0266c5e172ef1a20bc078735c2ce1c3))
+
 ## [0.14.4](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.14.3...v0.14.4) (2026-06-30)
 
 
