@@ -56,4 +56,5 @@ Read in this order — do not skip:
 
 **No task currently in progress.**
 
-Session 8 (ADR-27 storage location, PR #145) and Session 9 (edit mode preference + keyboard on launch, PR #146) are both open and awaiting device testing before merge.
+PR #145 (storage location: ADR-27 + ADR-28, Sessions 8-11) is open and awaiting device testing before merge.
+PR #146 (edit mode preference + keyboard on launch) is open and awaiting device testing before merge.
