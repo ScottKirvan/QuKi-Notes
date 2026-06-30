@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.3](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.14.2...v0.14.3) (2026-06-30)
+
+
+### Bug Fixes
+
+* **editor:** delay focusFirstBlock 150ms to wait for IME ([#72](https://github.com/ScottKirvan/QuKi-Notes/issues/72)) ([ad9b13b](https://github.com/ScottKirvan/QuKi-Notes/commit/ad9b13be61f1657b90de397ecaa265f33c7fb9c8))
+
 ## [0.14.2](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.14.1...v0.14.2) (2026-06-30)
 
 
