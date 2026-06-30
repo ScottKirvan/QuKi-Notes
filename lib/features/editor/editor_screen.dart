@@ -144,7 +144,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       final preferEdit = ref.read(editModePreferredProvider);
       if (preferEdit) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) _editorController.focusFirstBlock();
+          Future<void>.delayed(const Duration(milliseconds: 150), () {
+            if (mounted) _editorController.focusFirstBlock();
+          });
         });
       }
     } else if (qukiId == null) {
