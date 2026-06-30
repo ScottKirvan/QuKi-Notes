@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.2](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.14.1...v0.14.2) (2026-06-30)
+
+
+### Bug Fixes
+
+* add shared release notes and Discord notify workflows ([ff30ea5](https://github.com/ScottKirvan/QuKi-Notes/commit/ff30ea58c0d8bee0cbaa446647eb0aedfb181cb4))
+
 ## [0.14.1](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.14.0...v0.14.1) (2026-06-30)
 
 
