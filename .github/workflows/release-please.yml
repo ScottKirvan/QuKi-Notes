@@ -42,11 +42,3 @@ jobs:
         📖 [User Guide](https://www.scottkirvan.com/QuKi-Notes/) · 💬 [Discord](https://discord.gg/TN6XJSNK5Y) · 🐛 [Report a Bug](https://github.com/ScottKirvan/QuKi-Notes/issues/new?template=bug_report.md) · ✨ [Request Feature](https://github.com/ScottKirvan/QuKi-Notes/issues/new?template=feature_request.md)
     secrets: inherit
 
-  discord-notify:
-    needs: [release-please, improve-release-notes]
-    if: ${{ needs.release-please.outputs.release_created }}
-    uses: ScottKirvan/.github/.github/workflows/reusable-discord-notify.yml@main
-    with:
-      tag_name: ${{ needs.release-please.outputs.tag_name }}
-      project_name: "QuKi Notes"
-    secrets: inherit
