@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.14.11](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.14.10...v0.14.11) (2026-06-30)
+
+
+### Bug Fixes
+
+* **editor:** remove unused _activateLastBlock ([8f13735](https://github.com/ScottKirvan/QuKi-Notes/commit/8f137354b5dae6a7095106f41ce0b7f372bb6850))
+* **editor:** tapping below note places cursor at end of last block ([51c0ff6](https://github.com/ScottKirvan/QuKi-Notes/commit/51c0ff6afdbfdc1745822663a2099955eae041b1))
+
 ## [0.14.10](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.14.9...v0.14.10) (2026-06-30)
 
 
