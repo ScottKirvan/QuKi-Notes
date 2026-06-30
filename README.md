@@ -15,7 +15,7 @@ Ephemeral notes captured on whatever device is at hand, dispatched wherever they
 [![Android](https://img.shields.io/badge/Android-supported-3DDC84?logo=android&logoColor=white)](#platform-support)
 [![Windows](https://img.shields.io/badge/Windows-supported-0078D4?logo=windows&logoColor=white)](#platform-support)
 [![Linux](https://img.shields.io/badge/Linux-supported-FCC624?logo=linux&logoColor=black)](#platform-support)
-[![Discord](https://img.shields.io/discord/1052011377415438346?label=discord&color=00ACD7)](https://discord.gg/TSKHvVFYxB)
+[![Discord](https://img.shields.io/discord/1052011377415438346?label=discord&color=00ACD7)](https://discord.gg/TN6XJSNK5Y)
 
 [User Docs](https://scottkirvan.github.io/QuKi-Notes/) &nbsp;·&nbsp;
 [Design Spec](notes/dev/design_spec.md) &nbsp;·&nbsp;
@@ -322,7 +322,7 @@ MIT — see [LICENSE.md](LICENSE.md).
 ## Contact
 
 - **Issues & PRs**: [github.com/ScottKirvan/QuKi-Notes](https://github.com/ScottKirvan/QuKi-Notes)
-- **Discord**: [discord.gg/TSKHvVFYxB](https://discord.gg/TSKHvVFYxB) — I'm `cptvideo`
+- **Discord**: [discord.gg/TN6XJSNK5Y](https://discord.gg/TN6XJSNK5Y) — I'm `cptvideo`
 - **LinkedIn**: [linkedin.com/in/scottkirvan](https://www.linkedin.com/in/scottkirvan/)
 - **User Docs**: [scottkirvan.github.io/QuKi-Notes](https://scottkirvan.github.io/QuKi-Notes/)
 

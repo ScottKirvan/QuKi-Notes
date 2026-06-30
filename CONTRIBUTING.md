@@ -146,5 +146,5 @@ Before proposing structural changes, read the relevant planning docs in `notes/d
 ## Questions and Discussion
 
 - **Issues**: [github.com/ScottKirvan/QuKi-Notes/issues](https://github.com/ScottKirvan/QuKi-Notes/issues)
-- **Discord**: [discord.gg/TSKHvVFYxB](https://discord.gg/TSKHvVFYxB) — I'm `cptvideo`
+- **Discord**: [discord.gg/TN6XJSNK5Y](https://discord.gg/TN6XJSNK5Y) — I'm `cptvideo`
 - **LinkedIn**: [linkedin.com/in/scottkirvan](https://www.linkedin.com/in/scottkirvan/)

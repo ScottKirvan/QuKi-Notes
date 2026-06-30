@@ -49,4 +49,4 @@ If anything here ever changes, the updated policy will be posted at this URL wit
 
 ## Contact
 
-Questions? Open an issue on [GitHub](https://github.com/ScottKirvan/QuKi-Notes/issues) or reach out on [Discord](https://discord.gg/TSKHvVFYxB).
+Questions? Open an issue on [GitHub](https://github.com/ScottKirvan/QuKi-Notes/issues) or reach out on [Discord](https://discord.gg/TN6XJSNK5Y).
