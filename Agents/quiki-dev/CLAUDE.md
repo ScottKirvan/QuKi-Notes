@@ -41,56 +41,111 @@ Read in this order — do not skip:
 
 ---
 
-## Current Task Brief — Session 12
+## Current Task Brief — Session 13
 
 > Written and maintained by the Spec session.
 
-**Task**: Fix keyboard not appearing on cold launch (closes #72 properly)
-**Branch**: `fix/keyboard-cold-launch`
-**PR title**: `fix(editor): keyboard appears on cold launch (#72)`
+**Task**: Remove all keyboard auto-focus hacks; let Android handle IME state naturally
+**Branch**: `fix/keyboard-focus-rollback`
+**PR title**: `fix(editor): remove keyboard auto-focus hacks — let Android handle IME (#72)`
+
+Also: **close PR #153** (`fix/keyboard-cold-launch`) as superseded — `gh pr close 153 --comment "Superseded by #<new PR number> — rolling back the full editModePreferred approach instead of patching the delay"`
 
 ---
 
 ### Context
 
-PR #146 attempted to fix #72 by calling `_editorController.focusFirstBlock()` inside `WidgetsBinding.instance.addPostFrameCallback`. On device testing (Pixel 6 Pro), the keyboard consistently does not appear on cold launch — every launch, not intermittent. Tapping a block manually raises the keyboard fine.
+PR #146 introduced `editModePreferredProvider` + `focusFirstBlock()` + `onActiveBlockChanged` to auto-raise the keyboard on cold launch and preserve keyboard state across note switches. Device testing on Pixel 6 Pro shows it makes things worse:
 
-Root cause: `addPostFrameCallback` fires before Android's IME (input method) has finished connecting. The focus request goes through but the keyboard never appears.
+- **Cold launch**: cursor appears (block focused) but keyboard never shows → tap 1 unfocuses → tap 2 finally raises keyboard. 2 taps to type.
+- **Home + return**: keyboard briefly appears (Android restoring IME state) then disappears (our `focusFirstBlock()` fires and collapses it). 2 more taps.
 
-### Fix
+Root cause: programmatic focus (`focusFirstBlock()`) fires before or during Android's IME connection cycle, disrupting it. No delay value fixes this reliably — it's a race condition with the Android IME.
 
-In `lib/features/editor/editor_screen.dart`, lines 146–148, replace the `addPostFrameCallback` call with a short delay:
+**Decision**: remove all the keyboard auto-focus machinery. Notes open in view mode; the user taps once to edit. Android handles keyboard state on app resume without interference. 1 tap is acceptable. 2 taps caused by our own code is not.
 
-**Before:**
+---
+
+### What to remove
+
+#### 1. Delete `lib/features/editor/edit_mode_preference_provider.dart` entirely
+
+#### 2. Delete `test/features/editor/edit_mode_preference_test.dart` entirely
+
+#### 3. `lib/features/editor/editor_screen.dart`
+
+Read the full file first. Remove:
+
+**`onActiveBlockChanged` wiring** (around lines 68–78) — the whole block that sets `_editorController.onActiveBlockChanged` and the `addPostFrameCallback` inside it that updates `editModePreferredProvider`.
+
+**`editModePreferredProvider` check + `focusFirstBlock()` call on note load** (around lines 141–149):
 ```dart
-WidgetsBinding.instance.addPostFrameCallback((_) {
-  if (mounted) _editorController.focusFirstBlock();
-});
-```
-
-**After:**
-```dart
-WidgetsBinding.instance.addPostFrameCallback((_) {
-  Future<void>.delayed(const Duration(milliseconds: 150), () {
+// Remove this entire block:
+final preferEdit = ref.read(editModePreferredProvider);
+if (preferEdit) {
+  WidgetsBinding.instance.addPostFrameCallback((_) {
     if (mounted) _editorController.focusFirstBlock();
   });
-});
+}
 ```
 
-150ms is the standard Flutter workaround for Android IME connection timing. That is the only code change needed.
+**`editModePreferredProvider` snapshot in `_openQuKisList`** (around lines 175–177):
+```dart
+// Remove:
+final isActive = _editorController.hasActiveBlock;
+ref.read(editModePreferredProvider.notifier).setPreference(isActive);
+```
+
+**Keep untouched:**
+- `_editorController.requestFocus()` for desktop new-blank-QuKi (`qukiId == null` + `!_isMobile`) — desktop has no soft keyboard, autofocus on new note is fine
+- `Focus(autofocus: true, skipTraversal: true, child: scaffold)` wrapper — this is for desktop keyboard shortcut capture, unrelated to the IME issue
+- Any `autofocus: true` on desktop widgets (search field etc.)
+- All `_isMobile` guards
+
+Remove the `editModePreferredProvider` import.
+
+#### 4. `packages/markdown_live_editor/lib/src/markdown_editor.dart`
+
+Remove:
+- `ValueChanged<bool>? onActiveBlockChanged;` field (around line 15)
+- The call `onActiveBlockChanged?.call(isActive)` (around line 37) and its surrounding logic that was added to fire this callback
+
+**Keep:**
+- `bool get hasActiveBlock => _activeTextController != null;` — harmless, potentially useful
+- `focusFirstBlock()` / `requestFocus()` — core package API used for desktop and potentially useful elsewhere
+- All `_autofocusIndex` logic — this is the internal cross-block arrow-key navigation, completely unrelated to the keyboard bug
+- `autofocus` / `autofocusAtEnd` parameters on `MarkdownBlock` — used for cross-block navigation
+
+---
+
+### Code scan — other keyboard/focus legacy to check
+
+While making the changes above, also review these and remove if they are artifacts of the keyboard hacks rather than legitimate features:
+
+- `lib/features/editor/editor_screen.dart` line ~163: second `_editorController.requestFocus()` call — check what condition this is in and whether it's needed post-rollback
+- Any `onActiveBlockChanged`-related wiring in widget tests for `EditorScreen`
+
+---
 
 ### Tests
 
-Read `test/features/editor/edit_mode_preference_test.dart` — the existing tests cover the cold-launch / `focusFirstBlock` behaviour. The delay is not directly testable in unit/widget tests (timers in `testWidgets` use `FakeAsync` which advances time synchronously).
+- Delete `test/features/editor/edit_mode_preference_test.dart` (entire file)
+- In `test/features/editor/` — search for any test that imports or references `editModePreferredProvider`, `edit_mode_preference_provider`, `onActiveBlockChanged`, or `focusFirstBlock`. Remove those references / tests entirely.
+- In `packages/markdown_live_editor/test/` — remove any tests for `onActiveBlockChanged` if they exist.
+- Run `just test` — all remaining tests must pass.
 
-If any existing test asserts that `focusFirstBlock` is called synchronously within a single frame, update it to pump the 150ms delay: `await tester.pump(const Duration(milliseconds: 150))`.
-
-Run all tests and confirm no regressions. No new test needed for the delay itself.
+---
 
 ### Checklist
 
+- [ ] `edit_mode_preference_provider.dart` deleted
+- [ ] `test/features/editor/edit_mode_preference_test.dart` deleted
+- [ ] `onActiveBlockChanged` removed from `editor_screen.dart` and `markdown_editor.dart`
+- [ ] `editModePreferredProvider` removed from `editor_screen.dart` entirely
+- [ ] Desktop `requestFocus()` on new blank QuKi still present
 - [ ] `just lint` passes
-- [ ] `just test` passes (no regressions)
+- [ ] `just test` passes — no regressions
 - [ ] `flutter build apk --debug` succeeds
-- [ ] PR opened; body includes step-by-step device test instructions for cold launch
+- [ ] PR #153 closed as superseded
+- [ ] New PR opened with device test instructions
 - [ ] No Claude/Anthropic attribution in commit message or PR body
