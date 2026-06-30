@@ -1,0 +1,58 @@
+name: Post-Build Discord Notify
+
+on:
+  workflow_run:
+    workflows: ["Build Android", "Build Windows", "Build Linux"]
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      all_done: ${{ steps.check.outputs.all_done }}
+      tag_name: ${{ steps.check.outputs.tag_name }}
+    steps:
+      - name: Check if all builds are complete
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          BUILD_WORKFLOWS=("Build Android" "Build Windows" "Build Linux")
+
+          for WF in "${BUILD_WORKFLOWS[@]}"; do
+            STATUS=$(gh api "repos/$REPO/actions/runs?per_page=20" \
+              --jq "[.workflow_runs[] | select(.name == \"$WF\" and .head_sha == \"$HEAD_SHA\")] | first | .status // \"not_found\"")
+            echo "$WF: $STATUS"
+            if [ "$STATUS" != "completed" ]; then
+              echo "all_done=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          done
+
+          # All builds complete — find the release tag for this commit
+          TAG=$(gh api "repos/$REPO/releases" \
+            --jq "[.[] | select(.target_commitish == \"main\")] | sort_by(.created_at) | last | .tag_name")
+
+          if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
+            echo "No matching release found, skipping"
+            echo "all_done=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "all_done=true" >> "$GITHUB_OUTPUT"
+          echo "tag_name=$TAG" >> "$GITHUB_OUTPUT"
+
+  notify:
+    needs: check
+    if: needs.check.outputs.all_done == 'true'
+    uses: ScottKirvan/.github/.github/workflows/reusable-discord-notify.yml@main
+    with:
+      tag_name: ${{ needs.check.outputs.tag_name }}
+      project_name: "QuKi Notes"
+    secrets: inherit
