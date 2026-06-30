@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.14.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.13.1...v0.14.0) (2026-06-30)
+
+
+### Features
+
+* **editor:** edit mode preference + keyboard on launch ([#72](https://github.com/ScottKirvan/QuKi-Notes/issues/72)) ([f19eaee](https://github.com/ScottKirvan/QuKi-Notes/commit/f19eaee0a58b0bff591870c8ef3eac2aab11e6c4))
+* **storage:** first-launch storage location choice (ADR-27, closes [#134](https://github.com/ScottKirvan/QuKi-Notes/issues/134)) ([536787c](https://github.com/ScottKirvan/QuKi-Notes/commit/536787c66ab0e6d93adaba86f88c394ae8b172ce))
+* **storage:** MANAGE_EXTERNAL_STORAGE approach for Android filesystem storage (ADR-28) ([e85173e](https://github.com/ScottKirvan/QuKi-Notes/commit/e85173ef662ef7480ac0d7ec25de8cea106695b1))
+
+
+### Bug Fixes
+
+* remove GitHub Discussions link, keep Discord only in issue template config ([51cfc8c](https://github.com/ScottKirvan/QuKi-Notes/commit/51cfc8c4fa21b8310b9980b47ffcd48ae57a59a2))
+* **storage:** downgrade file_picker to 8.3.7, fix API call, add upgrade detection ([2fba542](https://github.com/ScottKirvan/QuKi-Notes/commit/2fba5429b67cf04ed253fef3752714ccb1410515))
+* **storage:** reactive provider cascade — QuKi list updates immediately after location choice ([73490eb](https://github.com/ScottKirvan/QuKi-Notes/commit/73490eb3ac78d73ef2a486374b8942a25c140081))
+
 ## [0.13.1](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.13.0...v0.13.1) (2026-06-25)
 
 
