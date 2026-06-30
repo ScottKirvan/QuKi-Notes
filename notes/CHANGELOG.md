@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.14.10](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.14.9...v0.14.10) (2026-06-30)
+
+
+### Bug Fixes
+
+* add emoji input to discord-notify job ([5b0cbe9](https://github.com/ScottKirvan/QuKi-Notes/commit/5b0cbe934dc71aa675b1529b36d57de877d77c5c))
+* **editor:** also open keyboard when tapping + from an existing QuKi ([#72](https://github.com/ScottKirvan/QuKi-Notes/issues/72)) ([6803485](https://github.com/ScottKirvan/QuKi-Notes/commit/68034854d7d687cc0022c48e47e38b8fa48c0aa1))
+
 ## [0.14.9](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.14.8...v0.14.9) (2026-06-30)
 
 
