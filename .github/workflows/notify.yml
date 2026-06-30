@@ -54,4 +54,5 @@ jobs:
     with:
       tag_name: ${{ needs.check.outputs.tag_name }}
       project_name: "QuKi Notes"
+      emoji: "🪽"
     secrets: inherit
