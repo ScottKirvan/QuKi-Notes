@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.9](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.14.8...v0.14.9) (2026-06-30)
+
+
+### Bug Fixes
+
+* **editor:** open keyboard when tapping + on a blank note ([#72](https://github.com/ScottKirvan/QuKi-Notes/issues/72)) ([6074162](https://github.com/ScottKirvan/QuKi-Notes/commit/60741626fa96c1df5c408ad8aaab30aa1efa3d0b))
+
 ## [0.14.8](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.14.7...v0.14.8) (2026-06-30)
 
 
