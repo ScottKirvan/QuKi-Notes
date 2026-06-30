@@ -125,12 +125,15 @@ Future<void> cleanup(WidgetTester tester) async {
 
 void main() {
   group('EditorScreen renders', () {
-    testWidgets('shows MarkdownEditor (TextField) on launch', (tester) async {
+    testWidgets('shows MarkdownEditor on launch in view mode', (tester) async {
       await tester.pumpWidget(_buildEditor());
       await tester.pump();
 
+      // Block mode: MarkdownEditor renders blocks as MarkdownBody widgets;
+      // no TextField is active until the user taps a block.
       expect(find.byType(MarkdownEditor), findsOneWidget);
-      expect(find.byType(TextField), findsOneWidget);
+      expect(find.byType(TextField), findsNothing,
+          reason: 'No block should be in edit mode on launch (no autofocus)');
 
       await cleanup(tester);
     });
@@ -291,6 +294,10 @@ void main() {
       ));
       await tester.pump();
 
+      // Switch to plain-text mode so there is a single TextField to type into.
+      await tester.tap(find.byIcon(LucideIcons.type));
+      await tester.pump();
+
       // Type content so the empty-body guard does not fire.
       await tester.enterText(find.byType(TextField), 'toss me');
       await tester.pump();
@@ -318,6 +325,10 @@ void main() {
       final storage = _FakeQuKiStorage();
 
       await tester.pumpWidget(_buildEditor(storage: storage));
+      await tester.pump();
+
+      // Switch to plain-text mode so there is a single TextField to type into.
+      await tester.tap(find.byIcon(LucideIcons.type));
       await tester.pump();
 
       await tester.enterText(find.byType(TextField), 'debounce test');
