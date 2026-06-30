@@ -374,7 +374,19 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   }
 
   void _tappedEmptySpace() {
-    _activateLastBlock();
+    if (_blocks.isEmpty) return;
+    setState(() {
+      _autofocusIndex = _blocks.length - 1;
+      _autofocusAtEnd = true;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        setState(() {
+          _autofocusIndex = null;
+          _autofocusAtEnd = false;
+        });
+      }
+    });
   }
 
   void _requestFocus() {
