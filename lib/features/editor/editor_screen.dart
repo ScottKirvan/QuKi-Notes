@@ -125,6 +125,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       if (!mounted) return;
       _editorController.setValue('');
       _autoSave.resetForQuki(id: null);
+      _editorController.requestFocus();
     } else {
       ref.read(activeQukiIdProvider.notifier).setId(null);
     }
