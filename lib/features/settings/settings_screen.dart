@@ -4,6 +4,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../core/app_info.dart';
 import '../../core/storage/quki_index.dart';
+import '../../core/storage/storage_location_service.dart';
 import '../../core/transports/registry_provider.dart';
 import '../../core/transports/transport_settings_notifier.dart';
 import '../recently_deleted/recently_deleted_screen.dart';

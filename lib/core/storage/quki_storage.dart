@@ -12,6 +12,9 @@ class QuKiStorage {
 
   final Directory _root;
 
+  /// The absolute path of the root directory for this storage instance.
+  String get basePath => _root.path;
+
   Directory get _metaDir => Directory(p.join(_root.path, '.meta'));
   Directory get _trashDir => Directory(p.join(_root.path, '.trash'));
   Directory get _trashMetaDir =>

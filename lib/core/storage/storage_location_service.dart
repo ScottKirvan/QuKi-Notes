@@ -1,10 +1,18 @@
 import 'dart:io';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Owns reading/writing the user-chosen storage location to [SharedPreferences].
+/// Provider for [StorageLocationService].
 ///
-/// Pure Dart — no Flutter imports.
+/// Must be overridden in [main()] after [SharedPreferences] and
+/// [getApplicationDocumentsDirectory()] are resolved.
+final storageLocationServiceProvider = Provider<StorageLocationService>(
+  (ref) => throw UnimplementedError(
+      'storageLocationServiceProvider must be overridden'),
+);
+
+/// Owns reading/writing the user-chosen storage location to [SharedPreferences].
 class StorageLocationService {
   static const _keyBasePath = 'storage.base_path';
   static const _keyChosen = 'storage.location_chosen';

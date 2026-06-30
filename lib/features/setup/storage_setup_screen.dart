@@ -5,17 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/storage/android_storage_channel.dart';
+import '../../core/storage/storage_base_path_provider.dart';
 import '../../core/storage/storage_location_service.dart';
 import '../editor/editor_screen.dart';
-
-/// Provider for [StorageLocationService].
-///
-/// Must be overridden in [main()] after [SharedPreferences] and
-/// [getApplicationDocumentsDirectory()] are resolved.
-final storageLocationServiceProvider = Provider<StorageLocationService>(
-  (ref) => throw UnimplementedError(
-      'storageLocationServiceProvider must be overridden'),
-);
 
 /// Callbacks that wrap [AndroidStorageChannel] calls and other side effects
 /// so they can be replaced in tests without needing real I/O or a MethodChannel.
@@ -141,6 +133,7 @@ class _StorageSetupScreenState extends ConsumerState<StorageSetupScreen>
     final svc = ref.read(storageLocationServiceProvider);
     await svc.setPath(path);
     if (!mounted) return;
+    ref.read(storageBasePathProvider.notifier).setPath(path);
     _openEditor();
   }
 
@@ -174,6 +167,7 @@ class _StorageSetupScreenState extends ConsumerState<StorageSetupScreen>
         final svc = ref.read(storageLocationServiceProvider);
         await svc.setPath(path);
         if (!mounted) return;
+        ref.read(storageBasePathProvider.notifier).setPath(path);
         _openEditor();
       }
     } catch (_) {
@@ -191,6 +185,7 @@ class _StorageSetupScreenState extends ConsumerState<StorageSetupScreen>
     final svc = ref.read(storageLocationServiceProvider);
     await svc.useAppStorage();
     if (!mounted) return;
+    ref.read(storageBasePathProvider.notifier).setPath(svc.basePath);
     _openEditor();
   }
 
@@ -229,6 +224,7 @@ class _StorageSetupScreenState extends ConsumerState<StorageSetupScreen>
         if (svc.isFirstLaunch) {
           await svc.useAppStorage();
           if (!mounted) return;
+          ref.read(storageBasePathProvider.notifier).setPath(svc.basePath);
           _openEditor();
         }
       },
