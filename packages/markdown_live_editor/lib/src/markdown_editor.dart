@@ -9,11 +9,6 @@ class MarkdownEditorController {
   TextEditingController? _activeTextController;
   ValueChanged<String>? _activeOnChanged;
 
-  /// Called whenever the active-block state changes.
-  /// Receives `true` when a block gains focus, `false` when all blocks lose
-  /// focus (keyboard dismissed or setValue called).
-  ValueChanged<bool>? onActiveBlockChanged;
-
   void _attach(_MarkdownEditorState state) {
     _state = state;
     if (state._plainTextMode) {
@@ -29,13 +24,8 @@ class MarkdownEditorController {
   }
 
   void _setActive(TextEditingController? tc, ValueChanged<String>? onChanged) {
-    final wasActive = _activeTextController != null;
     _activeTextController = tc;
     _activeOnChanged = onChanged;
-    final isActive = tc != null;
-    if (isActive != wasActive) {
-      onActiveBlockChanged?.call(isActive);
-    }
   }
 
   /// Whether any block is currently in edit mode (flipped to TextField).

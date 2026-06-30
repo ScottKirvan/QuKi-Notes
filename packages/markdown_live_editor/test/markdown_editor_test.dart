@@ -179,8 +179,7 @@ void main() {
     });
 
     testWidgets(
-        'focusFirstBlock focuses first block — '
-        'regression: cold launch did not raise keyboard (#72)', (tester) async {
+        'focusFirstBlock focuses first block', (tester) async {
       final controller = MarkdownEditorController();
 
       await tester.pumpWidget(MaterialApp(
@@ -201,60 +200,6 @@ void main() {
 
       expect(controller.hasActiveBlock, isTrue,
           reason: 'First block should be active after focusFirstBlock');
-    });
-
-    testWidgets('onActiveBlockChanged fires true when block gains focus',
-        (tester) async {
-      final controller = MarkdownEditorController();
-      final events = <bool>[];
-      controller.onActiveBlockChanged = events.add;
-
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: MarkdownEditor(
-            initialValue: 'hello',
-            controller: controller,
-          ),
-        ),
-      ));
-
-      controller.focusFirstBlock();
-      await tester.pump();
-      await tester.pump();
-
-      expect(events, contains(true),
-          reason: 'onActiveBlockChanged must fire true when block gains focus');
-    });
-
-    testWidgets('onActiveBlockChanged fires false when setValue clears focus',
-        (tester) async {
-      final controller = MarkdownEditorController();
-      final events = <bool>[];
-
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: MarkdownEditor(
-            initialValue: 'hello',
-            controller: controller,
-          ),
-        ),
-      ));
-
-      // Enter edit mode first.
-      controller.focusFirstBlock();
-      await tester.pump();
-      await tester.pump();
-
-      // Start listening after we're in edit mode.
-      controller.onActiveBlockChanged = events.add;
-
-      // setValue clears the active block.
-      controller.setValue('new content');
-      await tester.pump();
-
-      expect(events, contains(false),
-          reason:
-              'onActiveBlockChanged must fire false when setValue clears focus');
     });
   });
 
