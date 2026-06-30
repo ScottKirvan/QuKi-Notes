@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.8](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.14.7...v0.14.8) (2026-06-30)
+
+
+### Bug Fixes
+
+* use gh release list for tag lookup instead of target_commitish filter ([8a85d4b](https://github.com/ScottKirvan/QuKi-Notes/commit/8a85d4b4cb6d75c375c39e0c6ab94e1a473f7efa))
+
 ## [0.14.7](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.14.6...v0.14.7) (2026-06-30)
 
 
