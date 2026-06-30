@@ -85,9 +85,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         state == AppLifecycleState.detached) {
       _autoSave.save();
     }
-    if (state == AppLifecycleState.resumed) {
-      ref.read(quKiIndexProvider.notifier).refresh();
-    }
   }
 
   /// Write callback for [AutoSaveController]. Creates or updates the file and
@@ -298,6 +295,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           children: [
             Expanded(
               child: MarkdownEditor(
+                autofocus: true,
                 initialValue: '',
                 onChanged: (_) => _autoSave.notifyChanged(),
                 controller: _editorController,

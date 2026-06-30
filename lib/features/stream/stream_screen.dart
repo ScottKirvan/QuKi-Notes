@@ -33,6 +33,9 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
   void initState() {
     super.initState();
     _searchController.addListener(_onSearchChanged);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ref.read(quKiIndexProvider.notifier).refresh();
+    });
   }
 
   void _onSearchChanged() {

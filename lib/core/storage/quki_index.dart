@@ -17,7 +17,6 @@ class QuKiIndexNotifier extends AsyncNotifier<List<QuKiMeta>> {
   }
 
   Future<void> refresh() async {
-    state = const AsyncValue.loading();
     state = await AsyncValue.guard(
       () => ref.read(quKiStorageProvider).scanActive(),
     );
@@ -61,7 +60,6 @@ class TrashIndexNotifier extends AsyncNotifier<List<QuKiMeta>> {
   }
 
   Future<void> refresh() async {
-    state = const AsyncValue.loading();
     state = await AsyncValue.guard(
       () => ref.read(quKiStorageProvider).scanTrash(),
     );
