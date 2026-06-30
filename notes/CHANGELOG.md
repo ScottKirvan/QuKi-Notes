@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.1](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.14.0...v0.14.1) (2026-06-30)
+
+
+### Bug Fixes
+
+* update Discord invite URL to correct server link ([b94acc0](https://github.com/ScottKirvan/QuKi-Notes/commit/b94acc0d620bd12d082766abeaf8466a7b3d170b))
+
 ## [0.14.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.13.1...v0.14.0) (2026-06-30)
 
 
