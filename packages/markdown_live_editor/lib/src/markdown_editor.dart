@@ -365,14 +365,6 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     });
   }
 
-  void _activateLastBlock() {
-    if (_blocks.isEmpty) return;
-    setState(() => _autofocusIndex = _blocks.length - 1);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() => _autofocusIndex = null);
-    });
-  }
-
   void _tappedEmptySpace() {
     if (_blocks.isEmpty) return;
     setState(() {
