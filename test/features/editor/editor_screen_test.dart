@@ -125,19 +125,15 @@ Future<void> cleanup(WidgetTester tester) async {
 
 void main() {
   group('EditorScreen renders', () {
-    testWidgets(
-        'shows MarkdownEditor with first block in edit mode on launch — '
-        'regression: keyboard did not appear on cold launch (#72)',
-        (tester) async {
+    testWidgets('shows MarkdownEditor on launch in view mode', (tester) async {
       await tester.pumpWidget(_buildEditor());
       await tester.pump();
-      // Post-frame autofocus callback fires after one additional pump.
-      await tester.pump();
 
-      // autofocus: true means block 0 starts in edit mode (TextField visible).
+      // Block mode: MarkdownEditor renders blocks as MarkdownBody widgets;
+      // no TextField is active until the user taps a block.
       expect(find.byType(MarkdownEditor), findsOneWidget);
-      expect(find.byType(TextField), findsOneWidget,
-          reason: 'Block 0 must be in edit mode on launch (autofocus: true)');
+      expect(find.byType(TextField), findsNothing,
+          reason: 'No block should be in edit mode on launch (no autofocus)');
 
       await cleanup(tester);
     });

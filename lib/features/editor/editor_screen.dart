@@ -295,7 +295,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           children: [
             Expanded(
               child: MarkdownEditor(
-                autofocus: true,
                 initialValue: '',
                 onChanged: (_) => _autoSave.notifyChanged(),
                 controller: _editorController,
