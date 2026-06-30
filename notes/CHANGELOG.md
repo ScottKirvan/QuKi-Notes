@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.7](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.14.6...v0.14.7) (2026-06-30)
+
+
+### Bug Fixes
+
+* move Discord notify to after all builds complete ([c7d790d](https://github.com/ScottKirvan/QuKi-Notes/commit/c7d790dbd2938efae62c22f207fc9cdaaef4dd33))
+
 ## [0.14.6](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.14.5...v0.14.6) (2026-06-30)
 
 
