@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.4](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.14.3...v0.14.4) (2026-06-30)
+
+
+### Bug Fixes
+
+* **editor:** remove keyboard auto-focus hacks — let Android handle IME ([#72](https://github.com/ScottKirvan/QuKi-Notes/issues/72)) ([91a206c](https://github.com/ScottKirvan/QuKi-Notes/commit/91a206cca471ac92933078e918cd62f5d27640e9))
+
 ## [0.14.3](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.14.2...v0.14.3) (2026-06-30)
 
 
