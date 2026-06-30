@@ -41,111 +41,155 @@ Read in this order — do not skip:
 
 ---
 
-## Current Task Brief — Session 13
+## Current Task Brief — Session 14
 
 > Written and maintained by the Spec session.
 
-**Task**: Remove all keyboard auto-focus hacks; let Android handle IME state naturally
-**Branch**: `fix/keyboard-focus-rollback`
-**PR title**: `fix(editor): remove keyboard auto-focus hacks — let Android handle IME (#72)`
-
-Also: **close PR #153** (`fix/keyboard-cold-launch`) as superseded — `gh pr close 153 --comment "Superseded by #<new PR number> — rolling back the full editModePreferred approach instead of patching the delay"`
+**Task**: Keyboard on cold launch (one clean add) + stop the resume-time rescan that drops the keyboard on home+return (removal/relocation)
+**Branch**: `fix/keyboard-autofocus`
+**PR title**: `fix(editor): keyboard on cold launch + stop resume rescan dropping IME (#72)`
 
 ---
 
 ### Context
 
-PR #146 introduced `editModePreferredProvider` + `focusFirstBlock()` + `onActiveBlockChanged` to auto-raise the keyboard on cold launch and preserve keyboard state across note switches. Device testing on Pixel 6 Pro shows it makes things worse:
+PR #155 removed all keyboard auto-focus hacks and established a clean baseline (merged, v0.14.4). Current behaviour on Pixel 6 Pro:
 
-- **Cold launch**: cursor appears (block focused) but keyboard never shows → tap 1 unfocuses → tap 2 finally raises keyboard. 2 taps to type.
-- **Home + return**: keyboard briefly appears (Android restoring IME state) then disappears (our `focusFirstBlock()` fires and collapses it). 2 more taps.
+- **Cold launch**: no keyboard, no cursor. 1 tap → keyboard + cursor appear.
+- **Home + return** (keyboard was open before homing): keyboard reappears for ~1 second, then drops. Cursor stays visible. 2 taps to get it back.
 
-Root cause: programmatic focus (`focusFirstBlock()`) fires before or during Android's IME connection cycle, disrupting it. No delay value fixes this reliably — it's a race condition with the Android IME.
+These are two **separate** problems with two different fixes. Do them as described — do not substitute one approach for the other.
 
-**Decision**: remove all the keyboard auto-focus machinery. Notes open in view mode; the user taps once to edit. Android handles keyboard state on app resume without interference. 1 tap is acceptable. 2 taps caused by our own code is not.
+The diagnosis below was derived from a full read of the lifecycle chain (`editor_screen.dart` → `quki_index.dart` → `quki_storage.dart`, plus `stream_screen.dart`). Trust it, but if a step doesn't match what you see in the code, stop and report rather than improvising.
 
 ---
 
-### What to remove
+### Change A (ADD) — keyboard on cold launch: `autofocus: true` on `MarkdownEditor`
 
-#### 1. Delete `lib/features/editor/edit_mode_preference_provider.dart` entirely
+This is the one legitimate addition. Nothing currently requests focus at launch, so nothing opens the keyboard — that is correct baseline behaviour. To raise the keyboard you must request focus, and the Flutter-native way is the `autofocus` parameter the package already exposes.
 
-#### 2. Delete `test/features/editor/edit_mode_preference_test.dart` entirely
+In `lib/features/editor/editor_screen.dart`, `build()` (the `MarkdownEditor` around line 300), add `autofocus: true`:
 
-#### 3. `lib/features/editor/editor_screen.dart`
-
-Read the full file first. Remove:
-
-**`onActiveBlockChanged` wiring** (around lines 68–78) — the whole block that sets `_editorController.onActiveBlockChanged` and the `addPostFrameCallback` inside it that updates `editModePreferredProvider`.
-
-**`editModePreferredProvider` check + `focusFirstBlock()` call on note load** (around lines 141–149):
 ```dart
-// Remove this entire block:
-final preferEdit = ref.read(editModePreferredProvider);
-if (preferEdit) {
+child: MarkdownEditor(
+  autofocus: true,            // <-- add this line
+  initialValue: '',
+  onChanged: (_) => _autoSave.notifyChanged(),
+  controller: _editorController,
+  config: MarkdownEditorConfig(
+    textStyle: TextStyle(
+      color: scheme.onSurface,
+      fontSize: 16,
+      height: 1.4,
+    ),
+  ),
+),
+```
+
+**Why this is the right add, not a hack**: `MarkdownEditor.autofocus` is read only in `_MarkdownEditorState.initState()` — it sets `_autofocusIndex = 0`, so block 0 is built with `autofocus: true`. `_MarkdownBlockState.initState()` then starts with `_editing = true` and calls `_focusNode.requestFocus()` in a single post-frame callback. It routes entirely through Flutter's standard focus tree — no timer, no delay, no controller poking. It fires once on mount; after any `setValue()` (note switch) `_autofocusIndex` is cleared, so opening an existing note does NOT auto-raise the keyboard.
+
+Do **not** add `requestFocus()`/`focusFirstBlock()` calls, timers, or post-frame focus pokes anywhere. The `autofocus` parameter is the whole fix for Change A.
+
+---
+
+### Change B (REMOVE + RELOCATE) — stop the resume-time rescan that kills the keyboard
+
+**Root cause** (do NOT wrap with `addPostFrameCallback` — remove it):
+
+On resume the editor's only action is `ref.read(quKiIndexProvider.notifier).refresh()` in `didChangeAppLifecycleState`. `refresh()` in `quki_index.dart` sets `state = const AsyncValue.loading()` (discarding the current list) and then awaits `scanActive()`, a filesystem scan of every note. That scan takes ~1s — matching the reported "drops after ~1 second." It forces `EditorScreen.build()` to rebuild twice (loading → data) while Android is restoring the IME, and the data-arrival rebuild lands right when the keyboard dies.
+
+The editor does **not** need this rescan. It watches `quKiIndexProvider` only for `hasQukis` (whether the QuKis button is enabled), and the index is already kept correct incrementally by `addMeta`/`updateMeta`/`removeMeta` on every save. The full rescan only exists to catch files changed *outside the app* while backgrounded — which matters when the user looks at the list, i.e. when `StreamScreen` opens.
+
+**B1 — remove the resume rescan from the editor.**
+
+In `lib/features/editor/editor_screen.dart`, `didChangeAppLifecycleState`, delete the `resumed` rescan entirely:
+
+```dart
+// REMOVE this whole block:
+if (state == AppLifecycleState.resumed) {
+  ref.read(quKiIndexProvider.notifier).refresh();
+}
+```
+
+Keep the pause/inactive/detached `_autoSave.save()` block exactly as-is. Only the `resumed → refresh()` goes away.
+
+**B2 — relocate the rescan to `StreamScreen` open.**
+
+In `lib/features/stream/stream_screen.dart`, `_StreamScreenState.initState()`, trigger a refresh after first frame so the list reflects any external changes when the user actually opens it:
+
+```dart
+@override
+void initState() {
+  super.initState();
+  _searchController.addListener(_onSearchChanged);
   WidgetsBinding.instance.addPostFrameCallback((_) {
-    if (mounted) _editorController.focusFirstBlock();
+    if (mounted) ref.read(quKiIndexProvider.notifier).refresh();
   });
 }
 ```
 
-**`editModePreferredProvider` snapshot in `_openQuKisList`** (around lines 175–177):
+(`StreamScreen` already `ref.watch(quKiIndexProvider)` in `build()` with a `loading:` spinner, so a brief spinner on open is expected and fine.)
+
+**B3 — stop `refresh()` from flushing through `loading()` (both index notifiers).**
+
+In `lib/core/storage/quki_index.dart`, change `refresh()` in **both** `QuKiIndexNotifier` and `TrashIndexNotifier` so it does not discard the existing data and double-rebuild:
+
 ```dart
-// Remove:
-final isActive = _editorController.hasActiveBlock;
-ref.read(editModePreferredProvider.notifier).setPreference(isActive);
+Future<void> refresh() async {
+  state = await AsyncValue.guard(
+    () => ref.read(quKiStorageProvider).scanActive(), // scanTrash() in TrashIndexNotifier
+  );
+}
 ```
 
-**Keep untouched:**
-- `_editorController.requestFocus()` for desktop new-blank-QuKi (`qukiId == null` + `!_isMobile`) — desktop has no soft keyboard, autofocus on new note is fine
-- `Focus(autofocus: true, skipTraversal: true, child: scaffold)` wrapper — this is for desktop keyboard shortcut capture, unrelated to the IME issue
-- Any `autofocus: true` on desktop widgets (search field etc.)
-- All `_isMobile` guards
+This preserves the prior list while the scan runs (no spinner/flash) and rebuilds once instead of twice. It benefits every caller (settings change, recently-deleted restore, stream open).
 
-Remove the `editModePreferredProvider` import.
-
-#### 4. `packages/markdown_live_editor/lib/src/markdown_editor.dart`
-
-Remove:
-- `ValueChanged<bool>? onActiveBlockChanged;` field (around line 15)
-- The call `onActiveBlockChanged?.call(isActive)` (around line 37) and its surrounding logic that was added to fire this callback
-
-**Keep:**
-- `bool get hasActiveBlock => _activeTextController != null;` — harmless, potentially useful
-- `focusFirstBlock()` / `requestFocus()` — core package API used for desktop and potentially useful elsewhere
-- All `_autofocusIndex` logic — this is the internal cross-block arrow-key navigation, completely unrelated to the keyboard bug
-- `autofocus` / `autofocusAtEnd` parameters on `MarkdownBlock` — used for cross-block navigation
+> Note: this likely also reduces the #75 "opening a note jumps to top" churn, since the resume rescan was re-sorting the list on every return. Don't claim #75 is fixed — just mention in the PR that it may improve.
 
 ---
 
-### Code scan — other keyboard/focus legacy to check
+### What NOT to change
 
-While making the changes above, also review these and remove if they are artifacts of the keyboard hacks rather than legitimate features:
+- `packages/markdown_live_editor/` — no changes. Its `autofocus`/`autofocusAtEnd`/`_autofocusIndex` logic is legitimate cross-block arrow-key navigation; Change A only *uses* the existing `autofocus` parameter, it does not modify the package.
+- `Focus(autofocus: true, skipTraversal: true)` wrappers in `editor_screen.dart` and `stream_screen.dart` — already inside `if (Platform.isWindows || Platform.isLinux)` guards; they never run on Android. Leave them.
+- Do not add any `requestFocus()`, `focusFirstBlock()`, timers, or post-frame focus pokes.
 
-- `lib/features/editor/editor_screen.dart` line ~163: second `_editorController.requestFocus()` call — check what condition this is in and whether it's needed post-rollback
-- Any `onActiveBlockChanged`-related wiring in widget tests for `EditorScreen`
+---
+
+### Honest caveat to keep in mind
+
+The ~1s timing is a strong fingerprint pointing at the filesystem scan, but the framework's keyboard-on-resume behaviour has quirks of its own, so Change B may not 100% eliminate the home+return drop. It is low-risk regardless (removes wasteful churn). If device testing shows the drop persists after B, say so plainly in the PR — do not add focus hacks to compensate.
 
 ---
 
 ### Tests
 
-- Delete `test/features/editor/edit_mode_preference_test.dart` (entire file)
-- In `test/features/editor/` — search for any test that imports or references `editModePreferredProvider`, `edit_mode_preference_provider`, `onActiveBlockChanged`, or `focusFirstBlock`. Remove those references / tests entirely.
-- In `packages/markdown_live_editor/test/` — remove any tests for `onActiveBlockChanged` if they exist.
-- Run `just test` — all remaining tests must pass.
+- Run `just lint` — must pass.
+- Run `just test` — all tests must pass. If any test asserted the old `refresh()` loading-flash behaviour or the editor's resume refresh, update it to match the new behaviour. Note any such change in the PR.
+- Run `flutter build apk --debug` — must succeed.
+
+---
+
+### Device test instructions for PR body
+
+1. **Cold launch**: force-stop the app, launch from launcher. Keyboard should appear automatically, no tap needed.
+2. **Home + return with keyboard open**: launch, tap to open keyboard, press home, reopen the app. Keyboard should stay up (not flash and vanish).
+3. **Note switch**: open an existing QuKi from the list. Keyboard should NOT auto-open (tap to edit). Confirms `autofocus` only fires on cold mount.
+4. **New QuKi**: tap +. No auto-keyboard; tap to edit.
+5. **External edit catch**: with filesystem storage, edit a .md in a file manager while the app is backgrounded, return to app, open the QuKis list. The change should show (confirms the relocated rescan works).
 
 ---
 
 ### Checklist
 
-- [ ] `edit_mode_preference_provider.dart` deleted
-- [ ] `test/features/editor/edit_mode_preference_test.dart` deleted
-- [ ] `onActiveBlockChanged` removed from `editor_screen.dart` and `markdown_editor.dart`
-- [ ] `editModePreferredProvider` removed from `editor_screen.dart` entirely
-- [ ] Desktop `requestFocus()` on new blank QuKi still present
+- [ ] Change A: `autofocus: true` added to `MarkdownEditor` in `editor_screen.dart`
+- [ ] Change B1: `resumed → refresh()` removed from `didChangeAppLifecycleState`
+- [ ] Change B2: post-frame `refresh()` added to `StreamScreen.initState`
+- [ ] Change B3: `refresh()` no longer flushes through `AsyncValue.loading()` in BOTH `QuKiIndexNotifier` and `TrashIndexNotifier`
+- [ ] No changes to `packages/markdown_live_editor/`
+- [ ] No `requestFocus`/`focusFirstBlock`/timers/post-frame focus pokes added
 - [ ] `just lint` passes
 - [ ] `just test` passes — no regressions
 - [ ] `flutter build apk --debug` succeeds
-- [ ] PR #153 closed as superseded
-- [ ] New PR opened with device test instructions
+- [ ] PR opened with device test instructions above
 - [ ] No Claude/Anthropic attribution in commit message or PR body
