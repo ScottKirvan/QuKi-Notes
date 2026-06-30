@@ -41,8 +41,9 @@ If a proposed task conflicts with any of these, push back before scoping — do 
 **To assign an implementation task:**
 1. Edit `Agents/quiki-dev/CLAUDE.md` → replace the "Current Task Brief" section with the new brief.
 2. Include: branch name, PR title, files to touch, integration notes, tests required, checklist reminders.
-3. If the task resolves an open question, update `notes/dev/open_questions.md`.
-4. If the task introduces a new locked decision, draft an ADR stub in `notes/dev/decisions.md` for the implementation Claude to fill in.
+3. **Specify every interaction behavior explicitly.** If the task touches UI, describe what each user action does — do not leave interaction patterns for the implementation session to infer. Any behavior not described in the brief or the manifesto must not be implemented; the implementation session should flag it as an open question instead.
+4. If the task resolves an open question, update `notes/dev/open_questions.md`.
+5. If the task introduces a new locked decision, draft an ADR stub in `notes/dev/decisions.md` for the implementation Claude to fill in.
 
 **To assign a DevOps task:**
 1. Edit `Agents/quiki-devops/CLAUDE.md` → replace the "Current Task Brief" section.
