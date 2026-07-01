@@ -10,6 +10,31 @@ Normative framing in `manifesto.md` — read that first.
 
 ---
 
+## ADR-29: Transport plugin system — QuickJS runtime scripting (supersedes compile-time registry)
+
+**Date**: 2026-07-01
+
+**What**: Replace the compile-time transport registry with a runtime plugin system. Plugins are JavaScript files (authored in TypeScript, distributed as compiled `.js`) discovered from a `plugins/` directory in the user's QuKi storage root at app launch. The embedded engine is QuickJS via `flutter_js`. A plugin registers one or more transports by calling a sandboxed Dart-exposed API; the app loads and executes plugin files without recompiling or releasing a new build.
+
+**Plugin model**:
+
+- **Discovery**: on launch, scan `<storage-root>/plugins/*.js`. Each file is executed once; any `QuKi.registerTransport(...)` call it makes is recorded.
+- **Hooks per transport**: `onBeforeSend(markdown) → markdown` (transform outgoing content), `onReceive(content) → content` (transform incoming content), `openModal(config) → result` (optional pre-send UI — a Dart-rendered modal driven by plugin-supplied field definitions).
+- **Sandboxed API surface** (Dart-exposed to plugin JS scope): `QuKi.registerTransport`, `QuKi.getLocation`, `QuKi.readExif(path)`, `QuKi.showModal(config)`, `QuKi.fetch(url, options)` (explicit network permission per plugin). Plugins cannot read other QuKis, access the filesystem beyond what the API exposes, or call arbitrary platform code.
+- **Installation**: user places a `.js` file in the `plugins/` directory using any file manager. No in-app marketplace in v1.
+- **Authoring**: TypeScript with a published `@quki/plugin-types` type definition package. Compiled to plain JS before distribution.
+
+**Why**: The compile-time registry satisfied the code structure of a plugin system but not the user promise. Adding a transport requires a code change, a PR, a build, and a release — the user has no agency. The manifesto principle is *user-defined destinations*; the compile-time registry delivers *developer-defined destinations*. QuickJS (via `flutter_js`) runs in AOT release builds on Android and iOS, is ~600KB, supports `async/await`, and has a mature enough API surface for the transform-and-send use case. The Obsidian community — the most likely QuKi-Notes power-user audience — already knows TypeScript, making the authoring story familiar with no new language to learn.
+
+**Rejected alternatives**:
+- *Compile-time registry (current)* — not a plugin system; requires recompile to extend. Superseded.
+- *Lua* — lighter (~280KB) but unfamiliar to the target audience; no type safety without Teal (which nobody uses); async story is awkward.
+- *WebAssembly* — any language compiles to WASM but the host/plugin API boundary is narrow FFI; overkill for text transforms; no mature Flutter embedding.
+- *Python (Chaquopy/Pyodide)* — Android-only or 20MB+; iOS is not viable. Cross-platform requirement disqualifies it.
+- *MCP only* — MCP requires a running external server process; not suitable for device-local operations (geotag, EXIF). MCP remains the v2 AI-agent axis and is not a replacement for local scripting.
+
+---
+
 ## ADR-28: Android filesystem storage via MANAGE_EXTERNAL_STORAGE
 
 **Date**: 2026-06-29
