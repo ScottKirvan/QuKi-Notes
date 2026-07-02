@@ -17,7 +17,7 @@ QuKis, and this app, embody four key principles:
 
 ## What is QuKi-Notes?
 
-**QuKi-Notes** is the capture surface. A blank canvas on launch. Just type and go.  Your QuKis are always there when you want them. Transports plugins are there when you're ready to send.
+**QuKi-Notes** is the capture surface, a scratchpad, a pasteboard. A blank canvas on launch. Just type and go.  Your QuKis are always there when you want them. Transports plugins are there when you're ready to send.
 
 ---
 
