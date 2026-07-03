@@ -3,9 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:markdown_live_editor/markdown_live_editor.dart';
 
-// Helper: pump the editor in plain-text mode so tests can access the single
-// TextField and set selection directly. Toolbar formatting operations are
-// mode-agnostic; block rendering is covered by markdown_block_test.dart.
+// Helper: pump the editor with a FormattingToolbar below it.
+// The single-buffer architecture always has exactly one TextField available.
 Future<MarkdownEditorController> pumpEditor(
   WidgetTester tester, {
   String initialValue = '',
@@ -27,8 +26,6 @@ Future<MarkdownEditorController> pumpEditor(
     ),
   ));
   await tester.pump();
-  controller.togglePlainTextMode();
-  await tester.pump();
   return controller;
 }
 
@@ -37,7 +34,6 @@ void main() {
     testWidgets('wraps selected text with bold markers', (tester) async {
       final controller = await pumpEditor(tester, initialValue: 'hello world');
 
-      // Select "world"
       final tf = tester.widget<TextField>(find.byType(TextField));
       tf.controller!.selection =
           const TextSelection(baseOffset: 6, extentOffset: 11);
@@ -52,7 +48,6 @@ void main() {
     testWidgets('inserts markers at cursor when no selection', (tester) async {
       final controller = await pumpEditor(tester, initialValue: 'hello');
 
-      // Collapsed cursor at end
       final tf = tester.widget<TextField>(find.byType(TextField));
       tf.controller!.selection = const TextSelection.collapsed(offset: 5);
       await tester.pump();
@@ -107,7 +102,8 @@ void main() {
     });
 
     testWidgets('removes heading prefix when present', (tester) async {
-      final controller = await pumpEditor(tester, initialValue: '# my heading');
+      final controller =
+          await pumpEditor(tester, initialValue: '# my heading');
 
       final tf = tester.widget<TextField>(find.byType(TextField));
       tf.controller!.selection = const TextSelection.collapsed(offset: 5);
@@ -120,7 +116,8 @@ void main() {
     });
 
     testWidgets('adds task prefix when absent', (tester) async {
-      final controller = await pumpEditor(tester, initialValue: 'do the thing');
+      final controller =
+          await pumpEditor(tester, initialValue: 'do the thing');
 
       final tf = tester.widget<TextField>(find.byType(TextField));
       tf.controller!.selection = const TextSelection.collapsed(offset: 0);
@@ -148,11 +145,10 @@ void main() {
 
     testWidgets('operates on the correct line in multi-line text',
         (tester) async {
-      final controller = await pumpEditor(tester,
-          initialValue: 'line one\nline two\nline three');
+      final controller = await pumpEditor(
+          tester, initialValue: 'line one\nline two\nline three');
 
       final tf = tester.widget<TextField>(find.byType(TextField));
-      // Put cursor on "line two" (e.g. offset 12)
       tf.controller!.selection = const TextSelection.collapsed(offset: 12);
       await tester.pump();
 
@@ -171,7 +167,6 @@ void main() {
       await tester.enterText(find.byType(TextField), '- item');
       await tester.pump();
 
-      // Simulate pressing Enter
       await tester.enterText(find.byType(TextField), '- item\n');
       await tester.pump();
 
@@ -206,14 +201,12 @@ void main() {
     testWidgets('Enter on empty "- " line exits the list', (tester) async {
       final controller = await pumpEditor(tester, initialValue: '');
 
-      // First Enter: auto-continue creates "- item\n- "
       await tester.enterText(find.byType(TextField), '- item');
       await tester.pump();
       await tester.enterText(find.byType(TextField), '- item\n');
       await tester.pump();
       expect(controller.currentValue, '- item\n- ');
 
-      // Second Enter on empty "- " line: list exit removes the prefix.
       await tester.enterText(find.byType(TextField), '- item\n- \n');
       await tester.pump();
 
@@ -222,8 +215,7 @@ void main() {
   });
 
   group('toggleUnorderedList', () {
-    testWidgets('adds "- " prefix when line has no list marker',
-        (tester) async {
+    testWidgets('adds "- " prefix when line has no list marker', (tester) async {
       final controller = await pumpEditor(tester, initialValue: 'plain item');
       final tf = tester.widget<TextField>(find.byType(TextField));
       tf.controller!.selection = const TextSelection.collapsed(offset: 5);
@@ -236,7 +228,8 @@ void main() {
     });
 
     testWidgets('removes "- " prefix when already present', (tester) async {
-      final controller = await pumpEditor(tester, initialValue: '- plain item');
+      final controller =
+          await pumpEditor(tester, initialValue: '- plain item');
       final tf = tester.widget<TextField>(find.byType(TextField));
       tf.controller!.selection = const TextSelection.collapsed(offset: 5);
       await tester.pump();
@@ -247,8 +240,7 @@ void main() {
       expect(controller.currentValue, 'plain item');
     });
 
-    testWidgets('strips full task list prefix when toggling off',
-        (tester) async {
+    testWidgets('strips full task list prefix when toggling off', (tester) async {
       final controller =
           await pumpEditor(tester, initialValue: '- [ ] task item');
       final tf = tester.widget<TextField>(find.byType(TextField));
@@ -262,7 +254,8 @@ void main() {
     });
 
     testWidgets('removes "* " prefix when present', (tester) async {
-      final controller = await pumpEditor(tester, initialValue: '* asterisk');
+      final controller =
+          await pumpEditor(tester, initialValue: '* asterisk');
       final tf = tester.widget<TextField>(find.byType(TextField));
       tf.controller!.selection = const TextSelection.collapsed(offset: 3);
       await tester.pump();
@@ -328,11 +321,9 @@ void main() {
       expect(find.byIcon(LucideIcons.listChecks), findsOneWidget);
     });
 
-    testWidgets('tapping bold button wraps cursor text with **',
-        (tester) async {
+    testWidgets('tapping bold button wraps cursor text with **', (tester) async {
       final controller = await pumpEditor(tester, initialValue: 'bold me');
 
-      // Select all text
       final tf = tester.widget<TextField>(find.byType(TextField));
       tf.controller!.selection =
           const TextSelection(baseOffset: 0, extentOffset: 7);

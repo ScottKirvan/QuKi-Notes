@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:markdown_live_editor/markdown_live_editor.dart';
 
@@ -125,15 +124,15 @@ Future<void> cleanup(WidgetTester tester) async {
 
 void main() {
   group('EditorScreen renders', () {
-    testWidgets('shows MarkdownEditor on launch in view mode', (tester) async {
+    testWidgets('shows MarkdownEditor on launch with single TextField',
+        (tester) async {
       await tester.pumpWidget(_buildEditor());
       await tester.pump();
 
-      // Block mode: MarkdownEditor renders blocks as MarkdownBody widgets;
-      // no TextField is active until the user taps a block.
+      // Single-buffer architecture: MarkdownEditor always renders one TextField.
       expect(find.byType(MarkdownEditor), findsOneWidget);
-      expect(find.byType(TextField), findsNothing,
-          reason: 'No block should be in edit mode on launch (no autofocus)');
+      expect(find.byType(TextField), findsOneWidget,
+          reason: 'Single-buffer editor always has exactly one TextField');
 
       await cleanup(tester);
     });
@@ -427,10 +426,9 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      // In block mode content is rendered by MarkdownBody.  Read its data
-      // directly — no need to enter edit mode to verify the load.
-      final body = tester.widget<MarkdownBody>(find.byType(MarkdownBody).first);
-      expect(body.data, 'switched content',
+      // Single-buffer architecture: content is in the single TextField's controller.
+      final tf = tester.widget<TextField>(find.byType(TextField).first);
+      expect(tf.controller!.text, 'switched content',
           reason: 'Editor must display the loaded QuKi body after switch');
 
       await cleanup(tester);

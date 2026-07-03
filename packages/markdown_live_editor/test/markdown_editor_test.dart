@@ -2,34 +2,52 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:markdown_live_editor/markdown_live_editor.dart';
 
+Widget _buildEditor({
+  required String initialValue,
+  MarkdownEditorController? controller,
+  ValueChanged<String>? onChanged,
+  bool autofocus = false,
+}) {
+  return MaterialApp(
+    home: Scaffold(
+      body: MarkdownEditor(
+        initialValue: initialValue,
+        controller: controller,
+        onChanged: onChanged,
+        autofocus: autofocus,
+      ),
+    ),
+  );
+}
+
 void main() {
-  group('MarkdownEditorController', () {
+  group('MarkdownEditorController — currentValue', () {
     testWidgets('currentValue returns initialValue before any edits',
         (tester) async {
       final controller = MarkdownEditorController();
 
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: MarkdownEditor(
-            initialValue: 'hello world',
-            controller: controller,
-          ),
-        ),
+      await tester.pumpWidget(_buildEditor(
+        initialValue: 'hello world',
+        controller: controller,
       ));
 
       expect(controller.currentValue, 'hello world');
     });
 
+    testWidgets('currentValue returns empty string when no editor attached',
+        (tester) async {
+      final controller = MarkdownEditorController();
+      expect(controller.currentValue, '');
+    });
+  });
+
+  group('MarkdownEditorController — setValue', () {
     testWidgets('setValue updates currentValue', (tester) async {
       final controller = MarkdownEditorController();
 
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: MarkdownEditor(
-            initialValue: '',
-            controller: controller,
-          ),
-        ),
+      await tester.pumpWidget(_buildEditor(
+        initialValue: '',
+        controller: controller,
       ));
 
       controller.setValue('updated text');
@@ -38,16 +56,27 @@ void main() {
       expect(controller.currentValue, 'updated text');
     });
 
-    testWidgets('setValue is a no-op when value is unchanged', (tester) async {
+    testWidgets('setValue resets cursor to 0', (tester) async {
       final controller = MarkdownEditorController();
 
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: MarkdownEditor(
-            initialValue: 'same',
-            controller: controller,
-          ),
-        ),
+      await tester.pumpWidget(_buildEditor(
+        initialValue: 'abc',
+        controller: controller,
+      ));
+
+      controller.setValue('new content');
+      await tester.pump();
+
+      final tf = tester.widget<TextField>(find.byType(TextField));
+      expect(tf.controller!.selection.baseOffset, 0);
+    });
+
+    testWidgets('setValue is safe when value is unchanged', (tester) async {
+      final controller = MarkdownEditorController();
+
+      await tester.pumpWidget(_buildEditor(
+        initialValue: 'same',
+        controller: controller,
       ));
 
       controller.setValue('same');
@@ -55,23 +84,21 @@ void main() {
 
       expect(controller.currentValue, 'same');
     });
+  });
 
-    test('plainTextMode defaults to false (block mode)', () {
+  group('MarkdownEditorController — plainTextMode', () {
+    test('plainTextMode defaults to false', () {
       final controller = MarkdownEditorController();
       expect(controller.plainTextMode, isFalse);
     });
 
-    testWidgets('togglePlainTextMode switches between block and plain-text',
+    testWidgets('togglePlainTextMode switches between styled and raw',
         (tester) async {
       final controller = MarkdownEditorController();
 
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: MarkdownEditor(
-            initialValue: 'hello',
-            controller: controller,
-          ),
-        ),
+      await tester.pumpWidget(_buildEditor(
+        initialValue: 'hello',
+        controller: controller,
       ));
 
       expect(controller.plainTextMode, isFalse);
@@ -85,17 +112,12 @@ void main() {
       expect(controller.plainTextMode, isFalse);
     });
 
-    testWidgets('content is preserved across plain-text toggle',
-        (tester) async {
+    testWidgets('content is preserved across plain-text toggle', (tester) async {
       final controller = MarkdownEditorController();
 
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: MarkdownEditor(
-            initialValue: 'some text',
-            controller: controller,
-          ),
-        ),
+      await tester.pumpWidget(_buildEditor(
+        initialValue: 'some text',
+        controller: controller,
       ));
 
       controller.togglePlainTextMode();
@@ -108,25 +130,93 @@ void main() {
     });
   });
 
-  group('MarkdownEditor onChanged', () {
-    testWidgets('fires onChanged when text changes in plain-text mode',
-        (tester) async {
+  group('MarkdownEditorController — hasActiveBlock', () {
+    test('hasActiveBlock is false when no editor is attached', () {
       final controller = MarkdownEditorController();
-      final changes = <String>[];
+      expect(controller.hasActiveBlock, isFalse);
+    });
 
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: MarkdownEditor(
-            initialValue: '',
-            controller: controller,
-            onChanged: changes.add,
-          ),
-        ),
+    testWidgets('hasActiveBlock reflects FocusNode.hasFocus', (tester) async {
+      final controller = MarkdownEditorController();
+
+      await tester.pumpWidget(_buildEditor(
+        initialValue: 'hello',
+        controller: controller,
       ));
 
-      // Switch to plain-text mode so we can type into the single TextField.
-      controller.togglePlainTextMode();
+      // No focus yet.
+      expect(controller.hasActiveBlock, isFalse);
+
+      // Tap to focus the TextField.
+      await tester.tap(find.byType(TextField));
       await tester.pump();
+
+      expect(controller.hasActiveBlock, isTrue);
+    });
+
+    testWidgets('focusFirstBlock focuses the editor', (tester) async {
+      final controller = MarkdownEditorController();
+
+      await tester.pumpWidget(_buildEditor(
+        initialValue: 'hello',
+        controller: controller,
+      ));
+
+      expect(controller.hasActiveBlock, isFalse);
+
+      controller.focusFirstBlock();
+      await tester.pump();
+
+      expect(controller.hasActiveBlock, isTrue);
+    });
+
+    testWidgets('requestFocus focuses the editor', (tester) async {
+      final controller = MarkdownEditorController();
+
+      await tester.pumpWidget(_buildEditor(
+        initialValue: 'hello',
+        controller: controller,
+      ));
+
+      controller.requestFocus();
+      await tester.pump();
+
+      expect(controller.hasActiveBlock, isTrue);
+    });
+  });
+
+  group('MarkdownEditor — widget structure', () {
+    testWidgets('renders a single TextField in all modes', (tester) async {
+      await tester.pumpWidget(_buildEditor(initialValue: 'hello'));
+
+      expect(find.byType(TextField), findsOneWidget);
+    });
+
+    testWidgets('controller detaches on dispose', (tester) async {
+      final controller = MarkdownEditorController();
+
+      await tester.pumpWidget(_buildEditor(
+        initialValue: 'before dispose',
+        controller: controller,
+      ));
+
+      expect(controller.currentValue, 'before dispose');
+
+      await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
+      await tester.pump();
+
+      expect(controller.currentValue, '');
+    });
+  });
+
+  group('MarkdownEditor — onChanged', () {
+    testWidgets('fires onChanged when text is edited', (tester) async {
+      final changes = <String>[];
+
+      await tester.pumpWidget(_buildEditor(
+        initialValue: '',
+        onChanged: changes.add,
+      ));
 
       await tester.enterText(find.byType(TextField), 'new text');
       await tester.pump();
@@ -139,14 +229,10 @@ void main() {
       final controller = MarkdownEditorController();
       final changes = <String>[];
 
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: MarkdownEditor(
-            initialValue: '',
-            controller: controller,
-            onChanged: changes.add,
-          ),
-        ),
+      await tester.pumpWidget(_buildEditor(
+        initialValue: '',
+        controller: controller,
+        onChanged: changes.add,
       ));
 
       controller.setValue('programmatic');
@@ -156,101 +242,231 @@ void main() {
     });
   });
 
-  group('MarkdownEditorController — hasActiveBlock / focusFirstBlock', () {
-    test('hasActiveBlock is false when no editor is attached', () {
-      final controller = MarkdownEditorController();
-      expect(controller.hasActiveBlock, isFalse);
-    });
-
-    testWidgets('hasActiveBlock is false before any block is tapped',
-        (tester) async {
+  group('MarkdownEditorController — wrapSelection', () {
+    testWidgets('wraps selected text with bold markers', (tester) async {
       final controller = MarkdownEditorController();
 
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: MarkdownEditor(
-            initialValue: 'hello',
-            controller: controller,
-          ),
-        ),
+      await tester.pumpWidget(_buildEditor(
+        initialValue: 'hello world',
+        controller: controller,
       ));
 
-      expect(controller.hasActiveBlock, isFalse);
+      final tf = tester.widget<TextField>(find.byType(TextField));
+      tf.controller!.selection =
+          const TextSelection(baseOffset: 6, extentOffset: 11);
+      await tester.pump();
+
+      controller.wrapSelection('**', '**');
+      await tester.pump();
+
+      expect(controller.currentValue, 'hello **world**');
     });
 
-    testWidgets(
-        'focusFirstBlock focuses first block', (tester) async {
+    testWidgets('inserts markers at cursor when no selection', (tester) async {
       final controller = MarkdownEditorController();
 
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: MarkdownEditor(
-            initialValue: 'line one\n\nline two',
-            controller: controller,
-          ),
-        ),
+      await tester.pumpWidget(_buildEditor(
+        initialValue: 'hello',
+        controller: controller,
       ));
 
-      expect(controller.hasActiveBlock, isFalse,
-          reason: 'No block should be active before focusFirstBlock');
-
-      controller.focusFirstBlock();
-      await tester.pump();
+      final tf = tester.widget<TextField>(find.byType(TextField));
+      tf.controller!.selection = const TextSelection.collapsed(offset: 5);
       await tester.pump();
 
-      expect(controller.hasActiveBlock, isTrue,
-          reason: 'First block should be active after focusFirstBlock');
+      controller.wrapSelection('_', '_');
+      await tester.pump();
+
+      expect(controller.currentValue, 'hello__');
+    });
+
+    testWidgets('wraps with strikethrough markers', (tester) async {
+      final controller = MarkdownEditorController();
+
+      await tester.pumpWidget(_buildEditor(
+        initialValue: 'word',
+        controller: controller,
+      ));
+
+      final tf = tester.widget<TextField>(find.byType(TextField));
+      tf.controller!.selection =
+          const TextSelection(baseOffset: 0, extentOffset: 4);
+      await tester.pump();
+
+      controller.wrapSelection('~~', '~~');
+      await tester.pump();
+
+      expect(controller.currentValue, '~~word~~');
     });
   });
 
-  group('MarkdownEditor widget structure', () {
-    testWidgets('renders MarkdownBlock widgets in block mode', (tester) async {
-      await tester.pumpWidget(const MaterialApp(
-        home: Scaffold(
-          body: MarkdownEditor(initialValue: 'hello'),
-        ),
+  group('MarkdownEditorController — toggleLinePrefix', () {
+    testWidgets('adds heading prefix when absent', (tester) async {
+      final controller = MarkdownEditorController();
+
+      await tester.pumpWidget(_buildEditor(
+        initialValue: 'my heading',
+        controller: controller,
       ));
 
-      expect(find.byType(MarkdownBlock), findsOneWidget);
+      final tf = tester.widget<TextField>(find.byType(TextField));
+      tf.controller!.selection = const TextSelection.collapsed(offset: 5);
+      await tester.pump();
+
+      controller.toggleLinePrefix('# ');
+      await tester.pump();
+
+      expect(controller.currentValue, '# my heading');
     });
 
-    testWidgets('renders a single TextField in plain-text mode',
+    testWidgets('removes heading prefix when present', (tester) async {
+      final controller = MarkdownEditorController();
+
+      await tester.pumpWidget(_buildEditor(
+        initialValue: '# my heading',
+        controller: controller,
+      ));
+
+      final tf = tester.widget<TextField>(find.byType(TextField));
+      tf.controller!.selection = const TextSelection.collapsed(offset: 5);
+      await tester.pump();
+
+      controller.toggleLinePrefix('# ');
+      await tester.pump();
+
+      expect(controller.currentValue, 'my heading');
+    });
+
+    testWidgets('operates on the correct line in multi-line text',
         (tester) async {
       final controller = MarkdownEditorController();
 
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: MarkdownEditor(
-            initialValue: '',
-            controller: controller,
-          ),
-        ),
+      await tester.pumpWidget(_buildEditor(
+        initialValue: 'line one\nline two\nline three',
+        controller: controller,
       ));
 
-      controller.togglePlainTextMode();
+      final tf = tester.widget<TextField>(find.byType(TextField));
+      tf.controller!.selection = const TextSelection.collapsed(offset: 12);
       await tester.pump();
 
-      expect(find.byType(TextField), findsOneWidget);
+      controller.toggleLinePrefix('# ');
+      await tester.pump();
+
+      expect(controller.currentValue, 'line one\n# line two\nline three');
     });
 
-    testWidgets('controller detaches on dispose', (tester) async {
+    testWidgets('adds task prefix when absent', (tester) async {
       final controller = MarkdownEditorController();
 
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: MarkdownEditor(
-            initialValue: 'before dispose',
-            controller: controller,
-          ),
-        ),
+      await tester.pumpWidget(_buildEditor(
+        initialValue: 'do the thing',
+        controller: controller,
       ));
 
-      expect(controller.currentValue, 'before dispose');
-
-      await tester.pumpWidget(const MaterialApp(home: SizedBox.shrink()));
+      final tf = tester.widget<TextField>(find.byType(TextField));
+      tf.controller!.selection = const TextSelection.collapsed(offset: 0);
       await tester.pump();
 
-      expect(controller.currentValue, '');
+      controller.toggleLinePrefix('- [ ] ');
+      await tester.pump();
+
+      expect(controller.currentValue, '- [ ] do the thing');
+    });
+  });
+
+  group('MarkdownEditorController — toggleUnorderedList', () {
+    testWidgets('adds "- " prefix when line has no list marker', (tester) async {
+      final controller = MarkdownEditorController();
+
+      await tester.pumpWidget(_buildEditor(
+        initialValue: 'plain item',
+        controller: controller,
+      ));
+
+      final tf = tester.widget<TextField>(find.byType(TextField));
+      tf.controller!.selection = const TextSelection.collapsed(offset: 5);
+      await tester.pump();
+
+      controller.toggleUnorderedList();
+      await tester.pump();
+
+      expect(controller.currentValue, '- plain item');
+    });
+
+    testWidgets('removes "- " prefix when already present', (tester) async {
+      final controller = MarkdownEditorController();
+
+      await tester.pumpWidget(_buildEditor(
+        initialValue: '- plain item',
+        controller: controller,
+      ));
+
+      final tf = tester.widget<TextField>(find.byType(TextField));
+      tf.controller!.selection = const TextSelection.collapsed(offset: 5);
+      await tester.pump();
+
+      controller.toggleUnorderedList();
+      await tester.pump();
+
+      expect(controller.currentValue, 'plain item');
+    });
+
+    testWidgets('strips full task list prefix when toggling off', (tester) async {
+      final controller = MarkdownEditorController();
+
+      await tester.pumpWidget(_buildEditor(
+        initialValue: '- [ ] task item',
+        controller: controller,
+      ));
+
+      final tf = tester.widget<TextField>(find.byType(TextField));
+      tf.controller!.selection = const TextSelection.collapsed(offset: 8);
+      await tester.pump();
+
+      controller.toggleUnorderedList();
+      await tester.pump();
+
+      expect(controller.currentValue, 'task item');
+    });
+  });
+
+  group('MarkdownEditorController — toggleOrderedList', () {
+    testWidgets('adds "1. " prefix when line has no ordered marker',
+        (tester) async {
+      final controller = MarkdownEditorController();
+
+      await tester.pumpWidget(_buildEditor(
+        initialValue: 'first item',
+        controller: controller,
+      ));
+
+      final tf = tester.widget<TextField>(find.byType(TextField));
+      tf.controller!.selection = const TextSelection.collapsed(offset: 5);
+      await tester.pump();
+
+      controller.toggleOrderedList();
+      await tester.pump();
+
+      expect(controller.currentValue, '1. first item');
+    });
+
+    testWidgets('removes ordered prefix regardless of number', (tester) async {
+      final controller = MarkdownEditorController();
+
+      await tester.pumpWidget(_buildEditor(
+        initialValue: '3. third item',
+        controller: controller,
+      ));
+
+      final tf = tester.widget<TextField>(find.byType(TextField));
+      tf.controller!.selection = const TextSelection.collapsed(offset: 5);
+      await tester.pump();
+
+      controller.toggleOrderedList();
+      await tester.pump();
+
+      expect(controller.currentValue, 'third item');
     });
   });
 }
