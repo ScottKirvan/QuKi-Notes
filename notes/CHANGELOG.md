@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.15.2](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.15.1...v0.15.2) (2026-07-03)
+
+
+### Bug Fixes
+
+* add workflow_dispatch to release workflow ([dcba9da](https://github.com/ScottKirvan/QuKi-Notes/commit/dcba9da5ddc72bb94beaa57d86b485e3698c407c))
+* clean up root CHANGELOG.md and add PR link job ([a820b7f](https://github.com/ScottKirvan/QuKi-Notes/commit/a820b7fbe8d443596b9a7ede6dff9b68f4f2bb86))
+* **markdown_live_editor:** list bullets, checkbox visibility, toolbar selection ([1f421c7](https://github.com/ScottKirvan/QuKi-Notes/commit/1f421c7b990212547c9b9a6c8a3b74ad9f9dcead))
+
 ## [0.15.1](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.15.0...v0.15.1) (2026-07-03)
 
 
