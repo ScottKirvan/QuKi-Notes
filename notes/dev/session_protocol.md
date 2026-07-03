@@ -46,10 +46,10 @@ What to do at the **start** and **end** of every implementation session, and the
 
 ## At session end
 
-1. Confirm Scott has tested on device and the feature works before opening a PR.
-2. Open a PR using `notes/dev/pr_template.md`.
+1. Run `just lint` and `just test` — both must pass before stopping.
+2. **Stop. Do NOT open a PR.** Push the branch and report back to the Spec session. The Spec session reviews the diff, runs `dart format`, creates the PR, and monitors CI.
 3. Every commit must follow conventional commit format — commits land individually on `main` via rebase merge. PR title is descriptive only.
-4. If you made a non-trivial implementation decision during the session (one of two viable approaches, novel pattern), add an entry to `decisions.md` and link it from the PR body.
+4. If you made a non-trivial implementation decision during the session (one of two viable approaches, novel pattern), add an entry to `decisions.md` and link it from your report back to Spec (Spec will include it in the PR body).
 5. If you discovered a new open question (couldn't be resolved without more info from Scott), add it to `open_questions.md`.
 6. **Never** commit or push to `main` unless Scott explicitly instructs it. **Never** force-push. **Never** use `--no-verify`.
 
@@ -57,7 +57,7 @@ What to do at the **start** and **end** of every implementation session, and the
 
 | Rule | Source |
 |---|---|
-| Do not open or update a PR until Scott has tested on device and confirmed the feature works. | Scott's workflow rule |
+| Do not open a PR. Stop after code + tests pass, push the branch, report back to Spec. Spec reviews the diff and opens the PR. | Scott's workflow rule |
 | Never commit to `main` unless Scott explicitly instructs it. | Scott's workflow rule |
 | Manifesto is normative. If a request conflicts with the manifesto, push back before implementing. | `manifesto.md` |
 | No vault-like features (folders, tags, backlinks, archive, pinning). | `manifesto.md` "Is NOT" list |
