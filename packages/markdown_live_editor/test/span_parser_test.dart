@@ -22,7 +22,7 @@ MarkdownSpanParser _makeParser({Color? syntaxColor}) {
     codeStyle: base.copyWith(fontFamily: 'monospace'),
     strikethroughStyle: base.copyWith(decoration: TextDecoration.lineThrough),
     listPrefixStyle: base,
-    checkboxStyle: base.copyWith(fontFamily: 'monospace', color: Colors.grey),
+    checkboxStyle: base.copyWith(fontFamily: 'monospace', color: Colors.black),
   );
 }
 
