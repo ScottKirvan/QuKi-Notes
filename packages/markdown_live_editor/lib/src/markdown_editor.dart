@@ -41,7 +41,7 @@ class _MarkdownTextController extends TextEditingController {
     final listPrefixStyle = effectiveStyle.copyWith(color: baseColor);
     final checkboxStyle = effectiveStyle.copyWith(
       fontFamily: 'monospace',
-      color: syntaxColor,
+      color: baseColor,
     );
 
     final parser = MarkdownSpanParser(
@@ -111,10 +111,20 @@ class MarkdownEditorController {
   /// Alias for [requestFocus] — kept for API stability.
   void focusFirstBlock() => _state?._focusNode.requestFocus();
 
+  /// Returns the current selection if valid; otherwise returns the last saved
+  /// valid selection. Toolbar methods call this so they can operate even after
+  /// the TextField loses focus (which invalidates [TextEditingController.selection]
+  /// before [onPressed] fires).
+  TextSelection get _effectiveSelection {
+    final tc = _state?._textController;
+    if (tc == null) return const TextSelection.collapsed(offset: 0);
+    return tc.selection.isValid ? tc.selection : (_state!._savedSelection);
+  }
+
   void wrapSelection(String prefix, String suffix) {
     final tc = _state?._textController;
     if (tc == null) return;
-    final sel = tc.selection;
+    final sel = _effectiveSelection;
     if (!sel.isValid) return;
     final text = tc.text;
     final selected = sel.textInside(text);
@@ -126,6 +136,7 @@ class MarkdownEditorController {
         offset: sel.start + prefix.length + selected.length + suffix.length,
       ),
     );
+    _state?._focusNode.requestFocus();
     _state?.widget.onChanged?.call(newText);
   }
 
@@ -133,7 +144,7 @@ class MarkdownEditorController {
     final tc = _state?._textController;
     if (tc == null) return;
     final text = tc.text;
-    final offset = tc.selection.baseOffset.clamp(0, text.length);
+    final offset = _effectiveSelection.baseOffset.clamp(0, text.length);
     final lineStart = offset > 0 ? text.lastIndexOf('\n', offset - 1) + 1 : 0;
     final rawEnd = text.indexOf('\n', offset);
     final lineEnd = rawEnd == -1 ? text.length : rawEnd;
@@ -153,6 +164,7 @@ class MarkdownEditorController {
       text: newText,
       selection: TextSelection.collapsed(offset: newOffset),
     );
+    _state?._focusNode.requestFocus();
     _state?.widget.onChanged?.call(newText);
   }
 
@@ -160,7 +172,7 @@ class MarkdownEditorController {
     final tc = _state?._textController;
     if (tc == null) return;
     final text = tc.text;
-    final offset = tc.selection.baseOffset.clamp(0, text.length);
+    final offset = _effectiveSelection.baseOffset.clamp(0, text.length);
     final lineStart = offset > 0 ? text.lastIndexOf('\n', offset - 1) + 1 : 0;
     final rawEnd = text.indexOf('\n', offset);
     final lineEnd = rawEnd == -1 ? text.length : rawEnd;
@@ -182,6 +194,7 @@ class MarkdownEditorController {
       text: newText,
       selection: TextSelection.collapsed(offset: newOffset),
     );
+    _state?._focusNode.requestFocus();
     _state?.widget.onChanged?.call(newText);
   }
 
@@ -189,7 +202,7 @@ class MarkdownEditorController {
     final tc = _state?._textController;
     if (tc == null) return;
     final text = tc.text;
-    final offset = tc.selection.baseOffset.clamp(0, text.length);
+    final offset = _effectiveSelection.baseOffset.clamp(0, text.length);
     final lineStart = offset > 0 ? text.lastIndexOf('\n', offset - 1) + 1 : 0;
     final rawEnd = text.indexOf('\n', offset);
     final lineEnd = rawEnd == -1 ? text.length : rawEnd;
@@ -211,6 +224,7 @@ class MarkdownEditorController {
       text: newText,
       selection: TextSelection.collapsed(offset: newOffset),
     );
+    _state?._focusNode.requestFocus();
     _state?.widget.onChanged?.call(newText);
   }
 }
@@ -249,6 +263,10 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   bool _suppressListener = false;
   TextEditingValue _previousValue = TextEditingValue.empty;
 
+  /// Last valid selection captured before focus leaves the TextField.
+  /// Toolbar methods read this when [_textController.selection] is invalid.
+  TextSelection _savedSelection = const TextSelection.collapsed(offset: 0);
+
   @override
   void initState() {
     super.initState();
@@ -265,6 +283,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     // editor gains or loses focus (cursor line ↔ rendered mode).
     _focusNode.addListener(_onFocusChanged);
     _textController.addListener(_onTextChanged);
+    _textController.addListener(_onSelectionChanged);
   }
 
   @override
@@ -279,6 +298,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   void dispose() {
     _focusNode.removeListener(_onFocusChanged);
     _textController.removeListener(_onTextChanged);
+    _textController.removeListener(_onSelectionChanged);
     widget.controller?._detach();
     _textController.dispose();
     if (_ownsFocusNode) _focusNode.dispose();
@@ -288,6 +308,14 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   void _onFocusChanged() {
     // Trigger a rebuild so buildTextSpan() re-evaluates cursor-line status.
     if (mounted) setState(() {});
+  }
+
+  /// Saves the last valid selection so toolbar methods can use it after focus
+  /// is lost (Flutter invalidates the selection before onPressed fires).
+  void _onSelectionChanged() {
+    if (_textController.selection.isValid) {
+      _savedSelection = _textController.selection;
+    }
   }
 
   // List auto-continue: when the user presses Enter after a list item, insert

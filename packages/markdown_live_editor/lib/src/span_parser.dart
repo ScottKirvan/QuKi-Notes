@@ -287,20 +287,21 @@ class MarkdownSpanParser {
       ];
     }
 
-    // Unordered list
+    // Unordered list: replace `- ` or `* ` (2 chars) with `• ` (also 2 chars).
+    // Character count is preserved so cursor offsets remain aligned.
     final unordered = _unorderedRe.firstMatch(line);
     if (unordered != null) {
       return [
-        TextSpan(text: unordered.group(1), style: transparent),
+        TextSpan(text: '• ', style: listPrefixStyle),
         ..._parseInline(unordered.group(2)!, baseStyle: textStyle),
       ];
     }
 
-    // Ordered list
+    // Ordered list: show prefix in listPrefixStyle (visible, not transparent).
     final ordered = _orderedRe.firstMatch(line);
     if (ordered != null) {
       return [
-        TextSpan(text: ordered.group(1), style: transparent),
+        TextSpan(text: ordered.group(1), style: listPrefixStyle),
         ..._parseInline(ordered.group(2)!, baseStyle: textStyle),
       ];
     }

@@ -502,32 +502,52 @@ void main() {
         ' — regression: toolbar no-op on focus loss', (tester) async {
       final controller = MarkdownEditorController();
 
-      await tester.pumpWidget(_buildEditor(
-        initialValue: 'word',
-        controller: controller,
+      // Use a second focusable widget so we can unfocus the editor without
+      // Flutter clamping our deliberately invalid selection.
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: [
+              Expanded(
+                child: MarkdownEditor(
+                  initialValue: 'word',
+                  controller: controller,
+                ),
+              ),
+              const TextField(key: Key('other')),
+            ],
+          ),
+        ),
       ));
 
-      await tester.tap(find.byType(TextField));
+      // Focus the editor and set a selection of [0, 4].
+      await tester.tap(find.byType(MarkdownEditor));
       await tester.pump();
-      final tf = tester.widget<TextField>(find.byType(TextField));
-      // Set a valid selection [0, 4] so _savedSelection is populated.
-      tf.controller!.selection =
+      final editorTf = tester
+          .widget<TextField>(find.descendant(
+            of: find.byType(MarkdownEditor),
+            matching: find.byType(TextField),
+          ));
+      editorTf.controller!.selection =
           const TextSelection(baseOffset: 0, extentOffset: 4);
       await tester.pump();
+      // _savedSelection is now [0, 4].
 
-      // Directly set the controller to an invalid selection, simulating what
-      // Flutter does when the toolbar button steals focus before onPressed fires.
-      tf.controller!.selection = const TextSelection.collapsed(offset: -1);
+      // Move focus to the other TextField — simulates toolbar button stealing
+      // focus before onPressed fires, causing Flutter to invalidate the editor
+      // selection (sets it to collapsed(-1) or similar).
+      await tester.tap(find.byKey(const Key('other')));
       await tester.pump();
 
-      // Before fix: wrapSelection calls `if (!sel.isValid) return` → no-op.
+      // Before fix: wrapSelection calls `if (!sel.isValid) return` → no-op,
+      // leaving currentValue as 'word'.
       // After fix: wrapSelection uses _savedSelection [0,4] → wraps correctly.
       controller.wrapSelection('**', '**');
       await tester.pump();
 
       expect(controller.currentValue, '**word**',
           reason:
-              'wrapSelection must use saved selection [0,4] when tc.selection is invalid');
+              'wrapSelection must use saved selection [0,4] when tc.selection is invalid after focus loss');
     });
   });
 }
