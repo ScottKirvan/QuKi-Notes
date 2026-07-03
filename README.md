@@ -313,7 +313,7 @@ All planning documents live in `notes/dev/`. Read these before proposing structu
 
 ---
 
-## License
+## License  
 
 MIT — see [LICENSE.md](LICENSE.md).
 
