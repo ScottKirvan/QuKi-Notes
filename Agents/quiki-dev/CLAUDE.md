@@ -42,155 +42,316 @@ Read in this order — do not skip:
 
 ---
 
-## Current Task Brief — Session 14
+## Current Task Brief — Session 16
 
 > Written and maintained by the Spec session.
 
-**Task**: Keyboard on cold launch (one clean add) + stop the resume-time rescan that drops the keyboard on home+return (removal/relocation)
-**Branch**: `fix/keyboard-autofocus`
-**PR title**: `fix(editor): keyboard on cold launch + stop resume rescan dropping IME (#72)`
+**Task**: Fix list bullet rendering, checkbox visibility, and toolbar focus loss in the single-buffer editor
+**Branch**: `fix/editor-rendering-toolbar`
+**PR title**: `fix(markdown_live_editor): list bullets, checkbox visibility, toolbar selection`
 
 ---
 
 ### Context
 
-PR #155 removed all keyboard auto-focus hacks and established a clean baseline (merged, v0.14.4). Current behaviour on Pixel 6 Pro:
+v0.15.0 shipped the single-buffer `buildTextSpan()` editor (ADR-30). Code review identified three bugs, all in `packages/markdown_live_editor/`:
 
-- **Cold launch**: no keyboard, no cursor. 1 tap → keyboard + cursor appear.
-- **Home + return** (keyboard was open before homing): keyboard reappears for ~1 second, then drops. Cursor stays visible. 2 taps to get it back.
+1. Unordered list items show no bullet — `- ` is transparent but nothing replaces it, so list items look identical to plain paragraphs.
+2. Checkbox brackets `[ ]` / `[x]` are rendered in `syntaxColor` (35% opacity) — effectively invisible.
+3. Toolbar operations are no-ops or act on the wrong line when focus has left the `TextField` (which happens as part of the same touch event that triggers the button).
 
-These are two **separate** problems with two different fixes. Do them as described — do not substitute one approach for the other.
-
-The diagnosis below was derived from a full read of the lifecycle chain (`editor_screen.dart` → `quki_index.dart` → `quki_storage.dart`, plus `stream_screen.dart`). Trust it, but if a step doesn't match what you see in the code, stop and report rather than improvising.
+All three fixes are in the package only. No changes to `lib/` app code, `editor_screen.dart`, `.github/`, or `notes/dev/`.
 
 ---
 
-### Change A (ADD) — keyboard on cold launch: `autofocus: true` on `MarkdownEditor`
+### Change A — Unordered list bullet character (`span_parser.dart`)
 
-This is the one legitimate addition. Nothing currently requests focus at launch, so nothing opens the keyboard — that is correct baseline behaviour. To raise the keyboard you must request focus, and the Flutter-native way is the `autofocus` parameter the package already exposes.
+**Root cause**: `_parseRenderedLine` emits `TextSpan(text: unordered.group(1), style: transparent)` where `transparent` has `color: Colors.transparent, fontSize: 0.001`. The `- ` prefix is invisible, and nothing replaces it. Rendered list items look like plain paragraphs.
 
-In `lib/features/editor/editor_screen.dart`, `build()` (the `MarkdownEditor` around line 300), add `autofocus: true`:
+**Fix**: For unordered lists in `_parseRenderedLine`, replace the transparent span with a `•` bullet span. The character-count invariant is preserved: `- ` is 2 chars, `• ` is also 2 chars, so cursor offsets remain aligned.
+
+In `_parseRenderedLine` (around line 291), change the unordered list branch from:
 
 ```dart
-child: MarkdownEditor(
-  autofocus: true,            // <-- add this line
-  initialValue: '',
-  onChanged: (_) => _autoSave.notifyChanged(),
-  controller: _editorController,
-  config: MarkdownEditorConfig(
-    textStyle: TextStyle(
-      color: scheme.onSurface,
-      fontSize: 16,
-      height: 1.4,
+// Unordered list
+final unordered = _unorderedRe.firstMatch(line);
+if (unordered != null) {
+  return [
+    TextSpan(text: unordered.group(1), style: transparent),
+    ..._parseInline(unordered.group(2)!, baseStyle: textStyle),
+  ];
+}
+```
+
+to:
+
+```dart
+// Unordered list: replace `- ` or `* ` (2 chars) with `• ` (also 2 chars).
+// Character count is preserved so cursor offsets remain aligned.
+final unordered = _unorderedRe.firstMatch(line);
+if (unordered != null) {
+  return [
+    TextSpan(text: '• ', style: listPrefixStyle),
+    ..._parseInline(unordered.group(2)!, baseStyle: textStyle),
+  ];
+}
+```
+
+**Ordered list**: make the prefix visible in `listPrefixStyle` instead of transparent. Change the ordered list branch from:
+
+```dart
+final ordered = _orderedRe.firstMatch(line);
+if (ordered != null) {
+  return [
+    TextSpan(text: ordered.group(1), style: transparent),
+    ..._parseInline(ordered.group(2)!, baseStyle: textStyle),
+  ];
+}
+```
+
+to:
+
+```dart
+final ordered = _orderedRe.firstMatch(line);
+if (ordered != null) {
+  return [
+    TextSpan(text: ordered.group(1), style: listPrefixStyle),
+    ..._parseInline(ordered.group(2)!, baseStyle: textStyle),
+  ];
+}
+```
+
+The `listPrefixStyle` field is already constructed in `_MarkdownTextController.buildTextSpan()` as `effectiveStyle.copyWith(color: baseColor)` — full-opacity base color. This gives a visible (but not emphasised) prefix.
+
+**Do not change** the heading transparent spans (headings hide `## ` correctly) or the checkbox `- ` span (that one stays transparent; only the bracket portion is shown for checkboxes, and that is fixed in Change B).
+
+---
+
+### Change B — Checkbox bracket visibility (`markdown_editor.dart`)
+
+**Root cause**: In `_MarkdownTextController.buildTextSpan()`, `checkboxStyle` is built as:
+
+```dart
+final checkboxStyle = effectiveStyle.copyWith(
+  fontFamily: 'monospace',
+  color: syntaxColor,
+);
+```
+
+`syntaxColor` is 35% opacity (`baseColor.withValues(alpha: 0.35)`) — the `[ ]` / `[x]` brackets are nearly invisible.
+
+**Fix**: Change `checkboxStyle` to use `baseColor` at full opacity so the brackets are clearly legible:
+
+```dart
+final checkboxStyle = effectiveStyle.copyWith(
+  fontFamily: 'monospace',
+  color: baseColor,
+);
+```
+
+No other changes to `buildTextSpan()`.
+
+---
+
+### Change C — Preserve selection for toolbar operations (`markdown_editor.dart`)
+
+**Root cause**: When the user taps a toolbar button, the Flutter framework moves focus away from the `TextField` as part of processing the touch event, before `onPressed` fires. At `onPressed` time, `tc.selection` may be `TextSelection.collapsed(offset: -1)` (invalid) because Flutter reset it on focus loss. Result:
+
+- `wrapSelection` → `if (!sel.isValid) return` → bold / italic / strikethrough / inline code are no-ops.
+- `toggleLinePrefix` / `toggleUnorderedList` / `toggleOrderedList` → `.clamp(0, text.length)` converts -1 to 0 → operate on line 0 regardless of where the cursor was.
+
+**Fix in `_MarkdownEditorState`**: add a saved-selection field and a listener that captures the last valid selection before focus is lost.
+
+In `_MarkdownEditorState`, add a field:
+
+```dart
+TextSelection _savedSelection = const TextSelection.collapsed(offset: 0);
+```
+
+In `initState()`, add a listener (alongside the existing `_onTextChanged` and `_onFocusChanged` listeners):
+
+```dart
+_textController.addListener(_onSelectionChanged);
+```
+
+Add the handler:
+
+```dart
+void _onSelectionChanged() {
+  if (_textController.selection.isValid) {
+    _savedSelection = _textController.selection;
+  }
+}
+```
+
+In `dispose()`, remove the listener:
+
+```dart
+_textController.removeListener(_onSelectionChanged);
+```
+
+**Expose on `MarkdownEditorController`**: add a getter so toolbar methods can read it:
+
+```dart
+TextSelection get _effectiveSelection {
+  final tc = _state?._textController;
+  if (tc == null) return const TextSelection.collapsed(offset: 0);
+  return tc.selection.isValid ? tc.selection : (_state!._savedSelection);
+}
+```
+
+**Update all toolbar methods** to use `_effectiveSelection` instead of `tc.selection` directly, and to call `_state?._focusNode.requestFocus()` after modifying the controller value so the keyboard returns and the editor stays active.
+
+`wrapSelection`:
+
+```dart
+void wrapSelection(String prefix, String suffix) {
+  final tc = _state?._textController;
+  if (tc == null) return;
+  final sel = _effectiveSelection;
+  if (!sel.isValid) return;
+  final text = tc.text;
+  final selected = sel.textInside(text);
+  final newText =
+      text.replaceRange(sel.start, sel.end, '$prefix$selected$suffix');
+  tc.value = TextEditingValue(
+    text: newText,
+    selection: TextSelection.collapsed(
+      offset: sel.start + prefix.length + selected.length + suffix.length,
     ),
-  ),
-),
-```
-
-**Why this is the right add, not a hack**: `MarkdownEditor.autofocus` is read only in `_MarkdownEditorState.initState()` — it sets `_autofocusIndex = 0`, so block 0 is built with `autofocus: true`. `_MarkdownBlockState.initState()` then starts with `_editing = true` and calls `_focusNode.requestFocus()` in a single post-frame callback. It routes entirely through Flutter's standard focus tree — no timer, no delay, no controller poking. It fires once on mount; after any `setValue()` (note switch) `_autofocusIndex` is cleared, so opening an existing note does NOT auto-raise the keyboard.
-
-Do **not** add `requestFocus()`/`focusFirstBlock()` calls, timers, or post-frame focus pokes anywhere. The `autofocus` parameter is the whole fix for Change A.
-
----
-
-### Change B (REMOVE + RELOCATE) — stop the resume-time rescan that kills the keyboard
-
-**Root cause** (do NOT wrap with `addPostFrameCallback` — remove it):
-
-On resume the editor's only action is `ref.read(quKiIndexProvider.notifier).refresh()` in `didChangeAppLifecycleState`. `refresh()` in `quki_index.dart` sets `state = const AsyncValue.loading()` (discarding the current list) and then awaits `scanActive()`, a filesystem scan of every note. That scan takes ~1s — matching the reported "drops after ~1 second." It forces `EditorScreen.build()` to rebuild twice (loading → data) while Android is restoring the IME, and the data-arrival rebuild lands right when the keyboard dies.
-
-The editor does **not** need this rescan. It watches `quKiIndexProvider` only for `hasQukis` (whether the QuKis button is enabled), and the index is already kept correct incrementally by `addMeta`/`updateMeta`/`removeMeta` on every save. The full rescan only exists to catch files changed *outside the app* while backgrounded — which matters when the user looks at the list, i.e. when `StreamScreen` opens.
-
-**B1 — remove the resume rescan from the editor.**
-
-In `lib/features/editor/editor_screen.dart`, `didChangeAppLifecycleState`, delete the `resumed` rescan entirely:
-
-```dart
-// REMOVE this whole block:
-if (state == AppLifecycleState.resumed) {
-  ref.read(quKiIndexProvider.notifier).refresh();
-}
-```
-
-Keep the pause/inactive/detached `_autoSave.save()` block exactly as-is. Only the `resumed → refresh()` goes away.
-
-**B2 — relocate the rescan to `StreamScreen` open.**
-
-In `lib/features/stream/stream_screen.dart`, `_StreamScreenState.initState()`, trigger a refresh after first frame so the list reflects any external changes when the user actually opens it:
-
-```dart
-@override
-void initState() {
-  super.initState();
-  _searchController.addListener(_onSearchChanged);
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    if (mounted) ref.read(quKiIndexProvider.notifier).refresh();
-  });
-}
-```
-
-(`StreamScreen` already `ref.watch(quKiIndexProvider)` in `build()` with a `loading:` spinner, so a brief spinner on open is expected and fine.)
-
-**B3 — stop `refresh()` from flushing through `loading()` (both index notifiers).**
-
-In `lib/core/storage/quki_index.dart`, change `refresh()` in **both** `QuKiIndexNotifier` and `TrashIndexNotifier` so it does not discard the existing data and double-rebuild:
-
-```dart
-Future<void> refresh() async {
-  state = await AsyncValue.guard(
-    () => ref.read(quKiStorageProvider).scanActive(), // scanTrash() in TrashIndexNotifier
   );
+  _state?._focusNode.requestFocus();
+  _state?.widget.onChanged?.call(newText);
 }
 ```
 
-This preserves the prior list while the scan runs (no spinner/flash) and rebuilds once instead of twice. It benefits every caller (settings change, recently-deleted restore, stream open).
+`toggleLinePrefix`:
 
-> Note: this likely also reduces the #75 "opening a note jumps to top" churn, since the resume rescan was re-sorting the list on every return. Don't claim #75 is fixed — just mention in the PR that it may improve.
+```dart
+void toggleLinePrefix(String prefix) {
+  final tc = _state?._textController;
+  if (tc == null) return;
+  final text = tc.text;
+  final offset = _effectiveSelection.baseOffset.clamp(0, text.length);
+  // ... rest unchanged ...
+  tc.value = TextEditingValue(
+    text: newText,
+    selection: TextSelection.collapsed(offset: newOffset),
+  );
+  _state?._focusNode.requestFocus();
+  _state?.widget.onChanged?.call(newText);
+}
+```
+
+`toggleUnorderedList`:
+
+```dart
+void toggleUnorderedList() {
+  final tc = _state?._textController;
+  if (tc == null) return;
+  final text = tc.text;
+  final offset = _effectiveSelection.baseOffset.clamp(0, text.length);
+  // ... rest unchanged ...
+  tc.value = TextEditingValue(
+    text: newText,
+    selection: TextSelection.collapsed(offset: newOffset),
+  );
+  _state?._focusNode.requestFocus();
+  _state?.widget.onChanged?.call(newText);
+}
+```
+
+`toggleOrderedList`:
+
+```dart
+void toggleOrderedList() {
+  final tc = _state?._textController;
+  if (tc == null) return;
+  final text = tc.text;
+  final offset = _effectiveSelection.baseOffset.clamp(0, text.length);
+  // ... rest unchanged ...
+  tc.value = TextEditingValue(
+    text: newText,
+    selection: TextSelection.collapsed(offset: newOffset),
+  );
+  _state?._focusNode.requestFocus();
+  _state?.widget.onChanged?.call(newText);
+}
+```
+
+The `_state?._focusNode.requestFocus()` call restores focus to the TextField after every toolbar action, so the keyboard stays up and the user can continue typing immediately.
 
 ---
 
 ### What NOT to change
 
-- `packages/markdown_live_editor/` — no changes. Its `autofocus`/`autofocusAtEnd`/`_autofocusIndex` logic is legitimate cross-block arrow-key navigation; Change A only *uses* the existing `autofocus` parameter, it does not modify the package.
-- `Focus(autofocus: true, skipTraversal: true)` wrappers in `editor_screen.dart` and `stream_screen.dart` — already inside `if (Platform.isWindows || Platform.isLinux)` guards; they never run on Android. Leave them.
-- Do not add any `requestFocus()`, `focusFirstBlock()`, timers, or post-frame focus pokes.
-
----
-
-### Honest caveat to keep in mind
-
-The ~1s timing is a strong fingerprint pointing at the filesystem scan, but the framework's keyboard-on-resume behaviour has quirks of its own, so Change B may not 100% eliminate the home+return drop. It is low-risk regardless (removes wasteful churn). If device testing shows the drop persists after B, say so plainly in the PR — do not add focus hacks to compensate.
+- `lib/` app code — no changes to `editor_screen.dart` or any feature/core code.
+- `editor_config.dart` — no changes.
+- `formatting_toolbar.dart` — no changes; the fixes are all in the state layer.
+- Heading transparent spans — leave as-is; `# ` / `## ` / `### ` should stay invisible in rendered mode.
+- Checkbox transparent `- ` span — leave as-is; only the bracket visibility changes (Change B).
+- `.github/workflows/`, `notes/dev/`, `justfile` — no changes.
+- Do NOT implement checkbox tap-to-toggle, table rendering, link styling, blockquote rendering, or any other deferred feature. These are out of scope.
 
 ---
 
 ### Tests
 
-- Run `just lint` — must pass.
-- Run `just test` — all tests must pass. If any test asserted the old `refresh()` loading-flash behaviour or the editor's resume refresh, update it to match the new behaviour. Note any such change in the PR.
-- Run `flutter build apk --debug` — must succeed.
+**`packages/markdown_live_editor/test/span_parser_test.dart`**:
+
+Update any existing test that asserts `- ` is transparent in rendered mode — it now asserts `• ` in `listPrefixStyle`. Add tests:
+
+- Unordered list `- item`: rendered mode → first span text is `'• '`, style is `listPrefixStyle`; content spans match `_parseInline('item')`.
+- Unordered list `* item`: same bullet result.
+- Ordered list `1. item`: rendered mode → first span text is `'1. '`, style is `listPrefixStyle`.
+- Cursor line `- item`: unchanged — first span text is `'- '`, style is `syntaxStyle` (no bullet on cursor line).
+
+**`packages/markdown_live_editor/test/markdown_editor_test.dart`** (or equivalent widget test):
+
+- `_savedSelection` is updated whenever controller selection changes to a valid value.
+- After focus loss, `_effectiveSelection` returns the saved selection, not an invalid one.
+- `wrapSelection('**', '**')` with a saved selection of `[0, 4]` on text `'word'` produces `'**word**'` with cursor at offset 8.
+
+Run `just lint` and `just test` before pushing. Fix any test that broke because of the `• ` bullet change.
+
+---
+
+### Deferred (not in this PR — do not treat as bugs)
+
+- Checkbox tap-to-toggle (no `WidgetSpan`, no `GestureDetector`) — deferred from PR #186, tracked separately.
+- Blockquote visual treatment — never worked in the old editor; not a regression.
+- Code fence visual treatment — same as above.
+- Table rendering — never supported.
+- Link styling / tapping — never supported.
+- Nested inline spans (e.g., bold inside italic) — v1 limitation.
+- Cursor-line vs rendered-mode visual discrepancy for formatted text (e.g., `**bold**` shows raw on cursor line, rendered on other lines) — by design in the Typora model; not a bug.
 
 ---
 
 ### Device test instructions for PR body
 
-1. **Cold launch**: force-stop the app, launch from launcher. Keyboard should appear automatically, no tap needed.
-2. **Home + return with keyboard open**: launch, tap to open keyboard, press home, reopen the app. Keyboard should stay up (not flash and vanish).
-3. **Note switch**: open an existing QuKi from the list. Keyboard should NOT auto-open (tap to edit). Confirms `autofocus` only fires on cold mount.
-4. **New QuKi**: tap +. No auto-keyboard; tap to edit.
-5. **External edit catch**: with filesystem storage, edit a .md in a file manager while the app is backgrounded, return to app, open the QuKis list. The change should show (confirms the relocated rescan works).
+1. **List rendering**: type `- item one`, press Enter, type `item two`, press Enter, type `- item three`. Move the cursor to line 2 (not a list line). Lines 1 and 3 should show `• item one` and `• item three` as bullet items. Line 2 should show plain text.
+2. **Ordered list**: type `1. first`, press Enter. Next line should auto-continue as `2. `. Move cursor away — both show `1. first` and `2. ` with visible numbering.
+3. **Checkbox**: type `- [ ] task`. Move cursor away. Should show `[ ] task` with clearly visible (not faint) brackets in monospace.
+4. **Bold toolbar**: type `hello world`, select `world`, tap Bold. `**world**` should be inserted; cursor returns to editor; tapping elsewhere shows `hello **world**` with `world` in bold and `**` invisible.
+5. **List toolbar**: type `item`, tap the list toolbar button. `- item` should be inserted and `• item` should render (move cursor off the line to see rendered mode).
+6. **Heading toolbar**: place cursor on `item`, tap Heading. `# item` should be inserted; in rendered mode (cursor off line) the text should appear larger/bolder with `# ` hidden.
 
 ---
 
 ### Checklist
 
-- [ ] Change A: `autofocus: true` added to `MarkdownEditor` in `editor_screen.dart`
-- [ ] Change B1: `resumed → refresh()` removed from `didChangeAppLifecycleState`
-- [ ] Change B2: post-frame `refresh()` added to `StreamScreen.initState`
-- [ ] Change B3: `refresh()` no longer flushes through `AsyncValue.loading()` in BOTH `QuKiIndexNotifier` and `TrashIndexNotifier`
-- [ ] No changes to `packages/markdown_live_editor/`
-- [ ] No `requestFocus`/`focusFirstBlock`/timers/post-frame focus pokes added
+- [ ] Change A: `• ` bullet emitted for unordered lists in `_parseRenderedLine` (char count preserved)
+- [ ] Change A: Ordered list prefix visible in `listPrefixStyle` in `_parseRenderedLine`
+- [ ] Change B: `checkboxStyle` uses `baseColor` at full opacity
+- [ ] Change C: `_savedSelection` field + listener in `_MarkdownEditorState`
+- [ ] Change C: `_effectiveSelection` getter on `MarkdownEditorController`
+- [ ] Change C: All four toolbar methods use `_effectiveSelection` and call `_focusNode.requestFocus()` after
+- [ ] No changes outside `packages/markdown_live_editor/`
+- [ ] Span parser tests updated for `• ` bullet
+- [ ] Toolbar selection tests added
 - [ ] `just lint` passes
 - [ ] `just test` passes — no regressions
 - [ ] `flutter build apk --debug` succeeds
-- [ ] PR opened with device test instructions above
+- [ ] PR body includes device test instructions above and Deferred section
 - [ ] No Claude/Anthropic attribution in commit message or PR body

@@ -10,6 +10,25 @@ Normative framing in `manifesto.md` — read that first.
 
 ---
 
+## ADR-30: Single-buffer TextSpan editor — replace block-flip `markdown_live_editor`
+
+**Date**: 2026-07-01
+
+**What**: Replace the block-flip Typora model (one `TextField` per markdown block, flip on tap) with a single `TextField` and a custom `TextEditingController` that overrides `buildTextSpan()` to render markdown inline. The buffer always holds raw markdown; the visual layer interprets it on every paint call.
+
+**Model**: Per-line cursor awareness. The line containing the cursor ("cursor line") shows raw text with syntax characters rendered in `syntaxColor` (visible but muted) — the user sees exactly what they are typing. All other lines ("rendered lines") hide syntax prefix characters via `color: Colors.transparent, fontSize: 0.001` and apply block/inline transforms: headings use `headingStyle`; `- ` and `* ` list prefixes display as `• ` (same 2-char width, cursor alignment preserved); `**bold**` renders bold with transparent `**`; `_italic_` renders italic; `` `code` `` renders in monospace. Character-count invariant: total characters across all returned `TextSpan` children always equals `text.length`, preserving exact cursor offset alignment.
+
+**Why**: The block-flip model cannot support standard OS cross-document text selection — drag handles, double-tap word select, and triple-tap line select all work within a single widget but not across widget boundaries. A QuKi can contain multiple blocks, so drag-selection across blocks was architecturally impossible. The single-buffer model resolves this: the OS treats the entire note as one `TextField`, all selection affordances work without special handling. Secondary benefits: note switching is instant (one `setValue()` call, no block rebuild), the package has a stable public API ready for pub.dev contribution, and the test surface is a pure Dart class (`MarkdownSpanParser`) with no widget tree required.
+
+**Rejected alternatives**:
+- *Block-flip (existing)* — architecturally precludes cross-block OS selection; `super_editor` had the same limitation.
+- *`super_editor` with selection patches* — `super_editor` owns its own selection model and does not expose Flutter's standard `TextField` selection affordances. Cross-block drag would require implementing the entire OS selection protocol from scratch.
+- *`flutter_quill`* — Delta format; not plain-text-in-buffer; round-trips through a custom AST. Open-data principle requires the buffer to be raw markdown.
+- *`re_editor`* — code editor oriented; no markdown awareness; would require the same `buildTextSpan()` approach anyway.
+- *AST-based rendering* — the `markdown` package provides a GFM AST but does not expose source character offsets, making it impossible to map AST nodes back to buffer positions for cursor-line detection. Regex per-line parsing is sufficient for v1 patterns (headings, lists, bold, italic, code, strikethrough).
+
+---
+
 ## ADR-29: Transport plugin system — QuickJS runtime scripting (supersedes compile-time registry)
 
 **Date**: 2026-07-01

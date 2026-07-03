@@ -125,8 +125,9 @@ QuKi-Notes/
 | | 3.18 App icon — Android adaptive, iOS, Windows, Linux | Complete (v0.12.0–v0.13.0) |
 | | 3.19 Storage location choice + first-launch setup (ADR-27/28, #134) | Complete (PR #145) |
 | | 3.20 Keyboard on cold launch (#72) — remove hacks, establish clean baseline | Complete (PR #155) |
-| | 3.20a Keyboard on cold launch (#72) — autofocus fix | In progress |
+| | 3.20a Keyboard on cold launch (#72) — + button paths + resume fix | Complete (PRs #165, #168, #170) |
 | | 3.21 Stream performance (lazy loading) | Defer until threshold hit |
+| | 3.22 Single-buffer TextSpan editor — replace block-flip (ADR-30, #179, #180) | Complete (PRs #186, #189, v0.15.0) |
 | 4 | Sync plugin axis + first sync backend | v1.1+ |
 | 5 | iPadOS / iOS / macOS builds | Deferred |
 | 6 | MCP plugin axis | v2.0+ |
@@ -147,17 +148,17 @@ QuKi-Notes/
 
 ---
 
-## Implementation Notes (current as of v0.9.6)
+## Implementation Notes (current as of v0.15.1)
 
 **Navigation**: Editor is the permanent root. `app.dart` home = `EditorScreen`; it never has a back button. `activeQukiIdProvider` (NotifierProvider<String?>) controls which QuKi is loaded. `StreamScreen` sets `activeQukiIdProvider` and pops — no second `EditorScreen` is ever pushed. QuKis list slides in from the left; Settings slides in from the right (directional per affordance position).
 
-**Storage layer (ADR-25, v0.9.6)**: `lib/core/storage/` — `QuKiStorage` (file I/O, write-to-temp-then-rename for atomicity), `QuKiIndex` (Riverpod `Notifier<List<QuKiMeta>>`, in-memory, rescanned on `AppLifecycleState.resumed`), `TrashIndex` (same pattern for `.trash/`), `QuKiSearch` (content scan at query time). Directory structure: `<app-docs>/qukis/{uuid}.md` + `.meta/{uuid}.json` (createdAt) + `.trash/` for soft-deleted items. `modifiedAt` = filesystem `mtime` — only changes on actual write, eliminating the #75 bug class by design.
+**Storage layer (ADR-25, ADR-27, ADR-28)**: `lib/core/storage/` — `QuKiStorage` (file I/O, write-to-temp-then-rename for atomicity), `QuKiIndex` (Riverpod `Notifier<List<QuKiMeta>>`, in-memory, rescanned on `StreamScreen.initState`), `TrashIndex` (same pattern for `.trash/`), `QuKiSearch` (content scan at query time). Directory: `<storage-root>/qukis/{uuid}.md` + `.meta/{uuid}.json` (createdAt) + `.trash/`. `modifiedAt` = filesystem `mtime`. First-launch setup modal: user picks "Filesystem storage" (`Documents/QuKi_Notes`, requires `MANAGE_EXTERNAL_STORAGE` on Android) or "App storage" (`getApplicationDocumentsDirectory()`); changeable from Settings.
 
-**Auto-save (ADR-6, v0.9.6)**: `AutoSaveController` — 2s idle debounce + 30s periodic + lifecycle hooks. Accepts a `Future<void> Function(String body)` write callback (decoupled from storage). Tracks `_lastSavedBody` and skips the write when content is identical — event-based guard, immune to frame-timing issues (PR #104). `resetForQuki(id:, initialBody:)` switches the save target without disposing the controller.
+**Auto-save (ADR-6)**: `AutoSaveController` — 2s idle debounce + 30s periodic + lifecycle hooks. Accepts a `Future<void> Function(String body)` write callback. Tracks `_lastSavedBody` and skips writes when content is identical. `resetForQuki(id:, initialBody:)` switches the save target without disposing the controller.
 
-**Editor (ADR-26 — all stages complete, v0.11.0)**: `packages/markdown_live_editor/` (monorepo path dep) implements a block-flip Typora model. Each markdown block renders via `flutter_markdown` when idle; tapping flips it to a `TextField`. `MarkdownEditorController` provides `wrapSelection()`, `toggleLinePrefix()`, and `togglePlainTextMode()`. `FormattingToolbar` lives in the package. Task checkboxes tap-to-toggle without entering edit mode. Arrow keys navigate across blocks. Flip transitions are 150ms; note switching is instant. `MarkdownEditorController.setValue()` is the seam between `EditorScreen` and the package; `onChanged` → `_autoSave.notifyChanged()`.
+**Editor (ADR-30, v0.15.1)**: `packages/markdown_live_editor/` (monorepo path dep) — single `TextField` with `_MarkdownTextController extends TextEditingController`. `buildTextSpan()` is overridden: each line is parsed by `MarkdownSpanParser`; cursor line shows raw text with syntax chars in `syntaxColor` (muted); non-cursor lines hide syntax chars (`color: transparent, fontSize: 0.001`) and apply block/inline transforms. Character-count invariant: total span chars always equals `text.length`. Public API: `wrapSelection()`, `toggleLinePrefix()`, `toggleUnorderedList()`, `toggleOrderedList()`, `togglePlainTextMode()`, `setValue()`, `requestFocus()`. `FormattingToolbar` lives in the package. List auto-continue in `_onTextChanged()`. `MarkdownEditorController.setValue()` is the seam to `EditorScreen`; `onChanged` → `_autoSave.notifyChanged()`.
 
-**Recently Deleted (PR #103)**: `lib/features/recently_deleted/recently_deleted_screen.dart` — `Consumer` over `trashIndexProvider`, newest-first list. Tap → restore (moves files back from `.trash/`). Swipe → confirmation dialog → hard delete. Accessible via Settings → Recently Deleted.
+**Recently Deleted (PR #103)**: `lib/features/recently_deleted/recently_deleted_screen.dart` — `Consumer` over `trashIndexProvider`, newest-first list. Tap → restore. Swipe → confirmation → hard delete. Accessible via Settings → Recently Deleted.
 
 **Transport registry**: Plugins registered at compile time in `lib/core/transports/registry.dart`. `TransportSettingsNotifier` persists enabled state via `shared_preferences`. `enabledTransportsProvider` `loading:` branch returns `[]` — prevents disabled transports flashing as enabled on startup.
 
@@ -173,6 +174,6 @@ QuKi-Notes/
 
 **ShareSheetToss always succeeds (#92)**: `share_plus` fires `ShareResultStatus.dismissed` on Android even on success. Dropped the status check; always returns `TossResult(success: true, message: 'Shared.')`.
 
-**Known bugs (open)**: #72 keyboard on cold launch — 1 tap now works (PR #155 baseline); home+return still drops keyboard after 1s (autofocus fix in progress, 3.20a); #73 rapid shares may lose content; #75 opening a note moves it to top of list (ADR-25 did not fully resolve — still reproducing); #77 tabs/indenting broken in lists; #129 cursor jumps to end of line on tap; #130 checkbox toggle unacceptably slow; #133 share-in QuKi doesn't appear in QuKis list.
+**Known bugs (open)**: #72 keyboard on cold launch — deferred (Scott's call); #73 rapid shares may lose content; #75 opening a note moves it to top of list; #77 tabs/indenting broken in lists; #130 checkbox tap-to-toggle not implemented; #188 share-in launches a new app instance (Android `launchMode` issue).
 
-**Last Updated**: 2026-06-29
+**Last Updated**: 2026-07-03
