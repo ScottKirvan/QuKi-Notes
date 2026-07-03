@@ -228,7 +228,7 @@ class MarkdownSpanParser {
       return [TextSpan(text: '', style: textStyle)];
     }
 
-    final transparent = textStyle.copyWith(color: Colors.transparent);
+    final transparent = textStyle.copyWith(color: Colors.transparent, fontSize: 0.001);
 
     // Headings — check longest prefix first to avoid h1 stealing h2/h3.
     final h3 = _h3Re.firstMatch(line);
@@ -329,7 +329,7 @@ class MarkdownSpanParser {
   List<InlineSpan> _parseInline(String text, {required TextStyle baseStyle}) {
     if (text.isEmpty) return [TextSpan(text: '', style: baseStyle)];
 
-    final transparent = baseStyle.copyWith(color: Colors.transparent);
+    final transparent = baseStyle.copyWith(color: Colors.transparent, fontSize: 0.001);
     final spans = <InlineSpan>[];
     int i = 0;
 
