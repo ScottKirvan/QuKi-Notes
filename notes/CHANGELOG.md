@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.14.11...v0.15.0) (2026-07-03)
+
+
+### Features
+
+* **editor:** replace block-flip with single-buffer TextSpan editor (ADR-30) ([ca3d031](https://github.com/ScottKirvan/QuKi-Notes/commit/ca3d0313f5e1b96216005b3795466d1cc3cd426a))
+
 ## [0.14.11](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.14.10...v0.14.11) (2026-06-30)
 
 
