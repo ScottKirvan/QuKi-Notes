@@ -16,16 +16,9 @@ Fenced code block rendering deferred (Scott decision — not a priority for quic
 
 ---
 
-## OQ-2: super_editor image node integration
+## ~~OQ-2: super_editor image node integration~~ — **Removed**
 
-The Image Handling section assumes the editor renders `![](../images/{file})` references by resolving each one to a local file path via the `images` table. The exact integration point in `super_editor` (custom image node? markdown post-processor? widget builder?) is to be confirmed during Phase 1 implementation.
-
-**Constraints:**
-- Must support lazy fetch (placeholder while `localPath` is null) — relevant once a sync plugin can populate image rows ahead of file download
-- Must support insertion via paste handler
-- Must serialize back to the canonical `![](../images/...)` markdown form on save
-
-**Surface during:** Phase 1, image paste task.
+**Resolution**: `super_editor` was replaced by the single-buffer `markdown_live_editor` package (ADR-30, v0.15.1). The `super_editor`-specific integration question is moot. Image paste (Phase 1.4) remains blocked by CargoKit being archived; when that work is unblocked, the integration point will be in `markdown_live_editor`'s `buildTextSpan()` via a `WidgetSpan` for `![](...)` lines, or a post-processing step. A new OQ will be opened at that time.
 
 ---
 
@@ -81,4 +74,4 @@ Bulk-pull progress banner: always, or only above some threshold? Decision belong
 
 ---
 
-**Last Updated**: 2026-06-09
+**Last Updated**: 2026-07-03

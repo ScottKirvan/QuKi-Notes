@@ -100,23 +100,31 @@ Fix CI failures directly (they are always small). Use `mcp__github__subscribe_pr
 
 See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phase table.
 
-**Current version**: v0.14.4 (released 2026-06-29).
+**Current version**: v0.15.1 (released 2026-07-03).
 
-**Implementation session in progress**: Session 14 — `fix/keyboard-autofocus` (keyboard on cold launch + resume rescan removal). Brief in `Agents/quiki-dev/CLAUDE.md`.
+**Implementation session in progress**: Session 16 — `fix/editor-rendering-toolbar` (list bullets, checkbox visibility, toolbar selection fix). Brief in `Agents/quiki-dev/CLAUDE.md`.
 
-**Resolved since last spec sync (Sessions 10–13, v0.14.x):**
-- ADR-27 / Phase 3.19 (PR #145): Storage location choice + first-launch setup. User picks "Filesystem storage" (Documents/QuKi_Notes) or "App storage" at first launch; changeable from Settings.
-- ADR-28 (PR #145): MANAGE_EXTERNAL_STORAGE permission on Android for `dart:io` access to shared external storage. Kotlin method channel (`StoragePlugin.kt`): `isExternalStorageManager`, `getExternalDocumentsPath`, `requestAllFilesAccess`.
-- `StorageBasePathNotifier` (reactive `NotifierProvider<String>`): cascades path changes to `quKiStorageProvider` and `quKiIndexProvider` without restart.
-- `adoptAppStorageIfUpgrading()`: detects existing `.md` files on first launch → skips setup dialog for upgrading users.
-- Phase 3.20 (PR #155): Removed all keyboard auto-focus hacks (`editModePreferredProvider`, `onActiveBlockChanged`, all `focusFirstBlock()`/`requestFocus()` calls in `EditorScreen`). Clean baseline: cold launch opens without keyboard but 1 tap raises it correctly. Home+return still drops keyboard after IME restore flash (next session: autofocus fix, Phase 3.20a).
+**Resolved since last spec sync (Sessions 10–15):**
+- ADR-27 / Phase 3.19 (PR #145): Storage location choice + first-launch setup.
+- ADR-28 (PR #145): MANAGE_EXTERNAL_STORAGE permission on Android.
+- Phase 3.20 (PR #155): Removed all keyboard auto-focus hacks. Clean baseline established.
+- Phase 3.20a (PRs #165, #168, #170): `requestFocus()` on + button paths. Resume rescan moved to StreamScreen. `refresh()` no longer flushes through `AsyncValue.loading()`.
+- ADR-29: QuickJS runtime plugin system locked in.
+- ADR-30: Single-buffer TextSpan editor — one `TextField` + `buildTextSpan()`, per-line cursor awareness, transparent syntax chars.
+- Phase 3.22 (PRs #186, #189, v0.15.1): Single-buffer TextSpan editor. Replaced block-flip with one `TextField` + `buildTextSpan()`. Resolves #179, #180 (cross-block selection), #129 (cursor jump), #176 (tap below note). Device-tested by Scott.
+
+**v0.15.0 post-ship bugs (in progress — Session 16):**
+- **Lists not rendering**: `- ` transparent in rendered mode, no bullet char emitted. List items look like plain paragraphs. Fix: emit `• ` (same 2-char count as `- `) in `listPrefixStyle`.
+- **Checkbox brackets barely visible**: `checkboxStyle` uses `syntaxColor` (35% opacity). Fix: use `baseColor` at full opacity.
+- **Toolbar no-ops on the wrong line**: focus leaves `TextField` before `onPressed` fires; `tc.selection` may be invalid. Fix: save last valid selection; use it as fallback; re-focus after toolbar action.
 
 **Phase 3 remaining:**
-- **#72 keyboard**: 1 tap works on cold launch; home+return drops keyboard after 1s — autofocus fix next (Phase 3.20a — see quiki-dev brief)
-- **Open bugs**: #73 rapid shares may lose content; #75 opening a note moves it to top of list (ADR-25 did NOT fully resolve — still reproducing); #77 tabs/indenting broken in lists; #129 cursor jumps to end of line on tap; #130 checkbox toggle unacceptably slow; #133 share-in QuKi doesn't appear in QuKis list
-- **Housekeeping**: #88 (release build modes already merged as `4dbd27c`) — close the issue
-- **Unscoped features**: #79 (auto-start after idle), #80 (replace hamburger with icon toolbar), #81 (hyperlink insert/edit), #83 (spell check / swipe-to-type), #87 (partial-width panels), #135 (find in page), #136 (word/char count)
-- Stream performance / lazy loading — defer until threshold hit
+- **#72 cold launch keyboard**: confirmed open by Scott — `autofocus: true` NOT set on the new single-buffer MarkdownEditor in `editor_screen.dart`. Still deferred (Scott's explicit call).
+- **#130 checkbox toggle slow/missing**: no tap-to-toggle yet (deferred from 3.22).
+- **#77 tabs/indenting in lists**: open.
+- **#188 share-in launches new instance**: open — Android `launchMode` issue.
+- **Housekeeping**: #88 (release build modes already merged) — close the issue.
+- **Unscoped features**: #79, #80, #81, #83, #84 (ADR-29/QuickJS), #87, #135, #136, #178, #181, #182, #183, #184. See `notes/dev/roadmap.md`.
 
 **Phase 4+:** Sync plugin axis (v1.1+), MCP (v2.0+) — not in scope until Phase 3 is complete.
 
