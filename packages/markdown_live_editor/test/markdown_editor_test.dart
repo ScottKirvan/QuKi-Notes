@@ -112,7 +112,8 @@ void main() {
       expect(controller.plainTextMode, isFalse);
     });
 
-    testWidgets('content is preserved across plain-text toggle', (tester) async {
+    testWidgets('content is preserved across plain-text toggle',
+        (tester) async {
       final controller = MarkdownEditorController();
 
       await tester.pumpWidget(_buildEditor(
@@ -376,7 +377,8 @@ void main() {
   });
 
   group('MarkdownEditorController — toggleUnorderedList', () {
-    testWidgets('adds "- " prefix when line has no list marker', (tester) async {
+    testWidgets('adds "- " prefix when line has no list marker',
+        (tester) async {
       final controller = MarkdownEditorController();
 
       await tester.pumpWidget(_buildEditor(
@@ -412,7 +414,8 @@ void main() {
       expect(controller.currentValue, 'plain item');
     });
 
-    testWidgets('strips full task list prefix when toggling off', (tester) async {
+    testWidgets('strips full task list prefix when toggling off',
+        (tester) async {
       final controller = MarkdownEditorController();
 
       await tester.pumpWidget(_buildEditor(
@@ -470,8 +473,7 @@ void main() {
     });
   });
 
-  group('MarkdownEditorController — saved selection (toolbar focus loss)',
-      () {
+  group('MarkdownEditorController — saved selection (toolbar focus loss)', () {
     testWidgets(
         'wrapSelection with valid selection [0,4] on "word" produces "**word**"'
         ' — regression: toolbar bold no-op', (tester) async {
@@ -523,11 +525,10 @@ void main() {
       // Focus the editor and set a selection of [0, 4].
       await tester.tap(find.byType(MarkdownEditor));
       await tester.pump();
-      final editorTf = tester
-          .widget<TextField>(find.descendant(
-            of: find.byType(MarkdownEditor),
-            matching: find.byType(TextField),
-          ));
+      final editorTf = tester.widget<TextField>(find.descendant(
+        of: find.byType(MarkdownEditor),
+        matching: find.byType(TextField),
+      ));
       editorTf.controller!.selection =
           const TextSelection(baseOffset: 0, extentOffset: 4);
       await tester.pump();

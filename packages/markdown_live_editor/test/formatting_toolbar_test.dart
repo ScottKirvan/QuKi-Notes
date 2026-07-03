@@ -102,8 +102,7 @@ void main() {
     });
 
     testWidgets('removes heading prefix when present', (tester) async {
-      final controller =
-          await pumpEditor(tester, initialValue: '# my heading');
+      final controller = await pumpEditor(tester, initialValue: '# my heading');
 
       final tf = tester.widget<TextField>(find.byType(TextField));
       tf.controller!.selection = const TextSelection.collapsed(offset: 5);
@@ -116,8 +115,7 @@ void main() {
     });
 
     testWidgets('adds task prefix when absent', (tester) async {
-      final controller =
-          await pumpEditor(tester, initialValue: 'do the thing');
+      final controller = await pumpEditor(tester, initialValue: 'do the thing');
 
       final tf = tester.widget<TextField>(find.byType(TextField));
       tf.controller!.selection = const TextSelection.collapsed(offset: 0);
@@ -145,8 +143,8 @@ void main() {
 
     testWidgets('operates on the correct line in multi-line text',
         (tester) async {
-      final controller = await pumpEditor(
-          tester, initialValue: 'line one\nline two\nline three');
+      final controller = await pumpEditor(tester,
+          initialValue: 'line one\nline two\nline three');
 
       final tf = tester.widget<TextField>(find.byType(TextField));
       tf.controller!.selection = const TextSelection.collapsed(offset: 12);
@@ -215,7 +213,8 @@ void main() {
   });
 
   group('toggleUnorderedList', () {
-    testWidgets('adds "- " prefix when line has no list marker', (tester) async {
+    testWidgets('adds "- " prefix when line has no list marker',
+        (tester) async {
       final controller = await pumpEditor(tester, initialValue: 'plain item');
       final tf = tester.widget<TextField>(find.byType(TextField));
       tf.controller!.selection = const TextSelection.collapsed(offset: 5);
@@ -228,8 +227,7 @@ void main() {
     });
 
     testWidgets('removes "- " prefix when already present', (tester) async {
-      final controller =
-          await pumpEditor(tester, initialValue: '- plain item');
+      final controller = await pumpEditor(tester, initialValue: '- plain item');
       final tf = tester.widget<TextField>(find.byType(TextField));
       tf.controller!.selection = const TextSelection.collapsed(offset: 5);
       await tester.pump();
@@ -240,7 +238,8 @@ void main() {
       expect(controller.currentValue, 'plain item');
     });
 
-    testWidgets('strips full task list prefix when toggling off', (tester) async {
+    testWidgets('strips full task list prefix when toggling off',
+        (tester) async {
       final controller =
           await pumpEditor(tester, initialValue: '- [ ] task item');
       final tf = tester.widget<TextField>(find.byType(TextField));
@@ -254,8 +253,7 @@ void main() {
     });
 
     testWidgets('removes "* " prefix when present', (tester) async {
-      final controller =
-          await pumpEditor(tester, initialValue: '* asterisk');
+      final controller = await pumpEditor(tester, initialValue: '* asterisk');
       final tf = tester.widget<TextField>(find.byType(TextField));
       tf.controller!.selection = const TextSelection.collapsed(offset: 3);
       await tester.pump();
@@ -321,7 +319,8 @@ void main() {
       expect(find.byIcon(LucideIcons.listChecks), findsOneWidget);
     });
 
-    testWidgets('tapping bold button wraps cursor text with **', (tester) async {
+    testWidgets('tapping bold button wraps cursor text with **',
+        (tester) async {
       final controller = await pumpEditor(tester, initialValue: 'bold me');
 
       final tf = tester.widget<TextField>(find.byType(TextField));

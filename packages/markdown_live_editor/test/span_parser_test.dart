@@ -60,7 +60,8 @@ void main() {
   });
 
   group('MarkdownSpanParser — non-cursor list lines', () {
-    test('unordered list "- item": first span text is "• " (bullet) — regression: list bullet invisible',
+    test(
+        'unordered list "- item": first span text is "• " (bullet) — regression: list bullet invisible',
         () {
       final spans = parser.parseLine('- item', isCursorLine: false);
       final firstSpan = spans[0] as TextSpan;
@@ -68,7 +69,8 @@ void main() {
           reason: '"- " should be replaced by "• " in rendered mode');
     });
 
-    test('unordered list "- item": first span is in listPrefixStyle — regression: list bullet invisible',
+    test(
+        'unordered list "- item": first span is in listPrefixStyle — regression: list bullet invisible',
         () {
       // listPrefixStyle in _makeParser is `base` (Colors.black, no special attrs).
       final spans = parser.parseLine('- item', isCursorLine: false);
@@ -78,7 +80,8 @@ void main() {
           reason: 'bullet span must not be transparent');
     });
 
-    test('unordered list "* item": first span text is "• " — regression: list bullet invisible',
+    test(
+        'unordered list "* item": first span text is "• " — regression: list bullet invisible',
         () {
       final spans = parser.parseLine('* item', isCursorLine: false);
       final firstSpan = spans[0] as TextSpan;
@@ -91,7 +94,8 @@ void main() {
       expect(contentSpan.style?.color, Colors.black);
     });
 
-    test('ordered list prefix "1. " is visible in listPrefixStyle — regression: list prefix transparent',
+    test(
+        'ordered list prefix "1. " is visible in listPrefixStyle — regression: list prefix transparent',
         () {
       final spans = parser.parseLine('1. first', isCursorLine: false);
       final firstSpan = spans[0] as TextSpan;
@@ -105,7 +109,9 @@ void main() {
       expect(firstSpan.toPlainText(), '1. ');
     });
 
-    test('cursor line "- item": first span text is "- " (raw syntax, not bullet)', () {
+    test(
+        'cursor line "- item": first span text is "- " (raw syntax, not bullet)',
+        () {
       final spans = parser.parseLine('- item', isCursorLine: true);
       final firstSpan = spans[0] as TextSpan;
       expect(firstSpan.toPlainText(), '- ',
@@ -178,7 +184,8 @@ void main() {
   });
 
   group('MarkdownSpanParser — cursor line', () {
-    test('cursor line returns text in syntax color for prefix, normal for content',
+    test(
+        'cursor line returns text in syntax color for prefix, normal for content',
         () {
       const syntaxC = Color(0xFF888888);
       final p = _makeParser(syntaxColor: syntaxC);
@@ -195,7 +202,8 @@ void main() {
       expect(_spanText(spans).length, line.length);
     });
 
-    test('cursor line total character count equals line length — paragraph', () {
+    test('cursor line total character count equals line length — paragraph',
+        () {
       const line = 'Hello **world** with _italic_';
       final spans = parser.parseLine(line, isCursorLine: true);
       expect(_spanText(spans).length, line.length);
@@ -249,7 +257,9 @@ void main() {
       expect(_spanText(spans).length, line.length);
     });
 
-    test('task unchecked prefix "- [ ] " on non-cursor: dash transparent, brackets in checkboxStyle', () {
+    test(
+        'task unchecked prefix "- [ ] " on non-cursor: dash transparent, brackets in checkboxStyle',
+        () {
       final spans = parser.parseLine('- [ ] task', isCursorLine: false);
       // First span: "- " transparent
       expect(_isTransparent(_colorAt(spans, 0)), isTrue);
@@ -258,7 +268,8 @@ void main() {
       expect(bracket.style?.fontFamily, 'monospace');
     });
 
-    test('checkbox bracket "[ ] " is NOT transparent — regression: checkbox nearly invisible',
+    test(
+        'checkbox bracket "[ ] " is NOT transparent — regression: checkbox nearly invisible',
         () {
       // checkboxStyle must use baseColor (full opacity), not syntaxColor (35%).
       final spans = parser.parseLine('- [ ] task', isCursorLine: false);
@@ -270,7 +281,8 @@ void main() {
           reason: 'checkboxStyle must use baseColor at full opacity');
     });
 
-    test('checkbox bracket "[x] " is NOT transparent — regression: checkbox nearly invisible',
+    test(
+        'checkbox bracket "[x] " is NOT transparent — regression: checkbox nearly invisible',
         () {
       final spans = parser.parseLine('- [x] done', isCursorLine: false);
       expect(_isTransparent(_colorAt(spans, 1)), isFalse,

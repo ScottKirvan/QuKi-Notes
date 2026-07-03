@@ -51,7 +51,8 @@ class MarkdownSpanParser {
   static final _h2Re = RegExp(r'^(## )(.*)$');
   static final _h3Re = RegExp(r'^(### )(.*)$');
   static final _taskUncheckedRe = RegExp(r'^(- \[ \] )(.*)$');
-  static final _taskCheckedRe = RegExp(r'^(- \[x\] )(.*)$', caseSensitive: false);
+  static final _taskCheckedRe =
+      RegExp(r'^(- \[x\] )(.*)$', caseSensitive: false);
   static final _unorderedRe = RegExp(r'^([-*] )(.*)$');
   static final _orderedRe = RegExp(r'^(\d+\. )(.*)$');
   static final _blockquoteRe = RegExp(r'^(> )');
@@ -154,8 +155,8 @@ class MarkdownSpanParser {
         final closeIdx = line.indexOf(delim, i + 2);
         if (closeIdx != -1) {
           spans.add(TextSpan(text: delim, style: syntaxStyle));
-          spans.add(
-              TextSpan(text: line.substring(i + 2, closeIdx), style: textStyle));
+          spans.add(TextSpan(
+              text: line.substring(i + 2, closeIdx), style: textStyle));
           spans.add(TextSpan(text: delim, style: syntaxStyle));
           i = closeIdx + 2;
           continue;
@@ -167,8 +168,8 @@ class MarkdownSpanParser {
         final closeIdx = line.indexOf('~~', i + 2);
         if (closeIdx != -1) {
           spans.add(TextSpan(text: '~~', style: syntaxStyle));
-          spans.add(
-              TextSpan(text: line.substring(i + 2, closeIdx), style: textStyle));
+          spans.add(TextSpan(
+              text: line.substring(i + 2, closeIdx), style: textStyle));
           spans.add(TextSpan(text: '~~', style: syntaxStyle));
           i = closeIdx + 2;
           continue;
@@ -228,7 +229,8 @@ class MarkdownSpanParser {
       return [TextSpan(text: '', style: textStyle)];
     }
 
-    final transparent = textStyle.copyWith(color: Colors.transparent, fontSize: 0.001);
+    final transparent =
+        textStyle.copyWith(color: Colors.transparent, fontSize: 0.001);
 
     // Headings — check longest prefix first to avoid h1 stealing h2/h3.
     final h3 = _h3Re.firstMatch(line);
@@ -278,8 +280,8 @@ class MarkdownSpanParser {
         TextSpan(text: dashSpace, style: transparent),
         TextSpan(
             text: bracket,
-            style: checkboxStyle.copyWith(
-                decoration: TextDecoration.lineThrough)),
+            style:
+                checkboxStyle.copyWith(decoration: TextDecoration.lineThrough)),
         ..._parseInline(content,
             baseStyle: textStyle.copyWith(
                 decoration: TextDecoration.lineThrough,
@@ -330,7 +332,8 @@ class MarkdownSpanParser {
   List<InlineSpan> _parseInline(String text, {required TextStyle baseStyle}) {
     if (text.isEmpty) return [TextSpan(text: '', style: baseStyle)];
 
-    final transparent = baseStyle.copyWith(color: Colors.transparent, fontSize: 0.001);
+    final transparent =
+        baseStyle.copyWith(color: Colors.transparent, fontSize: 0.001);
     final spans = <InlineSpan>[];
     int i = 0;
 
@@ -399,8 +402,7 @@ class MarkdownSpanParser {
           spans.add(TextSpan(
               text: text.substring(i + 1, closeIdx),
               style: codeStyle.copyWith(
-                  fontSize: baseStyle.fontSize,
-                  height: baseStyle.height)));
+                  fontSize: baseStyle.fontSize, height: baseStyle.height)));
           spans.add(TextSpan(text: '`', style: transparent));
           i = closeIdx + 1;
           continue;
