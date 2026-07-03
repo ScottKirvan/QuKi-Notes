@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.1](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.15.0...v0.15.1) (2026-07-03)
+
+
+### Bug Fixes
+
+* **editor:** zero-width hidden syntax chars to remove spacing around styled text ([76fa3bc](https://github.com/ScottKirvan/QuKi-Notes/commit/76fa3bce06dfa0194cb59bd099dda59cdae17b99))
+
 ## [0.15.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.14.11...v0.15.0) (2026-07-03)
 
 
