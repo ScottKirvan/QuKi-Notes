@@ -326,6 +326,6 @@ MIT — see [LICENSE.md](LICENSE.md).
 - **LinkedIn**: [linkedin.com/in/scottkirvan](https://www.linkedin.com/in/scottkirvan/)
 - **User Docs**: [scottkirvan.github.io/QuKi-Notes](https://scottkirvan.github.io/QuKi-Notes/)
 
-[CHANGELOG](CHANGELOG.md)
+[CHANGELOG](notes/CHANGELOG.md)
 
 
