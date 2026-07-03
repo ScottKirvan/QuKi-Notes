@@ -2,6 +2,11 @@
 
 ## [0.15.3](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.15.2...v0.15.3) (2026-07-03)
 
+### Pull Requests
+
+* [#197](https://github.com/ScottKirvan/QuKi-Notes/pull/197) chore(main): release 0.15.3
+
+
 
 ### Bug Fixes
 
