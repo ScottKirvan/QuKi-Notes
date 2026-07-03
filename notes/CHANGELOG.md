@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.3](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.15.2...v0.15.3) (2026-07-03)
+
+
+### Bug Fixes
+
+* force a build ([3ce697f](https://github.com/ScottKirvan/QuKi-Notes/commit/3ce697f138174f4d090baf090cb378ac9f294e7f))
+
 ## [0.15.2](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.15.1...v0.15.2) (2026-07-03)
 
 
