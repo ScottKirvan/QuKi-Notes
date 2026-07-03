@@ -469,4 +469,65 @@ void main() {
       expect(controller.currentValue, 'third item');
     });
   });
+
+  group('MarkdownEditorController — saved selection (toolbar focus loss)',
+      () {
+    testWidgets(
+        'wrapSelection with valid selection [0,4] on "word" produces "**word**"'
+        ' — regression: toolbar bold no-op', (tester) async {
+      final controller = MarkdownEditorController();
+
+      await tester.pumpWidget(_buildEditor(
+        initialValue: 'word',
+        controller: controller,
+      ));
+
+      await tester.tap(find.byType(TextField));
+      await tester.pump();
+      final tf = tester.widget<TextField>(find.byType(TextField));
+      tf.controller!.selection =
+          const TextSelection(baseOffset: 0, extentOffset: 4);
+      await tester.pump();
+
+      controller.wrapSelection('**', '**');
+      await tester.pump();
+
+      expect(controller.currentValue, '**word**');
+      // Cursor should be at offset 8 (end of '**word**').
+      expect(tf.controller!.selection.baseOffset, 8);
+    });
+
+    testWidgets(
+        'wrapSelection falls back to saved selection when tc.selection is invalid'
+        ' — regression: toolbar no-op on focus loss', (tester) async {
+      final controller = MarkdownEditorController();
+
+      await tester.pumpWidget(_buildEditor(
+        initialValue: 'word',
+        controller: controller,
+      ));
+
+      await tester.tap(find.byType(TextField));
+      await tester.pump();
+      final tf = tester.widget<TextField>(find.byType(TextField));
+      // Set a valid selection [0, 4] so _savedSelection is populated.
+      tf.controller!.selection =
+          const TextSelection(baseOffset: 0, extentOffset: 4);
+      await tester.pump();
+
+      // Directly set the controller to an invalid selection, simulating what
+      // Flutter does when the toolbar button steals focus before onPressed fires.
+      tf.controller!.selection = const TextSelection.collapsed(offset: -1);
+      await tester.pump();
+
+      // Before fix: wrapSelection calls `if (!sel.isValid) return` → no-op.
+      // After fix: wrapSelection uses _savedSelection [0,4] → wraps correctly.
+      controller.wrapSelection('**', '**');
+      await tester.pump();
+
+      expect(controller.currentValue, '**word**',
+          reason:
+              'wrapSelection must use saved selection [0,4] when tc.selection is invalid');
+    });
+  });
 }
