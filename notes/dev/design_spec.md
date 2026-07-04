@@ -138,7 +138,7 @@ Not designed in detail. Architectural intent: an embedded MCP server inside the 
 ### 1. Capture (Editor)
 
 - App opens to a blank QuKi. Cursor in the body. No "title", no "untitled note", no template.
-- **Markdown WYSIWYG is a hard requirement** — live rendering as the user types. Typing `**text**` renders bold; `- [ ]` renders a task list item; `# ` renders a heading; fenced code renders as a code block; etc. This is not deferred. See OQ-1 for implementation path.
+- **Markdown WYSIWYG is a hard requirement** — genuine live-preview rendering as the user types, not a syntax-highlighting trick. Typing `**text**` renders bold with the delimiters gone; `- [ ]` renders as a real checkbox glyph; `# ` renders as an actual heading with no `#` visible; links show only their label; images render as actual embedded images. Whichever element the cursor is currently inside reveals its raw markdown source, in place, so it can be edited directly; every other element shows its rendered form. This is not deferred. See `notes/dev/decisions.md` → ADR-31 and `notes/dev/live_preview_editor.md` for the implementation path.
 - Editor toolbar: bold, italic, strikethrough, lists, code blocks, links, image.
 - Image paste from clipboard via `super_clipboard`. Image share-in via Android share sheet. (Image paste currently blocked — CargoKit; see `dependencies.md`.)
 - Auto-save: 2s idle debounce + 30s periodic + lifecycle `inactive`/`paused`/`detached`. Never blocks, never networks.
@@ -154,14 +154,14 @@ Not designed in detail. Architectural intent: an embedded MCP server inside the 
 
 | Capability                                  | Source                                       |
 | ------------------------------------------- | -------------------------------------------- |
-| Text selection, cursor, caret               | `TextField` (Flutter built-in)               |
-| Copy / cut / paste / select-all (text)      | `TextField` (standard keyboard + context menu — built-in) |
-| Undo / redo                                 | `TextField` (built-in)                       |
+| Text selection, cursor, caret               | Custom `RenderObject` + `TextInputClient` (ADR-31) — no longer `TextField`; we own caret/selection/hit-testing directly |
+| Copy / cut / paste / select-all (text)      | Implemented against the raw markdown buffer by the custom engine (ADR-31) |
+| Undo / redo                                 | Implemented by the custom engine (ADR-31); no longer inherited free from `TextField` |
 | Image paste from clipboard                  | Deferred — CargoKit archived, OQ-2 open      |
-| Drag-and-drop image onto editor (desktop)   | Deferred — revisit after ADR-26 Stage 4      |
-| Formatting toolbar buttons → markdown       | `FormattingToolbar` in `markdown_live_editor` package (ADR-26 Stage 2) |
-| Markdown rendering                          | `flutter_markdown` via block-flip model (ADR-26 Stage 3) |
-| Spellcheck                                  | Platform-native (OS-provided)                |
+| Drag-and-drop image onto editor (desktop)   | Deferred — revisit after ADR-31 Stage 5      |
+| Formatting toolbar buttons → markdown       | `FormattingToolbar` in `markdown_live_editor` package (unchanged mechanism — inserts/toggles markdown syntax in the buffer) |
+| Markdown rendering                          | Custom live-preview engine — per-element reveal/collapse, not per-line syntax hiding (ADR-31; see "Editor rendering engine" below) |
+| Spellcheck                                  | Platform-native (OS-provided) — needs re-verification once `TextField` is no longer the input widget (ADR-31 Stage 1) |
 
 ### 2. QuKis list
 
@@ -301,7 +301,7 @@ Device-backed enrichments (GPS today; camera/mic/contacts later if transports de
 
 - **Framework**: Flutter (Dart) — single codebase, Android + Windows + Linux active.
 - **State / DI**: `riverpod` + `riverpod_generator` (`@riverpod` annotation). ADR-1.
-- **Editor**: `markdown_live_editor` (monorepo path dep `packages/markdown_live_editor/`, ADR-26) — block-flip Typora model; `flutter_markdown` for rendering.
+- **Editor**: `markdown_live_editor` (monorepo path dep `packages/markdown_live_editor/`, ADR-26 package extraction, ADR-31 rendering engine) — custom `RenderObject` + `TextInputClient` live-preview model; see "Editor rendering engine" below.
 - **Markdown flavor**: GFM (GitHub Flavored Markdown).
 - **Local storage**: individual `.md` files via `dart:io` + `path_provider` (ADR-25).
 - **Image clipboard**: `super_clipboard` — deferred; CargoKit archived 2026-03-26.
@@ -315,6 +315,40 @@ Device-backed enrichments (GPS today; camera/mic/contacts later if transports de
 - **IDs**: `uuid` (v4).
 - **Paths**: `path_provider`.
 - **Logging**: `package:logging`. ADR-12.
+
+### Editor rendering engine (ADR-31) — live-preview markdown
+
+Supersedes the `buildTextSpan()` zero-width-hiding model (ADR-30). Full rationale and rejected alternatives: `decisions.md` → ADR-31. Plain-English walkthrough (motivation, why prior attempts failed, accessible explanation of the approach): `notes/dev/live_preview_editor.md`.
+
+**Ground truth**: the markdown source string is the only canonical representation, always. There is no intermediate document/AST model that owns editing — this constraint predates ADR-31 (it's why ADR-26 rejected `super_editor`/`flutter_quill`/`appflowy_editor`-style editors) and is unchanged by it.
+
+**Rendering model — per element, not per line:**
+
+1. A parse pass walks the buffer and produces a flat list of elements (heading, unordered/ordered list item, checkbox, bold/italic/strikethrough/code span, link, image, blockquote, code fence), each carrying a source range (`start`, `end` offsets into the buffer).
+2. On every selection change, each element's source range is intersection-tested against the current cursor/selection. An element containing the cursor is **revealed** — shown as raw markdown source, directly editable. Every other element is **collapsed** — shown in its rendered form, which may differ in length and content from its source (heading text with `# ` fully removed and a larger font; a link showing only its label text; an image shown as an actual embedded image; a checkbox shown as a real glyph).
+3. Reveal/collapse recomputation is a cheap intersection test against cached ranges — it does not require re-parsing the document. Re-parsing only happens after a text change.
+4. A full reparse per text change is acceptable for this app's document sizes (short-form QuKis). Do not add incremental parsing until profiling proves it's needed.
+
+**Cursor and selection mechanics** (do not exist in Flutter's `TextField`/`EditableText`; must be built ourselves):
+
+- **Atomic-range movement**: arrow keys move across a collapsed element in a single hop, not character-by-character through its hidden source text.
+- **Tap-to-boundary**: tapping inside a collapsed element's rendered bounds resolves the cursor to whichever boundary of its source range (start or end) is nearer the tap's x-coordinate. No fractional interpolation into collapsed content — this matches CodeMirror 6's own behavior (no surveyed editor does better).
+- **Direct IME integration**: the editor widget implements `TextInputClient` and manages its own `TextInputConnection` via `TextInput.attach()` — it does not use `TextField`/`EditableText`/`RenderEditable`. This is required because `WidgetSpan` and `TextPainter`'s `TextPosition` offset math are hard-capped at the Flutter engine level to one character per element, with no API to represent "this rendered region stands in for N source characters" (confirmed via flutter/flutter#107432, #150864 — engine-level, not app-level; see ADR-31 for detail).
+
+**Links vs. images**:
+- Images always reveal source on tap (no navigate action) — no engine limitation blocks rendering an actual image inline once we own painting.
+- Link tap behavior (navigate vs. reveal-and-edit) is an open product decision — see `open_questions.md` → OQ-6.
+
+**Build stages** (each independently shippable; do not attempt this as one PR):
+
+| Stage | What ships | Key milestone |
+|---|---|---|
+| 1 | Custom `RenderObject` + `TextInputClient` reimplementing today's plain-text editing behavior (no markdown rendering yet) | Proves the IME/caret/selection plumbing works before any rendering complexity is added — parity check against the current `TextField`-based editor |
+| 2 | Parser produces element list with source ranges; reveal-on-cursor-intersect implemented for the simplest elements (headings, bold/italic) | Core reveal/collapse mechanic proven |
+| 3 | Atomic-range cursor movement + tap-to-boundary hit-testing for collapsed elements | Cursor navigation feels correct, not just visually correct |
+| 4 | Lists — real bullet glyphs, real checkbox glyphs, position-computed ordered-list numbers | Closes out the PR #194 checkbox/ordered-list bugs correctly this time |
+| 5 | Inline images — real embedded image widgets, not `WidgetSpan`-constrained | Was blocked entirely under ADR-30; unblocked by this architecture |
+| 6 | Links | Pending OQ-6 resolution |
 
 ### Riverpod conventions
 

@@ -10,7 +10,47 @@ Normative framing in `manifesto.md` — read that first.
 
 ---
 
+## ADR-31: Custom RenderObject + TextInputClient live-preview markdown engine — supersedes ADR-30
+
+**Date**: 2026-07-04
+
+**Superseded**: ADR-30 (`buildTextSpan()` zero-width-hiding, single-buffer model). ADR-30 stays in this log for history — do not implement against it; see its entry below for the "Superseded" note.
+
+**What**: Replace the `TextField` + `TextEditingController.buildTextSpan()` approach entirely with a custom `RenderObject` that implements `TextInputClient` directly, bypassing `EditableText` and `RenderEditable`. The markdown source buffer remains the single source of truth (unchanged principle from ADR-30). A parse pass produces a flat set of elements — headings, list items, checkboxes, bold/italic/code spans, links, images, etc. — each anchored to a source range (`start`, `end` offsets into the buffer). The editor owns its own model-offset ↔ view-offset mapping and paints its own caret, selection highlight, and rendered content; none of this goes through Flutter's `TextPainter`/`RenderEditable` cursor-offset math.
+
+Full technical detail: `notes/dev/design_spec.md` → "Editor rendering engine (ADR-31)". Plain-English walkthrough (motivation, prior failures, accessible explanation of the approach): `notes/dev/live_preview_editor.md`.
+
+**Model**:
+
+- **Reveal/collapse by cursor intersection**: an element whose source range contains the current selection shows its raw markdown source, in place, directly editable. Every other element shows its collapsed/rendered form, which may be an entirely different length and content than its source — a heading loses its `# ` completely and grows in size; a link `[text](url)` shows only `text`; an image `![alt](url)` shows an actual embedded image; a checkbox shows a real glyph. Recomputing which elements are revealed is a cheap intersection test against cached element ranges on every selection change — it does not require a reparse.
+- **Reparse on edit, not on cursor move**: a text change re-runs the parse. QuKis are short-form notes; full reparse per keystroke is acceptable. Do not add incremental parsing until profiling proves it's needed.
+- **Atomic-range cursor movement**: arrow-key movement treats a collapsed element as a single hop — entering or leaving it in one keystroke, not character-by-character through hidden source text. This must be implemented by us; Flutter has no equivalent to CodeMirror 6's `atomicRanges` facet.
+- **Tap-to-boundary hit-testing**: tapping inside a collapsed element's rendered bounds places the cursor at whichever boundary (start or end of its source range) is nearer the tap's x-coordinate — not a fractional offset inside the collapsed content. This matches CodeMirror 6's own behavior; no editor surveyed in research does true sub-collapsed-element interpolation either.
+- **Direct IME integration**: the widget implements `TextInputClient`, opens its own `TextInputConnection` via `TextInput.attach()`, and receives `TextEditingValue` updates from the platform IME directly — it does not delegate to `EditableText`.
+- **Links**: tap behavior (navigate vs. reveal-and-edit) is an open product question — see `open_questions.md` → OQ-6.
+- **Images**: always reveal source on tap (no navigate action). No engine limitation blocks rendering an actual image inline once we own painting — we are no longer bound by `WidgetSpan`'s one-character limitation.
+
+**Why**: Research (2026-07-04) confirmed Flutter's `EditableText`/`RenderEditable` stack cannot support this feature at all, at the engine level — not a framework inconvenience we can code around:
+
+- `TextPosition` offsets used for caret placement and hit-testing index directly into the *rendered* `TextSpan`'s flattened plain text, with no reconciliation against `TextEditingController.text`. Nothing enforces or checks that the two match — a mismatch just produces silently wrong caret/selection behavior (flutter/flutter#49860).
+- `WidgetSpan` — the obvious tool for embedding a real image or any variable-length rendered content inline — always consumes exactly one UTF-16 code unit of cursor-offset space, confirmed directly by a Flutter engine maintainer in flutter/flutter#107432: "The entire WidgetSpan is treated as a single character by the Flutter engine's text APIs... this mismatch will cause problems for the text editor." This is baked into the text-layout engine itself, not app or framework code, and cannot be patched around from userland. Cursor placement in/around WidgetSpans is separately confirmed broken (flutter/flutter#150864).
+- No Flutter package or published project has solved true variable-length live-preview markdown editing on stock `TextField` primitives. `extended_text_field`'s `actualText` field patches serialization only (so copy/paste can reconstruct real markup), not cursor accuracy — same wall.
+- ADR-30's "character-count invariant" (rendered `TextSpan` length always equals buffer length) was, in retrospect, not a real design decision but a symptom of `buildTextSpan()`'s constraints — the only trick available within that model, and one that structurally cannot support real rendering. Every attempted fix on top of it (PR #194's list-bullet, checkbox, and ordered-list changes) inherited this same-length constraint and was therefore incapable of correct behavior no matter how carefully implemented — this was a documentation and architecture failure, not an implementation-quality failure.
+- CodeMirror 6 (the engine behind Obsidian's Live Preview) solves exactly this problem via an anchored-range decoration model (`Decoration.replace`, `RangeSet`, `atomicRanges`) that never requires rendered and source text to be the same length. This is proven, shipping architecture for exactly this feature — it is just not achievable through Flutter's high-level text-editing widgets, only through a custom render/input layer.
+
+**Rejected alternatives**:
+- *Continue patching `buildTextSpan()` (ADR-30)* — cannot support variable-length rendering at all; every fix inherits the same-length constraint. Rejected as a dead end, not merely incomplete.
+- *`WidgetSpan`-per-element* — blocked by the engine-level one-character-per-`WidgetSpan` limitation. Would require the same amount of custom offset-mapping work as the chosen approach, while still fighting an engine constraint the chosen approach avoids entirely by not routing through `TextPainter`'s built-in `TextPosition` math at all.
+- *Document-model editor (`super_editor`, `flutter_quill`, `appflowy_editor`-style)* — rejected in ADR-26 for markdown round-trip corruption risk (an AST/tree is authoritative, markdown is serialized at the edges), and that risk is unchanged today. The manifesto's open-data requirement (`.md` files are the real data, always) rules this out regardless of rendering sophistication.
+- *Accept same-length rendering permanently, ship a lesser feature* — does not meet the actual product requirement (real heading sizes, real link text, real inline images); rejected as insufficient for the app's core value proposition.
+
+**Scope note**: this is a new rendering/input engine, not a patch — build in independently-shippable stages (see `live_preview_editor.md` → "Build stages"), not as one PR. Long-term intent is to extract and publish this as a standalone pub.dev package once proven — no Flutter package currently does this correctly — but that goal must not distort near-term decisions into premature generality. Build for QuKi-Notes's actual needs first.
+
+---
+
 ## ADR-30: Single-buffer TextSpan editor — replace block-flip `markdown_live_editor`
+
+**Superseded by ADR-31** (2026-07-04) — the `buildTextSpan()` zero-width-hiding model cannot support variable-length rendering (real heading sizes, real link text, real inline images), which turned out to be a hard Flutter engine-level limitation, not a solvable framework inconvenience. Kept below for history; do not implement against this entry.
 
 **Date**: 2026-07-01
 
@@ -129,6 +169,8 @@ The modal appears before the editor, which adds one step to first launch. This i
 ---
 
 ## ADR-26: Replace `super_editor` with `markdown_live_editor` — Typora block-flip model
+
+**Superseded by ADR-30** (2026-07-01), itself superseded by ADR-31 (2026-07-04) — the block-flip rendering model was replaced by single-buffer `buildTextSpan()`, now replaced again by a custom RenderObject/TextInputClient engine. The package structure, extraction rationale, and rejection of document-model editors below remain valid; only the rendering mechanism changed.
 
 **Date**: 2026-06-15
 
