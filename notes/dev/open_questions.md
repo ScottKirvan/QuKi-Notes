@@ -62,6 +62,18 @@ Bulk-pull progress banner: always, or only above some threshold? Decision belong
 
 ---
 
+## OQ-6: Link tap behavior in rendered mode (ADR-31)
+
+Under the live-preview rendering engine (ADR-31), a rendered link shows only its label text, not `[label](url)`. Tapping it is ambiguous: does it navigate (open the URL, like a viewer would) or does it reveal-and-edit (place the cursor, show raw source, like every other element)?
+
+Prior art (Obsidian) treats these as competing actions and special-cases links: a plain click follows the link, and a different interaction (modifier-click, or tapping at the link's edge) reveals source for editing.
+
+QuKi-Notes is an editor first, not a link viewer — worth weighing whether "always reveal-and-edit, provide a separate explicit affordance to open the link" is a better fit than Obsidian's model before committing to click-to-navigate as the default.
+
+**Surface during:** ADR-31 Stage 6 (links).
+
+---
+
 ## Resolved / Removed
 
 - **OQ-5: Workflow JSON schema validation** — **Removed.** Workflow JSON DSL dropped entirely per ADR-14. Transports are Dart code; no JSON schema to validate.
@@ -74,4 +86,4 @@ Bulk-pull progress banner: always, or only above some threshold? Decision belong
 
 ---
 
-**Last Updated**: 2026-07-03
+**Last Updated**: 2026-07-04
