@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -36,6 +37,13 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
   TextInputConnection? _connection;
   TextEditingValue _value = TextEditingValue.empty;
   final ScrollController _scrollController = ScrollController();
+
+  // Bug 2: track which pointer kind initiated the current gesture so pan-to-
+  // select is restricted to mouse/stylus and touch gets normal scroll behaviour.
+  PointerDeviceKind _lastPointerKind = PointerDeviceKind.touch;
+
+  // Bug 4: anchor offset for long-press word selection.
+  int? _longPressAnchor;
 
   // The render object — accessed for position-to-offset mapping and caret
   // scroll tracking.
@@ -161,7 +169,12 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
 
   @override
   void connectionClosed() {
+    // Bug 3: when Android dismisses the keyboard, the connection is gone but
+    // the FocusNode stays focused. Unfocus so the cursor disappears and a
+    // subsequent tap re-enters edit mode cleanly via _onFocusChanged.
     _connection = null;
+    widget.focusNode.unfocus();
+    if (mounted) setState(() {});
   }
 
   @override
@@ -472,23 +485,29 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
   }
 
   // -------------------------------------------------------------------------
-  // Tap handling
+  // Tap and long-press handling
   // -------------------------------------------------------------------------
 
   void _onTapDown(TapDownDetails details) {
-    // Ensure the widget has focus so the keyboard opens.
+    // Bug 3: handle all focus/connection states so the keyboard is always
+    // shown after a tap regardless of how the previous session ended.
     if (!widget.focusNode.hasFocus) {
+      // _onFocusChanged fires → _openConnection → show().
       widget.focusNode.requestFocus();
+    } else if (_connection == null || !_connection!.attached) {
+      // Focus held but connection was closed (e.g. Android dismiss button).
+      _openConnection();
+    } else {
+      // Connection open but keyboard may be hidden — re-show.
+      _connection!.show();
     }
+
     final re = _renderEditor;
     if (re == null) return;
-    // Convert the global tap position to local coordinates relative to the
-    // render editor's top-left, accounting for the scroll offset.
+    // Bug 1: globalToLocal already accounts for the scroll translation baked
+    // into the render tree — do NOT add scrollOffset again.
     final localPos = re.globalToLocal(details.globalPosition);
-    final scrollOffset =
-        _scrollController.hasClients ? _scrollController.offset : 0.0;
-    final scrolledLocal = localPos + Offset(0, scrollOffset);
-    final position = re.positionForOffset(scrolledLocal);
+    final position = re.positionForOffset(localPos);
     _updateValue(
       _value.copyWith(
         selection: TextSelection.collapsed(offset: position.offset),
@@ -499,13 +518,16 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
   }
 
   void _onPanUpdate(DragUpdateDetails details) {
+    // Bug 2: touch drags scroll; only mouse/stylus drags extend the selection.
+    if (_lastPointerKind != PointerDeviceKind.mouse &&
+        _lastPointerKind != PointerDeviceKind.stylus) {
+      return;
+    }
     final re = _renderEditor;
     if (re == null) return;
+    // Bug 1: no scroll offset correction — globalToLocal handles it.
     final localPos = re.globalToLocal(details.globalPosition);
-    final scrollOffset =
-        _scrollController.hasClients ? _scrollController.offset : 0.0;
-    final scrolledLocal = localPos + Offset(0, scrollOffset);
-    final position = re.positionForOffset(scrolledLocal);
+    final position = re.positionForOffset(localPos);
     _updateValue(
       _value.copyWith(
         selection: _value.selection.copyWith(extentOffset: position.offset),
@@ -514,6 +536,56 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     );
     _connection?.setEditingState(_value);
   }
+
+  // Bug 4: long-press selects the word under the finger (touch only).
+  void _onLongPressStart(LongPressStartDetails details) {
+    final re = _renderEditor;
+    if (re == null) return;
+    // Bug 1 fix applied: no scroll offset.
+    final localPos = re.globalToLocal(details.globalPosition);
+    final position = re.positionForOffset(localPos);
+    final wordSel = _selectWordAt(position.offset);
+    _longPressAnchor = wordSel.baseOffset;
+    _updateValue(_value.copyWith(selection: wordSel), notify: false);
+    _connection?.setEditingState(_value);
+  }
+
+  void _onLongPressMoveUpdate(LongPressMoveUpdateDetails details) {
+    final re = _renderEditor;
+    if (re == null || _longPressAnchor == null) return;
+    final localPos = re.globalToLocal(details.globalPosition);
+    final position = re.positionForOffset(localPos);
+    final anchor = _longPressAnchor!;
+    final extent = position.offset;
+    final sel = extent >= anchor
+        ? TextSelection(baseOffset: anchor, extentOffset: extent)
+        : TextSelection(baseOffset: extent, extentOffset: anchor);
+    _updateValue(_value.copyWith(selection: sel), notify: false);
+    _connection?.setEditingState(_value);
+  }
+
+  void _onLongPressEnd(LongPressEndDetails details) {
+    _longPressAnchor = null;
+    // Ask the IME to show the copy/paste toolbar.
+    _connection?.show();
+  }
+
+  TextSelection _selectWordAt(int offset) {
+    final text = _value.text;
+    if (text.isEmpty) return TextSelection.collapsed(offset: offset);
+    int start = offset;
+    while (start > 0 && _isWordChar(text[start - 1])) {
+      start--;
+    }
+    int end = offset;
+    while (end < text.length && _isWordChar(text[end])) {
+      end++;
+    }
+    if (start == end) return TextSelection.collapsed(offset: offset);
+    return TextSelection(baseOffset: start, extentOffset: end);
+  }
+
+  bool _isWordChar(String c) => RegExp(r'\w').hasMatch(c);
 
   // -------------------------------------------------------------------------
   // Build
@@ -546,11 +618,18 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
       child: renderWidget,
     );
 
-    final gestureDetector = GestureDetector(
-      behavior: HitTestBehavior.translucent,
-      onTapDown: _onTapDown,
-      onPanUpdate: _onPanUpdate,
-      child: scrollable,
+    // Bug 2: track pointer device kind so _onPanUpdate can gate on mouse/stylus.
+    final gestureDetector = Listener(
+      onPointerDown: (e) => _lastPointerKind = e.kind,
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTapDown: _onTapDown,
+        onPanUpdate: _onPanUpdate,
+        onLongPressStart: _onLongPressStart,
+        onLongPressMoveUpdate: _onLongPressMoveUpdate,
+        onLongPressEnd: _onLongPressEnd,
+        child: scrollable,
+      ),
     );
 
     return Focus(
