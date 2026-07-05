@@ -12,6 +12,8 @@
 
 * **editor:** theme cursor/selection colors; [@visible](https://github.com/visible)ForTesting on setSelectionForTesting ([387bd33](https://github.com/ScottKirvan/QuKi-Notes/commit/387bd335046b453c99ea7e9163f823e9bd96eb93))
 
+Includes PRs: [#200](https://github.com/ScottKirvan/QuKi-Notes/pull/200), [#201](https://github.com/ScottKirvan/QuKi-Notes/pull/201), [#202](https://github.com/ScottKirvan/QuKi-Notes/pull/202)
+
 ## [0.15.3](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.15.2...v0.15.3) (2026-07-03)
 
 ### Pull Requests
