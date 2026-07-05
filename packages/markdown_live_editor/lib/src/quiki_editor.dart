@@ -615,15 +615,11 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
       _elements = MdParser.parse(_value.text);
     }
 
-    final syntaxColor = widget.config.syntaxColor ??
-        (textStyle.color ?? Colors.white).withValues(alpha: 0.35);
-
     final renderModel = RenderModel.build(
       source: _value.text,
       elements: _elements,
       cursorOffset: _value.selection.isValid ? _value.selection.baseOffset : -1,
       baseStyle: textStyle,
-      syntaxColor: syntaxColor,
     );
 
     final renderWidget = QuikiRenderWidget(
