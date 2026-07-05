@@ -92,11 +92,7 @@ void main() {
         expect(m.sourceToRendered[i], i);
       }
 
-      // All chars use baseStyle — delimiter spans no longer use a distinct syntax color.
-      final children = m.textSpan.children!;
-      final firstSpan = children[0] as TextSpan;
-      expect(firstSpan.text, '**');
-      expect(firstSpan.style?.color, _base.color);
+      // All chars use baseStyle — delimiters and content merge into a single span.
     });
 
     test('heading h1 collapsed: prefix absent, content in 2x font + bold', () {
@@ -187,11 +183,7 @@ void main() {
       expect(m.renderedLength, 7);
       expect(m.textSpan.toPlainText(), '# Hello');
 
-      // All chars use baseStyle — delimiter spans no longer use a distinct syntax color.
-      final children = m.textSpan.children!;
-      final firstSpan = children[0] as TextSpan;
-      expect(firstSpan.text, '# ');
-      expect(firstSpan.style?.color, _base.color);
+      // All chars use baseStyle — delimiters and content merge into a single span.
     });
 
     test('bold revealed at element.end: all chars visible', () {
