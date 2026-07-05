@@ -64,7 +64,7 @@ Because this is a real rebuild and not a tweak, we're doing it in stages, each o
 3. Get cursor movement and tap-placement feeling right around rendered pieces specifically — this is where most of the subtlety lives.
 4. Bring back lists, checkboxes, and ordered-list numbering — done as real rendering this time, closing out the bugs from PR #194 correctly instead of patching around them again.
 5. Add real inline images — something that was flatly impossible under the old model.
-6. Add links last, once we've decided what tapping a link should actually do (open it, or edit it) — that's a genuine open product question, not just an engineering one.
+6. Add links. Tapping a rendered link navigates (opens the URL) — QuKi-Notes is a scratchpad and pastebin as much as a capture surface, so following links out of a note is a first-class use case. Reveal-and-edit happens when the cursor enters the link via keyboard (arrow in from either side, or backspace in from the right), or when the cursor lands at the element boundary — the same rule as every other element type.
 
 ---
 

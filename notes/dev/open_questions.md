@@ -62,15 +62,13 @@ Bulk-pull progress banner: always, or only above some threshold? Decision belong
 
 ---
 
-## OQ-6: Link tap behavior in rendered mode (ADR-31)
+## ~~OQ-6: Link tap behavior in rendered mode (ADR-31)~~ — **Resolved 2026-07-04**
 
-Under the live-preview rendering engine (ADR-31), a rendered link shows only its label text, not `[label](url)`. Tapping it is ambiguous: does it navigate (open the URL, like a viewer would) or does it reveal-and-edit (place the cursor, show raw source, like every other element)?
+**Resolution**: Tap navigates (opens the URL). Reveal-and-edit is triggered by cursor entering the element via keyboard: arrow-key in from either side, or backspace in from the right. Cursor landing at the start or end boundary of the source range also reveals — consistent with the boundary rule for all other element types.
 
-Prior art (Obsidian) treats these as competing actions and special-cases links: a plain click follows the link, and a different interaction (modifier-click, or tapping at the link's edge) reveals source for editing.
+**Reasoning**: QuKi-Notes is a scratchpad and pastebin as much as a capture surface; following links (e.g., a parts list with product URLs) is a primary workflow. Navigate-on-tap matches that use case and matches the expectation of every other reading surface. Keyboard-entry is the natural and frictionless path to edit mode; no special gesture is needed. Obsidian's split-behavior (click-navigates, edge-tap/modifier-click reveals) was considered but the keyboard-only reveal path is simpler and sufficient.
 
-QuKi-Notes is an editor first, not a link viewer — worth weighing whether "always reveal-and-edit, provide a separate explicit affordance to open the link" is a better fit than Obsidian's model before committing to click-to-navigate as the default.
-
-**Surface during:** ADR-31 Stage 6 (links).
+**Recorded in**: ADR-31 links bullet, `notes/dev/decisions.md`.
 
 ---
 
