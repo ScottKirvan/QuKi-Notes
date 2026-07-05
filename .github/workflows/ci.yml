@@ -23,7 +23,15 @@ jobs:
         run: flutter analyze
 
       - name: Format check
-        run: dart format --output=none --set-exit-if-changed lib/ test/
+        run: dart format --output=none --set-exit-if-changed lib/ test/ packages/markdown_live_editor/
 
       - name: Test
         run: flutter test
+
+      - name: Install dependencies (markdown_live_editor)
+        run: flutter pub get
+        working-directory: packages/markdown_live_editor
+
+      - name: Test (markdown_live_editor)
+        run: flutter test
+        working-directory: packages/markdown_live_editor
