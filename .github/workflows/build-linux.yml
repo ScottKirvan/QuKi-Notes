@@ -37,6 +37,14 @@ jobs:
           tar -czvf quki-notes-linux.tar.gz \
             -C build/linux/x64/release/bundle .
 
+      - name: Upload tarball as artifact (manual dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: quki-notes-linux
+          path: quki-notes-linux.tar.gz
+          retention-days: 14
+
       - name: Upload to GitHub Release
         if: github.event_name != 'workflow_dispatch'
         uses: softprops/action-gh-release@v2

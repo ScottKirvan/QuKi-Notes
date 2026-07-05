@@ -1,8 +1,8 @@
-# iOS build is deferred — macOS GitHub Actions runner cost.
-# See CLAUDE.md for details. Trigger is workflow_dispatch only; no tag trigger.
-name: Build iOS (deferred)
+name: Build iOS
 
 on:
+  release:
+    types: [published]
   workflow_dispatch:
 
 jobs:
@@ -10,5 +10,37 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Deferred
-        run: echo "iOS build deferred — see CLAUDE.md"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build iOS (no code sign)
+        # Produces a .app bundle — not directly installable on a real device
+        # without signing. For device install, configure APPLE_CERTIFICATE,
+        # PROVISIONING_PROFILE, and TEAM_ID secrets, then switch to:
+        #   flutter build ipa --release
+        run: flutter build ios --release --no-codesign
+
+      - name: Zip app bundle
+        run: |
+          cd build/ios/Release-iphoneos
+          zip -r ../../../quki-notes-ios.zip Runner.app
+
+      - name: Upload zip as artifact (manual dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: quki-notes-ios
+          path: quki-notes-ios.zip
+          retention-days: 14
+
+      - name: Upload to GitHub Release
+        if: github.event_name != 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: quki-notes-ios.zip
