@@ -124,15 +124,13 @@ Future<void> cleanup(WidgetTester tester) async {
 
 void main() {
   group('EditorScreen renders', () {
-    testWidgets('shows MarkdownEditor on launch with single TextField',
+    testWidgets('shows MarkdownEditor on launch with QuikiEditor',
         (tester) async {
       await tester.pumpWidget(_buildEditor());
       await tester.pump();
 
-      // Single-buffer architecture: MarkdownEditor always renders one TextField.
+      // ADR-31 Stage 1: MarkdownEditor now wraps QuikiEditor (custom RenderObject).
       expect(find.byType(MarkdownEditor), findsOneWidget);
-      expect(find.byType(TextField), findsOneWidget,
-          reason: 'Single-buffer editor always has exactly one TextField');
 
       await cleanup(tester);
     });
@@ -293,12 +291,15 @@ void main() {
       ));
       await tester.pump();
 
-      // Switch to plain-text mode so there is a single TextField to type into.
-      await tester.tap(find.byIcon(LucideIcons.type));
+      // Focus the editor and inject text via the TextInputClient.
+      await tester.tap(find.byType(MarkdownEditor));
       await tester.pump();
-
-      // Type content so the empty-body guard does not fire.
-      await tester.enterText(find.byType(TextField), 'toss me');
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: 'toss me',
+          selection: TextSelection.collapsed(offset: 7),
+        ),
+      );
       await tester.pump();
 
       await tester.tap(find.byIcon(LucideIcons.menu));
@@ -326,11 +327,15 @@ void main() {
       await tester.pumpWidget(_buildEditor(storage: storage));
       await tester.pump();
 
-      // Switch to plain-text mode so there is a single TextField to type into.
-      await tester.tap(find.byIcon(LucideIcons.type));
+      // Focus the editor and inject text via the TextInputClient.
+      await tester.tap(find.byType(MarkdownEditor));
       await tester.pump();
-
-      await tester.enterText(find.byType(TextField), 'debounce test');
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: 'debounce test',
+          selection: TextSelection.collapsed(offset: 13),
+        ),
+      );
       await tester.pump();
 
       // Advance past the 2s debounce — timer fires, save() runs.
@@ -394,7 +399,7 @@ void main() {
   });
 
   group('EditorScreen switching QuKi', () {
-    testWidgets('loads body of the selected QuKi into the TextField',
+    testWidgets('loads body of the selected QuKi into the editor',
         (tester) async {
       late Directory tmpDir;
       late QuKiStorage storage;
@@ -419,6 +424,11 @@ void main() {
       ));
       await tester.pump();
 
+      // Focus the editor so QuikiEditorState opens a TextInputConnection.
+      // When setValue is called after load, the IME state will be updated.
+      await tester.tap(find.byType(MarkdownEditor));
+      await tester.pump();
+
       await tester.runAsync(() async {
         container.read(activeQukiIdProvider.notifier).setId(meta.id);
         await Future<void>.delayed(const Duration(milliseconds: 300));
@@ -426,10 +436,13 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      // Single-buffer architecture: content is in the single TextField's controller.
-      final tf = tester.widget<TextField>(find.byType(TextField).first);
-      expect(tf.controller!.text, 'switched content',
-          reason: 'Editor must display the loaded QuKi body after switch');
+      // ADR-31 Stage 1: content is in the QuikiEditor's internal buffer.
+      // Verify via the IME editing state that was pushed to the platform.
+      expect(
+        tester.testTextInput.editingState!['text'],
+        'switched content',
+        reason: 'Editor must display the loaded QuKi body after switch',
+      );
 
       await cleanup(tester);
     });

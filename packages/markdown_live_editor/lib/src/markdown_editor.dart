@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'editor_config.dart';
+import 'quiki_editor.dart';
 import 'span_parser.dart';
 
 // ---------------------------------------------------------------------------
@@ -110,6 +111,17 @@ class MarkdownEditorController {
 
   /// Alias for [requestFocus] — kept for API stability.
   void focusFirstBlock() => _state?._focusNode.requestFocus();
+
+  /// Sets the current selection on the underlying text controller.
+  ///
+  /// Intended for widget tests that need to position the cursor or establish a
+  /// selection before invoking toolbar operations. Must not be called from
+  /// production code paths.
+  void setSelectionForTesting(TextSelection selection) {
+    final tc = _state?._textController;
+    if (tc == null) return;
+    tc.value = tc.value.copyWith(selection: selection);
+  }
 
   /// Returns the current selection if valid; otherwise returns the last saved
   /// valid selection. Toolbar methods call this so they can operate even after
@@ -409,18 +421,11 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
+    return QuikiEditor(
       controller: _textController,
       focusNode: _focusNode,
       autofocus: widget.autofocus,
-      maxLines: null,
-      expands: true,
-      textAlignVertical: TextAlignVertical.top,
-      style: widget.config.textStyle,
-      decoration: InputDecoration(
-        border: InputBorder.none,
-        contentPadding: widget.config.contentPadding,
-      ),
+      config: widget.config,
       onChanged: widget.onChanged,
     );
   }
