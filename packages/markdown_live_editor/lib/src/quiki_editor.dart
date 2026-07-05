@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'editor_config.dart';
+import 'md_parser.dart';
 import 'quiki_render_editor.dart';
+import 'render_model.dart';
 
 // ---------------------------------------------------------------------------
 // _QuikiEditor — stateful widget
@@ -44,6 +46,10 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
 
   // Bug 4: anchor offset for long-press word selection.
   int? _longPressAnchor;
+
+  // Parse cache — re-parsed only when text changes.
+  String _lastParsedText = '';
+  List<MdElement> _elements = const [];
 
   // The render object — accessed for position-to-offset mapping and caret
   // scroll tracking.
@@ -603,10 +609,27 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     final selectionColor = selectionStyle.selectionColor ??
         Theme.of(context).colorScheme.primary.withValues(alpha: 0.4);
 
+    // Re-parse only when text changed; element list is cached across frames.
+    if (_value.text != _lastParsedText) {
+      _lastParsedText = _value.text;
+      _elements = MdParser.parse(_value.text);
+    }
+
+    final syntaxColor = widget.config.syntaxColor ??
+        (textStyle.color ?? Colors.white).withValues(alpha: 0.35);
+
+    final renderModel = RenderModel.build(
+      source: _value.text,
+      elements: _elements,
+      cursorOffset: _value.selection.isValid ? _value.selection.baseOffset : -1,
+      baseStyle: textStyle,
+      syntaxColor: syntaxColor,
+    );
+
     final renderWidget = QuikiRenderWidget(
       key: _renderKey,
-      value: _value,
-      textStyle: textStyle,
+      renderModel: renderModel,
+      selection: _value.selection,
       padding: padding,
       focused: widget.focusNode.hasFocus,
       cursorColor: cursorColor,

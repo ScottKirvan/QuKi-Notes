@@ -2,6 +2,8 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/widgets.dart';
 
+import 'render_model.dart';
+
 // ---------------------------------------------------------------------------
 // QuikiRenderWidget — LeafRenderObjectWidget
 //
@@ -12,16 +14,16 @@ import 'package:flutter/widgets.dart';
 class QuikiRenderWidget extends LeafRenderObjectWidget {
   const QuikiRenderWidget({
     super.key,
-    required this.value,
-    required this.textStyle,
+    required this.renderModel,
+    required this.selection,
     required this.padding,
     required this.focused,
     required this.cursorColor,
     required this.selectionColor,
   });
 
-  final TextEditingValue value;
-  final TextStyle textStyle;
+  final RenderModel renderModel;
+  final TextSelection selection;
   final EdgeInsets padding;
   final bool focused;
   final Color cursorColor;
@@ -30,8 +32,8 @@ class QuikiRenderWidget extends LeafRenderObjectWidget {
   @override
   QuikiRenderEditor createRenderObject(BuildContext context) {
     return QuikiRenderEditor(
-      value: value,
-      textStyle: textStyle,
+      renderModel: renderModel,
+      selection: selection,
       padding: padding,
       focused: focused,
       cursorColor: cursorColor,
@@ -45,8 +47,8 @@ class QuikiRenderWidget extends LeafRenderObjectWidget {
     QuikiRenderEditor renderObject,
   ) {
     renderObject
-      ..value = value
-      ..textStyle = textStyle
+      ..renderModel = renderModel
+      ..selection = selection
       ..padding = padding
       ..focused = focused
       ..cursorColor = cursorColor
@@ -63,26 +65,26 @@ class QuikiRenderWidget extends LeafRenderObjectWidget {
 
 class QuikiRenderEditor extends RenderBox {
   QuikiRenderEditor({
-    required TextEditingValue value,
-    required TextStyle textStyle,
+    required RenderModel renderModel,
+    required TextSelection selection,
     required EdgeInsets padding,
     required bool focused,
     required Color cursorColor,
     required Color selectionColor,
-  })  : _value = value,
-        _textStyle = textStyle,
+  })  : _renderModel = renderModel,
+        _selection = selection,
         _padding = padding,
         _focused = focused,
         _cursorColor = cursorColor,
         _selectionColor = selectionColor {
     _textPainter = TextPainter(
-      text: _buildTextSpan(),
+      text: renderModel.textSpan,
       textDirection: ui.TextDirection.ltr,
     );
   }
 
-  TextEditingValue _value;
-  TextStyle _textStyle;
+  RenderModel _renderModel;
+  TextSelection _selection;
   EdgeInsets _padding;
   bool _focused;
   Color _cursorColor;
@@ -93,18 +95,17 @@ class QuikiRenderEditor extends RenderBox {
   // Property setters — each marks the render object dirty as needed.
   // -------------------------------------------------------------------------
 
-  set value(TextEditingValue v) {
-    if (_value == v) return;
-    _value = v;
-    _textPainter.text = _buildTextSpan();
+  set renderModel(RenderModel m) {
+    if (_renderModel == m) return;
+    _renderModel = m;
+    _textPainter.text = m.textSpan;
     markNeedsLayout();
   }
 
-  set textStyle(TextStyle s) {
-    if (_textStyle == s) return;
-    _textStyle = s;
-    _textPainter.text = _buildTextSpan();
-    markNeedsLayout();
+  set selection(TextSelection s) {
+    if (_selection == s) return;
+    _selection = s;
+    markNeedsPaint();
   }
 
   set padding(EdgeInsets p) {
@@ -129,14 +130,6 @@ class QuikiRenderEditor extends RenderBox {
     if (_selectionColor == c) return;
     _selectionColor = c;
     markNeedsPaint();
-  }
-
-  // -------------------------------------------------------------------------
-  // TextSpan builder — plain text only in Stage 1.
-  // -------------------------------------------------------------------------
-
-  InlineSpan _buildTextSpan() {
-    return TextSpan(text: _value.text, style: _textStyle);
   }
 
   // -------------------------------------------------------------------------
@@ -170,18 +163,27 @@ class QuikiRenderEditor extends RenderBox {
   /// source TextPosition in the buffer.
   TextPosition positionForOffset(Offset localPosition) {
     final textOffset = localPosition - _padding.topLeft;
-    return _textPainter.getPositionForOffset(textOffset);
+    final renderedPos = _textPainter.getPositionForOffset(textOffset);
+    final sourceOffset = _renderModel.sourceForRendered(renderedPos.offset);
+    return TextPosition(offset: sourceOffset);
   }
 
   /// Maps a source TextPosition to a canvas offset relative to the text origin
   /// (does NOT include padding — callers add padding.topLeft as needed).
   Offset getOffsetForCaret(TextPosition position) {
-    return _textPainter.getOffsetForCaret(position, Rect.zero);
+    final rOff = _renderModel.renderedForSource(position.offset);
+    return _textPainter.getOffsetForCaret(
+      TextPosition(offset: rOff),
+      Rect.zero,
+    );
   }
 
-  /// Maps a canvas offset (relative to text origin, no padding) to a TextPosition.
+  /// Maps a canvas offset (relative to text origin, no padding) to a
+  /// source TextPosition.
   TextPosition getPositionForOffset(Offset textOffset) {
-    return _textPainter.getPositionForOffset(textOffset);
+    final renderedPos = _textPainter.getPositionForOffset(textOffset);
+    final sourceOffset = _renderModel.sourceForRendered(renderedPos.offset);
+    return TextPosition(offset: sourceOffset);
   }
 
   /// The preferred line height from the TextPainter.
@@ -203,10 +205,12 @@ class QuikiRenderEditor extends RenderBox {
     final textOrigin = offset + _padding.topLeft;
 
     // Draw selection highlight boxes.
-    final sel = _value.selection;
+    final sel = _selection;
     if (sel.isValid && !sel.isCollapsed) {
+      final rStart = _renderModel.renderedForSource(sel.start);
+      final rEnd = _renderModel.renderedForSource(sel.end);
       final boxes = _textPainter.getBoxesForSelection(
-        TextSelection(baseOffset: sel.start, extentOffset: sel.end),
+        TextSelection(baseOffset: rStart, extentOffset: rEnd),
       );
       final highlightPaint = Paint()
         ..color = _selectionColor
@@ -221,12 +225,13 @@ class QuikiRenderEditor extends RenderBox {
 
     // Draw caret when focused and selection is collapsed.
     if (_focused && sel.isValid && sel.isCollapsed) {
+      final rOff = _renderModel.renderedForSource(sel.baseOffset);
       final caretOffset = _textPainter.getOffsetForCaret(
-        TextPosition(offset: sel.baseOffset),
+        TextPosition(offset: rOff),
         Rect.zero,
       );
       final caretHeight = _textPainter.getFullHeightForCaret(
-        TextPosition(offset: sel.baseOffset),
+        TextPosition(offset: rOff),
         Rect.zero,
       );
       final caretRect = Rect.fromLTWH(
