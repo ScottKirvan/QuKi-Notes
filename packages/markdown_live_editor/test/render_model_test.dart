@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:markdown_live_editor/markdown_live_editor.dart';
 
 const _base = TextStyle(fontSize: 16.0, color: Color(0xFFFFFFFF));
-const _syntax = Color(0x59FFFFFF);
 
 RenderModel _build(
   String source,
@@ -15,7 +14,6 @@ RenderModel _build(
     elements: elements,
     cursorOffset: cursorOffset,
     baseStyle: _base,
-    syntaxColor: _syntax,
   );
 }
 
@@ -79,7 +77,7 @@ void main() {
     });
 
     test(
-        'bold revealed: cursor inside → identity mapping, delimiter spans use syntaxColor',
+        'bold revealed: cursor inside → identity mapping, all chars use baseStyle color',
         () {
       // source = '**bold**', bold(0,8), cursorOffset = 3
       const source = '**bold**';
@@ -94,11 +92,11 @@ void main() {
         expect(m.sourceToRendered[i], i);
       }
 
-      // First TextSpan child should have syntaxColor (the '**' delimiters).
+      // All chars use baseStyle — delimiter spans no longer use a distinct syntax color.
       final children = m.textSpan.children!;
       final firstSpan = children[0] as TextSpan;
       expect(firstSpan.text, '**');
-      expect(firstSpan.style?.color, _syntax);
+      expect(firstSpan.style?.color, _base.color);
     });
 
     test('heading h1 collapsed: prefix absent, content in 2x font + bold', () {
@@ -189,11 +187,33 @@ void main() {
       expect(m.renderedLength, 7);
       expect(m.textSpan.toPlainText(), '# Hello');
 
-      // First span should be '# ' with syntaxColor.
+      // All chars use baseStyle — delimiter spans no longer use a distinct syntax color.
       final children = m.textSpan.children!;
       final firstSpan = children[0] as TextSpan;
       expect(firstSpan.text, '# ');
-      expect(firstSpan.style?.color, _syntax);
+      expect(firstSpan.style?.color, _base.color);
+    });
+
+    test('bold revealed at element.end: all chars visible', () {
+      // source = '**x**', bold(0,5), cursorOffset = 5 (= element.end)
+      // With cursorOffset <= element.end, the element is still revealed.
+      const source = '**x**';
+      final el = MdElement(kind: MdElKind.bold, start: 0, end: 5);
+      final m = _build(source, [el], cursorOffset: 5);
+
+      expect(m.renderedLength, 5);
+      expect(m.textSpan.toPlainText(), '**x**');
+    });
+
+    test('h1 revealed at element.end: delimiter chars visible', () {
+      // source = '# A', h1(0,3), cursorOffset = 3 (= source.length = element.end)
+      // With cursorOffset <= element.end, the element is still revealed.
+      const source = '# A';
+      final elements = MdParser.parse(source);
+      final m = _build(source, elements, cursorOffset: 3);
+
+      expect(m.renderedLength, 3);
+      expect(m.textSpan.toPlainText(), '# A');
     });
   });
 }

@@ -52,7 +52,6 @@ class RenderModel {
     required List<MdElement> elements,
     required int cursorOffset,
     required TextStyle baseStyle,
-    required Color syntaxColor,
   }) {
     if (source.isEmpty) return _empty;
 
@@ -88,7 +87,7 @@ class RenderModel {
 
       final revealed = currentEl != null &&
           cursorOffset >= currentEl.start &&
-          cursorOffset < currentEl.end;
+          cursorOffset <= currentEl.end;
 
       // Determine visibility and style for this character.
       bool visible;
@@ -99,9 +98,7 @@ class RenderModel {
         charStyle = baseStyle;
       } else if (revealed) {
         visible = true;
-        charStyle = currentEl.isDelimiter(si)
-            ? baseStyle.copyWith(color: syntaxColor)
-            : baseStyle;
+        charStyle = baseStyle;
       } else {
         // Collapsed.
         if (currentEl.isDelimiter(si)) {
