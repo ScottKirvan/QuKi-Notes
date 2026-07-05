@@ -28,6 +28,14 @@ jobs:
       - name: Zip release
         run: Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath quki-notes-windows.zip
 
+      - name: Upload zip as artifact (manual dispatch)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@v4
+        with:
+          name: quki-notes-windows
+          path: quki-notes-windows.zip
+          retention-days: 14
+
       - name: Upload to GitHub Release
         if: github.event_name != 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
