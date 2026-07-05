@@ -27,7 +27,7 @@ Single-device, local-only in MVP. Sync is a deferred plugin axis. MCP is reserve
 | **QuKis**       | The list view screen title. "Stream" is acceptable in internal code and docs only.           |
 | **Recently Deleted** | Data recovery screen for soft-deleted QuKis. Not an organizer feature.               |
 
-Do **not** use in UI copy: vault, library, document, file, note (the entity is QuKi), workflow, inbox, toss, stream.
+Do **not** use in UI copy: vault, library, document, file, note (the entity is QuKi - ok to use "note" to avoid unnecessary obfuscation), workflow, inbox, toss, stream.
 
 ---
 
@@ -337,7 +337,7 @@ Supersedes the `buildTextSpan()` zero-width-hiding model (ADR-30). Full rational
 
 **Links vs. images**:
 - Images always reveal source on tap (no navigate action) — no engine limitation blocks rendering an actual image inline once we own painting.
-- Link tap behavior (navigate vs. reveal-and-edit) is an open product decision — see `open_questions.md` → OQ-6.
+- Link tap behavior: tap navigates (opens URL); reveal-and-edit is triggered by cursor entering via keyboard (arrow key from either side, backspace from the right) or cursor landing at the element boundary — consistent with the boundary rule for all other element types. Resolved 2026-07-04 (OQ-6).
 
 **Build stages** (each independently shippable; do not attempt this as one PR):
 
@@ -348,7 +348,7 @@ Supersedes the `buildTextSpan()` zero-width-hiding model (ADR-30). Full rational
 | 3 | Atomic-range cursor movement + tap-to-boundary hit-testing for collapsed elements | Cursor navigation feels correct, not just visually correct |
 | 4 | Lists — real bullet glyphs, real checkbox glyphs, position-computed ordered-list numbers | Closes out the PR #194 checkbox/ordered-list bugs correctly this time |
 | 5 | Inline images — real embedded image widgets, not `WidgetSpan`-constrained | Was blocked entirely under ADR-30; unblocked by this architecture |
-| 6 | Links | Pending OQ-6 resolution |
+| 6 | Links — tap navigates; keyboard entry or boundary touch reveals source for editing (OQ-6 resolved) | Full live-preview feature complete |
 
 ### Riverpod conventions
 
