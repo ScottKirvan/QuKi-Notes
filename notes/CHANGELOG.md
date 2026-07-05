@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.16.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.15.3...v0.16.0) (2026-07-05)
+
+
+### Features
+
+* **editor:** ADR-31 Stage 1 — custom RenderObject + TextInputClient plain-text editor ([0fdddf8](https://github.com/ScottKirvan/QuKi-Notes/commit/0fdddf851f0689ef82a075319e42ee738a06688f))
+
+
+### Bug Fixes
+
+* **editor:** theme cursor/selection colors; [@visible](https://github.com/visible)ForTesting on setSelectionForTesting ([387bd33](https://github.com/ScottKirvan/QuKi-Notes/commit/387bd335046b453c99ea7e9163f823e9bd96eb93))
+
 ## [0.15.3](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.15.2...v0.15.3) (2026-07-03)
 
 ### Pull Requests
