@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.1](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.16.0...v0.16.1) (2026-07-05)
+
+
+### Bug Fixes
+
+* **editor:** gesture handling, keyboard lifecycle, scroll hit-test, long-press selection ([059f979](https://github.com/ScottKirvan/QuKi-Notes/commit/059f979c6cc5e2f36dc540727e0d49c00e11f926))
+
 ## [0.16.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.15.3...v0.16.0) (2026-07-05)
 
 
