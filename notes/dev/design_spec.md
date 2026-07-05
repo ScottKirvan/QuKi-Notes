@@ -6,9 +6,9 @@
 
 ## TL;DR
 
-QuKi-Notes is a **capture-first** app:
+QuKi-Notes is a **scratchpad, pasteboard, and capture surface** — a blank canvas when you open it:
 
-- **Capture**: open the app → blank editor, cursor ready. Type, paste images, hit back. Done.
+- **Open and go**: blank editor, cursor ready. Type, paste, draft, link-dump, whiteboard. No title, no folder, no template.
 - **Use it, send it, or let it fade**: use the content right there, fire a transport plugin to send the QuKi somewhere (a "QuKi-Toss"), or just let it drift down the stream as newer entries arrive. All three are valid outcomes.
 - **History**: the stream surfaces newest-first. Older QuKis age off the top but stay searchable. Nothing auto-deletes.
 
@@ -33,12 +33,12 @@ Do **not** use in UI copy: vault, library, document, file, note (the entity is Q
 
 ## Target Platforms
 
-Priority order (single Flutter codebase across all):
+All platforms are equally valid targets. Build and CI priority reflects development order, not product importance:
 
-1. **Android** — primary daily-driver target. Pixel 6 Pro is the dev device.
-2. **Windows** — desktop companion.
+1. **Android** — first active build and device-test platform. Pixel 6 Pro is the dev device.
+2. **Windows** — desktop, second active target.
 3. **Linux** — third active target. Flutter Linux desktop is supported; we accept risk and track quality issues as OQs.
-4. **iPadOS / iOS / macOS** — deferred. Codebase compiles for them; CI does not build them (macOS GitHub Actions runner cost).
+4. **iPadOS / iOS / macOS** — deferred CI and device testing only. Codebase compiles for them; scaffolding, pubspec deps, and platform config must be kept current so enabling them requires zero rework.
 
 Linux note: `flutter_secure_storage` on Linux uses `libsecret` (gnome-keyring / KWallet). On headless/server Linux this would fail, but our user-facing target is desktop Linux with a keyring daemon present.
 
@@ -632,7 +632,7 @@ For beta testers reinstalling frequently, this makes every reinstall a data-loss
 
 #### 2. Velocity — keyboard not raised on cold launch
 
-**Gap**: The manifesto promises "open the app → start typing." On cold launch on Android, the soft keyboard is not raised automatically, requiring an extra tap before the user can type. This adds friction at the most common and most manifesto-critical moment: the first capture.
+**Gap**: The manifesto promises "open the app → start typing." On cold launch on Android, the soft keyboard is not raised automatically, requiring an extra tap before the user can type. This directly violates the Velocity principle — an extra tap at the moment the app opens is maximum friction at minimum tolerance.
 
 **Priority: High — but not data-critical. Address in phase 3 after #134.**
 
