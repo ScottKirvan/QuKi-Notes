@@ -115,8 +115,8 @@ class MarkdownEditorController {
   /// Sets the current selection on the underlying text controller.
   ///
   /// Intended for widget tests that need to position the cursor or establish a
-  /// selection before invoking toolbar operations. Must not be called from
-  /// production code paths.
+  /// selection before invoking toolbar operations.
+  @visibleForTesting
   void setSelectionForTesting(TextSelection selection) {
     final tc = _state?._textController;
     if (tc == null) return;

@@ -16,12 +16,16 @@ class QuikiRenderWidget extends LeafRenderObjectWidget {
     required this.textStyle,
     required this.padding,
     required this.focused,
+    required this.cursorColor,
+    required this.selectionColor,
   });
 
   final TextEditingValue value;
   final TextStyle textStyle;
   final EdgeInsets padding;
   final bool focused;
+  final Color cursorColor;
+  final Color selectionColor;
 
   @override
   QuikiRenderEditor createRenderObject(BuildContext context) {
@@ -30,6 +34,8 @@ class QuikiRenderWidget extends LeafRenderObjectWidget {
       textStyle: textStyle,
       padding: padding,
       focused: focused,
+      cursorColor: cursorColor,
+      selectionColor: selectionColor,
     );
   }
 
@@ -42,7 +48,9 @@ class QuikiRenderWidget extends LeafRenderObjectWidget {
       ..value = value
       ..textStyle = textStyle
       ..padding = padding
-      ..focused = focused;
+      ..focused = focused
+      ..cursorColor = cursorColor
+      ..selectionColor = selectionColor;
   }
 }
 
@@ -59,10 +67,14 @@ class QuikiRenderEditor extends RenderBox {
     required TextStyle textStyle,
     required EdgeInsets padding,
     required bool focused,
+    required Color cursorColor,
+    required Color selectionColor,
   })  : _value = value,
         _textStyle = textStyle,
         _padding = padding,
-        _focused = focused {
+        _focused = focused,
+        _cursorColor = cursorColor,
+        _selectionColor = selectionColor {
     _textPainter = TextPainter(
       text: _buildTextSpan(),
       textDirection: ui.TextDirection.ltr,
@@ -73,6 +85,8 @@ class QuikiRenderEditor extends RenderBox {
   TextStyle _textStyle;
   EdgeInsets _padding;
   bool _focused;
+  Color _cursorColor;
+  Color _selectionColor;
   late TextPainter _textPainter;
 
   // -------------------------------------------------------------------------
@@ -102,6 +116,18 @@ class QuikiRenderEditor extends RenderBox {
   set focused(bool f) {
     if (_focused == f) return;
     _focused = f;
+    markNeedsPaint();
+  }
+
+  set cursorColor(Color c) {
+    if (_cursorColor == c) return;
+    _cursorColor = c;
+    markNeedsPaint();
+  }
+
+  set selectionColor(Color c) {
+    if (_selectionColor == c) return;
+    _selectionColor = c;
     markNeedsPaint();
   }
 
@@ -183,7 +209,7 @@ class QuikiRenderEditor extends RenderBox {
         TextSelection(baseOffset: sel.start, extentOffset: sel.end),
       );
       final highlightPaint = Paint()
-        ..color = const Color(0x993E8BFF)
+        ..color = _selectionColor
         ..style = PaintingStyle.fill;
       for (final box in boxes) {
         canvas.drawRect(box.toRect().shift(textOrigin), highlightPaint);
@@ -210,7 +236,7 @@ class QuikiRenderEditor extends RenderBox {
         caretHeight,
       );
       final caretPaint = Paint()
-        ..color = const Color(0xFF000000)
+        ..color = _cursorColor
         ..style = PaintingStyle.fill;
       canvas.drawRect(caretRect, caretPaint);
     }

@@ -1,5 +1,5 @@
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter/widgets.dart';
 
 import 'editor_config.dart';
 import 'quiki_render_editor.dart';
@@ -525,12 +525,20 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
         widget.config.textStyle ?? DefaultTextStyle.of(context).style;
     final padding = widget.config.contentPadding;
 
+    final selectionStyle = DefaultSelectionStyle.of(context);
+    final cursorColor =
+        selectionStyle.cursorColor ?? Theme.of(context).colorScheme.primary;
+    final selectionColor = selectionStyle.selectionColor ??
+        Theme.of(context).colorScheme.primary.withValues(alpha: 0.4);
+
     final renderWidget = QuikiRenderWidget(
       key: _renderKey,
       value: _value,
       textStyle: textStyle,
       padding: padding,
       focused: widget.focusNode.hasFocus,
+      cursorColor: cursorColor,
+      selectionColor: selectionColor,
     );
 
     final scrollable = SingleChildScrollView(
