@@ -89,6 +89,51 @@ class RenderModel {
           cursorOffset >= currentEl.start &&
           cursorOffset <= currentEl.end;
 
+      // -----------------------------------------------------------------------
+      // Collapsed list marker substitution.
+      //
+      // When we arrive at the first source character of a collapsed list
+      // element's delimiter, emit the collapsedMarker into rendered output
+      // (all marker chars map back to [si], the first source delimiter pos),
+      // then skip the entire source delimiter region by fast-forwarding [si].
+      // -----------------------------------------------------------------------
+      if (!revealed &&
+          currentEl != null &&
+          currentEl.collapsedMarker.isNotEmpty &&
+          si == currentEl.start) {
+        final marker = currentEl.collapsedMarker;
+        final delimEnd = currentEl.start + currentEl.openDelimLen;
+        final markerStyle = _contentStyle(currentEl.kind, baseStyle);
+
+        // Emit the rendered marker glyph(s).
+        flushBuf();
+        if (markerStyle != bufStyle) {
+          bufStyle = markerStyle;
+        }
+        for (final markerChar in marker.split('')) {
+          bufText.write(markerChar);
+          // All rendered marker chars map back to [si] (start of source delim).
+          rndToSrc.add(si);
+          ri++;
+        }
+        flushBuf();
+
+        // Map all source delimiter positions to the rendered start of the marker.
+        final markerRenderedStart = ri - marker.length;
+        for (var d = si; d < delimEnd; d++) {
+          srcToRnd[d] = markerRenderedStart;
+        }
+
+        // Skip past the source delimiter chars (si will be incremented by
+        // the outer for-loop so advance to delimEnd - 1).
+        si = delimEnd - 1;
+        continue;
+      }
+
+      // -----------------------------------------------------------------------
+      // Normal per-character processing.
+      // -----------------------------------------------------------------------
+
       // Determine visibility and style for this character.
       bool visible;
       TextStyle charStyle;
@@ -158,4 +203,10 @@ TextStyle _contentStyle(MdElKind kind, TextStyle base) => switch (kind) {
         ),
       MdElKind.bold => base.copyWith(fontWeight: FontWeight.bold),
       MdElKind.italic => base.copyWith(fontStyle: FontStyle.italic),
+      // List kinds: content in baseStyle (marker substituted separately).
+      MdElKind.ul ||
+      MdElKind.ol ||
+      MdElKind.checkboxUnchecked ||
+      MdElKind.checkboxChecked =>
+        base,
     };
