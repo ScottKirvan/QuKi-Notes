@@ -3,6 +3,28 @@ import 'package:flutter/widgets.dart';
 import 'md_parser.dart';
 
 // ---------------------------------------------------------------------------
+// ImageSlot — carries one collapsed image element and its rendered position.
+// ---------------------------------------------------------------------------
+
+/// Describes a collapsed image element that QuikiRenderEditor must paint.
+///
+/// [element] is the parsed [MdElement] with kind [MdElKind.image].
+/// [renderedCharOffset] is the rendered character offset at which the image
+/// appears in the TextPainter flow — used to look up the vertical position
+/// of the image row via TextPainter.getOffsetForCaret().
+///
+/// The image line emits no rendered characters, so [renderedCharOffset] is the
+/// position of the newline that *follows* the image line (or the end sentinel
+/// when the image is the last line).  QuikiRenderEditor uses this offset to
+/// determine the Y coordinate of the image row.
+class ImageSlot {
+  const ImageSlot({required this.element, required this.renderedCharOffset});
+
+  final MdElement element;
+  final int renderedCharOffset;
+}
+
+// ---------------------------------------------------------------------------
 // RenderModel — builds a rendered TextSpan tree and bidirectional offset
 // mappings from a parsed element list and a cursor position.
 // ---------------------------------------------------------------------------
@@ -13,6 +35,7 @@ class RenderModel {
     required this.renderedLength,
     required this.sourceToRendered,
     required this.renderedToSource,
+    this.imageSlots = const [],
   });
 
   /// The rendered TextSpan to pass to TextPainter.  Contains only visible
@@ -32,6 +55,11 @@ class RenderModel {
   /// Length = renderedLength + 1.
   final List<int> renderedToSource;
 
+  /// Image elements that need to be painted by QuikiRenderEditor in the paint
+  /// pass.  Only contains collapsed image elements (revealed ones are already
+  /// visible as raw source text via the TextPainter and need no special paint).
+  final List<ImageSlot> imageSlots;
+
   int renderedForSource(int srcOff) =>
       sourceToRendered[srcOff.clamp(0, sourceToRendered.length - 1)];
 
@@ -43,6 +71,7 @@ class RenderModel {
     renderedLength: 0,
     sourceToRendered: [0],
     renderedToSource: [0],
+    imageSlots: const [],
   );
 
   /// Build a [RenderModel] from [source], parsed [elements], and the current
@@ -62,6 +91,7 @@ class RenderModel {
     TextStyle? bufStyle;
     var ri = 0;
     var eIdx = 0;
+    final slots = <ImageSlot>[];
 
     void flushBuf() {
       if (bufText.isNotEmpty) {
@@ -88,6 +118,31 @@ class RenderModel {
       final revealed = currentEl != null &&
           cursorOffset >= currentEl.start &&
           cursorOffset <= currentEl.end;
+
+      // -----------------------------------------------------------------------
+      // Collapsed image: record an ImageSlot and fast-forward past all source
+      // chars.  The image emits no rendered characters; the newline that
+      // follows (if any) is emitted normally by the next iteration and gives
+      // the TextPainter a line break at the correct position.  We record
+      // [renderedCharOffset] as the current [ri] — the position in rendered
+      // space where the image row sits.  QuikiRenderEditor uses this offset
+      // to look up the Y coordinate via TextPainter.getOffsetForCaret().
+      // -----------------------------------------------------------------------
+      if (!revealed &&
+          currentEl != null &&
+          currentEl.kind == MdElKind.image &&
+          si == currentEl.start) {
+        slots.add(ImageSlot(element: currentEl, renderedCharOffset: ri));
+
+        // Map all source chars of the image line to the current rendered position.
+        for (var d = currentEl.start; d < currentEl.end; d++) {
+          srcToRnd[d] = ri;
+        }
+
+        // Fast-forward si to the last char of the element (outer loop increments).
+        si = currentEl.end - 1;
+        continue;
+      }
 
       // -----------------------------------------------------------------------
       // Collapsed list marker substitution.
@@ -180,6 +235,7 @@ class RenderModel {
       renderedLength: ri,
       sourceToRendered: srcToRnd,
       renderedToSource: rndToSrc,
+      imageSlots: slots,
     );
   }
 }
@@ -204,9 +260,11 @@ TextStyle _contentStyle(MdElKind kind, TextStyle base) => switch (kind) {
       MdElKind.bold => base.copyWith(fontWeight: FontWeight.bold),
       MdElKind.italic => base.copyWith(fontStyle: FontStyle.italic),
       // List kinds: content in baseStyle (marker substituted separately).
+      // Image: revealed mode shows raw source in baseStyle.
       MdElKind.ul ||
       MdElKind.ol ||
       MdElKind.checkboxUnchecked ||
-      MdElKind.checkboxChecked =>
+      MdElKind.checkboxChecked ||
+      MdElKind.image =>
         base,
     };

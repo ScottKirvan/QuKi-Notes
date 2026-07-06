@@ -1,4 +1,4 @@
-import 'dart:io' show Platform;
+import 'dart:io' show File, Platform;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:markdown_live_editor/markdown_live_editor.dart';
+import 'package:path/path.dart' as p;
 
 import '../../app.dart';
 import '../../core/storage/quki_index.dart';
@@ -101,6 +102,28 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       final meta = await storage.create(body);
       ref.read(quKiIndexProvider.notifier).addMeta(meta);
       return meta.id;
+    }
+  }
+
+  /// Resolves an image path from markdown source to raw bytes.
+  ///
+  /// [rawPath] is the string extracted from `![alt](rawPath)` — typically a
+  /// relative path like `../images/foo.jpg`.  It is resolved relative to the
+  /// QuKi storage root (the directory that holds the `.md` files), so
+  /// `../images/foo.jpg` from a QuKi file resolves to `<storageRoot>/../images/`
+  /// which matches the ADR-4 images directory at `<storageRoot>/images/`.
+  ///
+  /// Returns null on any error (file not found, permission denied, etc.) so
+  /// the editor shows a gray placeholder instead of crashing.
+  Future<Uint8List?> _loadImage(String rawPath) async {
+    try {
+      final storagePath = ref.read(quKiStorageProvider).basePath;
+      final resolved = p.normalize(p.join(storagePath, rawPath));
+      final file = File(resolved);
+      if (!file.existsSync()) return null;
+      return await file.readAsBytes();
+    } catch (_) {
+      return null;
     }
   }
 
@@ -307,6 +330,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                     height: 1.4,
                   ),
                 ),
+                imageLoader: _loadImage,
               ),
             ),
             FormattingToolbar(controller: _editorController),

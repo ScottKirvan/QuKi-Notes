@@ -20,6 +20,7 @@ class QuikiRenderWidget extends LeafRenderObjectWidget {
     required this.focused,
     required this.cursorColor,
     required this.selectionColor,
+    this.imageCache = const {},
   });
 
   final RenderModel renderModel;
@@ -28,6 +29,10 @@ class QuikiRenderWidget extends LeafRenderObjectWidget {
   final bool focused;
   final Color cursorColor;
   final Color selectionColor;
+
+  /// Read-only snapshot of the image path → decoded [ui.Image] (or null for
+  /// placeholder) cache maintained by [QuikiEditorState].
+  final Map<String, ui.Image?> imageCache;
 
   @override
   QuikiRenderEditor createRenderObject(BuildContext context) {
@@ -38,6 +43,7 @@ class QuikiRenderWidget extends LeafRenderObjectWidget {
       focused: focused,
       cursorColor: cursorColor,
       selectionColor: selectionColor,
+      imageCache: imageCache,
     );
   }
 
@@ -52,16 +58,23 @@ class QuikiRenderWidget extends LeafRenderObjectWidget {
       ..padding = padding
       ..focused = focused
       ..cursorColor = cursorColor
-      ..selectionColor = selectionColor;
+      ..selectionColor = selectionColor
+      ..imageCache = imageCache;
   }
 }
 
 // ---------------------------------------------------------------------------
 // QuikiRenderEditor — RenderBox
 //
-// Owns a TextPainter. Paints selection highlight, text, and caret.
+// Owns a TextPainter. Paints selection highlight, text, caret, and images.
 // No state, no TextInputConnection, no keyboard handling.
 // ---------------------------------------------------------------------------
+
+/// Fixed height (in logical pixels) reserved for a collapsed image line when
+/// the actual image is not yet loaded.  Once the image loads, the height
+/// becomes aspect-ratio-correct based on the painted width.  Using a fixed
+/// placeholder height avoids layout thrash when many images are loading.
+const double _imagePlaceholderHeight = 200.0;
 
 class QuikiRenderEditor extends RenderBox {
   QuikiRenderEditor({
@@ -71,12 +84,14 @@ class QuikiRenderEditor extends RenderBox {
     required bool focused,
     required Color cursorColor,
     required Color selectionColor,
+    Map<String, ui.Image?> imageCache = const {},
   })  : _renderModel = renderModel,
         _selection = selection,
         _padding = padding,
         _focused = focused,
         _cursorColor = cursorColor,
-        _selectionColor = selectionColor {
+        _selectionColor = selectionColor,
+        _imageCache = imageCache {
     _textPainter = TextPainter(
       text: renderModel.textSpan,
       textDirection: ui.TextDirection.ltr,
@@ -90,6 +105,9 @@ class QuikiRenderEditor extends RenderBox {
   Color _cursorColor;
   Color _selectionColor;
   late TextPainter _textPainter;
+
+  /// Read-only snapshot of the image cache from [QuikiEditorState].
+  Map<String, ui.Image?> _imageCache;
 
   // -------------------------------------------------------------------------
   // Property setters — each marks the render object dirty as needed.
@@ -134,6 +152,42 @@ class QuikiRenderEditor extends RenderBox {
     markNeedsPaint();
   }
 
+  set imageCache(Map<String, ui.Image?> cache) {
+    // Reference equality is sufficient: QuikiEditorState always passes the
+    // same map instance; when it calls setState() after a load completes the
+    // build() pass creates a new QuikiRenderWidget with the updated map.
+    if (identical(_imageCache, cache)) return;
+    _imageCache = cache;
+    markNeedsLayout();
+  }
+
+  // -------------------------------------------------------------------------
+  // Image height helpers.
+  // -------------------------------------------------------------------------
+
+  /// Returns the height to reserve for [slot]'s image given the available
+  /// [paintWidth].
+  ///
+  /// If the image is loaded and has known dimensions: aspect-ratio-correct
+  /// height (= paintWidth * h / w).  Otherwise: fixed placeholder height.
+  double _imageHeight(ImageSlot slot, double paintWidth) {
+    final img = _imageCache[slot.element.imagePath];
+    if (img != null && img.width > 0) {
+      return paintWidth * img.height / img.width;
+    }
+    return _imagePlaceholderHeight;
+  }
+
+  /// Computes the total extra height added by collapsed image slots (i.e. the
+  /// space the TextPainter cannot account for since image lines emit no chars).
+  double _totalImageExtraHeight(double paintWidth) {
+    double extra = 0.0;
+    for (final slot in _renderModel.imageSlots) {
+      extra += _imageHeight(slot, paintWidth);
+    }
+    return extra;
+  }
+
   // -------------------------------------------------------------------------
   // Layout
   // -------------------------------------------------------------------------
@@ -141,12 +195,16 @@ class QuikiRenderEditor extends RenderBox {
   @override
   void performLayout() {
     final maxWidth = constraints.maxWidth - _padding.horizontal;
-    _textPainter.layout(maxWidth: maxWidth < 0 ? 0 : maxWidth);
+    final paintWidth = maxWidth < 0 ? 0.0 : maxWidth;
+    _textPainter.layout(maxWidth: paintWidth);
     final textHeight = _textPainter.height;
-    // Height is content-driven; parent scroll view handles clipping.
+    // Height = text content + reserved space for all collapsed image slots.
+    // The TextPainter gives image lines zero height (they emit no chars), so
+    // we add back the reserved height for each slot here.
+    final imageExtra = _totalImageExtraHeight(paintWidth);
     size = Size(
       constraints.maxWidth,
-      textHeight + _padding.vertical,
+      textHeight + imageExtra + _padding.vertical,
     );
   }
 
@@ -163,8 +221,39 @@ class QuikiRenderEditor extends RenderBox {
 
   /// Maps a local tap offset (relative to this render object's top-left) to a
   /// source TextPosition in the buffer.
+  ///
+  /// If the tap lands inside a collapsed image rect, the cursor is placed at
+  /// whichever source boundary (element.start or element.end) is nearer the
+  /// tap's x-coordinate — consistent with ADR-31's tap-to-source-character
+  /// rule for non-text rendered content.
   TextPosition positionForOffset(Offset localPosition) {
     final textOffset = localPosition - _padding.topLeft;
+    final paintWidth = constraints.maxWidth - _padding.horizontal;
+
+    // Check whether the tap hits a collapsed image rect.
+    double imageYOffset = 0.0;
+    for (final slot in _renderModel.imageSlots) {
+      final el = slot.element;
+      final imgHeight = _imageHeight(slot, paintWidth);
+      final renderedOff = slot.renderedCharOffset;
+      final textCaretOff = _textPainter.getOffsetForCaret(
+        TextPosition(offset: renderedOff),
+        Rect.zero,
+      );
+      final imageTop = textCaretOff.dy + imageYOffset;
+      final imageRect = Rect.fromLTWH(0, imageTop, paintWidth, imgHeight);
+
+      if (imageRect.contains(textOffset)) {
+        // Tap is inside this image rect.  Place cursor at the nearer boundary.
+        final midX = imageRect.width / 2;
+        final srcOff = textOffset.dx < midX ? el.start : el.end;
+        return TextPosition(offset: srcOff);
+      }
+
+      imageYOffset += imgHeight;
+    }
+
+    // Normal text-position mapping.
     final renderedPos = _textPainter.getPositionForOffset(textOffset);
     final sourceOffset = _renderModel.sourceForRendered(renderedPos.offset);
     return TextPosition(offset: sourceOffset);
@@ -205,6 +294,7 @@ class QuikiRenderEditor extends RenderBox {
   void paint(PaintingContext context, Offset offset) {
     final canvas = context.canvas;
     final textOrigin = offset + _padding.topLeft;
+    final paintWidth = constraints.maxWidth - _padding.horizontal;
 
     // Draw selection highlight boxes.
     final sel = _selection;
@@ -224,6 +314,74 @@ class QuikiRenderEditor extends RenderBox {
 
     // Draw text.
     _textPainter.paint(canvas, textOrigin);
+
+    // Draw images (or placeholders) for collapsed image slots.
+    //
+    // Each image slot corresponds to a line that emits no rendered characters.
+    // The TextPainter gives such a line zero height.  We look up the rendered
+    // char offset of each slot, ask the TextPainter for the Y coordinate of
+    // that position, then paint the image or placeholder rect at that Y.
+    //
+    // We track a cumulative vertical offset [imageYOffset] to account for the
+    // extra height we added for previously-painted slots (since the TextPainter
+    // is unaware of image heights, all subsequent slots are shifted down by the
+    // sum of heights of all image slots above them).
+    double imageYOffset = 0.0;
+    for (final slot in _renderModel.imageSlots) {
+      // Skip revealed elements: the raw source text is already visible via
+      // the TextPainter and no separate image painting is needed.
+      final el = slot.element;
+      final cursorSrc = sel.isValid ? sel.baseOffset : -1;
+      final revealed = cursorSrc >= el.start && cursorSrc <= el.end;
+      if (revealed) {
+        // Even though we skip painting, we still account for the height of
+        // revealed image lines.  In practice a revealed image line IS painted
+        // by the TextPainter (raw source chars are visible), and the layout
+        // step reserved placeholder height for it.  We skip both painting and
+        // the offset accumulation here because the TextPainter already placed
+        // those characters at the correct Y position.
+        continue;
+      }
+
+      final imgHeight = _imageHeight(slot, paintWidth);
+      final renderedOff = slot.renderedCharOffset;
+
+      // Look up the Y position in TextPainter space for this slot.
+      final textCaretOff = _textPainter.getOffsetForCaret(
+        TextPosition(offset: renderedOff),
+        Rect.zero,
+      );
+
+      // The actual top-left of the image rect in canvas space.
+      final imageTop = textOrigin.dy + textCaretOff.dy + imageYOffset;
+      final imageRect = Rect.fromLTWH(
+        textOrigin.dx,
+        imageTop,
+        paintWidth,
+        imgHeight,
+      );
+
+      final img = _imageCache[el.imagePath];
+      if (img != null) {
+        // Paint the loaded image scaled to fit the editor width while
+        // preserving the aspect ratio.
+        final srcRect = Rect.fromLTWH(
+          0,
+          0,
+          img.width.toDouble(),
+          img.height.toDouble(),
+        );
+        canvas.drawImageRect(img, srcRect, imageRect, Paint());
+      } else {
+        // Placeholder: a muted gray rect.
+        final placeholderPaint = Paint()
+          ..color = const Color(0xFFBDBDBD)
+          ..style = PaintingStyle.fill;
+        canvas.drawRect(imageRect, placeholderPaint);
+      }
+
+      imageYOffset += imgHeight;
+    }
 
     // Draw caret when focused and selection is collapsed.
     if (_focused && sel.isValid && sel.isCollapsed) {

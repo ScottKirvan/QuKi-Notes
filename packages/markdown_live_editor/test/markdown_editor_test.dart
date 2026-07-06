@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:markdown_live_editor/markdown_live_editor.dart';
@@ -8,6 +10,7 @@ Widget _buildEditor({
   MarkdownEditorController? controller,
   ValueChanged<String>? onChanged,
   bool autofocus = false,
+  Future<Uint8List?> Function(String path)? imageLoader,
 }) {
   return MaterialApp(
     home: Scaffold(
@@ -16,6 +19,7 @@ Widget _buildEditor({
         controller: controller,
         onChanged: onChanged,
         autofocus: autofocus,
+        imageLoader: imageLoader,
       ),
     ),
   );
@@ -710,6 +714,107 @@ void main() {
       expect(focusNode.hasFocus, isTrue);
 
       focusNode.dispose();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Stage 5 — imageLoader widget-level tests
+  // ---------------------------------------------------------------------------
+
+  group('MarkdownEditor — imageLoader (Stage 5)', () {
+    testWidgets(
+        'imageLoader returning null: collapsed image line shows no source-text characters',
+        (tester) async {
+      // When imageLoader returns null the render model should still produce
+      // no rendered chars for the image line (placeholder rect is painted,
+      // raw markdown is not visible as text).
+      const imageSource = '![alt](img.png)';
+      final controller = MarkdownEditorController();
+
+      await tester.pumpWidget(_buildEditor(
+        initialValue: imageSource,
+        controller: controller,
+        imageLoader: (_) async => null,
+      ));
+      await tester.pump();
+
+      // Find the render object and verify the image chars are not in the
+      // rendered output — renderedLength should be 0 (no text chars emitted).
+      final ro = tester
+          .renderObject<QuikiRenderEditor>(find.byType(QuikiRenderWidget));
+      expect(ro.renderModel.renderedLength, 0,
+          reason:
+              'collapsed image line must produce no rendered text characters');
+      expect(ro.renderModel.imageSlots, hasLength(1),
+          reason: 'one image slot must be registered for the image line');
+    });
+
+    testWidgets(
+        'imageLoader returning valid bytes: no error thrown, widget renders normally',
+        (tester) async {
+      // A minimal 1x1 transparent PNG so the decode path can complete.
+      // This is the smallest valid PNG (67 bytes).
+      const minimalPng = <int>[
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, // PNG signature
+        0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, // IHDR length + type
+        0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, // 1x1
+        0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, // 8-bit RGBA
+        0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41, // IDAT length + type
+        0x54, 0x78, 0x9C, 0x62, 0x00, 0x01, 0x00, 0x00, // IDAT data (zlib)
+        0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, // IDAT continued
+        0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, // IEND length + type
+        0x42, 0x60, 0x82, // IEND CRC
+      ];
+
+      final controller = MarkdownEditorController();
+
+      // Wrap in expectLater to catch any errors during the image decode.
+      await tester.pumpWidget(_buildEditor(
+        initialValue: '![test](test.png)',
+        controller: controller,
+        imageLoader: (_) async => Uint8List.fromList(minimalPng),
+      ));
+      // Pump several times to allow async image load to complete.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      // If we get here without throwing, the test passes.
+      expect(find.byType(MarkdownEditor), findsOneWidget);
+    });
+
+    testWidgets(
+        'cursor moved onto image line: raw source "![alt](path)" becomes visible',
+        (tester) async {
+      // When the cursor is placed inside the image element, the element is
+      // revealed and the raw markdown source should be visible in the rendered
+      // output (renderedLength includes the source chars).
+      const imageSource = '![alt](img.png)';
+      final controller = MarkdownEditorController();
+
+      await tester.pumpWidget(_buildEditor(
+        initialValue: imageSource,
+        controller: controller,
+        imageLoader: (_) async => null,
+      ));
+      await tester.pump();
+
+      // Initially: image collapsed → no rendered chars.
+      final ro = tester
+          .renderObject<QuikiRenderEditor>(find.byType(QuikiRenderWidget));
+      expect(ro.renderModel.renderedLength, 0);
+
+      // Place cursor inside the image element (offset 0 is inside the element).
+      controller
+          .setSelectionForTesting(const TextSelection.collapsed(offset: 0));
+      await tester.pump();
+
+      // With cursor at 0 (inside the image element), the element is revealed.
+      expect(ro.renderModel.renderedLength, imageSource.length,
+          reason:
+              'revealed image element must expose all source chars as rendered text');
+      // No image slot when revealed — raw text takes over.
+      expect(ro.renderModel.imageSlots, isEmpty,
+          reason: 'revealed image has no image slot');
     });
   });
 }
