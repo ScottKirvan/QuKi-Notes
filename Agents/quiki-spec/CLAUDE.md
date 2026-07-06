@@ -145,12 +145,13 @@ See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phas
 - Phase 3.25 (PR #205): ADR-31 Stage 2 — `MdParser` + `RenderModel`; reveal/collapse for h1–h3, bold, italic; bidirectional offset maps.
 - Phase 3.26 (PR #209, merged 2026-07-05): ADR-31 Stage 2 rendering fixes — reveal condition `<= element.end`, delimiter color = `baseStyle`.
 - Phase 3.27: ADR-31 Stage 3— boundary-reveal and tap-to-source assessed complete via IME-native source-level cursor positions; arrow-key device-test deferred pending Scott verification.
-- Phase 3.28 (PR #211, merged 2026-07-06): ADR-31 Stage 4 — `ul`/`ol`/`checkboxUnchecked`/`checkboxChecked` element kinds; variable-length N→M marker substitution; position-computed ordered-list sequence numbers.
+- Phase 3.28 (PR #211, merged 2026-07-06): ADR-31 Stage 4 — `ul`/`ol`/`checkboxUnchecked`/`checkboxChecked` element kinds; variable-length N→M marker substitution; block-relative ordered-list sequence numbers.
 - CI extended to cover `packages/markdown_live_editor/` (format check + tests) (PR #210).
 - Spec session process refined: brief style (WHAT + constraints, not HOW), pre-PR test checklist (run independently), code review depth (manifesto + architectural fit + safety).
+- Phase 3.29 (PR #213, merged 2026-07-06): ADR-31 Stage 4 device regressions — list auto-continue IME sync, ol block-relative numbering (`1. 1. 1.` → `1. 2. 3.`, `5. 1. 1.` → `5. 6. 7.`), plain text mode toggle.
 
 **Next up:**
-- Phase 3.29: ADR-31 Stage 5 — inline images (real embedded image widgets in the custom paint pass).
+- Phase 3.30: ADR-31 Stage 5 — inline images (real embedded image widgets in the custom paint pass).
 
 **Phase 3 remaining (open bugs/deferred):**
 - **#72 cold launch keyboard**: deferred (Scott's explicit call).
