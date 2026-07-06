@@ -43,316 +43,580 @@ Read in this order — do not skip:
 
 ---
 
-## Current Task Brief — Session 16
+## Current Task Brief
 
 > Written and maintained by the Spec session.
 
-**Task**: Fix list bullet rendering, checkbox visibility, and toolbar focus loss in the single-buffer editor
-**Branch**: `fix/editor-rendering-toolbar`
-**PR title**: `fix(markdown_live_editor): list bullets, checkbox visibility, toolbar selection`
+No task currently in progress.
 
 ---
 
 ### Context
 
-v0.15.0 shipped the single-buffer `buildTextSpan()` editor (ADR-30). Code review identified three bugs, all in `packages/markdown_live_editor/`:
+Stage 1 (v0.16.0, PR #201) shipped the custom `RenderObject + TextInputClient` replacing `TextField`. The editor currently has no markdown rendering — `QuikiRenderEditor` just passes `TextSpan(text: _value.text, style: _textStyle)` to `TextPainter`. Plain source is what the user sees.
 
-1. Unordered list items show no bullet — `- ` is transparent but nothing replaces it, so list items look identical to plain paragraphs.
-2. Checkbox brackets `[ ]` / `[x]` are rendered in `syntaxColor` (35% opacity) — effectively invisible.
-3. Toolbar operations are no-ops or act on the wrong line when focus has left the `TextField` (which happens as part of the same touch event that triggers the button).
+Stage 2 adds the core reveal/collapse mechanic:
 
-All three fixes are in the package only. No changes to `lib/` app code, `editor_screen.dart`, `.github/`, or `notes/dev/`.
+- A **parser** (`MdParser`) that walks the source string and produces a flat list of markdown elements with source ranges
+- A **render model** (`RenderModel`) that builds a rendered `TextSpan` tree and two bidirectional offset-mapping arrays (`sourceToRendered`, `renderedToSource`) from the element list and the current cursor offset
+- Updated `QuikiRenderEditor` to use the render model's `TextSpan` for `TextPainter` layout, and the offset tables for caret painting and tap hit-testing
+- Updated `QuikiEditorState` to parse on text change (cached) and build a fresh `RenderModel` on every frame
 
----
+After Stage 2: headings render in enlarged bold font (prefix hidden), `**bold**` renders in bold (delimiters hidden), `*italic*` renders in italic (delimiters hidden). The element containing the cursor is always shown as raw source with delimiters visible in `syntaxColor`. Every other element is collapsed. Cursor movement and caret painting work correctly via the offset tables.
 
-### Change A — Unordered list bullet character (`span_parser.dart`)
+The entire change is inside `packages/markdown_live_editor/`. No `lib/` app code changes. The public API (`MarkdownEditor`, `MarkdownEditorController`, `MarkdownEditorConfig`) is unchanged.
 
-**Root cause**: `_parseRenderedLine` emits `TextSpan(text: unordered.group(1), style: transparent)` where `transparent` has `color: Colors.transparent, fontSize: 0.001`. The `- ` prefix is invisible, and nothing replaces it. Rendered list items look like plain paragraphs.
-
-**Fix**: For unordered lists in `_parseRenderedLine`, replace the transparent span with a `•` bullet span. The character-count invariant is preserved: `- ` is 2 chars, `• ` is also 2 chars, so cursor offsets remain aligned.
-
-In `_parseRenderedLine` (around line 291), change the unordered list branch from:
-
-```dart
-// Unordered list
-final unordered = _unorderedRe.firstMatch(line);
-if (unordered != null) {
-  return [
-    TextSpan(text: unordered.group(1), style: transparent),
-    ..._parseInline(unordered.group(2)!, baseStyle: textStyle),
-  ];
-}
-```
-
-to:
-
-```dart
-// Unordered list: replace `- ` or `* ` (2 chars) with `• ` (also 2 chars).
-// Character count is preserved so cursor offsets remain aligned.
-final unordered = _unorderedRe.firstMatch(line);
-if (unordered != null) {
-  return [
-    TextSpan(text: '• ', style: listPrefixStyle),
-    ..._parseInline(unordered.group(2)!, baseStyle: textStyle),
-  ];
-}
-```
-
-**Ordered list**: make the prefix visible in `listPrefixStyle` instead of transparent. Change the ordered list branch from:
-
-```dart
-final ordered = _orderedRe.firstMatch(line);
-if (ordered != null) {
-  return [
-    TextSpan(text: ordered.group(1), style: transparent),
-    ..._parseInline(ordered.group(2)!, baseStyle: textStyle),
-  ];
-}
-```
-
-to:
-
-```dart
-final ordered = _orderedRe.firstMatch(line);
-if (ordered != null) {
-  return [
-    TextSpan(text: ordered.group(1), style: listPrefixStyle),
-    ..._parseInline(ordered.group(2)!, baseStyle: textStyle),
-  ];
-}
-```
-
-The `listPrefixStyle` field is already constructed in `_MarkdownTextController.buildTextSpan()` as `effectiveStyle.copyWith(color: baseColor)` — full-opacity base color. This gives a visible (but not emphasised) prefix.
-
-**Do not change** the heading transparent spans (headings hide `## ` correctly) or the checkbox `- ` span (that one stays transparent; only the bracket portion is shown for checkboxes, and that is fixed in Change B).
+**ADR reference**: `notes/dev/decisions.md` → ADR-31. Read the "Rendering model" and "Cursor and selection mechanics" sections before coding.
 
 ---
 
-### Change B — Checkbox bracket visibility (`markdown_editor.dart`)
+### Files to create
 
-**Root cause**: In `_MarkdownTextController.buildTextSpan()`, `checkboxStyle` is built as:
+1. `packages/markdown_live_editor/lib/src/md_parser.dart`
+2. `packages/markdown_live_editor/lib/src/render_model.dart`
 
-```dart
-final checkboxStyle = effectiveStyle.copyWith(
-  fontFamily: 'monospace',
-  color: syntaxColor,
-);
-```
+Add both to the barrel export in `packages/markdown_live_editor/lib/markdown_live_editor.dart`.
 
-`syntaxColor` is 35% opacity (`baseColor.withValues(alpha: 0.35)`) — the `[ ]` / `[x]` brackets are nearly invisible.
+### Files to modify
 
-**Fix**: Change `checkboxStyle` to use `baseColor` at full opacity so the brackets are clearly legible:
+1. `packages/markdown_live_editor/lib/src/quiki_render_editor.dart`
+2. `packages/markdown_live_editor/lib/src/quiki_editor.dart`
 
-```dart
-final checkboxStyle = effectiveStyle.copyWith(
-  fontFamily: 'monospace',
-  color: baseColor,
-);
-```
+### Files NOT to touch
 
-No other changes to `buildTextSpan()`.
+- `span_parser.dart` — dead code left for a future cleanup PR; do not delete or modify
+- `markdown_editor.dart` — the `_MarkdownTextController.buildTextSpan()` in it is dead code; do not touch
+- `editor_config.dart`, `formatting_toolbar.dart`, `editor_controller.dart`
+- Any file under `lib/` — no app code changes
+- `.github/`, `notes/dev/`, `justfile`
 
 ---
 
-### Change C — Preserve selection for toolbar operations (`markdown_editor.dart`)
+### New file 1: `md_parser.dart`
 
-**Root cause**: When the user taps a toolbar button, the Flutter framework moves focus away from the `TextField` as part of processing the touch event, before `onPressed` fires. At `onPressed` time, `tc.selection` may be `TextSelection.collapsed(offset: -1)` (invalid) because Flutter reset it on focus loss. Result:
-
-- `wrapSelection` → `if (!sel.isValid) return` → bold / italic / strikethrough / inline code are no-ops.
-- `toggleLinePrefix` / `toggleUnorderedList` / `toggleOrderedList` → `.clamp(0, text.length)` converts -1 to 0 → operate on line 0 regardless of where the cursor was.
-
-**Fix in `_MarkdownEditorState`**: add a saved-selection field and a listener that captures the last valid selection before focus is lost.
-
-In `_MarkdownEditorState`, add a field:
+#### Data model
 
 ```dart
-TextSelection _savedSelection = const TextSelection.collapsed(offset: 0);
-```
+enum MdElKind { h1, h2, h3, bold, italic }
 
-In `initState()`, add a listener (alongside the existing `_onTextChanged` and `_onFocusChanged` listeners):
+class MdElement {
+  const MdElement({required this.kind, required this.start, required this.end});
 
-```dart
-_textController.addListener(_onSelectionChanged);
-```
+  final MdElKind kind;
+  final int start;  // source offset, inclusive
+  final int end;    // source offset, exclusive
 
-Add the handler:
+  /// True if [offset] falls within this element's source range.
+  bool containsOffset(int offset) => offset >= start && offset < end;
 
-```dart
-void _onSelectionChanged() {
-  if (_textController.selection.isValid) {
-    _savedSelection = _textController.selection;
+  /// Length of the opening delimiter in source characters.
+  int get openDelimLen => switch (kind) {
+    MdElKind.h1 => 2,   // '# '
+    MdElKind.h2 => 3,   // '## '
+    MdElKind.h3 => 4,   // '### '
+    MdElKind.bold => 2,    // '**' or '__'
+    MdElKind.italic => 1,  // '*' or '_'
+  };
+
+  /// Length of the closing delimiter (0 for headings — no closing delimiter).
+  int get closeDelimLen => switch (kind) {
+    MdElKind.h1 || MdElKind.h2 || MdElKind.h3 => 0,
+    MdElKind.bold => 2,
+    MdElKind.italic => 1,
+  };
+
+  /// Whether source offset [si] (which must be within [start, end)) is a delimiter character.
+  bool isDelimiter(int si) {
+    if (si < start || si >= end) return false;
+    if (si < start + openDelimLen) return true;
+    if (closeDelimLen > 0 && si >= end - closeDelimLen) return true;
+    return false;
   }
 }
 ```
 
-In `dispose()`, remove the listener:
+#### `MdParser.parse(String source) → List<MdElement>`
 
-```dart
-_textController.removeListener(_onSelectionChanged);
-```
+Walk `source` line by line. Track each line's absolute start offset in `source` (`lineStart`). For each line:
 
-**Expose on `MarkdownEditorController`**: add a getter so toolbar methods can read it:
+**Step 1 — Heading check** (check longest prefix first):
 
-```dart
-TextSelection get _effectiveSelection {
-  final tc = _state?._textController;
-  if (tc == null) return const TextSelection.collapsed(offset: 0);
-  return tc.selection.isValid ? tc.selection : (_state!._savedSelection);
-}
-```
+- If `line.startsWith('### ')`: emit `MdElement(h3, lineStart, lineStart + line.length)`. Continue to next line. Do NOT scan inline elements inside heading content in Stage 2.
+- Else if `line.startsWith('## ')`: emit h2 element.
+- Else if `line.startsWith('# ')`: emit h1 element.
+- `'#'` without a following space is NOT a heading.
 
-**Update all toolbar methods** to use `_effectiveSelection` instead of `tc.selection` directly, and to call `_state?._focusNode.requestFocus()` after modifying the controller value so the keyboard returns and the editor stays active.
+The element covers the full heading line text, excluding any trailing `'\n'`. `line.length` (from `split('\n')`) does not include the newline.
 
-`wrapSelection`:
+**Step 2 — Inline scan** (non-heading lines only): left-to-right greedy scan within the absolute source offsets `[lineStart, lineStart + line.length)`:
 
-```dart
-void wrapSelection(String prefix, String suffix) {
-  final tc = _state?._textController;
-  if (tc == null) return;
-  final sel = _effectiveSelection;
-  if (!sel.isValid) return;
-  final text = tc.text;
-  final selected = sel.textInside(text);
-  final newText =
-      text.replaceRange(sel.start, sel.end, '$prefix$selected$suffix');
-  tc.value = TextEditingValue(
-    text: newText,
-    selection: TextSelection.collapsed(
-      offset: sel.start + prefix.length + selected.length + suffix.length,
-    ),
-  );
-  _state?._focusNode.requestFocus();
-  _state?.widget.onChanged?.call(newText);
-}
-```
+At each absolute offset `i`:
 
-`toggleLinePrefix`:
+1. Check `**` or `__` (bold): if `source[i..i+2]` is `'**'` or `'__'`, search for the same closing two-char sequence within `[i+2, lineStart + line.length)`. If found at `closeIdx` and `closeIdx > i+2` (non-empty content between delimiters): emit `MdElement(bold, i, closeIdx + 2)`. Set `i = closeIdx + 2`. Continue.
 
-```dart
-void toggleLinePrefix(String prefix) {
-  final tc = _state?._textController;
-  if (tc == null) return;
-  final text = tc.text;
-  final offset = _effectiveSelection.baseOffset.clamp(0, text.length);
-  // ... rest unchanged ...
-  tc.value = TextEditingValue(
-    text: newText,
-    selection: TextSelection.collapsed(offset: newOffset),
-  );
-  _state?._focusNode.requestFocus();
-  _state?.widget.onChanged?.call(newText);
-}
-```
+2. Check `*` or `_` (italic, single char): if `source[i]` is `'*'` or `'_'` AND `i + 1 < lineStart + line.length` AND `source[i+1]` is NOT the same char (avoids treating `**` start as italic): search for the matching single closing char within `[i+1, lineStart + line.length)`. If found at `closeIdx` and `closeIdx > i+1`: emit `MdElement(italic, i, closeIdx + 1)`. Set `i = closeIdx + 1`. Continue.
 
-`toggleUnorderedList`:
+3. Otherwise: `i++`.
 
-```dart
-void toggleUnorderedList() {
-  final tc = _state?._textController;
-  if (tc == null) return;
-  final text = tc.text;
-  final offset = _effectiveSelection.baseOffset.clamp(0, text.length);
-  // ... rest unchanged ...
-  tc.value = TextEditingValue(
-    text: newText,
-    selection: TextSelection.collapsed(offset: newOffset),
-  );
-  _state?._focusNode.requestFocus();
-  _state?.widget.onChanged?.call(newText);
-}
-```
+**Key rules:**
+- Bold is always checked before italic so `**` is never consumed as two italics.
+- Empty content is invalid: require `closeIdx > i + openDelimLen` (at least one character between delimiters).
+- No cross-line matching: both delimiter positions must be within the same line's offset range.
+- Elements cannot overlap: once an element is emitted and `i` advances past it, no part of it is re-scanned.
 
-`toggleOrderedList`:
+The returned `List<MdElement>` is naturally sorted by `start` because we scan left-to-right.
 
-```dart
-void toggleOrderedList() {
-  final tc = _state?._textController;
-  if (tc == null) return;
-  final text = tc.text;
-  final offset = _effectiveSelection.baseOffset.clamp(0, text.length);
-  // ... rest unchanged ...
-  tc.value = TextEditingValue(
-    text: newText,
-    selection: TextSelection.collapsed(offset: newOffset),
-  );
-  _state?._focusNode.requestFocus();
-  _state?.widget.onChanged?.call(newText);
-}
-```
-
-The `_state?._focusNode.requestFocus()` call restores focus to the TextField after every toolbar action, so the keyboard stays up and the user can continue typing immediately.
+Track `lineStart` with: `lineStart += line.length + 1` after each line (the `+1` is the `'\n'` separator). For the last line (no trailing `'\n'`), `source.split('\n')` gives the line without a newline, so this still works correctly as long as you don't advance `lineStart` past `source.length`.
 
 ---
 
-### What NOT to change
+### New file 2: `render_model.dart`
 
-- `lib/` app code — no changes to `editor_screen.dart` or any feature/core code.
-- `editor_config.dart` — no changes.
-- `formatting_toolbar.dart` — no changes; the fixes are all in the state layer.
-- Heading transparent spans — leave as-is; `# ` / `## ` / `### ` should stay invisible in rendered mode.
-- Checkbox transparent `- ` span — leave as-is; only the bracket visibility changes (Change B).
-- `.github/workflows/`, `notes/dev/`, `justfile` — no changes.
-- Do NOT implement checkbox tap-to-toggle, table rendering, link styling, blockquote rendering, or any other deferred feature. These are out of scope.
+#### API
+
+```dart
+class RenderModel {
+  const RenderModel._({
+    required this.textSpan,
+    required this.renderedLength,
+    required this.sourceToRendered,
+    required this.renderedToSource,
+  });
+
+  /// The rendered TextSpan to pass to TextPainter. Contains only visible
+  /// characters (delimiters of collapsed elements are absent).
+  final TextSpan textSpan;
+
+  /// Number of characters in the rendered text (= renderedToSource.length - 1).
+  final int renderedLength;
+
+  /// Maps every source offset in [0 .. source.length] to a rendered offset.
+  /// Multiple source offsets may map to the same rendered offset (delimiter chars
+  /// of collapsed elements all map to the boundary of their rendered content).
+  final List<int> sourceToRendered;
+
+  /// Maps every rendered offset in [0 .. renderedLength] to a source offset.
+  /// Length = renderedLength + 1.
+  final List<int> renderedToSource;
+
+  int renderedForSource(int srcOff) =>
+      sourceToRendered[srcOff.clamp(0, sourceToRendered.length - 1)];
+
+  int sourceForRendered(int rndOff) =>
+      renderedToSource[rndOff.clamp(0, renderedToSource.length - 1)];
+
+  static final _empty = RenderModel._(
+    textSpan: const TextSpan(text: ''),
+    renderedLength: 0,
+    sourceToRendered: [0],
+    renderedToSource: [0],
+  );
+
+  static RenderModel build({
+    required String source,
+    required List<MdElement> elements,
+    required int cursorOffset,   // -1 when selection is invalid
+    required TextStyle baseStyle,
+    required Color syntaxColor,
+  });
+}
+```
+
+#### `build()` implementation
+
+```
+srcToRnd = List<int>.filled(source.length + 1, 0)
+rndToSrc = <int>[]           // grown as visible chars are appended
+spans    = <TextSpan>[]      // grown as style runs are flushed
+bufText  = StringBuffer()    // accumulates chars for the current style run
+bufStyle = null              // TextStyle of the current style run
+ri       = 0                 // running rendered offset
+eIdx     = 0                 // pointer into sorted elements list (O(n+m) walk)
+
+flushBuf():
+  if bufText is not empty:
+    spans.add(TextSpan(text: bufText.toString(), style: bufStyle))
+    bufText.clear()
+    bufStyle = null
+
+for si in 0 .. source.length - 1:
+  char = source[si]
+
+  // Advance eIdx past elements whose end is <= si (no longer relevant)
+  while eIdx < elements.length && elements[eIdx].end <= si:
+    eIdx++
+
+  // Determine which element (if any) contains si
+  currentEl = (eIdx < elements.length && si >= elements[eIdx].start)
+              ? elements[eIdx]
+              : null
+
+  revealed = (currentEl != null
+              && cursorOffset >= currentEl.start
+              && cursorOffset < currentEl.end)
+
+  // Determine visibility and style for this character
+  if currentEl == null:
+    visible   = true
+    charStyle = baseStyle
+  elif revealed:
+    visible   = true
+    charStyle = currentEl.isDelimiter(si)
+                  ? baseStyle.copyWith(color: syntaxColor)
+                  : baseStyle
+  else:  // collapsed
+    if currentEl.isDelimiter(si):
+      visible = false
+    else:
+      visible   = true
+      charStyle = _contentStyle(currentEl.kind, baseStyle)
+
+  // Update source→rendered map (always, even for invisible chars)
+  srcToRnd[si] = ri
+
+  if visible:
+    // Group into a style run
+    if charStyle != bufStyle:
+      flushBuf()
+      bufStyle = charStyle
+    bufText.write(char)
+    rndToSrc.add(si)
+    ri++
+
+// Finalize
+flushBuf()
+srcToRnd[source.length] = ri
+rndToSrc.add(source.length)   // end sentinel: renderedLength → source.length
+
+return RenderModel._(
+  textSpan: TextSpan(children: spans),
+  renderedLength: ri,
+  sourceToRendered: srcToRnd,
+  renderedToSource: rndToSrc,
+)
+```
+
+#### `_contentStyle()` helper (file-private)
+
+```dart
+TextStyle _contentStyle(MdElKind kind, TextStyle base) => switch (kind) {
+  MdElKind.h1 => base.copyWith(
+    fontSize: (base.fontSize ?? 16.0) * 2.0,
+    fontWeight: FontWeight.bold,
+  ),
+  MdElKind.h2 => base.copyWith(
+    fontSize: (base.fontSize ?? 16.0) * 1.5,
+    fontWeight: FontWeight.bold,
+  ),
+  MdElKind.h3 => base.copyWith(
+    fontSize: (base.fontSize ?? 16.0) * 1.25,
+    fontWeight: FontWeight.bold,
+  ),
+  MdElKind.bold   => base.copyWith(fontWeight: FontWeight.bold),
+  MdElKind.italic => base.copyWith(fontStyle: FontStyle.italic),
+};
+```
+
+**Style run grouping note**: `TextStyle` implements `==`. Use `charStyle != bufStyle` to detect style changes. Do not use `identical()`.
+
+**Special case**: if `source.isEmpty`, return `_empty` immediately (no walk needed).
+
+---
+
+### Modified file: `quiki_render_editor.dart`
+
+#### `QuikiRenderWidget` parameter changes
+
+Remove: `value: TextEditingValue`, `textStyle: TextStyle`  
+Add: `renderModel: RenderModel`, `selection: TextSelection`
+
+The widget passes both to `QuikiRenderEditor` via `createRenderObject` / `updateRenderObject`.
+
+#### `QuikiRenderEditor` field changes
+
+Remove: `_value: TextEditingValue`, `_textStyle: TextStyle`  
+Add: `_renderModel: RenderModel`, `_selection: TextSelection`
+
+Remove: `_buildTextSpan()` method entirely.
+
+Constructor: accepts `renderModel` and `selection`; sets `_textPainter.text = renderModel.textSpan`.
+
+**Setters:**
+
+```dart
+set renderModel(RenderModel m) {
+  if (_renderModel == m) return;
+  _renderModel = m;
+  _textPainter.text = m.textSpan;
+  markNeedsLayout();
+}
+
+set selection(TextSelection s) {
+  if (_selection == s) return;
+  _selection = s;
+  markNeedsPaint();
+}
+```
+
+**`positionForOffset`** — add source offset mapping:
+```dart
+TextPosition positionForOffset(Offset localPosition) {
+  final textOffset = localPosition - _padding.topLeft;
+  final renderedPos = _textPainter.getPositionForOffset(textOffset);
+  final sourceOffset = _renderModel.sourceForRendered(renderedPos.offset);
+  return TextPosition(offset: sourceOffset);
+}
+```
+
+**`getOffsetForCaret`** — add rendered offset mapping:
+```dart
+Offset getOffsetForCaret(TextPosition position) {
+  final rOff = _renderModel.renderedForSource(position.offset);
+  return _textPainter.getOffsetForCaret(TextPosition(offset: rOff), Rect.zero);
+}
+```
+
+**`paint`** — use `_selection` (source coords) with offset mapping:
+
+Selection highlight: convert source `_selection.start`/`.end` to rendered offsets before calling `_textPainter.getBoxesForSelection`.
+
+Caret: convert source `_selection.baseOffset` to rendered offset before calling `_textPainter.getOffsetForCaret` and `getFullHeightForCaret`.
+
+```dart
+// Selection highlight
+final sel = _selection;
+if (sel.isValid && !sel.isCollapsed) {
+  final rStart = _renderModel.renderedForSource(sel.start);
+  final rEnd   = _renderModel.renderedForSource(sel.end);
+  final boxes  = _textPainter.getBoxesForSelection(
+    TextSelection(baseOffset: rStart, extentOffset: rEnd),
+  );
+  // paint boxes exactly as before
+}
+
+// Caret
+if (_focused && sel.isValid && sel.isCollapsed) {
+  final rOff       = _renderModel.renderedForSource(sel.baseOffset);
+  final caretOff   = _textPainter.getOffsetForCaret(TextPosition(offset: rOff), Rect.zero);
+  final caretH     = _textPainter.getFullHeightForCaret(TextPosition(offset: rOff), Rect.zero);
+  // paint caret exactly as before using caretOff and caretH
+}
+```
+
+No other changes to `quiki_render_editor.dart`.
+
+---
+
+### Modified file: `quiki_editor.dart`
+
+#### New fields (add after `_longPressAnchor`)
+
+```dart
+String _lastParsedText = '';
+List<MdElement> _elements = const [];
+```
+
+#### `build()` — add parse cache + render model
+
+At the top of `build()`, before constructing `renderWidget`, add:
+
+```dart
+// Re-parse only when text changed; element list is cached across frames.
+if (_value.text != _lastParsedText) {
+  _lastParsedText = _value.text;
+  _elements = MdParser.parse(_value.text);
+}
+
+final syntaxColor = widget.config.syntaxColor ??
+    (textStyle.color ?? Colors.white).withValues(alpha: 0.35);
+
+final renderModel = RenderModel.build(
+  source: _value.text,
+  elements: _elements,
+  cursorOffset: _value.selection.isValid ? _value.selection.baseOffset : -1,
+  baseStyle: textStyle,
+  syntaxColor: syntaxColor,
+);
+```
+
+Change the `QuikiRenderWidget` construction from `value`/`textStyle` to `renderModel`/`selection`:
+
+```dart
+final renderWidget = QuikiRenderWidget(
+  key: _renderKey,
+  renderModel: renderModel,
+  selection: _value.selection,
+  padding: padding,
+  focused: widget.focusNode.hasFocus,
+  cursorColor: cursorColor,
+  selectionColor: selectionColor,
+);
+```
+
+No other changes to `quiki_editor.dart`. The `_scheduleScrollToCaret` method calls `re.getOffsetForCaret(TextPosition(offset: sel.baseOffset))` — this now routes through the offset map internally in `QuikiRenderEditor`, so no change is needed at the call site.
 
 ---
 
 ### Tests
 
-**`packages/markdown_live_editor/test/span_parser_test.dart`**:
+#### `packages/markdown_live_editor/test/md_parser_test.dart`
 
-Update any existing test that asserts `- ` is transparent in rendered mode — it now asserts `• ` in `listPrefixStyle`. Add tests:
+Use `test()` blocks (no widget infrastructure required — parser is pure Dart):
 
-- Unordered list `- item`: rendered mode → first span text is `'• '`, style is `listPrefixStyle`; content spans match `_parseInline('item')`.
-- Unordered list `* item`: same bullet result.
-- Ordered list `1. item`: rendered mode → first span text is `'1. '`, style is `listPrefixStyle`.
-- Cursor line `- item`: unchanged — first span text is `'- '`, style is `syntaxStyle` (no bullet on cursor line).
+```dart
+group('MdParser.parse', () {
+  test('empty string → empty list');
+  test('plain text → empty list');
+  test('"# Hello" → [h1(0, 7)]');
+  test('"## Hello" → [h2(0, 8)]');
+  test('"### Hello" → [h3(0, 9)]');
+  test('"**bold**" → [bold(0, 8)]');
+  test('"*italic*" → [italic(0, 8)]');
+  test('"__bold__" → [bold(0, 8)]');
+  test('"_italic_" → [italic(0, 8)]');
+  test('"hello **world** there" → [bold(6, 15)]');
+  test('"*one* and **two**" → [italic(0, 5), bold(10, 17)]');
+  test('"# Heading\\n**bold**" → [h1(0, 9), bold(10, 18)]');  // bold start accounts for \\n
+  test('"****" → [] (empty bold content not emitted)');
+  test('"**no close" → [] (no matching close delimiter)');
+  test('"**crosses\\nlines**" → [] (no cross-line matching)');
+  test('"# H\\nnext line" → [h1(0, 3)] (only heading line)');
+  test('"#notaheading" → [] (# without trailing space)');
+  test('"not # heading" → [] (# not at line start)');
 
-**`packages/markdown_live_editor/test/markdown_editor_test.dart`** (or equivalent widget test):
+  // MdElement helpers
+  test('MdElement.isDelimiter: bold(0,8) → si=0 true, si=1 true, si=2 false, si=6 true, si=7 true');
+  test('MdElement.isDelimiter: h1(0,7) → si=0 true, si=1 true, si=2 false');
+  test('MdElement.containsOffset: bold(6,15) → 5 false, 6 true, 14 true, 15 false');
+});
+```
 
-- `_savedSelection` is updated whenever controller selection changes to a valid value.
-- After focus loss, `_effectiveSelection` returns the saved selection, not an invalid one.
-- `wrapSelection('**', '**')` with a saved selection of `[0, 4]` on text `'word'` produces `'**word**'` with cursor at offset 8.
+#### `packages/markdown_live_editor/test/render_model_test.dart`
 
-Run `just lint` and `just test` before pushing. Fix any test that broke because of the `• ` bullet change.
+Use `test()` blocks (TextStyle and Color are constructable without a widget binding):
 
----
+```dart
+const base = TextStyle(fontSize: 16.0, color: Color(0xFFFFFFFF));
+const syntax = Color(0x59FFFFFF);
 
-### Deferred (not in this PR — do not treat as bugs)
+group('RenderModel.build', () {
+  test('empty source → renderedLength 0, both arrays length 1 containing 0');
 
-- Checkbox tap-to-toggle (no `WidgetSpan`, no `GestureDetector`) — deferred from PR #186, tracked separately.
-- Blockquote visual treatment — never worked in the old editor; not a regression.
-- Code fence visual treatment — same as above.
-- Table rendering — never supported.
-- Link styling / tapping — never supported.
-- Nested inline spans (e.g., bold inside italic) — v1 limitation.
-- Cursor-line vs rendered-mode visual discrepancy for formatted text (e.g., `**bold**` shows raw on cursor line, rendered on other lines) — by design in the Typora model; not a bug.
+  test('plain text no elements → identity mapping, textSpan plain text == source', () {
+    // source = 'hello', no elements, cursorOffset = -1
+    // renderedLength = 5
+    // sourceToRendered = [0,1,2,3,4,5]
+    // renderedToSource = [0,1,2,3,4,5]
+    // textSpan.toPlainText() == 'hello'
+  });
 
----
+  test('bold collapsed: delimiters absent from rendered text, content in bold style', () {
+    // source = '**bold**', bold(0,8), cursorOffset = -1
+    // renderedLength = 4  ('bold')
+    // textSpan.toPlainText() == 'bold'
+    // sourceToRendered[0] == 0, [1] == 0  (opening **)
+    // sourceToRendered[2] == 0            (b)
+    // sourceToRendered[3] == 1            (o)
+    // sourceToRendered[6] == 4, [7] == 4  (closing **)
+    // sourceToRendered[8] == 4            (end sentinel)
+    // renderedToSource[0] == 2            (rendered b → source b)
+    // renderedToSource[4] == 8            (end sentinel)
+    // content span has fontWeight: FontWeight.bold
+  });
 
-### Device test instructions for PR body
+  test('bold revealed: cursor inside → identity mapping, delimiter spans use syntaxColor', () {
+    // source = '**bold**', bold(0,8), cursorOffset = 3
+    // renderedLength = 8  (all chars visible)
+    // textSpan.toPlainText() == '**bold**'
+    // sourceToRendered is identity [0..8]
+    // first TextSpan child text == '**', color == syntaxColor
+  });
 
-1. **List rendering**: type `- item one`, press Enter, type `item two`, press Enter, type `- item three`. Move the cursor to line 2 (not a list line). Lines 1 and 3 should show `• item one` and `• item three` as bullet items. Line 2 should show plain text.
-2. **Ordered list**: type `1. first`, press Enter. Next line should auto-continue as `2. `. Move cursor away — both show `1. first` and `2. ` with visible numbering.
-3. **Checkbox**: type `- [ ] task`. Move cursor away. Should show `[ ] task` with clearly visible (not faint) brackets in monospace.
-4. **Bold toolbar**: type `hello world`, select `world`, tap Bold. `**world**` should be inserted; cursor returns to editor; tapping elsewhere shows `hello **world**` with `world` in bold and `**` invisible.
-5. **List toolbar**: type `item`, tap the list toolbar button. `- item` should be inserted and `• item` should render (move cursor off the line to see rendered mode).
-6. **Heading toolbar**: place cursor on `item`, tap Heading. `# item` should be inserted; in rendered mode (cursor off line) the text should appear larger/bolder with `# ` hidden.
+  test('heading h1 collapsed: prefix absent, content in 2x font + bold', () {
+    // source = '# Hello', h1(0,7), cursorOffset = -1
+    // renderedLength = 5  ('Hello')
+    // textSpan.toPlainText() == 'Hello'
+    // sourceToRendered[0] == 0, [1] == 0  (# and space map to content start)
+    // sourceToRendered[2] == 0            (H)
+    // renderedToSource[0] == 2            (rendered H → source H)
+    // content span fontSize == 32.0, fontWeight == FontWeight.bold
+  });
+
+  test('italic collapsed: delimiters absent, content in italic style', () {
+    // source = '*hi*', italic(0,4), cursorOffset = -1
+    // renderedLength = 2  ('hi')
+    // content span fontStyle == FontStyle.italic
+  });
+
+  test('text before + bold collapsed + text after', () {
+    // source = 'a **b** c', bold(2,7), cursorOffset = 0
+    // renderedLength = 5  ('a b c')
+    // sourceToRendered[2]==2, [3]==2  (opening ** → rendered 2)
+    // sourceToRendered[4]==2          (b → rendered 2)
+    // sourceToRendered[5]==3, [6]==3  (closing ** → rendered 3)
+    // sourceToRendered[7]==3          (space after ** → rendered 3)
+    // renderedForSource(4) == 2
+    // sourceForRendered(2) == 4
+  });
+
+  test('newline passes through: heading + newline + plain text', () {
+    // source = '# H\nplain', h1(0,3), cursorOffset = -1
+    // rendered = 'H\nplain'
+    // textSpan.toPlainText() == 'H\nplain'
+  });
+
+  test('heading revealed: cursor inside prefix → all chars visible including # prefix', () {
+    // source = '# Hello', h1(0,7), cursorOffset = 0
+    // renderedLength = 7
+    // first span text == '# ', color == syntaxColor
+  });
+});
+```
+
+#### Existing tests
+
+All 114 existing tests must still pass. The internal parameter changes to `QuikiRenderWidget` / `QuikiRenderEditor` are not referenced in any existing test — they test through the public `MarkdownEditor` API. If any existing test fails, investigate and fix before pushing.
 
 ---
 
 ### Checklist
 
-- [ ] Change A: `• ` bullet emitted for unordered lists in `_parseRenderedLine` (char count preserved)
-- [ ] Change A: Ordered list prefix visible in `listPrefixStyle` in `_parseRenderedLine`
-- [ ] Change B: `checkboxStyle` uses `baseColor` at full opacity
-- [ ] Change C: `_savedSelection` field + listener in `_MarkdownEditorState`
-- [ ] Change C: `_effectiveSelection` getter on `MarkdownEditorController`
-- [ ] Change C: All four toolbar methods use `_effectiveSelection` and call `_focusNode.requestFocus()` after
-- [ ] No changes outside `packages/markdown_live_editor/`
-- [ ] Span parser tests updated for `• ` bullet
-- [ ] Toolbar selection tests added
-- [ ] `just lint` passes
-- [ ] `just test` passes — no regressions
+- [ ] `md_parser.dart` created; `MdElKind`, `MdElement`, `MdParser.parse()` implemented per spec above
+- [ ] `render_model.dart` created; `RenderModel.build()` uses O(n+m) sorted-element walk
+- [ ] Both new files exported from the barrel (`markdown_live_editor.dart`)
+- [ ] `quiki_render_editor.dart`: `value`/`textStyle` params replaced with `renderModel`/`selection`; `positionForOffset`, `getOffsetForCaret`, `paint` all route through offset tables
+- [ ] `quiki_editor.dart`: `_lastParsedText`/`_elements` cache fields added; `build()` re-parses on text change, builds `RenderModel`, passes to `QuikiRenderWidget`
+- [ ] `md_parser_test.dart` written; all cases above pass
+- [ ] `render_model_test.dart` written; all cases above pass
+- [ ] `just lint` passes (including `dart format`)
+- [ ] `just test` passes — all existing 114 tests + all new tests
 - [ ] `flutter build apk --debug` succeeds
-- [ ] PR body includes device test instructions above and Deferred section
-- [ ] No Claude/Anthropic attribution in commit message or PR body
+- [ ] No changes outside `packages/markdown_live_editor/`
+- [ ] No Claude/Anthropic attribution in any commit message
+
+---
+
+### Deferred — do not implement in this PR
+
+- Strikethrough, inline code, blockquote, code fence rendering — Stage 4+
+- Lists and checkboxes — Stage 4
+- Links — Stage 6
+- Images — Stage 5
+- Nested inline spans (bold inside italic) — later refinement
+- Boundary-reveal cursor movement (arrow key skipping to element boundary) — Stage 3
+- Precise tap-to-source-character for collapsed elements — Stage 3
+- Deletion of `span_parser.dart` and dead `_MarkdownTextController.buildTextSpan()` — future cleanup PR
+
+---
+
+### Device test instructions (for PR body)
+
+Build a debug APK, install on Android device.
+
+1. **Heading rendering**: type `# My Heading`, press Enter, type a second line. Move cursor to the second line. The first line should render as large bold text with `# ` hidden.
+2. **Bold rendering**: type `**important**`, then move the cursor off the word. The `**` delimiters should disappear and `important` should appear bold.
+3. **Italic rendering**: type `*subtle*`, move cursor away. The `*` delimiters should disappear and `subtle` should appear italic.
+4. **Reveal on cursor entry**: place cursor inside the bold or italic word. The raw source (including delimiters) should reappear for editing.
+5. **Caret position**: navigate with arrow keys into and out of a bold/italic word. The caret should always appear at the visually expected position — it should not jump.
+6. **Multi-element note**: type a heading, a bold word, and an italic word on separate lines. Only the element containing the cursor should be in raw/revealed mode; all others should be rendered.
+7. **Tap into collapsed element**: tap inside a rendered bold word. It should reveal with the cursor placed inside the bold source text.

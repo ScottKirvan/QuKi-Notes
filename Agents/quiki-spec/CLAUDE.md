@@ -42,8 +42,9 @@ If a proposed task conflicts with any of these, push back before scoping — do 
 1. Edit `Agents/quiki-dev/CLAUDE.md` → replace the "Current Task Brief" section with the new brief.
 2. Include: branch name, PR title, files to touch, integration notes, tests required, checklist reminders.
 3. **Specify every interaction behavior explicitly.** If the task touches UI, describe what each user action does — do not leave interaction patterns for the implementation session to infer. Any behavior not described in the brief or the manifesto must not be implemented; the implementation session should flag it as an open question instead.
-4. If the task resolves an open question, update `notes/dev/open_questions.md`.
-5. If the task introduces a new locked decision, draft an ADR stub in `notes/dev/decisions.md` for the implementation Claude to fill in.
+4. **Do NOT prescribe implementation details.** Field names, data structures, algorithm design, and class organization are for the implementation session to decide. The brief specifies WHAT to build and key constraints (correctness invariants, performance bounds, integration seams, test requirements). The value of two-session review comes from the agent making independent design choices — if the brief dictates HOW, the review becomes rubber-stamping rather than a genuine second opinion. Flag correctness invariants (e.g., "all source delimiter positions must map to the same rendered offset") without specifying the data structure that enforces them.
+5. If the task resolves an open question, update `notes/dev/open_questions.md`.
+6. If the task introduces a new locked decision, draft an ADR stub in `notes/dev/decisions.md` for the implementation Claude to fill in.
 
 **To assign a DevOps task:**
 1. Edit `Agents/quiki-devops/CLAUDE.md` → replace the "Current Task Brief" section.
@@ -80,15 +81,27 @@ When a conversation summary appears at the top of the context (instead of the re
 
 ### 3 — Review the agent's work before creating any PR
 
-When the agent reports back:
+This is a genuine code review, not a compliance checklist. The agent had no context from this conversation — it implemented from the brief alone. The Spec session's job is to bring full project context to that implementation and evaluate it as an independent reviewer would.
+
+**Mechanical checks first:**
 
 | Check | What to verify |
 |---|---|
 | **Branch name** | Professional and descriptive (`fix/...`, `feat/...`, `chore/...`). No random strings. |
 | **Commit attribution** | Every commit message must contain zero Claude/Anthropic attribution. Check with `git log`. Remove any attribution before continuing. |
-| **Code correctness** | Read the full diff. Verify each change matches the brief exactly. Flag any logic errors or unspecified behaviours before creating the PR. |
 | **`dart format`** | Run `dart format --set-exit-if-changed packages/markdown_live_editor/lib packages/markdown_live_editor/test` (or the equivalent `just` target). If it fails, fix it or ask Scott to run locally and push. |
-| **Tests** | Confirm `just lint` and `just test` both passed in the agent's report. If not, investigate and fix before creating the PR. |
+| **Tests** | Run independently — do not rely solely on the agent's report: `just lint` (root lint + format), `just test` (root 114 tests), and `cd packages/markdown_live_editor && flutter test` (package tests). Fix any failures before creating the PR. |
+
+**Then read the full diff and review for:**
+
+- **Brief compliance**: did it build exactly what was asked? Flag anything added that wasn't specified — no bonus features, no speculative abstractions.
+- **Manifesto alignment**: do the changes serve the four principles (velocity, open data, information-first UI, extensibility)? Watch especially for any new UI chrome, any new data format that isn't plain Markdown, or any new dependency that adds lock-in.
+- **Architectural fit**: does the implementation fit the current architecture? Check for drift into superseded patterns. The clearest example: ADR-30's character-count invariant (source length = rendered length) is dead — ADR-31 explicitly exists to handle variable-length substitutions. Any reasoning or code that assumes equal lengths in the live-preview layer is a regression. Check locked decisions in `notes/dev/decisions.md` (most recent first) when you're unsure.
+- **Safety**: no QuKi content or plugin secrets logged, no new analytics surface, no data-loss path (writes atomic, trash before delete). Check any new file I/O or IPC paths.
+- **Readability and simplicity**: naming is clear, structure follows existing conventions, no unnecessary abstraction. Three similar lines is fine; a premature helper is not.
+- **Test coverage**: do the tests cover the correctness invariants called out in the brief? For offset-map work: are the actual table values asserted, not just `toPlainText()` and length?
+
+Narrate what you found in each area when reporting back to Scott — "I checked X and it's correct because Y" is more useful than silence.
 
 ### 4 — Create the PR
 
@@ -104,7 +117,7 @@ After creating: immediately check the PR body for attribution (`gh pr view --jso
 
 After PR creation, monitor CI:
 - **`flutter analyze` errors**: fix directly in the working tree, commit, push.
-- **`dart format` failures**: ask Scott to run `dart format lib/ test/` locally and push a formatting commit.
+- **`dart format` failures**: ask Scott to run `dart format lib/ test/ packages/markdown_live_editor/lib/ packages/markdown_live_editor/test/` locally and push a formatting commit.
 - **Test failures**: diagnose root cause, update test if behaviour intentionally changed, commit and push.
 - After each fix push, wait for the next CI result before declaring green.
 
@@ -120,30 +133,32 @@ Once CI is green: summarize what changed, confirm no attribution anywhere, and l
 
 See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phase table.
 
-**Current version**: v0.15.1 (released 2026-07-03).
+**Current version**: v0.16.1 (released 2026-07-05). Stages 2–4 (PRs #205, #209, #211) landed post-release and are unreleased.
 
-**Implementation session in progress**: Session 16 — `fix/editor-rendering-toolbar` (list bullets, checkbox visibility, toolbar selection fix). Brief in `Agents/quiki-dev/CLAUDE.md`.
+**No implementation session in progress.** No active brief in `Agents/quiki-dev/CLAUDE.md`.
 
-**Resolved since last spec sync (Sessions 10–15):**
-- ADR-27 / Phase 3.19 (PR #145): Storage location choice + first-launch setup.
-- ADR-28 (PR #145): MANAGE_EXTERNAL_STORAGE permission on Android.
-- Phase 3.20 (PR #155): Removed all keyboard auto-focus hacks. Clean baseline established.
-- Phase 3.20a (PRs #165, #168, #170): `requestFocus()` on + button paths. Resume rescan moved to StreamScreen. `refresh()` no longer flushes through `AsyncValue.loading()`.
-- ADR-29: QuickJS runtime plugin system locked in.
-- ADR-30: Single-buffer TextSpan editor — one `TextField` + `buildTextSpan()`, per-line cursor awareness, transparent syntax chars.
-- Phase 3.22 (PRs #186, #189, v0.15.1): Single-buffer TextSpan editor. Replaced block-flip with one `TextField` + `buildTextSpan()`. Resolves #179, #180 (cross-block selection), #129 (cursor jump), #176 (tap below note). Device-tested by Scott.
+**Resolved since last spec sync (Sessions 16–18):**
+- Phase 3.22 post-ship rendering bugs (PR #194, v0.15.2): list bullets, checkbox visibility, toolbar selection fix.
+- ADR-31: Custom RenderObject + TextInputClient live-preview markdown engine. Supersedes ADR-30.
+- Phase 3.23 (PR #201, v0.16.0): ADR-31 Stage 1 — `QuikiRenderEditor extends RenderBox` + `QuikiEditorState implements TextInputClient`, plain-text editor replacing `TextField`.
+- Phase 3.24 (PR #203, v0.16.1): ADR-31 Stage 1 device-test fixes — scroll hit-test double-count, gesture kind tracking (mouse vs touch), keyboard lifecycle (`connectionClosed` → `unfocus`), long-press word selection.
+- Phase 3.25 (PR #205): ADR-31 Stage 2 — `MdParser` + `RenderModel`; reveal/collapse for h1–h3, bold, italic; bidirectional offset maps.
+- Phase 3.26 (PR #209, merged 2026-07-05): ADR-31 Stage 2 rendering fixes — reveal condition `<= element.end`, delimiter color = `baseStyle`.
+- Phase 3.27: ADR-31 Stage 3— boundary-reveal and tap-to-source assessed complete via IME-native source-level cursor positions; arrow-key device-test deferred pending Scott verification.
+- Phase 3.28 (PR #211, merged 2026-07-06): ADR-31 Stage 4 — `ul`/`ol`/`checkboxUnchecked`/`checkboxChecked` element kinds; variable-length N→M marker substitution; position-computed ordered-list sequence numbers.
+- CI extended to cover `packages/markdown_live_editor/` (format check + tests) (PR #210).
+- Spec session process refined: brief style (WHAT + constraints, not HOW), pre-PR test checklist (run independently), code review depth (manifesto + architectural fit + safety).
 
-**v0.15.0 post-ship bugs (in progress — Session 16):**
-- **Lists not rendering**: `- ` transparent in rendered mode, no bullet char emitted. List items look like plain paragraphs. Fix: emit `• ` (same 2-char count as `- `) in `listPrefixStyle`.
-- **Checkbox brackets barely visible**: `checkboxStyle` uses `syntaxColor` (35% opacity). Fix: use `baseColor` at full opacity.
-- **Toolbar no-ops on the wrong line**: focus leaves `TextField` before `onPressed` fires; `tc.selection` may be invalid. Fix: save last valid selection; use it as fallback; re-focus after toolbar action.
+**Next up:**
+- Phase 3.29: ADR-31 Stage 5 — inline images (real embedded image widgets in the custom paint pass).
 
-**Phase 3 remaining:**
-- **#72 cold launch keyboard**: confirmed open by Scott — `autofocus: true` NOT set on the new single-buffer MarkdownEditor in `editor_screen.dart`. Still deferred (Scott's explicit call).
-- **#130 checkbox toggle slow/missing**: no tap-to-toggle yet (deferred from 3.22).
+**Phase 3 remaining (open bugs/deferred):**
+- **#72 cold launch keyboard**: deferred (Scott's explicit call).
+- **#130 checkbox tap-to-toggle**: deferred from 3.22.
 - **#77 tabs/indenting in lists**: open.
 - **#188 share-in launches new instance**: open — Android `launchMode` issue.
-- **Housekeeping**: #88 (release build modes already merged) — close the issue.
+- **Long-press drag after word select** does not extend selection on touch (gesture arena conflict). Deferred — Scott confirmed "good enough for now."
+- **QuKi list sort order** after editing older notes may be inconsistent on Android FUSE storage. Deferred.
 - **Unscoped features**: #79, #80, #81, #83, #84 (ADR-29/QuickJS), #87, #135, #136, #178, #181, #182, #183, #184. See `notes/dev/roadmap.md`.
 
 **Phase 4+:** Sync plugin axis (v1.1+), MCP (v2.0+) — not in scope until Phase 3 is complete.
