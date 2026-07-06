@@ -36,8 +36,9 @@ class MdElement {
   /// Source offset just past the last character of this element (exclusive).
   final int end;
 
-  /// For [MdElKind.ol]: the 1-based position-computed sequence number.
-  /// For all other kinds this is 0 and should not be read.
+  /// For [MdElKind.ol]: the sequence number as written in the source
+  /// (e.g. '5. item' → seqNum = 5). For all other kinds this is 0 and
+  /// should not be read.
   final int seqNum;
 
   /// For [MdElKind.ol]: the number of source characters in the marker
@@ -120,9 +121,6 @@ class MdParser {
     final lines = source.split('\n');
     var lineStart = 0;
 
-    // Track consecutive ol runs to compute sequence numbers.
-    var olRunCount = 0;
-
     for (final line in lines) {
       final lineEnd = lineStart + line.length; // exclusive, excluding '\n'
 
@@ -130,15 +128,12 @@ class MdParser {
       if (line.startsWith('### ')) {
         result
             .add(MdElement(kind: MdElKind.h3, start: lineStart, end: lineEnd));
-        olRunCount = 0;
       } else if (line.startsWith('## ')) {
         result
             .add(MdElement(kind: MdElKind.h2, start: lineStart, end: lineEnd));
-        olRunCount = 0;
       } else if (line.startsWith('# ')) {
         result
             .add(MdElement(kind: MdElKind.h1, start: lineStart, end: lineEnd));
-        olRunCount = 0;
 
         // Step 2 — Checkbox detection (must run before ul, both start with '- ').
       } else if (line.startsWith('- [ ] ')) {
@@ -147,14 +142,12 @@ class MdParser {
           start: lineStart,
           end: lineEnd,
         ));
-        olRunCount = 0;
       } else if (line.startsWith('- [x] ') || line.startsWith('- [X] ')) {
         result.add(MdElement(
           kind: MdElKind.checkboxChecked,
           start: lineStart,
           end: lineEnd,
         ));
-        olRunCount = 0;
 
         // Step 3 — Unordered list ('- ', '* ', '+ ').
       } else if (line.startsWith('- ') ||
@@ -162,23 +155,23 @@ class MdParser {
           line.startsWith('+ ')) {
         result
             .add(MdElement(kind: MdElKind.ul, start: lineStart, end: lineEnd));
-        olRunCount = 0;
 
         // Step 4 — Ordered list ('{digits}. ').
+        // seqNum is the actual source digit, not a position-computed counter.
+        // This preserves open-data fidelity: '5. item' renders as '5. item'.
       } else if (_isOlLine(line)) {
-        olRunCount++;
         final dotIdx = line.indexOf('. ');
         final srcDelimLen = dotIdx + 2; // digits + '. '
+        final srcDigit = int.parse(line.substring(0, dotIdx));
         result.add(MdElement(
           kind: MdElKind.ol,
           start: lineStart,
           end: lineEnd,
-          seqNum: olRunCount,
+          seqNum: srcDigit,
           srcOlDelimLen: srcDelimLen,
         ));
       } else {
         // Step 5 — Inline scan (non-list, non-heading lines only).
-        olRunCount = 0;
         var i = lineStart;
         while (i < lineEnd) {
           // Check bold: '**' or '__'

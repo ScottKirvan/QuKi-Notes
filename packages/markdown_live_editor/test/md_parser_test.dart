@@ -223,7 +223,7 @@ void main() {
       expect(els[0].kind, MdElKind.checkboxChecked);
     });
 
-    test('"1. first" → [ol(0, 8)] with seqNum=1', () {
+    test('"1. first" → [ol(0, 8)] with seqNum=1 (source digit)', () {
       final els = MdParser.parse('1. first');
       expect(els, hasLength(1));
       expect(els[0].kind, MdElKind.ol);
@@ -232,31 +232,40 @@ void main() {
       expect(els[0].seqNum, 1);
     });
 
-    test(
-        'three consecutive ol lines get seqNums 1, 2, 3 (source digits irrelevant)',
-        () {
+    test('ol seqNum reflects actual source digit, not position in block', () {
+      // Source digits 1, 3, 5 — each element's seqNum must equal its own digit.
       const source = '1. first\n3. second\n5. third';
       final els = MdParser.parse(source);
       expect(els, hasLength(3));
       expect(els[0].kind, MdElKind.ol);
       expect(els[0].seqNum, 1);
       expect(els[1].kind, MdElKind.ol);
-      expect(els[1].seqNum, 2);
+      expect(els[1].seqNum, 3);
       expect(els[2].kind, MdElKind.ol);
-      expect(els[2].seqNum, 3);
+      expect(els[2].seqNum, 5);
     });
 
-    test('ol sequence resets to 1 when a non-ol line breaks the block', () {
-      const source = '1. first\n2. second\nplain line\n1. restart';
+    test('non-1 source digit: "5. item" → seqNum == 5', () {
+      final els = MdParser.parse('5. item');
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.ol);
+      expect(els[0].seqNum, 5);
+      expect(els[0].collapsedMarker, '5. ');
+    });
+
+    test(
+        'ol seqNum from source digit: source "1. first\\n2. second\\nplain\\n7. restart"',
+        () {
+      const source = '1. first\n2. second\nplain line\n7. restart';
       final els = MdParser.parse(source);
-      // Two ol elements in first block, one plain line (no element), one ol in second block.
+      // Two ol elements, one plain line (no element), one ol.
       expect(els, hasLength(3));
       expect(els[0].kind, MdElKind.ol);
       expect(els[0].seqNum, 1);
       expect(els[1].kind, MdElKind.ol);
       expect(els[1].seqNum, 2);
       expect(els[2].kind, MdElKind.ol);
-      expect(els[2].seqNum, 1); // reset
+      expect(els[2].seqNum, 7); // source digit, not reset to 1
     });
 
     test('heading followed by a list line produces two separate elements', () {

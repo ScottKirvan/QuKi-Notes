@@ -23,6 +23,7 @@ class QuikiEditor extends StatefulWidget {
     required this.autofocus,
     required this.config,
     this.onChanged,
+    this.plainTextMode = false,
   });
 
   final TextEditingController controller;
@@ -30,6 +31,10 @@ class QuikiEditor extends StatefulWidget {
   final bool autofocus;
   final MarkdownEditorConfig config;
   final ValueChanged<String>? onChanged;
+
+  /// When true, skip markdown parsing and render source characters as-is.
+  /// No reveal/collapse, no delimiter hiding, no glyph substitution.
+  final bool plainTextMode;
 
   @override
   QuikiEditorState createState() => QuikiEditorState();
@@ -157,6 +162,17 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
   void updateEditingValue(TextEditingValue value) {
     if (value == _value) return;
     _updateValue(value, notify: true);
+    // Invariant: after any code path that modifies the canonical editing value
+    // in response to an IME event — including modifications made by controller
+    // listeners (e.g. list auto-continue) that fire synchronously inside
+    // _updateValue — the IME must receive a setEditingState call with the
+    // final canonical value before the next IME input arrives.
+    //
+    // _updateValue reads back _value from the controller after listeners have
+    // run, so _value here is the post-auto-continue canonical value. Sending
+    // it to the IME keeps both sides in sync and prevents the prefix from
+    // vanishing when the user starts typing on the newly created list line.
+    _connection?.setEditingState(_value);
   }
 
   @override
@@ -609,16 +625,27 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     final selectionColor = selectionStyle.selectionColor ??
         Theme.of(context).colorScheme.primary.withValues(alpha: 0.4);
 
-    // Re-parse only when text changed; element list is cached across frames.
-    if (_value.text != _lastParsedText) {
+    // Re-parse only when text changed and markdown rendering is active.
+    // In plain-text mode skip parsing entirely — the element list stays empty
+    // so RenderModel produces an identity mapping with no substitutions.
+    // Reset _lastParsedText when entering plain-text mode so that returning
+    // to styled mode always triggers a fresh parse regardless of text content.
+    if (!widget.plainTextMode && _value.text != _lastParsedText) {
       _lastParsedText = _value.text;
       _elements = MdParser.parse(_value.text);
+    } else if (widget.plainTextMode) {
+      _lastParsedText = ''; // force re-parse when styled mode is restored
+      _elements = const [];
     }
 
     final renderModel = RenderModel.build(
       source: _value.text,
       elements: _elements,
-      cursorOffset: _value.selection.isValid ? _value.selection.baseOffset : -1,
+      // In plain-text mode pass cursorOffset = -1 so no element is ever
+      // revealed — but since _elements is empty this has no effect.
+      cursorOffset: widget.plainTextMode
+          ? -1
+          : (_value.selection.isValid ? _value.selection.baseOffset : -1),
       baseStyle: textStyle,
     );
 
