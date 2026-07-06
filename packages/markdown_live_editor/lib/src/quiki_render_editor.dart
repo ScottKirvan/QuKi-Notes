@@ -95,6 +95,8 @@ class QuikiRenderEditor extends RenderBox {
   // Property setters — each marks the render object dirty as needed.
   // -------------------------------------------------------------------------
 
+  RenderModel get renderModel => _renderModel;
+
   set renderModel(RenderModel m) {
     if (_renderModel == m) return;
     _renderModel = m;

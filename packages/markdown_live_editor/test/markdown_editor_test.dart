@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:markdown_live_editor/markdown_live_editor.dart';
+import 'package:markdown_live_editor/src/quiki_render_editor.dart';
 
 Widget _buildEditor({
   required String initialValue,
@@ -133,6 +134,53 @@ void main() {
       controller.togglePlainTextMode();
       await tester.pump();
       expect(controller.currentValue, 'some text');
+    });
+
+    testWidgets(
+        'togglePlainTextMode changes rendered output: bold markers visible in plain-text mode',
+        (tester) async {
+      // Bug C regression: toggling plain-text mode must change what QuikiRenderEditor
+      // actually renders. In styled mode "**bold**" collapses to "bold" (4 chars).
+      // In plain-text mode it must display all 8 source characters unchanged.
+      final controller = MarkdownEditorController();
+
+      await tester.pumpWidget(_buildEditor(
+        initialValue: '**bold**',
+        controller: controller,
+      ));
+      await tester.pump();
+
+      // Helper: find the QuikiRenderEditor and read its current rendered length.
+      QuikiRenderEditor renderEditor() {
+        final ro = tester
+            .renderObject<QuikiRenderEditor>(find.byType(QuikiRenderWidget));
+        return ro;
+      }
+
+      // Styled mode: delimiters collapsed → rendered text is "bold" (4 chars).
+      expect(controller.plainTextMode, isFalse);
+      expect(renderEditor().renderModel.renderedLength, 4,
+          reason:
+              'styled mode: "**bold**" should collapse to "bold" (4 chars)');
+
+      // Switch to plain-text mode.
+      controller.togglePlainTextMode();
+      await tester.pump();
+
+      expect(controller.plainTextMode, isTrue);
+      // Plain-text mode: no markdown processing → all 8 source chars visible.
+      expect(renderEditor().renderModel.renderedLength, 8,
+          reason:
+              'plain-text mode: "**bold**" should render all 8 source chars');
+
+      // Switch back to styled mode.
+      controller.togglePlainTextMode();
+      await tester.pump();
+
+      expect(controller.plainTextMode, isFalse);
+      expect(renderEditor().renderModel.renderedLength, 4,
+          reason:
+              'back to styled mode: "**bold**" should collapse again to 4 chars');
     });
   });
 

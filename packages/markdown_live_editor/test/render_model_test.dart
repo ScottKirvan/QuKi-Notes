@@ -352,18 +352,16 @@ void main() {
       expect(m.renderedLength, 7);
     });
 
-    test('ol collapsed with seqNum=3 renders "3. " regardless of source digits',
-        () {
-      // Construct an ol element manually with seqNum=3 but source text '1. item'.
-      // The rendered marker should be '3. '.
-      const source = '1. item';
-      // Build the element manually so we control seqNum.
+    test('ol collapsed with seqNum=3 (source digit 3) renders "3. "', () {
+      // Construct an ol element with seqNum=3 (matching source '3. item').
+      // The rendered marker must equal the source digit.
+      const source = '3. item';
       final el = MdElement(
         kind: MdElKind.ol,
         start: 0,
         end: 7,
         seqNum: 3,
-        srcOlDelimLen: 3, // '1. ' = 3 source chars
+        srcOlDelimLen: 3, // '3. ' = 3 source chars
       );
       final m = _build(source, [el], cursorOffset: -1);
 
@@ -372,48 +370,46 @@ void main() {
       expect(m.renderedLength, 7);
     });
 
-    test('ol collapsed: two-digit source "12. item" with seqNum=1 → "1. item"',
+    test(
+        'ol collapsed: two-digit source "12. item" with seqNum=12 → "12. item"',
         () {
-      // source '12. item' — source delimiter '12. ' = 4 chars, but seqNum=1.
-      // rendered marker = '1. ' (3 chars). Net: 4 src → 3 rendered for marker.
+      // source '12. item' — source digit is 12; seqNum follows the source digit.
+      // rendered marker = '12. ' (4 chars), same as source marker.
       const source = '12. item';
       final el = MdElement(
         kind: MdElKind.ol,
         start: 0,
         end: 8,
-        seqNum: 1,
+        seqNum: 12,
         srcOlDelimLen: 4, // '12. ' = 4 source chars
       );
       final m = _build(source, [el], cursorOffset: -1);
 
-      expect(m.textSpan.toPlainText(), '1. item');
-      expect(m.renderedLength, 7);
+      expect(m.textSpan.toPlainText(), '12. item');
+      expect(m.renderedLength, 8);
 
       // Source delimiter positions 0..3 all map to rendered 0.
       for (var d = 0; d <= 3; d++) {
         expect(m.sourceToRendered[d], 0,
             reason: 'source[$d] (delimiter) should map to rendered 0');
       }
-      // First content char 'i' at source 4 → rendered 3.
-      expect(m.sourceToRendered[4], 3);
+      // First content char 'i' at source 4 → rendered 4.
+      expect(m.sourceToRendered[4], 4);
     });
 
-    test('ol sequence via parser: 3-line block → seqNums 1, 2, 3', () {
-      // Use a single source with all three lines and render the full model.
-      // The rendered text should substitute each source '1.' marker with the
-      // position-computed seqNum.
-      const source = '1. alpha\n1. beta\n1. gamma';
+    test('ol via parser: source digits preserved in rendered output', () {
+      // Each line keeps its own source digit in the rendered marker.
+      // '5. alpha' renders as '5. alpha', not '1. alpha'.
+      const source = '1. alpha\n5. beta\n10. gamma';
       final els = MdParser.parse(source);
       expect(els, hasLength(3));
       expect(els[0].seqNum, 1);
-      expect(els[1].seqNum, 2);
-      expect(els[2].seqNum, 3);
+      expect(els[1].seqNum, 5);
+      expect(els[2].seqNum, 10);
 
-      // Render the whole source collapsed (cursorOffset = -1).
+      // Render collapsed — each marker equals its source digit.
       final m = _build(source, els, cursorOffset: -1);
-
-      // All three lines rendered: markers substituted by seqNum, content preserved.
-      expect(m.textSpan.toPlainText(), '1. alpha\n2. beta\n3. gamma');
+      expect(m.textSpan.toPlainText(), '1. alpha\n5. beta\n10. gamma');
     });
   });
 }

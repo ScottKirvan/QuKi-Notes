@@ -427,6 +427,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
       autofocus: widget.autofocus,
       config: widget.config,
       onChanged: widget.onChanged,
+      plainTextMode: _plainTextMode,
     );
   }
 }
