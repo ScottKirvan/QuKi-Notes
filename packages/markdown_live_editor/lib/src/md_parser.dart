@@ -36,9 +36,10 @@ class MdElement {
   /// Source offset just past the last character of this element (exclusive).
   final int end;
 
-  /// For [MdElKind.ol]: the sequence number as written in the source
-  /// (e.g. '5. item' → seqNum = 5). For all other kinds this is 0 and
-  /// should not be read.
+  /// For [MdElKind.ol]: the GFM-compatible rendered sequence number.
+  /// The first line of a consecutive ol block uses its source digit; each
+  /// subsequent line in the block increments by 1 regardless of source digit.
+  /// For all other kinds this is 0 and should not be read.
   final int seqNum;
 
   /// For [MdElKind.ol]: the number of source characters in the marker
