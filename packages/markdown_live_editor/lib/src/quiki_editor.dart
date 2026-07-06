@@ -81,16 +81,19 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
   // from the previous note may linger.  For v1 this is acceptable; a size-
   // bounded LRU cache can be added later if needed.
   // ---------------------------------------------------------------------------
-  final Map<String, ui.Image?> _imageCache = {};
-  final Set<String> _loadingPaths =
-      {}; // guards against duplicate in-flight loads
+  // Image load cache: path → decoded dart:ui.Image (null = failed/placeholder).
+  // Always replaced with a new map instance on update so the QuikiRenderEditor
+  // setter's identical() check detects the change and marks the render object
+  // dirty. Never mutated in place.
+  Map<String, ui.Image?> _imageCache = {};
+  final Set<String> _loadingPaths = {};
 
   void _ensureImageLoaded(String path) {
     if (_imageCache.containsKey(path) || _loadingPaths.contains(path)) return;
     final loader = widget.imageLoader;
     if (loader == null) {
       // No loader provided — record null immediately so we show placeholder.
-      _imageCache[path] = null;
+      _imageCache = {..._imageCache, path: null};
       return;
     }
     _loadingPaths.add(path);
@@ -103,14 +106,16 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
         image = frame.image;
       }
       if (!mounted) return;
+      // Replace the map with a new instance so the render object setter's
+      // identical() check detects the change and calls markNeedsLayout().
       setState(() {
-        _imageCache[path] = image;
+        _imageCache = {..._imageCache, path: image};
         _loadingPaths.remove(path);
       });
     }).catchError((_) {
       if (!mounted) return;
       setState(() {
-        _imageCache[path] = null;
+        _imageCache = {..._imageCache, path: null};
         _loadingPaths.remove(path);
       });
     });
