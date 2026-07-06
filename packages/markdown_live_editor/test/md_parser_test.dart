@@ -248,8 +248,8 @@ void main() {
       expect(els[2].seqNum, 3);
     });
 
-    test(
-        'ol common shorthand: "1. 1. 1." → block-relative seqNums 1, 2, 3', () {
+    test('ol common shorthand: "1. 1. 1." → block-relative seqNums 1, 2, 3',
+        () {
       // GFM-compatible: repeating "1." is the common shorthand for numbered lists.
       const source = '1. first\n1. second\n1. third';
       final els = MdParser.parse(source);
