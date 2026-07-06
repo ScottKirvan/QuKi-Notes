@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -24,6 +26,7 @@ class QuikiEditor extends StatefulWidget {
     required this.config,
     this.onChanged,
     this.plainTextMode = false,
+    this.imageLoader,
   });
 
   final TextEditingController controller;
@@ -35,6 +38,12 @@ class QuikiEditor extends StatefulWidget {
   /// When true, skip markdown parsing and render source characters as-is.
   /// No reveal/collapse, no delimiter hiding, no glyph substitution.
   final bool plainTextMode;
+
+  /// Optional callback to resolve image paths to raw bytes.  Threaded from
+  /// [MarkdownEditor] through to [QuikiEditorState], which manages the
+  /// per-path image load cache and passes loaded [dart:ui.Image] objects to
+  /// [QuikiRenderWidget] for painting.
+  final Future<Uint8List?> Function(String path)? imageLoader;
 
   @override
   QuikiEditorState createState() => QuikiEditorState();
@@ -55,6 +64,57 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
   // Parse cache — re-parsed only when text changes.
   String _lastParsedText = '';
   List<MdElement> _elements = const [];
+
+  // ---------------------------------------------------------------------------
+  // Image load cache.
+  //
+  // Keys are the raw path strings from the markdown source.  Values are the
+  // decoded dart:ui.Image, or null when the load failed / returned no bytes.
+  //
+  // Strategy: keep the cache keyed by path.  When a path is seen for the first
+  // time (not in the cache), kick off an async load via widget.imageLoader.
+  // When the Future completes call setState() so the render pass picks up the
+  // newly decoded image.  The paint pass must never block — it reads from this
+  // cache synchronously.
+  //
+  // The cache is NOT cleared between QuKi switches (setValue calls) so images
+  // from the previous note may linger.  For v1 this is acceptable; a size-
+  // bounded LRU cache can be added later if needed.
+  // ---------------------------------------------------------------------------
+  final Map<String, ui.Image?> _imageCache = {};
+  final Set<String> _loadingPaths =
+      {}; // guards against duplicate in-flight loads
+
+  void _ensureImageLoaded(String path) {
+    if (_imageCache.containsKey(path) || _loadingPaths.contains(path)) return;
+    final loader = widget.imageLoader;
+    if (loader == null) {
+      // No loader provided — record null immediately so we show placeholder.
+      _imageCache[path] = null;
+      return;
+    }
+    _loadingPaths.add(path);
+    loader(path).then((bytes) async {
+      if (!mounted) return;
+      ui.Image? image;
+      if (bytes != null && bytes.isNotEmpty) {
+        final codec = await ui.instantiateImageCodec(bytes);
+        final frame = await codec.getNextFrame();
+        image = frame.image;
+      }
+      if (!mounted) return;
+      setState(() {
+        _imageCache[path] = image;
+        _loadingPaths.remove(path);
+      });
+    }).catchError((_) {
+      if (!mounted) return;
+      setState(() {
+        _imageCache[path] = null;
+        _loadingPaths.remove(path);
+      });
+    });
+  }
 
   // The render object — accessed for position-to-offset mapping and caret
   // scroll tracking.
@@ -649,6 +709,13 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
       baseStyle: textStyle,
     );
 
+    // Kick off loads for any collapsed image slots in the current render model.
+    // This is idempotent — _ensureImageLoaded is a no-op for already-loaded or
+    // in-flight paths.
+    for (final slot in renderModel.imageSlots) {
+      _ensureImageLoaded(slot.element.imagePath);
+    }
+
     final renderWidget = QuikiRenderWidget(
       key: _renderKey,
       renderModel: renderModel,
@@ -657,6 +724,7 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
       focused: widget.focusNode.hasFocus,
       cursorColor: cursorColor,
       selectionColor: selectionColor,
+      imageCache: _imageCache,
     );
 
     final scrollable = SingleChildScrollView(

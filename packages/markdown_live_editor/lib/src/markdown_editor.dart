@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import 'editor_config.dart';
@@ -254,6 +256,7 @@ class MarkdownEditor extends StatefulWidget {
     this.config = const MarkdownEditorConfig(),
     this.focusNode,
     this.autofocus = false,
+    this.imageLoader,
   });
 
   final String initialValue;
@@ -262,6 +265,18 @@ class MarkdownEditor extends StatefulWidget {
   final MarkdownEditorConfig config;
   final FocusNode? focusNode;
   final bool autofocus;
+
+  /// Optional callback to resolve image paths to raw bytes.
+  ///
+  /// Receives the raw path string from the markdown source (e.g.
+  /// `../images/photo.jpg`).  Return [Uint8List] bytes on success, or null
+  /// if the path cannot be resolved or an error occurs.  The package never
+  /// imports `dart:io` or any storage package — all file access is delegated
+  /// through this callback.
+  ///
+  /// If null, or if the callback returns null, a gray placeholder rect is
+  /// painted in place of the image.
+  final Future<Uint8List?> Function(String path)? imageLoader;
 
   @override
   State<MarkdownEditor> createState() => _MarkdownEditorState();
@@ -428,6 +443,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
       config: widget.config,
       onChanged: widget.onChanged,
       plainTextMode: _plainTextMode,
+      imageLoader: widget.imageLoader,
     );
   }
 }

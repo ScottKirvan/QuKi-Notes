@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Markdown element kinds supported through Stage 4.
+// Markdown element kinds supported through Stage 5.
 // ---------------------------------------------------------------------------
 
 enum MdElKind {
@@ -11,7 +11,8 @@ enum MdElKind {
   ul,
   ol,
   checkboxUnchecked,
-  checkboxChecked
+  checkboxChecked,
+  image,
 }
 
 // ---------------------------------------------------------------------------
@@ -25,6 +26,7 @@ class MdElement {
     required this.end,
     this.seqNum = 0,
     int srcOlDelimLen = 0,
+    this.imagePath = '',
   }) : _srcOlDelimLen = srcOlDelimLen;
 
   /// Kind of markdown element.
@@ -47,10 +49,19 @@ class MdElement {
   /// digits may differ from [seqNum].
   final int _srcOlDelimLen;
 
+  /// For [MdElKind.image]: the raw path string extracted from `![alt](path)`.
+  /// The content between the last `(` and the final `)` on the line.
+  /// Empty string for all non-image kinds.
+  final String imagePath;
+
   /// True if [offset] falls within this element's source range.
   bool containsOffset(int offset) => offset >= start && offset < end;
 
   /// Length of the opening delimiter in source characters.
+  ///
+  /// For [MdElKind.image]: the full line length — the entire `![alt](path)` is
+  /// treated as the "delimiter" so that in revealed mode the user sees and edits
+  /// the raw source directly. The render layer handles painting.
   int get openDelimLen => switch (kind) {
         MdElKind.h1 => 2, // '# '
         MdElKind.h2 => 3, // '## '
@@ -61,6 +72,8 @@ class MdElement {
         MdElKind.ol => _srcOlDelimLen, // '{digits}. ' — variable
         MdElKind.checkboxUnchecked => 6, // '- [ ] '
         MdElKind.checkboxChecked => 6, // '- [x] ' or '- [X] '
+        // Image: the full source line is the delimiter; no content chars emitted.
+        MdElKind.image => end - start,
       };
 
   /// Length of the closing delimiter (0 for block-level elements).
@@ -71,7 +84,9 @@ class MdElement {
         MdElKind.ul ||
         MdElKind.ol ||
         MdElKind.checkboxUnchecked ||
-        MdElKind.checkboxChecked =>
+        MdElKind.checkboxChecked ||
+        // Image has no separate closing delimiter (the full line is the opener).
+        MdElKind.image =>
           0,
         MdElKind.bold => 2,
         MdElKind.italic => 1,
@@ -85,12 +100,16 @@ class MdElement {
   /// characters rather than emitting a substitution glyph.
   ///
   /// For block list elements, this returns the visual glyph + space.
+  ///
+  /// For [MdElKind.image]: returns `''` — the image is not a text substitution;
+  /// the render object (QuikiRenderEditor) handles painting the image or
+  /// placeholder rect in the paint pass.
   String get collapsedMarker => switch (kind) {
         MdElKind.ul => '• ',
         MdElKind.checkboxUnchecked => '☐ ',
         MdElKind.checkboxChecked => '☑ ',
         MdElKind.ol => '$seqNum. ',
-        // Heading and inline elements: no substitution glyph.
+        // Heading, inline, and image elements: no text substitution glyph.
         _ => '',
       };
 
@@ -177,6 +196,21 @@ class MdParser {
         result
             .add(MdElement(kind: MdElKind.ul, start: lineStart, end: lineEnd));
 
+        // Step 4a — Block image detection: the entire line is `![alt](path)`.
+        // A line qualifies as a block image only when it starts with `![` and
+        // ends with `)`.  Inline images within mixed-content lines are deferred.
+        // The path is the substring between the last `(` and the final `)`.
+      } else if (_isBlockImageLine(line)) {
+        olBlockStart = 0;
+        olRunCount = 0;
+        final path = _extractImagePath(line);
+        result.add(MdElement(
+          kind: MdElKind.image,
+          start: lineStart,
+          end: lineEnd,
+          imagePath: path,
+        ));
+
         // Step 4 — Ordered list ('{digits}. ').
         // seqNum is block-relative: the first line in a consecutive ol block sets
         // olBlockStart from its source digit; each subsequent line increments by 1.
@@ -262,6 +296,27 @@ class MdParser {
   // ---------------------------------------------------------------------------
   // Private helpers.
   // ---------------------------------------------------------------------------
+
+  /// Returns true if [line] is a block-level image: starts with `![` and ends
+  /// with `)`.  The line must also contain `(` after `]` so the path can be
+  /// extracted.  Lines with surrounding text (e.g. `text ![alt](path) more`)
+  /// do NOT qualify — scope is block-only for Stage 5.
+  static bool _isBlockImageLine(String line) {
+    if (!line.startsWith('![')) return false;
+    if (!line.endsWith(')')) return false;
+    // Must have a `(` somewhere after the `![` opening and before `)`.
+    final lastOpen = line.lastIndexOf('(');
+    if (lastOpen < 2) return false; // no `(` or it's at the very start
+    return true;
+  }
+
+  /// Extracts the path from a block image line `![alt](path)`.
+  /// Returns the content between the last `(` and the final `)`.
+  static String _extractImagePath(String line) {
+    final lastOpen = line.lastIndexOf('(');
+    // line ends with ')' (guaranteed by _isBlockImageLine).
+    return line.substring(lastOpen + 1, line.length - 1);
+  }
 
   /// Returns true if [line] matches the GFM ordered-list pattern: one or more
   /// ASCII digits followed by '. ' (period + space).

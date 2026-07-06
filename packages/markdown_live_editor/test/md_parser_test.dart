@@ -381,4 +381,89 @@ void main() {
       expect(el.collapsedMarker, '3. ');
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Stage 5 — image element tests
+  // ---------------------------------------------------------------------------
+
+  group('MdParser.parse — image elements', () {
+    test('"![alt](path)" on its own line → image with correct imagePath', () {
+      final els = MdParser.parse('![alt](../images/photo.jpg)');
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.image);
+      expect(els[0].start, 0);
+      expect(els[0].end, 27);
+      expect(els[0].imagePath, '../images/photo.jpg');
+    });
+
+    test('"![](path)" (empty alt) parses correctly', () {
+      final els = MdParser.parse('![](foo.png)');
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.image);
+      expect(els[0].imagePath, 'foo.png');
+    });
+
+    test('inline image within surrounding text is NOT parsed as block image',
+        () {
+      // A line with other content before or after must not become an image element.
+      final els = MdParser.parse('some text ![alt](path) more');
+      expect(els, isEmpty,
+          reason: 'block-image detection requires the entire line to be ![]()');
+    });
+
+    test('malformed line starting with "![" but no closing ")" → not image',
+        () {
+      final els = MdParser.parse('![alt](path');
+      expect(els, isEmpty,
+          reason: 'line must end with ")" to qualify as block image');
+    });
+
+    test(
+        'image openDelimLen equals full line length (entire line is delimiter)',
+        () {
+      const source = '![alt](img.png)';
+      final els = MdParser.parse(source);
+      expect(els, hasLength(1));
+      final el = els[0];
+      expect(el.kind, MdElKind.image);
+      expect(el.openDelimLen, source.length);
+    });
+
+    test('image closeDelimLen is 0', () {
+      final el = MdParser.parse('![x](y.jpg)').first;
+      expect(el.closeDelimLen, 0);
+    });
+
+    test('image collapsedMarker is empty string', () {
+      final el = MdParser.parse('![x](y.jpg)').first;
+      expect(el.collapsedMarker, '');
+    });
+
+    test('all chars in image element are delimiters (isDelimiter)', () {
+      const source = '![alt](p.png)';
+      final el = MdParser.parse(source).first;
+      for (var i = 0; i < source.length; i++) {
+        expect(el.isDelimiter(i), isTrue,
+            reason: 'source[$i] should be a delimiter for image element');
+      }
+    });
+
+    test('image element in multi-line source has correct start/end', () {
+      const source = 'first line\n![alt](img.jpg)\nlast line';
+      final els = MdParser.parse(source);
+      // Only the image line should produce an element.
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.image);
+      // 'first line\n' = 11 chars → image starts at 11.
+      expect(els[0].start, 11);
+      expect(els[0].end, 11 + '![alt](img.jpg)'.length);
+      expect(els[0].imagePath, 'img.jpg');
+    });
+
+    test('imagePath is empty string for non-image elements', () {
+      final els = MdParser.parse('# Heading');
+      expect(els, hasLength(1));
+      expect(els[0].imagePath, '');
+    });
+  });
 }

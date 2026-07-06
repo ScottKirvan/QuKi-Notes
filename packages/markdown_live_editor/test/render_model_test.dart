@@ -426,4 +426,108 @@ void main() {
       expect(m.textSpan.toPlainText(), '5. alpha\n6. beta\n7. gamma');
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Stage 5 — image element render model tests
+  // ---------------------------------------------------------------------------
+
+  group('RenderModel.build — image elements', () {
+    test(
+        'collapsed image: all source chars of "![alt](path)" map to the same rendered offset',
+        () {
+      const source = '![alt](img.png)';
+      final els = MdParser.parse(source);
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.image);
+
+      final m = _build(source, els, cursorOffset: -1);
+
+      // All image source chars should map to the same rendered offset (0).
+      for (var i = 0; i <= source.length - 1; i++) {
+        expect(m.sourceToRendered[i], 0,
+            reason: 'source[$i] should map to rendered 0 for collapsed image');
+      }
+      // End sentinel maps to 0 as well (no rendered chars at all).
+      expect(m.sourceToRendered[source.length], 0);
+    });
+
+    test('collapsed image: renderedLength does not include image source chars',
+        () {
+      // The image line emits no rendered characters.
+      const source = '![alt](img.png)';
+      final els = MdParser.parse(source);
+      final m = _build(source, els, cursorOffset: -1);
+
+      expect(m.renderedLength, 0,
+          reason: 'image chars produce no rendered output when collapsed');
+      expect(m.textSpan.toPlainText(), '',
+          reason: 'collapsed image → empty rendered text');
+    });
+
+    test('collapsed image: imageSlots has one entry with correct source offset',
+        () {
+      const source = '![alt](img.png)';
+      final els = MdParser.parse(source);
+      final m = _build(source, els, cursorOffset: -1);
+
+      expect(m.imageSlots, hasLength(1));
+      expect(m.imageSlots[0].element.kind, MdElKind.image);
+      expect(m.imageSlots[0].element.start, 0);
+      expect(m.imageSlots[0].element.end, source.length);
+      // renderedCharOffset is 0 — the image sits at the beginning of rendered space.
+      expect(m.imageSlots[0].renderedCharOffset, 0);
+    });
+
+    test(
+        'image preceded by plain text: image chars map to rendered offset = length of preceding text',
+        () {
+      // 'hello\n![alt](img.png)' — 'hello\n' = 6 rendered chars, then image at ri=6.
+      const source = 'hello\n![alt](img.png)';
+      final els = MdParser.parse(source);
+      final m = _build(source, els, cursorOffset: -1);
+
+      // Rendered text = 'hello\n' only (6 chars).
+      expect(m.textSpan.toPlainText(), 'hello\n');
+      expect(m.renderedLength, 6);
+
+      // Image source chars (offset 6..21) all map to rendered 6.
+      for (var i = 6; i < source.length; i++) {
+        expect(m.sourceToRendered[i], 6,
+            reason: 'source[$i] (image char) should map to rendered 6');
+      }
+      expect(m.sourceToRendered[source.length], 6);
+
+      // imageSlots has one entry; renderedCharOffset = 6.
+      expect(m.imageSlots, hasLength(1));
+      expect(m.imageSlots[0].renderedCharOffset, 6);
+    });
+
+    test('no image slots when source has no image elements', () {
+      final m = _build('hello world', [], cursorOffset: -1);
+      expect(m.imageSlots, isEmpty);
+    });
+
+    test('revealed image: cursor inside → identity mapping, imageSlots empty',
+        () {
+      // When the cursor is inside the image element, it is revealed (raw source
+      // visible via TextPainter).  The RenderModel still emits no rendered chars
+      // for the image (the full line is treated as a delimiter in revealed mode
+      // too — in revealed mode, all chars are visible in baseStyle).
+      //
+      // Actually: for image, openDelimLen == full length, so all chars are
+      // "delimiters" — but in revealed mode, the `revealed` flag overrides and
+      // all chars ARE emitted as visible text.  Let us verify.
+      const source = '![alt](img.png)';
+      final els = MdParser.parse(source);
+      // cursorOffset = 0 → cursor inside image element → revealed.
+      final m = _build(source, els, cursorOffset: 0);
+
+      // In revealed mode the image source text IS emitted.
+      expect(m.renderedLength, source.length);
+      expect(m.textSpan.toPlainText(), source);
+
+      // Revealed image: no slot added (only collapsed slots get slots).
+      expect(m.imageSlots, isEmpty);
+    });
+  });
 }
