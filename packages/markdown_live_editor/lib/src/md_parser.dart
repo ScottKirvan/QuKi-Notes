@@ -121,28 +121,46 @@ class MdParser {
     final lines = source.split('\n');
     var lineStart = 0;
 
+    // Ordered-list block tracking (GFM-compatible):
+    // - olBlockStart: source digit of the first line in the current ol block (0 = no active block)
+    // - olRunCount:   how many consecutive ol lines seen so far in this block (0 = no active block)
+    // Each subsequent ol line in a block increments by 1 regardless of its source digit.
+    // Any non-ol line resets both counters, starting a new block on the next ol line.
+    var olBlockStart = 0;
+    var olRunCount = 0;
+
     for (final line in lines) {
       final lineEnd = lineStart + line.length; // exclusive, excluding '\n'
 
       // Step 1 — Heading check (longest prefix first).
       if (line.startsWith('### ')) {
+        olBlockStart = 0;
+        olRunCount = 0;
         result
             .add(MdElement(kind: MdElKind.h3, start: lineStart, end: lineEnd));
       } else if (line.startsWith('## ')) {
+        olBlockStart = 0;
+        olRunCount = 0;
         result
             .add(MdElement(kind: MdElKind.h2, start: lineStart, end: lineEnd));
       } else if (line.startsWith('# ')) {
+        olBlockStart = 0;
+        olRunCount = 0;
         result
             .add(MdElement(kind: MdElKind.h1, start: lineStart, end: lineEnd));
 
         // Step 2 — Checkbox detection (must run before ul, both start with '- ').
       } else if (line.startsWith('- [ ] ')) {
+        olBlockStart = 0;
+        olRunCount = 0;
         result.add(MdElement(
           kind: MdElKind.checkboxUnchecked,
           start: lineStart,
           end: lineEnd,
         ));
       } else if (line.startsWith('- [x] ') || line.startsWith('- [X] ')) {
+        olBlockStart = 0;
+        olRunCount = 0;
         result.add(MdElement(
           kind: MdElKind.checkboxChecked,
           start: lineStart,
@@ -153,24 +171,36 @@ class MdParser {
       } else if (line.startsWith('- ') ||
           line.startsWith('* ') ||
           line.startsWith('+ ')) {
+        olBlockStart = 0;
+        olRunCount = 0;
         result
             .add(MdElement(kind: MdElKind.ul, start: lineStart, end: lineEnd));
 
         // Step 4 — Ordered list ('{digits}. ').
-        // seqNum is the actual source digit, not a position-computed counter.
-        // This preserves open-data fidelity: '5. item' renders as '5. item'.
+        // seqNum is block-relative: the first line in a consecutive ol block sets
+        // olBlockStart from its source digit; each subsequent line increments by 1.
+        // This matches GFM: '1. 1. 1.' renders as '1. 2. 3.' and
+        // '5. 1. 1.' renders as '5. 6. 7.'.
       } else if (_isOlLine(line)) {
         final dotIdx = line.indexOf('. ');
         final srcDelimLen = dotIdx + 2; // digits + '. '
         final srcDigit = int.parse(line.substring(0, dotIdx));
+        if (olRunCount == 0) {
+          // Start of a new block: anchor to this line's source digit.
+          olBlockStart = srcDigit;
+        }
+        olRunCount++;
+        final seqNum = olBlockStart + (olRunCount - 1);
         result.add(MdElement(
           kind: MdElKind.ol,
           start: lineStart,
           end: lineEnd,
-          seqNum: srcDigit,
+          seqNum: seqNum,
           srcOlDelimLen: srcDelimLen,
         ));
       } else {
+        olBlockStart = 0;
+        olRunCount = 0;
         // Step 5 — Inline scan (non-list, non-heading lines only).
         var i = lineStart;
         while (i < lineEnd) {

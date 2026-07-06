@@ -397,19 +397,33 @@ void main() {
       expect(m.sourceToRendered[4], 4);
     });
 
-    test('ol via parser: source digits preserved in rendered output', () {
-      // Each line keeps its own source digit in the rendered marker.
-      // '5. alpha' renders as '5. alpha', not '1. alpha'.
-      const source = '1. alpha\n5. beta\n10. gamma';
+    test('ol via parser: block-relative seqNums in rendered output', () {
+      // Consecutive ol lines form one block; block starts at first line's source digit (1).
+      // Each subsequent line increments by 1 regardless of source digit.
+      // '1. alpha\n1. beta\n1. gamma' → rendered '1. alpha\n2. beta\n3. gamma'.
+      const source = '1. alpha\n1. beta\n1. gamma';
       final els = MdParser.parse(source);
       expect(els, hasLength(3));
       expect(els[0].seqNum, 1);
-      expect(els[1].seqNum, 5);
-      expect(els[2].seqNum, 10);
+      expect(els[1].seqNum, 2);
+      expect(els[2].seqNum, 3);
 
-      // Render collapsed — each marker equals its source digit.
+      // Render collapsed — each marker uses block-relative seqNum.
       final m = _build(source, els, cursorOffset: -1);
-      expect(m.textSpan.toPlainText(), '1. alpha\n5. beta\n10. gamma');
+      expect(m.textSpan.toPlainText(), '1. alpha\n2. beta\n3. gamma');
+    });
+
+    test('ol via parser: block starting at 5 → seqNums 5, 6, 7', () {
+      // '5. alpha\n1. beta\n1. gamma' — block anchors to 5, then 6, 7.
+      const source = '5. alpha\n1. beta\n1. gamma';
+      final els = MdParser.parse(source);
+      expect(els, hasLength(3));
+      expect(els[0].seqNum, 5);
+      expect(els[1].seqNum, 6);
+      expect(els[2].seqNum, 7);
+
+      final m = _build(source, els, cursorOffset: -1);
+      expect(m.textSpan.toPlainText(), '5. alpha\n6. beta\n7. gamma');
     });
   });
 }

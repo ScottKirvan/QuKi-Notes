@@ -232,17 +232,50 @@ void main() {
       expect(els[0].seqNum, 1);
     });
 
-    test('ol seqNum reflects actual source digit, not position in block', () {
-      // Source digits 1, 3, 5 — each element's seqNum must equal its own digit.
+    test(
+        'ol seqNum is block-relative: consecutive ol lines increment regardless of source digit',
+        () {
+      // Source digits 1, 3, 5 — but they form one consecutive block, so
+      // block starts at 1 and each line increments by 1: rendered as 1, 2, 3.
       const source = '1. first\n3. second\n5. third';
       final els = MdParser.parse(source);
       expect(els, hasLength(3));
       expect(els[0].kind, MdElKind.ol);
       expect(els[0].seqNum, 1);
       expect(els[1].kind, MdElKind.ol);
-      expect(els[1].seqNum, 3);
+      expect(els[1].seqNum, 2);
       expect(els[2].kind, MdElKind.ol);
-      expect(els[2].seqNum, 5);
+      expect(els[2].seqNum, 3);
+    });
+
+    test(
+        'ol common shorthand: "1. 1. 1." → block-relative seqNums 1, 2, 3', () {
+      // GFM-compatible: repeating "1." is the common shorthand for numbered lists.
+      const source = '1. first\n1. second\n1. third';
+      final els = MdParser.parse(source);
+      expect(els, hasLength(3));
+      expect(els[0].seqNum, 1);
+      expect(els[1].seqNum, 2);
+      expect(els[2].seqNum, 3);
+    });
+
+    test('ol block starting at 5: "5. 1. 1." → seqNums 5, 6, 7', () {
+      // Block anchors to first line's source digit (5); subsequent lines increment.
+      const source = '5. first\n1. second\n1. third';
+      final els = MdParser.parse(source);
+      expect(els, hasLength(3));
+      expect(els[0].seqNum, 5);
+      expect(els[1].seqNum, 6);
+      expect(els[2].seqNum, 7);
+    });
+
+    test('ol two separate blocks: "1. a\\nplain\\n7. b" → seqNums 1, 7', () {
+      // Plain line resets the block; second block starts at its own source digit.
+      const source = '1. a\nplain line\n7. b';
+      final els = MdParser.parse(source);
+      expect(els, hasLength(2));
+      expect(els[0].seqNum, 1);
+      expect(els[1].seqNum, 7);
     });
 
     test('non-1 source digit: "5. item" → seqNum == 5', () {
@@ -254,8 +287,11 @@ void main() {
     });
 
     test(
-        'ol seqNum from source digit: source "1. first\\n2. second\\nplain\\n7. restart"',
+        'ol two separate blocks: "1. first\\n2. second\\nplain\\n7. restart" → seqNums 1, 2, 7',
         () {
+      // Block 1: '1. first' (start=1, run=1 → seqNum 1), '2. second' (start=1, run=2 → seqNum 2).
+      // Plain line resets the block counter.
+      // Block 2: '7. restart' (start=7, run=1 → seqNum 7).
       const source = '1. first\n2. second\nplain line\n7. restart';
       final els = MdParser.parse(source);
       // Two ol elements, one plain line (no element), one ol.
@@ -265,7 +301,7 @@ void main() {
       expect(els[1].kind, MdElKind.ol);
       expect(els[1].seqNum, 2);
       expect(els[2].kind, MdElKind.ol);
-      expect(els[2].seqNum, 7); // source digit, not reset to 1
+      expect(els[2].seqNum, 7); // second block starts at its own source digit
     });
 
     test('heading followed by a list line produces two separate elements', () {
