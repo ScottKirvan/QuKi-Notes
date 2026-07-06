@@ -327,7 +327,7 @@ Supersedes the `buildTextSpan()` zero-width-hiding model (ADR-30). Full rational
 1. A parse pass walks the buffer and produces a flat list of elements (heading, unordered/ordered list item, checkbox, bold/italic/strikethrough/code span, link, image, blockquote, code fence), each carrying a source range (`start`, `end` offsets into the buffer).
 2. On every selection change, each element's source range is intersection-tested against the current cursor/selection. An element containing the cursor is **revealed** — shown as raw markdown source, directly editable. Every other element is **collapsed** — shown in its rendered form, which may differ in length and content from its source (heading text with `# ` fully removed and a larger font; a link showing only its label text; an image shown as an actual embedded image; a checkbox shown as a real glyph).
 3. Reveal/collapse recomputation is a cheap intersection test against cached ranges — it does not require re-parsing the document. Re-parsing only happens after a text change.
-4. A full reparse per text change is acceptable for this app's document sizes (short-form QuKis). Do not add incremental parsing until profiling proves it's needed.
+4. A full reparse per text change is acceptable because a single-pass regex scan is cheap even for large documents. Do not add incremental parsing until profiling proves it's needed.
 
 **Cursor and selection mechanics** (do not exist in Flutter's `TextField`/`EditableText`; must be built ourselves):
 

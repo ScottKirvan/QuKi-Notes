@@ -128,6 +128,12 @@ QuKi-Notes/
 | | 3.20a Keyboard on cold launch (#72) — + button paths + resume fix | Complete (PRs #165, #168, #170) |
 | | 3.21 Stream performance (lazy loading) | Defer until threshold hit |
 | | 3.22 Single-buffer TextSpan editor — replace block-flip (ADR-30, #179, #180) | Complete (PRs #186, #189, v0.15.0) |
+| | 3.23 ADR-31 Stage 1 — custom RenderObject + TextInputClient, plain-text editor | Complete (PR #201, v0.16.0) |
+| | 3.24 ADR-31 Stage 1 device-test fixes — gesture, keyboard lifecycle, scroll, long-press | Complete (PR #203, v0.16.1) |
+| | 3.25 ADR-31 Stage 2 — MdParser + RenderModel; reveal/collapse for h1–h3, bold, italic | Complete (PR #205) |
+| | 3.26 ADR-31 Stage 2 rendering fixes — reveal at element.end, delimiter color | Complete (PR #209) |
+| | 3.27 ADR-31 Stage 3 — boundary-reveal cursor movement + precise tap-to-source | Complete (IME-native; arrow-key device-test deferred) |
+| | 3.28 ADR-31 Stage 4 — list glyphs, checkboxes, ordered-list numbering | Complete (PR #211) |
 | 4 | Sync plugin axis + first sync backend | v1.1+ |
 | 5 | iPadOS / iOS / macOS builds | Deferred |
 | 6 | MCP plugin axis | v2.0+ |
@@ -148,7 +154,7 @@ QuKi-Notes/
 
 ---
 
-## Implementation Notes (current as of v0.15.1)
+## Implementation Notes (current as of v0.16.1; Stages 2–4 post-v0.16.1, unreleased)
 
 **Navigation**: Editor is the permanent root. `app.dart` home = `EditorScreen`; it never has a back button. `activeQukiIdProvider` (NotifierProvider<String?>) controls which QuKi is loaded. `StreamScreen` sets `activeQukiIdProvider` and pops — no second `EditorScreen` is ever pushed. QuKis list slides in from the left; Settings slides in from the right (directional per affordance position).
 
@@ -156,7 +162,7 @@ QuKi-Notes/
 
 **Auto-save (ADR-6)**: `AutoSaveController` — 2s idle debounce + 30s periodic + lifecycle hooks. Accepts a `Future<void> Function(String body)` write callback. Tracks `_lastSavedBody` and skips writes when content is identical. `resetForQuki(id:, initialBody:)` switches the save target without disposing the controller.
 
-**Editor (ADR-30, v0.15.1)**: `packages/markdown_live_editor/` (monorepo path dep) — single `TextField` with `_MarkdownTextController extends TextEditingController`. `buildTextSpan()` is overridden: each line is parsed by `MarkdownSpanParser`; cursor line shows raw text with syntax chars in `syntaxColor` (muted); non-cursor lines hide syntax chars (`color: transparent, fontSize: 0.001`) and apply block/inline transforms. Character-count invariant: total span chars always equals `text.length`. Public API: `wrapSelection()`, `toggleLinePrefix()`, `toggleUnorderedList()`, `toggleOrderedList()`, `togglePlainTextMode()`, `setValue()`, `requestFocus()`. `FormattingToolbar` lives in the package. List auto-continue in `_onTextChanged()`. `MarkdownEditorController.setValue()` is the seam to `EditorScreen`; `onChanged` → `_autoSave.notifyChanged()`.
+**Editor (ADR-31 Stages 2–4, post-v0.16.1)**: `packages/markdown_live_editor/` (monorepo path dep) — custom `QuikiRenderEditor extends RenderBox` + `QuikiEditorState implements TextInputClient`, replacing `TextField`. Stage 2 adds `MdParser` (flat left-to-right scanner; h1/h2/h3, bold `**`/`__`, italic `*`/`_`; no cross-line matching) and `RenderModel` (O(n+m) build; bidirectional offset maps `sourceToRendered`/`renderedToSource`; element containing cursor is *revealed* — raw source visible at `baseStyle`; all others *collapsed* — delimiters hidden, content in heading/bold/italic style). Reveal condition: `cursorOffset >= element.start && cursorOffset <= element.end`. Stage 4 adds `ul`, `ol`, `checkboxUnchecked`, `checkboxChecked` element kinds with variable-length N→M marker substitution (`- ` → `• `, `- [ ] ` → `☐ `, `- [x] ` → `☑ `, `N. ` → position-computed `seqNum. `); all source delimiter positions map to marker start in `srcToRnd`; ordered-list sequence numbers are position-computed (source digits ignored). `positionForOffset`, `getOffsetForCaret`, and `paint` all route through offset maps for correct caret and selection placement. Parse cache: `_lastParsedText`/`_elements` re-parses only on text change. `FormattingToolbar` lives in the package. Public API: `setValue()`, `requestFocus()`, `wrapSelection()`, `toggleLinePrefix()`, `toggleUnorderedList()`, `toggleOrderedList()`, `togglePlainTextMode()`. `MarkdownEditorController.setValue()` is the seam to `EditorScreen`; `onChanged` → `_autoSave.notifyChanged()`.
 
 **Recently Deleted (PR #103)**: `lib/features/recently_deleted/recently_deleted_screen.dart` — `Consumer` over `trashIndexProvider`, newest-first list. Tap → restore. Swipe → confirmation → hard delete. Accessible via Settings → Recently Deleted.
 
@@ -176,4 +182,4 @@ QuKi-Notes/
 
 **Known bugs (open)**: #72 keyboard on cold launch — deferred (Scott's call); #73 rapid shares may lose content; #75 opening a note moves it to top of list; #77 tabs/indenting broken in lists; #130 checkbox tap-to-toggle not implemented; #188 share-in launches a new app instance (Android `launchMode` issue).
 
-**Last Updated**: 2026-07-03
+**Last Updated**: 2026-07-06
