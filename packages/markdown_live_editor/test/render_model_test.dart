@@ -208,4 +208,212 @@ void main() {
       expect(m.textSpan.toPlainText(), '# A');
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Stage 4 — list element render model tests
+  // ---------------------------------------------------------------------------
+
+  group('RenderModel.build — list elements', () {
+    // -------------------------------------------------------------------------
+    // ul
+    // -------------------------------------------------------------------------
+    test('ul collapsed: "- item" → rendered "• item"', () {
+      // source = '- item' (6 chars), ul(0,6), cursorOffset = -1
+      // marker '- ' (2 source chars) → '• ' (2 rendered chars)
+      // content 'item' (4 chars) → 'item' (4 chars)
+      // rendered total = '• item' (6 chars)
+      const source = '- item';
+      final el = MdParser.parse(source);
+      final m = _build(source, el, cursorOffset: -1);
+
+      expect(m.textSpan.toPlainText(), '• item');
+      expect(m.renderedLength, 6);
+    });
+
+    test('ul collapsed: source delimiter maps to rendered marker start', () {
+      // source = '- item', marker '• ' starts at rendered 0.
+      // srcToRnd[0] = 0 (first '-' maps to rendered 0)
+      // srcToRnd[1] = 0 (space maps to rendered 0)
+      // srcToRnd[2] = 2 (first content char 'i' maps to rendered 2)
+      const source = '- item';
+      final el = MdParser.parse(source);
+      final m = _build(source, el, cursorOffset: -1);
+
+      expect(m.sourceToRendered[0], 0); // '-'
+      expect(m.sourceToRendered[1], 0); // ' '
+      expect(m.sourceToRendered[2], 2); // 'i'
+      expect(m.sourceToRendered[3], 3); // 't'
+    });
+
+    test('ul revealed: source shown as-is', () {
+      // cursor inside element → all source chars visible
+      const source = '- item';
+      final els = MdParser.parse(source);
+      final m = _build(source, els, cursorOffset: 1);
+
+      expect(m.textSpan.toPlainText(), '- item');
+      expect(m.renderedLength, 6);
+
+      // Identity mapping.
+      for (var i = 0; i <= 6; i++) {
+        expect(m.sourceToRendered[i], i);
+      }
+    });
+
+    // -------------------------------------------------------------------------
+    // checkboxUnchecked — variable-length substitution (6 src → 2 rendered)
+    // -------------------------------------------------------------------------
+    test('checkboxUnchecked collapsed: "- [ ] item" → rendered "☐ item"', () {
+      // source = '- [ ] item' (10 chars)
+      // marker '- [ ] ' (6 source chars) → '☐ ' (2 rendered chars)
+      // content 'item' (4 chars)
+      // rendered = '☐ item' (6 chars)
+      const source = '- [ ] item';
+      final els = MdParser.parse(source);
+      final m = _build(source, els, cursorOffset: -1);
+
+      expect(m.textSpan.toPlainText(), '☐ item');
+      expect(m.renderedLength, 6);
+    });
+
+    test(
+        'checkboxUnchecked collapsed: offset map — 6 source marker chars → 2 rendered',
+        () {
+      // source = '- [ ] item'
+      // src offsets 0..5 (the marker '- [ ] ') all map to rendered 0
+      // src offset 6 ('i') maps to rendered 2
+      const source = '- [ ] item';
+      final els = MdParser.parse(source);
+      final m = _build(source, els, cursorOffset: -1);
+
+      // All source marker positions map to rendered 0 (start of '☐ ').
+      for (var d = 0; d < 6; d++) {
+        expect(m.sourceToRendered[d], 0,
+            reason: 'source[$d] should map to rendered 0');
+      }
+      // Content starts at rendered 2.
+      expect(m.sourceToRendered[6], 2); // 'i'
+      expect(m.sourceToRendered[7], 3); // 't'
+      expect(m.sourceToRendered[8], 4); // 'e'
+      expect(m.sourceToRendered[9], 5); // 'm'
+      expect(m.sourceToRendered[10], 6); // end sentinel
+
+      // renderedToSource: rendered 0 and 1 (the '☐ ') map to source 0.
+      expect(m.renderedToSource[0], 0); // '☐' → source 0
+      expect(m.renderedToSource[1], 0); // ' ' → source 0
+      // Content chars.
+      expect(m.renderedToSource[2], 6); // 'i'
+      expect(m.renderedToSource[3], 7); // 't'
+      expect(m.renderedToSource[4], 8); // 'e'
+      expect(m.renderedToSource[5], 9); // 'm'
+      // End sentinel.
+      expect(m.renderedToSource[6], 10);
+    });
+
+    test(
+        'checkboxUnchecked collapsed: tapping rendered marker resolves inside element',
+        () {
+      // sourceForRendered(0) and sourceForRendered(1) must both be inside the
+      // element range [0, 10) — so a tap on the marker triggers reveal.
+      const source = '- [ ] item';
+      final els = MdParser.parse(source);
+      final m = _build(source, els, cursorOffset: -1);
+
+      final src0 = m.sourceForRendered(0);
+      final src1 = m.sourceForRendered(1);
+      expect(els[0].containsOffset(src0), isTrue,
+          reason: 'rendered 0 → source $src0 should be inside element');
+      expect(els[0].containsOffset(src1), isTrue,
+          reason: 'rendered 1 → source $src1 should be inside element');
+    });
+
+    // -------------------------------------------------------------------------
+    // checkboxChecked
+    // -------------------------------------------------------------------------
+    test('checkboxChecked collapsed: "- [x] done" → rendered "☑ done"', () {
+      const source = '- [x] done';
+      final els = MdParser.parse(source);
+      final m = _build(source, els, cursorOffset: -1);
+
+      expect(m.textSpan.toPlainText(), '☑ done');
+      expect(m.renderedLength, 6);
+    });
+
+    // -------------------------------------------------------------------------
+    // ol — position-computed sequence number
+    // -------------------------------------------------------------------------
+    test('ol collapsed: seqNum=1 source "1. item" → rendered "1. item"', () {
+      // '1. item': marker '1. ' (3 src) → '1. ' (3 rendered) — same length here
+      const source = '1. item';
+      final els = MdParser.parse(source);
+      final m = _build(source, els, cursorOffset: -1);
+
+      expect(m.textSpan.toPlainText(), '1. item');
+      expect(m.renderedLength, 7);
+    });
+
+    test('ol collapsed with seqNum=3 renders "3. " regardless of source digits',
+        () {
+      // Construct an ol element manually with seqNum=3 but source text '1. item'.
+      // The rendered marker should be '3. '.
+      const source = '1. item';
+      // Build the element manually so we control seqNum.
+      final el = MdElement(
+        kind: MdElKind.ol,
+        start: 0,
+        end: 7,
+        seqNum: 3,
+        srcOlDelimLen: 3, // '1. ' = 3 source chars
+      );
+      final m = _build(source, [el], cursorOffset: -1);
+
+      // Marker '3. ' emitted; content 'item' follows.
+      expect(m.textSpan.toPlainText(), '3. item');
+      expect(m.renderedLength, 7);
+    });
+
+    test('ol collapsed: two-digit source "12. item" with seqNum=1 → "1. item"',
+        () {
+      // source '12. item' — source delimiter '12. ' = 4 chars, but seqNum=1.
+      // rendered marker = '1. ' (3 chars). Net: 4 src → 3 rendered for marker.
+      const source = '12. item';
+      final el = MdElement(
+        kind: MdElKind.ol,
+        start: 0,
+        end: 8,
+        seqNum: 1,
+        srcOlDelimLen: 4, // '12. ' = 4 source chars
+      );
+      final m = _build(source, [el], cursorOffset: -1);
+
+      expect(m.textSpan.toPlainText(), '1. item');
+      expect(m.renderedLength, 7);
+
+      // Source delimiter positions 0..3 all map to rendered 0.
+      for (var d = 0; d <= 3; d++) {
+        expect(m.sourceToRendered[d], 0,
+            reason: 'source[$d] (delimiter) should map to rendered 0');
+      }
+      // First content char 'i' at source 4 → rendered 3.
+      expect(m.sourceToRendered[4], 3);
+    });
+
+    test('ol sequence via parser: 3-line block → seqNums 1, 2, 3', () {
+      // Use a single source with all three lines and render the full model.
+      // The rendered text should substitute each source '1.' marker with the
+      // position-computed seqNum.
+      const source = '1. alpha\n1. beta\n1. gamma';
+      final els = MdParser.parse(source);
+      expect(els, hasLength(3));
+      expect(els[0].seqNum, 1);
+      expect(els[1].seqNum, 2);
+      expect(els[2].seqNum, 3);
+
+      // Render the whole source collapsed (cursorOffset = -1).
+      final m = _build(source, els, cursorOffset: -1);
+
+      // All three lines rendered: markers substituted by seqNum, content preserved.
+      expect(m.textSpan.toPlainText(), '1. alpha\n2. beta\n3. gamma');
+    });
+  });
 }

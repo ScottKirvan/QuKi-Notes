@@ -1,8 +1,18 @@
 // ---------------------------------------------------------------------------
-// Markdown element kinds supported in Stage 2.
+// Markdown element kinds supported through Stage 4.
 // ---------------------------------------------------------------------------
 
-enum MdElKind { h1, h2, h3, bold, italic }
+enum MdElKind {
+  h1,
+  h2,
+  h3,
+  bold,
+  italic,
+  ul,
+  ol,
+  checkboxUnchecked,
+  checkboxChecked
+}
 
 // ---------------------------------------------------------------------------
 // MdElement — a parsed markdown element anchored to source offsets.
@@ -13,7 +23,9 @@ class MdElement {
     required this.kind,
     required this.start,
     required this.end,
-  });
+    this.seqNum = 0,
+    int srcOlDelimLen = 0,
+  }) : _srcOlDelimLen = srcOlDelimLen;
 
   /// Kind of markdown element.
   final MdElKind kind;
@@ -23,6 +35,15 @@ class MdElement {
 
   /// Source offset just past the last character of this element (exclusive).
   final int end;
+
+  /// For [MdElKind.ol]: the 1-based position-computed sequence number.
+  /// For all other kinds this is 0 and should not be read.
+  final int seqNum;
+
+  /// For [MdElKind.ol]: the number of source characters in the marker
+  /// (e.g. '1. ' = 3, '12. ' = 4). Stored separately because the source
+  /// digits may differ from [seqNum].
+  final int _srcOlDelimLen;
 
   /// True if [offset] falls within this element's source range.
   bool containsOffset(int offset) => offset >= start && offset < end;
@@ -34,13 +55,41 @@ class MdElement {
         MdElKind.h3 => 4, // '### '
         MdElKind.bold => 2, // '**' or '__'
         MdElKind.italic => 1, // '*' or '_'
+        MdElKind.ul => 2, // '- ' / '* ' / '+ '
+        MdElKind.ol => _srcOlDelimLen, // '{digits}. ' — variable
+        MdElKind.checkboxUnchecked => 6, // '- [ ] '
+        MdElKind.checkboxChecked => 6, // '- [x] ' or '- [X] '
       };
 
-  /// Length of the closing delimiter (0 for headings — no closing delimiter).
+  /// Length of the closing delimiter (0 for block-level elements).
   int get closeDelimLen => switch (kind) {
-        MdElKind.h1 || MdElKind.h2 || MdElKind.h3 => 0,
+        MdElKind.h1 ||
+        MdElKind.h2 ||
+        MdElKind.h3 ||
+        MdElKind.ul ||
+        MdElKind.ol ||
+        MdElKind.checkboxUnchecked ||
+        MdElKind.checkboxChecked =>
+          0,
         MdElKind.bold => 2,
         MdElKind.italic => 1,
+      };
+
+  /// The string that replaces the source marker in collapsed (rendered) mode.
+  ///
+  /// For inline elements (bold, italic) and headings, the marker is simply
+  /// hidden (delimiter chars omitted), so [collapsedMarker] returns the empty
+  /// string — the render model handles those by skipping delimiter source
+  /// characters rather than emitting a substitution glyph.
+  ///
+  /// For block list elements, this returns the visual glyph + space.
+  String get collapsedMarker => switch (kind) {
+        MdElKind.ul => '• ',
+        MdElKind.checkboxUnchecked => '☐ ',
+        MdElKind.checkboxChecked => '☑ ',
+        MdElKind.ol => '$seqNum. ',
+        // Heading and inline elements: no substitution glyph.
+        _ => '',
       };
 
   /// Whether source offset [si] (which must be within [start, end)) is a
@@ -71,6 +120,9 @@ class MdParser {
     final lines = source.split('\n');
     var lineStart = 0;
 
+    // Track consecutive ol runs to compute sequence numbers.
+    var olRunCount = 0;
+
     for (final line in lines) {
       final lineEnd = lineStart + line.length; // exclusive, excluding '\n'
 
@@ -78,14 +130,55 @@ class MdParser {
       if (line.startsWith('### ')) {
         result
             .add(MdElement(kind: MdElKind.h3, start: lineStart, end: lineEnd));
+        olRunCount = 0;
       } else if (line.startsWith('## ')) {
         result
             .add(MdElement(kind: MdElKind.h2, start: lineStart, end: lineEnd));
+        olRunCount = 0;
       } else if (line.startsWith('# ')) {
         result
             .add(MdElement(kind: MdElKind.h1, start: lineStart, end: lineEnd));
+        olRunCount = 0;
+
+        // Step 2 — Checkbox detection (must run before ul, both start with '- ').
+      } else if (line.startsWith('- [ ] ')) {
+        result.add(MdElement(
+          kind: MdElKind.checkboxUnchecked,
+          start: lineStart,
+          end: lineEnd,
+        ));
+        olRunCount = 0;
+      } else if (line.startsWith('- [x] ') || line.startsWith('- [X] ')) {
+        result.add(MdElement(
+          kind: MdElKind.checkboxChecked,
+          start: lineStart,
+          end: lineEnd,
+        ));
+        olRunCount = 0;
+
+        // Step 3 — Unordered list ('- ', '* ', '+ ').
+      } else if (line.startsWith('- ') ||
+          line.startsWith('* ') ||
+          line.startsWith('+ ')) {
+        result
+            .add(MdElement(kind: MdElKind.ul, start: lineStart, end: lineEnd));
+        olRunCount = 0;
+
+        // Step 4 — Ordered list ('{digits}. ').
+      } else if (_isOlLine(line)) {
+        olRunCount++;
+        final dotIdx = line.indexOf('. ');
+        final srcDelimLen = dotIdx + 2; // digits + '. '
+        result.add(MdElement(
+          kind: MdElKind.ol,
+          start: lineStart,
+          end: lineEnd,
+          seqNum: olRunCount,
+          srcOlDelimLen: srcDelimLen,
+        ));
       } else {
-        // Step 2 — Inline scan (non-heading lines only).
+        // Step 5 — Inline scan (non-list, non-heading lines only).
+        olRunCount = 0;
         var i = lineStart;
         while (i < lineEnd) {
           // Check bold: '**' or '__'
@@ -140,6 +233,26 @@ class MdParser {
     }
 
     return result;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Private helpers.
+  // ---------------------------------------------------------------------------
+
+  /// Returns true if [line] matches the GFM ordered-list pattern: one or more
+  /// ASCII digits followed by '. ' (period + space).
+  static bool _isOlLine(String line) {
+    var i = 0;
+    while (i < line.length && _isDigit(line[i])) {
+      i++;
+    }
+    if (i == 0) return false; // no leading digit
+    return i + 1 < line.length && line[i] == '.' && line[i + 1] == ' ';
+  }
+
+  static bool _isDigit(String ch) {
+    final code = ch.codeUnitAt(0);
+    return code >= 0x30 && code <= 0x39;
   }
 
   // Find the first occurrence of the two-char sequence [delim] in
