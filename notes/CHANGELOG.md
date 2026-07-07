@@ -13,6 +13,8 @@
 * **parser:** GFM inline markup batch — strikethrough, inlineCode, h4-h6, autolinks; icon + color fixes ([f45dc10](https://github.com/ScottKirvan/QuKi-Notes/commit/f45dc10a2e9dafbe9f904bd290d528cc368c9172))
 * **parser:** skip both chars of unmatched '**'/'__' to prevent spurious italic ([b7d8b71](https://github.com/ScottKirvan/QuKi-Notes/commit/b7d8b71b2fea2e976a079b3a66e01759a50ae317)), closes [#219](https://github.com/ScottKirvan/QuKi-Notes/issues/219)
 
+Includes PRs: [#220](https://github.com/ScottKirvan/QuKi-Notes/pull/220), [#221](https://github.com/ScottKirvan/QuKi-Notes/pull/221), [#222](https://github.com/ScottKirvan/QuKi-Notes/pull/222)
+
 ## [0.17.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.16.1...v0.17.0) (2026-07-07)
 
 
