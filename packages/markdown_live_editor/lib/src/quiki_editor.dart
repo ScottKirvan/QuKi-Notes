@@ -354,14 +354,22 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
 
   void _showSelectionToolbar({bool skipMobileCheck = false}) {
     if (!skipMobileCheck && !_isMobile) return;
-    if (!_value.selection.isValid || _value.selection.isCollapsed) return;
+    if (!_value.selection.isValid) return;
 
     final re = _renderEditor;
     if (re == null) return;
 
-    // Compute the global position above the selection start.
+    final isCollapsed = _value.selection.isCollapsed;
+
+    // For a collapsed selection use the cursor position as both anchors.
+    // For a non-collapsed selection anchor above the selection start and below
+    // the selection end so the toolbar avoids overlapping the highlighted text.
+    final anchorOffset =
+        isCollapsed ? _value.selection.baseOffset : _value.selection.start;
+
+    // Compute the global position above the selection start (or cursor).
     final caretLocalOffset =
-        re.getOffsetForCaret(TextPosition(offset: _value.selection.start));
+        re.getOffsetForCaret(TextPosition(offset: anchorOffset));
     // Add padding.topLeft to convert from text-painter space to render-object
     // local space, then use localToGlobal for screen coordinates.
     final localCaretOffset = caretLocalOffset + re.localPadding.topLeft;
@@ -374,9 +382,12 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
       globalCaretOffset.dx,
       globalCaretOffset.dy,
     );
-    // secondaryAnchor: below the selection end (fallback when above is clipped).
+
+    // secondaryAnchor: below the selection end (or cursor) as fallback.
+    final endOffset =
+        isCollapsed ? _value.selection.baseOffset : _value.selection.end;
     final caretEndLocalOffset =
-        re.getOffsetForCaret(TextPosition(offset: _value.selection.end));
+        re.getOffsetForCaret(TextPosition(offset: endOffset));
     final localEndOffset = caretEndLocalOffset + re.localPadding.topLeft;
     final globalEndOffset = re.localToGlobal(localEndOffset);
     final secondaryAnchor = Offset(
@@ -387,12 +398,10 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     _toolbarController.show(
       context: context,
       contextMenuBuilder: (ctx) {
-        return AdaptiveTextSelectionToolbar.buttonItems(
-          anchors: TextSelectionToolbarAnchors(
-            primaryAnchor: primaryAnchor,
-            secondaryAnchor: secondaryAnchor,
-          ),
-          buttonItems: [
+        // Collapsed selection: Paste and Select All only.
+        // Non-collapsed selection: Cut, Copy, Paste, Select All.
+        final buttonItems = [
+          if (!isCollapsed)
             ContextMenuButtonItem(
               label: 'Cut',
               onPressed: () {
@@ -400,6 +409,7 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
                 _cutSelection();
               },
             ),
+          if (!isCollapsed)
             ContextMenuButtonItem(
               label: 'Copy',
               onPressed: () {
@@ -407,21 +417,30 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
                 _copySelection();
               },
             ),
-            ContextMenuButtonItem(
-              label: 'Paste',
-              onPressed: () {
-                _toolbarController.remove();
-                _pasteFromClipboard();
-              },
-            ),
-            ContextMenuButtonItem(
-              label: 'Select All',
-              onPressed: () {
-                _toolbarController.remove();
-                _selectAll();
-              },
-            ),
-          ],
+          ContextMenuButtonItem(
+            label: 'Paste',
+            onPressed: () {
+              _toolbarController.remove();
+              _pasteFromClipboard();
+            },
+          ),
+          ContextMenuButtonItem(
+            label: 'Select All',
+            onPressed: () {
+              _selectAll();
+              // Re-show the toolbar immediately: selection is now non-collapsed
+              // (full text selected) so Cut, Copy, Paste, Select All appear.
+              _showSelectionToolbar(skipMobileCheck: skipMobileCheck);
+            },
+          ),
+        ];
+
+        return AdaptiveTextSelectionToolbar.buttonItems(
+          anchors: TextSelectionToolbarAnchors(
+            primaryAnchor: primaryAnchor,
+            secondaryAnchor: secondaryAnchor,
+          ),
+          buttonItems: buttonItems,
         );
       },
     );
