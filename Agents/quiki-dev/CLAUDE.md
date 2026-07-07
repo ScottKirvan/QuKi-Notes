@@ -47,576 +47,184 @@ Read in this order — do not skip:
 
 > Written and maintained by the Spec session.
 
-No task currently in progress.
+### Stage 6 — Inline links
+
+**Branch**: `feat/editor-stage6-links` (already created from main — check it out before starting)
+
+**PR title**: `feat(editor): ADR-31 Stage 6 — inline link rendering and tap-to-navigate`
 
 ---
 
 ### Context
 
-Stage 1 (v0.16.0, PR #201) shipped the custom `RenderObject + TextInputClient` replacing `TextField`. The editor currently has no markdown rendering — `QuikiRenderEditor` just passes `TextSpan(text: _value.text, style: _textStyle)` to `TextPainter`. Plain source is what the user sees.
+ADR-31 Stages 1–4 shipped a custom `RenderObject + TextInputClient` live-preview markdown engine (`packages/markdown_live_editor/`). The engine parses headings, bold, italic, ul, ol, and checkboxes. Images (Stage 5, PR #215) added block-image rendering.
 
-Stage 2 adds the core reveal/collapse mechanic:
+Stage 6 adds inline `[text](url)` links:
 
-- A **parser** (`MdParser`) that walks the source string and produces a flat list of markdown elements with source ranges
-- A **render model** (`RenderModel`) that builds a rendered `TextSpan` tree and two bidirectional offset-mapping arrays (`sourceToRendered`, `renderedToSource`) from the element list and the current cursor offset
-- Updated `QuikiRenderEditor` to use the render model's `TextSpan` for `TextPainter` layout, and the offset tables for caret painting and tap hit-testing
-- Updated `QuikiEditorState` to parse on text change (cached) and build a fresh `RenderModel` on every frame
+- Collapsed link: `[` and `](url)` are hidden; link text renders in a distinct link style (underlined + link color).
+- Revealed link (cursor inside the element's source range): all source chars are shown; delimiters in `syntaxColor`, content in `baseStyle`. Same reveal rule as all other elements — cursor at or between `element.start` and `element.end`.
+- **Tap on a collapsed link opens the URL. The cursor does NOT move to that link.** Tap on revealed link source (cursor already inside) or on plain text — cursor moves normally.
+- Arrow-key navigation into a link reveals it, same as every other element.
+- Long-press on a collapsed link: normal word-select behavior; reveals the link per the existing reveal rule.
 
-After Stage 2: headings render in enlarged bold font (prefix hidden), `**bold**` renders in bold (delimiters hidden), `*italic*` renders in italic (delimiters hidden). The element containing the cursor is always shown as raw source with delimiters visible in `syntaxColor`. Every other element is collapsed. Cursor movement and caret painting work correctly via the offset tables.
+**ADR references**: `notes/dev/decisions.md` → ADR-31 (links bullet + OQ-6 resolution), ADR-32 (`url_launcher`). Read both before coding.
 
-The entire change is inside `packages/markdown_live_editor/`. No `lib/` app code changes. The public API (`MarkdownEditor`, `MarkdownEditorController`, `MarkdownEditorConfig`) is unchanged.
-
-**ADR reference**: `notes/dev/decisions.md` → ADR-31. Read the "Rendering model" and "Cursor and selection mechanics" sections before coding.
+The entire package change is inside `packages/markdown_live_editor/`. App-layer changes are limited to `lib/features/editor/editor_screen.dart` and `pubspec.yaml`.
 
 ---
-
-### Files to create
-
-1. `packages/markdown_live_editor/lib/src/md_parser.dart`
-2. `packages/markdown_live_editor/lib/src/render_model.dart`
-
-Add both to the barrel export in `packages/markdown_live_editor/lib/markdown_live_editor.dart`.
 
 ### Files to modify
 
-1. `packages/markdown_live_editor/lib/src/quiki_render_editor.dart`
-2. `packages/markdown_live_editor/lib/src/quiki_editor.dart`
+**Package** (`packages/markdown_live_editor/`):
 
-### Files NOT to touch
+1. `lib/src/md_parser.dart` — add `MdElKind.link` and link URL extraction
+2. `lib/src/render_model.dart` — add link collapsed/revealed rendering + link slot data for tap lookup
+3. `lib/src/quiki_render_editor.dart` — add link tap detection
+4. `lib/src/quiki_editor.dart` — add `onLinkTap` callback wiring
+5. `lib/src/markdown_editor.dart` — add `onLinkTap` to the public `MarkdownEditor` widget
+6. `pubspec.yaml` (package) — add `url_launcher` dependency (see ADR-32)
 
-- `span_parser.dart` — dead code left for a future cleanup PR; do not delete or modify
-- `markdown_editor.dart` — the `_MarkdownTextController.buildTextSpan()` in it is dead code; do not touch
-- `editor_config.dart`, `formatting_toolbar.dart`, `editor_controller.dart`
-- Any file under `lib/` — no app code changes
-- `.github/`, `notes/dev/`, `justfile`
+**App** (`lib/`):
 
----
-
-### New file 1: `md_parser.dart`
-
-#### Data model
-
-```dart
-enum MdElKind { h1, h2, h3, bold, italic }
-
-class MdElement {
-  const MdElement({required this.kind, required this.start, required this.end});
-
-  final MdElKind kind;
-  final int start;  // source offset, inclusive
-  final int end;    // source offset, exclusive
-
-  /// True if [offset] falls within this element's source range.
-  bool containsOffset(int offset) => offset >= start && offset < end;
-
-  /// Length of the opening delimiter in source characters.
-  int get openDelimLen => switch (kind) {
-    MdElKind.h1 => 2,   // '# '
-    MdElKind.h2 => 3,   // '## '
-    MdElKind.h3 => 4,   // '### '
-    MdElKind.bold => 2,    // '**' or '__'
-    MdElKind.italic => 1,  // '*' or '_'
-  };
-
-  /// Length of the closing delimiter (0 for headings — no closing delimiter).
-  int get closeDelimLen => switch (kind) {
-    MdElKind.h1 || MdElKind.h2 || MdElKind.h3 => 0,
-    MdElKind.bold => 2,
-    MdElKind.italic => 1,
-  };
-
-  /// Whether source offset [si] (which must be within [start, end)) is a delimiter character.
-  bool isDelimiter(int si) {
-    if (si < start || si >= end) return false;
-    if (si < start + openDelimLen) return true;
-    if (closeDelimLen > 0 && si >= end - closeDelimLen) return true;
-    return false;
-  }
-}
-```
-
-#### `MdParser.parse(String source) → List<MdElement>`
-
-Walk `source` line by line. Track each line's absolute start offset in `source` (`lineStart`). For each line:
-
-**Step 1 — Heading check** (check longest prefix first):
-
-- If `line.startsWith('### ')`: emit `MdElement(h3, lineStart, lineStart + line.length)`. Continue to next line. Do NOT scan inline elements inside heading content in Stage 2.
-- Else if `line.startsWith('## ')`: emit h2 element.
-- Else if `line.startsWith('# ')`: emit h1 element.
-- `'#'` without a following space is NOT a heading.
-
-The element covers the full heading line text, excluding any trailing `'\n'`. `line.length` (from `split('\n')`) does not include the newline.
-
-**Step 2 — Inline scan** (non-heading lines only): left-to-right greedy scan within the absolute source offsets `[lineStart, lineStart + line.length)`:
-
-At each absolute offset `i`:
-
-1. Check `**` or `__` (bold): if `source[i..i+2]` is `'**'` or `'__'`, search for the same closing two-char sequence within `[i+2, lineStart + line.length)`. If found at `closeIdx` and `closeIdx > i+2` (non-empty content between delimiters): emit `MdElement(bold, i, closeIdx + 2)`. Set `i = closeIdx + 2`. Continue.
-
-2. Check `*` or `_` (italic, single char): if `source[i]` is `'*'` or `'_'` AND `i + 1 < lineStart + line.length` AND `source[i+1]` is NOT the same char (avoids treating `**` start as italic): search for the matching single closing char within `[i+1, lineStart + line.length)`. If found at `closeIdx` and `closeIdx > i+1`: emit `MdElement(italic, i, closeIdx + 1)`. Set `i = closeIdx + 1`. Continue.
-
-3. Otherwise: `i++`.
-
-**Key rules:**
-- Bold is always checked before italic so `**` is never consumed as two italics.
-- Empty content is invalid: require `closeIdx > i + openDelimLen` (at least one character between delimiters).
-- No cross-line matching: both delimiter positions must be within the same line's offset range.
-- Elements cannot overlap: once an element is emitted and `i` advances past it, no part of it is re-scanned.
-
-The returned `List<MdElement>` is naturally sorted by `start` because we scan left-to-right.
-
-Track `lineStart` with: `lineStart += line.length + 1` after each line (the `+1` is the `'\n'` separator). For the last line (no trailing `'\n'`), `source.split('\n')` gives the line without a newline, so this still works correctly as long as you don't advance `lineStart` past `source.length`.
+7. `lib/features/editor/editor_screen.dart` — wire `onLinkTap` to `launchUrl`
+8. `pubspec.yaml` (root) — add `url_launcher` dependency
 
 ---
 
-### New file 2: `render_model.dart`
+### Behavioral constraints
 
-#### API
+#### Parser
 
-```dart
-class RenderModel {
-  const RenderModel._({
-    required this.textSpan,
-    required this.renderedLength,
-    required this.sourceToRendered,
-    required this.renderedToSource,
-  });
+- Recognize `[text](url)` anywhere in a non-heading line (inline). No cross-line matching: `[` and `)` must appear on the same line in the source.
+- `![text](url)` (image syntax) must NOT be recognized as a link. A `[` immediately preceded by `!` at the same source position is an image, not a link.
+- Empty text (`[]`) or empty URL (`()`) are still valid syntax — parse them. Tap will attempt to open the URL; an empty URL may produce a no-op or a `launchUrl` error, which should be caught without crashing.
+- Link text can contain any character except `]`. URL can contain any character except `)`. No nested brackets.
+- A link element's source range covers the full `[text](url)` pattern, inclusive. Opening delimiter is `[`, closing delimiter is `](url)` (from the `]` to the final `)`). Content is the link text (between `[` and `]`).
+- Links are inline — they appear within non-heading lines. The existing heading-check pass runs first; links are scanned only on non-heading lines, consistent with how bold and italic are handled.
 
-  /// The rendered TextSpan to pass to TextPainter. Contains only visible
-  /// characters (delimiters of collapsed elements are absent).
-  final TextSpan textSpan;
+**Invariants the Spec session will check in review:**
+- `![alt](path)` → no link element emitted (image takes priority)
+- `[text](url)` immediately after `!` → no link element
+- Cross-line `[text\n](url)` → no link element
+- Offset maps for a collapsed link: every source char in `[` and `](url)` maps to the same rendered offset as the first content char (opening delimiter side) or the last content char + 1 (closing delimiter side). Content chars map one-to-one as usual.
 
-  /// Number of characters in the rendered text (= renderedToSource.length - 1).
-  final int renderedLength;
+#### Render model
 
-  /// Maps every source offset in [0 .. source.length] to a rendered offset.
-  /// Multiple source offsets may map to the same rendered offset (delimiter chars
-  /// of collapsed elements all map to the boundary of their rendered content).
-  final List<int> sourceToRendered;
+- Collapsed link: `[` is an opening delimiter (hidden); `](url)` is the closing delimiter (hidden). Link text content renders in link style. Same offset-map rules as bold/italic apply.
+- Revealed link: all chars visible. Delimiter chars (`[`, `]`, `(`, `)`, URL chars) in `syntaxColor`; content chars (link text) in `baseStyle`. Classify delimiter vs content consistently with `isDelimiter`.
+- The render model must expose enough data for the render editor to map a rendered tap position back to the correct `url`. This is the seam between the render model and the tap handler — choose whatever structure fits.
 
-  /// Maps every rendered offset in [0 .. renderedLength] to a source offset.
-  /// Length = renderedLength + 1.
-  final List<int> renderedToSource;
+#### Tap handling
 
-  int renderedForSource(int srcOff) =>
-      sourceToRendered[srcOff.clamp(0, sourceToRendered.length - 1)];
+- Tap position → hit-test collapsed link slots → if hit, call `onLinkTap(url)`, do NOT update `_value.selection`.
+- Tap position outside all collapsed links → existing cursor placement behavior, unchanged.
+- `onLinkTap` is a `void Function(String url)?`. If null, tapping a collapsed link does nothing (no-op, no cursor move).
+- Mouse/pointer cursor on desktop: show `SystemMouseCursors.click` when hovering over a collapsed link; `SystemMouseCursors.text` elsewhere. (Nice-to-have — do not skip the rest of the work for this.)
 
-  int sourceForRendered(int rndOff) =>
-      renderedToSource[rndOff.clamp(0, renderedToSource.length - 1)];
+#### Link style
 
-  static final _empty = RenderModel._(
-    textSpan: const TextSpan(text: ''),
-    renderedLength: 0,
-    sourceToRendered: [0],
-    renderedToSource: [0],
-  );
+- Collapsed link text must be visually distinct from plain text: underline and a distinct color (e.g., a mid-blue appropriate for both light/dark backgrounds). The exact color is your choice — it does not need to be configurable in Stage 6. It must be distinguishable from plain text and readable on a dark background (the default theme is dark).
 
-  static RenderModel build({
-    required String source,
-    required List<MdElement> elements,
-    required int cursorOffset,   // -1 when selection is invalid
-    required TextStyle baseStyle,
-    required Color syntaxColor,
-  });
-}
-```
+#### `url_launcher` integration
 
-#### `build()` implementation
-
-```
-srcToRnd = List<int>.filled(source.length + 1, 0)
-rndToSrc = <int>[]           // grown as visible chars are appended
-spans    = <TextSpan>[]      // grown as style runs are flushed
-bufText  = StringBuffer()    // accumulates chars for the current style run
-bufStyle = null              // TextStyle of the current style run
-ri       = 0                 // running rendered offset
-eIdx     = 0                 // pointer into sorted elements list (O(n+m) walk)
-
-flushBuf():
-  if bufText is not empty:
-    spans.add(TextSpan(text: bufText.toString(), style: bufStyle))
-    bufText.clear()
-    bufStyle = null
-
-for si in 0 .. source.length - 1:
-  char = source[si]
-
-  // Advance eIdx past elements whose end is <= si (no longer relevant)
-  while eIdx < elements.length && elements[eIdx].end <= si:
-    eIdx++
-
-  // Determine which element (if any) contains si
-  currentEl = (eIdx < elements.length && si >= elements[eIdx].start)
-              ? elements[eIdx]
-              : null
-
-  revealed = (currentEl != null
-              && cursorOffset >= currentEl.start
-              && cursorOffset < currentEl.end)
-
-  // Determine visibility and style for this character
-  if currentEl == null:
-    visible   = true
-    charStyle = baseStyle
-  elif revealed:
-    visible   = true
-    charStyle = currentEl.isDelimiter(si)
-                  ? baseStyle.copyWith(color: syntaxColor)
-                  : baseStyle
-  else:  // collapsed
-    if currentEl.isDelimiter(si):
-      visible = false
-    else:
-      visible   = true
-      charStyle = _contentStyle(currentEl.kind, baseStyle)
-
-  // Update source→rendered map (always, even for invisible chars)
-  srcToRnd[si] = ri
-
-  if visible:
-    // Group into a style run
-    if charStyle != bufStyle:
-      flushBuf()
-      bufStyle = charStyle
-    bufText.write(char)
-    rndToSrc.add(si)
-    ri++
-
-// Finalize
-flushBuf()
-srcToRnd[source.length] = ri
-rndToSrc.add(source.length)   // end sentinel: renderedLength → source.length
-
-return RenderModel._(
-  textSpan: TextSpan(children: spans),
-  renderedLength: ri,
-  sourceToRendered: srcToRnd,
-  renderedToSource: rndToSrc,
-)
-```
-
-#### `_contentStyle()` helper (file-private)
-
-```dart
-TextStyle _contentStyle(MdElKind kind, TextStyle base) => switch (kind) {
-  MdElKind.h1 => base.copyWith(
-    fontSize: (base.fontSize ?? 16.0) * 2.0,
-    fontWeight: FontWeight.bold,
-  ),
-  MdElKind.h2 => base.copyWith(
-    fontSize: (base.fontSize ?? 16.0) * 1.5,
-    fontWeight: FontWeight.bold,
-  ),
-  MdElKind.h3 => base.copyWith(
-    fontSize: (base.fontSize ?? 16.0) * 1.25,
-    fontWeight: FontWeight.bold,
-  ),
-  MdElKind.bold   => base.copyWith(fontWeight: FontWeight.bold),
-  MdElKind.italic => base.copyWith(fontStyle: FontStyle.italic),
-};
-```
-
-**Style run grouping note**: `TextStyle` implements `==`. Use `charStyle != bufStyle` to detect style changes. Do not use `identical()`.
-
-**Special case**: if `source.isEmpty`, return `_empty` immediately (no walk needed).
-
----
-
-### Modified file: `quiki_render_editor.dart`
-
-#### `QuikiRenderWidget` parameter changes
-
-Remove: `value: TextEditingValue`, `textStyle: TextStyle`  
-Add: `renderModel: RenderModel`, `selection: TextSelection`
-
-The widget passes both to `QuikiRenderEditor` via `createRenderObject` / `updateRenderObject`.
-
-#### `QuikiRenderEditor` field changes
-
-Remove: `_value: TextEditingValue`, `_textStyle: TextStyle`  
-Add: `_renderModel: RenderModel`, `_selection: TextSelection`
-
-Remove: `_buildTextSpan()` method entirely.
-
-Constructor: accepts `renderModel` and `selection`; sets `_textPainter.text = renderModel.textSpan`.
-
-**Setters:**
-
-```dart
-set renderModel(RenderModel m) {
-  if (_renderModel == m) return;
-  _renderModel = m;
-  _textPainter.text = m.textSpan;
-  markNeedsLayout();
-}
-
-set selection(TextSelection s) {
-  if (_selection == s) return;
-  _selection = s;
-  markNeedsPaint();
-}
-```
-
-**`positionForOffset`** — add source offset mapping:
-```dart
-TextPosition positionForOffset(Offset localPosition) {
-  final textOffset = localPosition - _padding.topLeft;
-  final renderedPos = _textPainter.getPositionForOffset(textOffset);
-  final sourceOffset = _renderModel.sourceForRendered(renderedPos.offset);
-  return TextPosition(offset: sourceOffset);
-}
-```
-
-**`getOffsetForCaret`** — add rendered offset mapping:
-```dart
-Offset getOffsetForCaret(TextPosition position) {
-  final rOff = _renderModel.renderedForSource(position.offset);
-  return _textPainter.getOffsetForCaret(TextPosition(offset: rOff), Rect.zero);
-}
-```
-
-**`paint`** — use `_selection` (source coords) with offset mapping:
-
-Selection highlight: convert source `_selection.start`/`.end` to rendered offsets before calling `_textPainter.getBoxesForSelection`.
-
-Caret: convert source `_selection.baseOffset` to rendered offset before calling `_textPainter.getOffsetForCaret` and `getFullHeightForCaret`.
-
-```dart
-// Selection highlight
-final sel = _selection;
-if (sel.isValid && !sel.isCollapsed) {
-  final rStart = _renderModel.renderedForSource(sel.start);
-  final rEnd   = _renderModel.renderedForSource(sel.end);
-  final boxes  = _textPainter.getBoxesForSelection(
-    TextSelection(baseOffset: rStart, extentOffset: rEnd),
-  );
-  // paint boxes exactly as before
-}
-
-// Caret
-if (_focused && sel.isValid && sel.isCollapsed) {
-  final rOff       = _renderModel.renderedForSource(sel.baseOffset);
-  final caretOff   = _textPainter.getOffsetForCaret(TextPosition(offset: rOff), Rect.zero);
-  final caretH     = _textPainter.getFullHeightForCaret(TextPosition(offset: rOff), Rect.zero);
-  // paint caret exactly as before using caretOff and caretH
-}
-```
-
-No other changes to `quiki_render_editor.dart`.
-
----
-
-### Modified file: `quiki_editor.dart`
-
-#### New fields (add after `_longPressAnchor`)
-
-```dart
-String _lastParsedText = '';
-List<MdElement> _elements = const [];
-```
-
-#### `build()` — add parse cache + render model
-
-At the top of `build()`, before constructing `renderWidget`, add:
-
-```dart
-// Re-parse only when text changed; element list is cached across frames.
-if (_value.text != _lastParsedText) {
-  _lastParsedText = _value.text;
-  _elements = MdParser.parse(_value.text);
-}
-
-final syntaxColor = widget.config.syntaxColor ??
-    (textStyle.color ?? Colors.white).withValues(alpha: 0.35);
-
-final renderModel = RenderModel.build(
-  source: _value.text,
-  elements: _elements,
-  cursorOffset: _value.selection.isValid ? _value.selection.baseOffset : -1,
-  baseStyle: textStyle,
-  syntaxColor: syntaxColor,
-);
-```
-
-Change the `QuikiRenderWidget` construction from `value`/`textStyle` to `renderModel`/`selection`:
-
-```dart
-final renderWidget = QuikiRenderWidget(
-  key: _renderKey,
-  renderModel: renderModel,
-  selection: _value.selection,
-  padding: padding,
-  focused: widget.focusNode.hasFocus,
-  cursorColor: cursorColor,
-  selectionColor: selectionColor,
-);
-```
-
-No other changes to `quiki_editor.dart`. The `_scheduleScrollToCaret` method calls `re.getOffsetForCaret(TextPosition(offset: sel.baseOffset))` — this now routes through the offset map internally in `QuikiRenderEditor`, so no change is needed at the call site.
+- Call `launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication)` when a collapsed link is tapped.
+- Wrap in try/catch. If `Uri.parse` throws (malformed URL) or `launchUrl` returns false: silently swallow, do not crash or show an error snackbar. A snackbar can be added in a future pass.
+- `url_launcher` is a new runtime dependency — see ADR-32 for the rationale. Add it to both `pubspec.yaml` files (root and package).
 
 ---
 
 ### Tests
 
-#### `packages/markdown_live_editor/test/md_parser_test.dart`
+**Parser** (`packages/markdown_live_editor/test/md_parser_test.dart` — add to existing file):
 
-Use `test()` blocks (no widget infrastructure required — parser is pure Dart):
-
-```dart
-group('MdParser.parse', () {
-  test('empty string → empty list');
-  test('plain text → empty list');
-  test('"# Hello" → [h1(0, 7)]');
-  test('"## Hello" → [h2(0, 8)]');
-  test('"### Hello" → [h3(0, 9)]');
-  test('"**bold**" → [bold(0, 8)]');
-  test('"*italic*" → [italic(0, 8)]');
-  test('"__bold__" → [bold(0, 8)]');
-  test('"_italic_" → [italic(0, 8)]');
-  test('"hello **world** there" → [bold(6, 15)]');
-  test('"*one* and **two**" → [italic(0, 5), bold(10, 17)]');
-  test('"# Heading\\n**bold**" → [h1(0, 9), bold(10, 18)]');  // bold start accounts for \\n
-  test('"****" → [] (empty bold content not emitted)');
-  test('"**no close" → [] (no matching close delimiter)');
-  test('"**crosses\\nlines**" → [] (no cross-line matching)');
-  test('"# H\\nnext line" → [h1(0, 3)] (only heading line)');
-  test('"#notaheading" → [] (# without trailing space)');
-  test('"not # heading" → [] (# not at line start)');
-
-  // MdElement helpers
-  test('MdElement.isDelimiter: bold(0,8) → si=0 true, si=1 true, si=2 false, si=6 true, si=7 true');
-  test('MdElement.isDelimiter: h1(0,7) → si=0 true, si=1 true, si=2 false');
-  test('MdElement.containsOffset: bold(6,15) → 5 false, 6 true, 14 true, 15 false');
-});
+```
+group('links', () {
+  '[text](url)' → one link element covering the full pattern
+  source offsets: start = index of '[', end = index of ')' + 1
+  url extracted correctly
+  '![alt](url)' → no link element (image not parsed as link)
+  '[a](b) and [c](d)' → two link elements, non-overlapping
+  '[cross\nline](url)' → no link element
+  '[]()' → link element with empty text and empty url
+  '[no close url' → no link element
+  link adjacent to bold: '[**b**](url)' → 1 link element only (bold inside link text is not separately parsed)
 ```
 
-#### `packages/markdown_live_editor/test/render_model_test.dart`
+**Render model** (`packages/markdown_live_editor/test/render_model_test.dart` — add to existing file):
 
-Use `test()` blocks (TextStyle and Color are constructable without a widget binding):
+```
+link collapsed: '[Go](https://go.dev)' — cursorOffset = -1
+  renderedLength = 2  ('Go')
+  textSpan.toPlainText() == 'Go'
+  sourceToRendered[0] == 0   ('[' maps to content start)
+  sourceToRendered[1] == 0   ('G' — first content char)
+  sourceToRendered[2] == 1   ('o')
+  sourceToRendered[3] == 2   (']' — closing delim maps to content end = 2)
+  ... through ')' at end, all map to 2
+  renderedToSource[0] == 1   (rendered G → source G)
+  renderedToSource[2] == 22  (end sentinel → source.length)
+  content span has underline + link color
 
-```dart
-const base = TextStyle(fontSize: 16.0, color: Color(0xFFFFFFFF));
-const syntax = Color(0x59FFFFFF);
-
-group('RenderModel.build', () {
-  test('empty source → renderedLength 0, both arrays length 1 containing 0');
-
-  test('plain text no elements → identity mapping, textSpan plain text == source', () {
-    // source = 'hello', no elements, cursorOffset = -1
-    // renderedLength = 5
-    // sourceToRendered = [0,1,2,3,4,5]
-    // renderedToSource = [0,1,2,3,4,5]
-    // textSpan.toPlainText() == 'hello'
-  });
-
-  test('bold collapsed: delimiters absent from rendered text, content in bold style', () {
-    // source = '**bold**', bold(0,8), cursorOffset = -1
-    // renderedLength = 4  ('bold')
-    // textSpan.toPlainText() == 'bold'
-    // sourceToRendered[0] == 0, [1] == 0  (opening **)
-    // sourceToRendered[2] == 0            (b)
-    // sourceToRendered[3] == 1            (o)
-    // sourceToRendered[6] == 4, [7] == 4  (closing **)
-    // sourceToRendered[8] == 4            (end sentinel)
-    // renderedToSource[0] == 2            (rendered b → source b)
-    // renderedToSource[4] == 8            (end sentinel)
-    // content span has fontWeight: FontWeight.bold
-  });
-
-  test('bold revealed: cursor inside → identity mapping, delimiter spans use syntaxColor', () {
-    // source = '**bold**', bold(0,8), cursorOffset = 3
-    // renderedLength = 8  (all chars visible)
-    // textSpan.toPlainText() == '**bold**'
-    // sourceToRendered is identity [0..8]
-    // first TextSpan child text == '**', color == syntaxColor
-  });
-
-  test('heading h1 collapsed: prefix absent, content in 2x font + bold', () {
-    // source = '# Hello', h1(0,7), cursorOffset = -1
-    // renderedLength = 5  ('Hello')
-    // textSpan.toPlainText() == 'Hello'
-    // sourceToRendered[0] == 0, [1] == 0  (# and space map to content start)
-    // sourceToRendered[2] == 0            (H)
-    // renderedToSource[0] == 2            (rendered H → source H)
-    // content span fontSize == 32.0, fontWeight == FontWeight.bold
-  });
-
-  test('italic collapsed: delimiters absent, content in italic style', () {
-    // source = '*hi*', italic(0,4), cursorOffset = -1
-    // renderedLength = 2  ('hi')
-    // content span fontStyle == FontStyle.italic
-  });
-
-  test('text before + bold collapsed + text after', () {
-    // source = 'a **b** c', bold(2,7), cursorOffset = 0
-    // renderedLength = 5  ('a b c')
-    // sourceToRendered[2]==2, [3]==2  (opening ** → rendered 2)
-    // sourceToRendered[4]==2          (b → rendered 2)
-    // sourceToRendered[5]==3, [6]==3  (closing ** → rendered 3)
-    // sourceToRendered[7]==3          (space after ** → rendered 3)
-    // renderedForSource(4) == 2
-    // sourceForRendered(2) == 4
-  });
-
-  test('newline passes through: heading + newline + plain text', () {
-    // source = '# H\nplain', h1(0,3), cursorOffset = -1
-    // rendered = 'H\nplain'
-    // textSpan.toPlainText() == 'H\nplain'
-  });
-
-  test('heading revealed: cursor inside prefix → all chars visible including # prefix', () {
-    // source = '# Hello', h1(0,7), cursorOffset = 0
-    // renderedLength = 7
-    // first span text == '# ', color == syntaxColor
-  });
-});
+link revealed: '[Go](https://go.dev)' — cursorOffset = 1  (cursor inside 'G')
+  renderedLength = source.length  (all chars visible)
+  textSpan.toPlainText() == '[Go](https://go.dev)'
+  delimiter chars ('[', ']', '(', url chars, ')') in syntaxColor
+  content char 'G' in baseStyle
 ```
 
-#### Existing tests
+**Link slot / tap callback** — add a widget test or unit test (whichever is simpler given the architecture):
 
-All 114 existing tests must still pass. The internal parameter changes to `QuikiRenderWidget` / `QuikiRenderEditor` are not referenced in any existing test — they test through the public `MarkdownEditor` API. If any existing test fails, investigate and fix before pushing.
+```
+given: MarkdownEditor with source '[Go](https://go.dev)', onLinkTap callback
+when:  tap gesture on the rendered 'Go' text (in collapsed state, cursor elsewhere)
+then:  onLinkTap called once with 'https://go.dev'
+       cursor does NOT move into the link element
+
+given: MarkdownEditor with source '[Go](https://go.dev)', onLinkTap callback
+when:  tap gesture on text outside the link
+then:  onLinkTap NOT called
+       cursor moves to tap position
+```
 
 ---
 
 ### Checklist
 
-- [ ] `md_parser.dart` created; `MdElKind`, `MdElement`, `MdParser.parse()` implemented per spec above
-- [ ] `render_model.dart` created; `RenderModel.build()` uses O(n+m) sorted-element walk
-- [ ] Both new files exported from the barrel (`markdown_live_editor.dart`)
-- [ ] `quiki_render_editor.dart`: `value`/`textStyle` params replaced with `renderModel`/`selection`; `positionForOffset`, `getOffsetForCaret`, `paint` all route through offset tables
-- [ ] `quiki_editor.dart`: `_lastParsedText`/`_elements` cache fields added; `build()` re-parses on text change, builds `RenderModel`, passes to `QuikiRenderWidget`
-- [ ] `md_parser_test.dart` written; all cases above pass
-- [ ] `render_model_test.dart` written; all cases above pass
-- [ ] `just lint` passes (including `dart format`)
-- [ ] `just test` passes — all existing 114 tests + all new tests
-- [ ] `flutter build apk --debug` succeeds
-- [ ] No changes outside `packages/markdown_live_editor/`
+- [ ] `md_parser.dart`: `MdElKind.link` added; link URL stored on element; `![...]` not parsed as link; no cross-line matching
+- [ ] `render_model.dart`: collapsed link hides `[` and `](url)`, content in link style; revealed link shows all source in syntaxColor/baseStyle; tap-lookup data exposed
+- [ ] `quiki_render_editor.dart`: tap hits collapsed link → calls `onLinkTap(url)`, no cursor update; tap misses → existing behavior
+- [ ] `quiki_editor.dart`: `onLinkTap` wired through to render editor
+- [ ] `markdown_editor.dart`: `onLinkTap: void Function(String url)?` parameter on `MarkdownEditor`
+- [ ] `url_launcher` added to both `pubspec.yaml` files; `launchUrl` called on link tap; errors caught silently
+- [ ] `editor_screen.dart`: `onLinkTap` wired to `launchUrl`
+- [ ] Parser tests: all cases above pass
+- [ ] Render model tests: offset map values asserted (not just `toPlainText()` and length)
+- [ ] Tap callback test: callback called/not-called as described
+- [ ] `just lint` passes (including `dart format` for both root and package)
+- [ ] `just test` passes — all existing tests + all new tests
+- [ ] `cd packages/markdown_live_editor && flutter test` passes
 - [ ] No Claude/Anthropic attribution in any commit message
 
 ---
 
 ### Deferred — do not implement in this PR
 
-- Strikethrough, inline code, blockquote, code fence rendering — Stage 4+
-- Lists and checkboxes — Stage 4
-- Links — Stage 6
-- Images — Stage 5
-- Nested inline spans (bold inside italic) — later refinement
-- Boundary-reveal cursor movement (arrow key skipping to element boundary) — Stage 3
-- Precise tap-to-source-character for collapsed elements — Stage 3
-- Deletion of `span_parser.dart` and dead `_MarkdownTextController.buildTextSpan()` — future cleanup PR
+- Snackbar on failed `launchUrl` — future polish pass
+- Link style configurability (color, underline weight) — future
+- Nested markup inside link text (e.g., `[**bold**](url)`) — future; for now, link text is plain
+- Link editing toolbar button — future
+- Mouse hover cursor (`SystemMouseCursors.click`) — nice-to-have; skip if it blocks progress
 
 ---
 
-### Device test instructions (for PR body)
+### Device test instructions (for PR body — do not build an APK)
 
-Build a debug APK, install on Android device.
+Install the closed beta from Google Play.
 
-1. **Heading rendering**: type `# My Heading`, press Enter, type a second line. Move cursor to the second line. The first line should render as large bold text with `# ` hidden.
-2. **Bold rendering**: type `**important**`, then move the cursor off the word. The `**` delimiters should disappear and `important` should appear bold.
-3. **Italic rendering**: type `*subtle*`, move cursor away. The `*` delimiters should disappear and `subtle` should appear italic.
-4. **Reveal on cursor entry**: place cursor inside the bold or italic word. The raw source (including delimiters) should reappear for editing.
-5. **Caret position**: navigate with arrow keys into and out of a bold/italic word. The caret should always appear at the visually expected position — it should not jump.
-6. **Multi-element note**: type a heading, a bold word, and an italic word on separate lines. Only the element containing the cursor should be in raw/revealed mode; all others should be rendered.
-7. **Tap into collapsed element**: tap inside a rendered bold word. It should reveal with the cursor placed inside the bold source text.
+1. **Collapsed link**: type `[QuKi Notes](https://example.com)` and move the cursor off the link. The `[`, `]`, `(https://example.com)` should disappear and `QuKi Notes` should appear in link style (underlined, distinct color).
+2. **Tap to navigate**: tap the rendered `QuKi Notes` text. The browser should open `https://example.com`. The cursor should NOT move into the link.
+3. **Reveal on cursor entry**: use arrow keys to move the cursor into the link. The raw `[QuKi Notes](https://example.com)` source should reappear.
+4. **Tap revealed link**: with cursor inside the link (source visible), tap anywhere on the link text. This is a normal tap on revealed source — cursor moves to tap position, browser does NOT open.
+5. **Multiple links**: type two links on the same line. Both should collapse independently. Tapping each should open its own URL.
+6. **Image not confused**: type `![alt](path)`. This should NOT render as a clickable link — it should render as a block image (or if `path` doesn't resolve, as a placeholder).
+7. **Malformed URL**: type `[bad](not a url)` and tap. Nothing should crash — the tap silently fails.

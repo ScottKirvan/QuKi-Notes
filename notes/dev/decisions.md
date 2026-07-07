@@ -10,6 +10,18 @@ Normative framing in `manifesto.md` — read that first.
 
 ---
 
+## ADR-32: `url_launcher` for link navigation
+
+**Date**: 2026-07-06
+
+**What**: Add `url_launcher` to `dependencies` for tap-to-navigate on collapsed inline links (ADR-31 Stage 6). Call `launchUrl(Uri.parse(url))` from `editor_screen.dart` via the `onLinkTap` callback threaded through `MarkdownEditor`.
+
+**Why**: Platform URL opening requires a plugin; `url_launcher` is the Flutter-team-maintained standard, MIT-licensed, already a transitive dependency of several packages in the ecosystem. No bespoke native code needed.
+
+**Rejected**: `flutter_launch_url` and similar third-party wrappers — no advantage over the canonical package. Rolling platform channels manually — unnecessary complexity.
+
+---
+
 ## ADR-31: Custom RenderObject + TextInputClient live-preview markdown engine — supersedes ADR-30
 
 **Date**: 2026-07-04
