@@ -1,5 +1,7 @@
 import 'dart:io' show File, Platform;
 
+import 'package:url_launcher/url_launcher.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -124,6 +126,20 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       return await file.readAsBytes();
     } catch (_) {
       return null;
+    }
+  }
+
+  /// Opens [url] in the platform's default browser.
+  ///
+  /// Errors from [Uri.parse] (malformed URL) or [launchUrl] (no handler found)
+  /// are swallowed silently — no crash, no snackbar.  A snackbar for failed
+  /// launches can be added in a future polish pass.
+  Future<void> _onLinkTap(String url) async {
+    try {
+      final uri = Uri.parse(url);
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      // Silently ignore — bad URL or no app available to handle it.
     }
   }
 
@@ -331,6 +347,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                   ),
                 ),
                 imageLoader: _loadImage,
+                onLinkTap: _onLinkTap,
               ),
             ),
             FormattingToolbar(controller: _editorController),

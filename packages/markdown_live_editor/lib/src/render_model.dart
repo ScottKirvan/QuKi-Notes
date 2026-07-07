@@ -25,6 +25,32 @@ class ImageSlot {
 }
 
 // ---------------------------------------------------------------------------
+// LinkSlot — carries one collapsed link element for tap-to-navigate lookup.
+// ---------------------------------------------------------------------------
+
+/// Describes a collapsed inline link element.
+///
+/// [element] is the parsed [MdElement] with kind [MdElKind.link].
+/// [renderedStart] and [renderedEnd] are the rendered character offsets that
+/// bound the link text in the TextPainter flow.  QuikiEditorState uses these
+/// to determine whether a tap position falls inside a collapsed link.
+class LinkSlot {
+  const LinkSlot({
+    required this.element,
+    required this.renderedStart,
+    required this.renderedEnd,
+  });
+
+  final MdElement element;
+
+  /// Rendered offset of the first character of the link text.
+  final int renderedStart;
+
+  /// Rendered offset just past the last character of the link text.
+  final int renderedEnd;
+}
+
+// ---------------------------------------------------------------------------
 // RenderModel — builds a rendered TextSpan tree and bidirectional offset
 // mappings from a parsed element list and a cursor position.
 // ---------------------------------------------------------------------------
@@ -36,6 +62,7 @@ class RenderModel {
     required this.sourceToRendered,
     required this.renderedToSource,
     this.imageSlots = const [],
+    this.linkSlots = const [],
   });
 
   /// The rendered TextSpan to pass to TextPainter.  Contains only visible
@@ -60,6 +87,12 @@ class RenderModel {
   /// visible as raw source text via the TextPainter and need no special paint).
   final List<ImageSlot> imageSlots;
 
+  /// Collapsed link elements.  QuikiEditorState uses this list to determine
+  /// whether a tap falls inside a collapsed link and, if so, which URL to open.
+  /// Only contains collapsed link elements — revealed links behave as plain text
+  /// for tap purposes (cursor moves normally, no URL open).
+  final List<LinkSlot> linkSlots;
+
   int renderedForSource(int srcOff) =>
       sourceToRendered[srcOff.clamp(0, sourceToRendered.length - 1)];
 
@@ -72,6 +105,7 @@ class RenderModel {
     sourceToRendered: [0],
     renderedToSource: [0],
     imageSlots: const [],
+    linkSlots: const [],
   );
 
   /// Build a [RenderModel] from [source], parsed [elements], and the current
@@ -92,6 +126,7 @@ class RenderModel {
     var ri = 0;
     var eIdx = 0;
     final slots = <ImageSlot>[];
+    final links = <LinkSlot>[];
 
     void flushBuf() {
       if (bufText.isNotEmpty) {
@@ -186,6 +221,40 @@ class RenderModel {
       }
 
       // -----------------------------------------------------------------------
+      // Collapsed link slot recording.
+      //
+      // When we first arrive at the start of a collapsed link element, record
+      // the rendered start offset.  When we reach the closing delimiter start
+      // (= end - closeDelimLen), record the rendered end offset and store the
+      // LinkSlot.  Both markers are captured before any characters for that
+      // position are emitted, so they correctly bracket the rendered content.
+      // -----------------------------------------------------------------------
+      if (!revealed && currentEl != null && currentEl.kind == MdElKind.link) {
+        final contentStart = currentEl.start + currentEl.openDelimLen;
+        final contentEnd = currentEl.end - currentEl.closeDelimLen;
+        if (si == contentStart) {
+          // First content character — record the rendered start.
+          // We stash it temporarily using the srcToRnd entry we haven't set yet.
+          // Actual recording happens via a separate tracker below; we mark
+          // _linkSlotPending logic inline in the loop.
+          //
+          // Simple approach: scan forward and emit the slot immediately when
+          // we know both bounds.  Since the loop is left-to-right and we are
+          // at contentStart, renderedStart = ri (current rendered position).
+          // renderedEnd will be ri + (contentEnd - contentStart).  Compute it
+          // now and add the slot, then continue with normal char processing.
+          final contentLen = contentEnd - contentStart;
+          final renderedLinkStart = ri;
+          final renderedLinkEnd = ri + contentLen;
+          links.add(LinkSlot(
+            element: currentEl,
+            renderedStart: renderedLinkStart,
+            renderedEnd: renderedLinkEnd,
+          ));
+        }
+      }
+
+      // -----------------------------------------------------------------------
       // Normal per-character processing.
       // -----------------------------------------------------------------------
 
@@ -236,6 +305,7 @@ class RenderModel {
       sourceToRendered: srcToRnd,
       renderedToSource: rndToSrc,
       imageSlots: slots,
+      linkSlots: links,
     );
   }
 }
@@ -243,6 +313,10 @@ class RenderModel {
 // ---------------------------------------------------------------------------
 // Content style helper — file-private.
 // ---------------------------------------------------------------------------
+
+/// Mid-blue that reads clearly on both light and dark backgrounds.
+/// Not configurable in Stage 6 — can be exposed via MarkdownEditorConfig later.
+const Color _linkColor = Color(0xFF4A9EE8);
 
 TextStyle _contentStyle(MdElKind kind, TextStyle base) => switch (kind) {
       MdElKind.h1 => base.copyWith(
@@ -259,6 +333,12 @@ TextStyle _contentStyle(MdElKind kind, TextStyle base) => switch (kind) {
         ),
       MdElKind.bold => base.copyWith(fontWeight: FontWeight.bold),
       MdElKind.italic => base.copyWith(fontStyle: FontStyle.italic),
+      // Link: underlined + distinct mid-blue color.
+      MdElKind.link => base.copyWith(
+          color: _linkColor,
+          decoration: TextDecoration.underline,
+          decorationColor: _linkColor,
+        ),
       // List kinds: content in baseStyle (marker substituted separately).
       // Image: revealed mode shows raw source in baseStyle.
       MdElKind.ul ||

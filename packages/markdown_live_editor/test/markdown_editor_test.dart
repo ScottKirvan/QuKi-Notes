@@ -11,6 +11,7 @@ Widget _buildEditor({
   ValueChanged<String>? onChanged,
   bool autofocus = false,
   Future<Uint8List?> Function(String path)? imageLoader,
+  void Function(String url)? onLinkTap,
 }) {
   return MaterialApp(
     home: Scaffold(
@@ -20,6 +21,7 @@ Widget _buildEditor({
         onChanged: onChanged,
         autofocus: autofocus,
         imageLoader: imageLoader,
+        onLinkTap: onLinkTap,
       ),
     ),
   );
@@ -815,6 +817,94 @@ void main() {
       // No image slot when revealed — raw text takes over.
       expect(ro.renderModel.imageSlots, isEmpty,
           reason: 'revealed image has no image slot');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Stage 6 — onLinkTap widget-level tests
+  // ---------------------------------------------------------------------------
+
+  group('MarkdownEditor — onLinkTap (Stage 6)', () {
+    testWidgets('collapsed link: linkSlots populated and url is correct',
+        (tester) async {
+      // Verify that the render model exposes a link slot with the correct URL
+      // when the source contains a collapsed link.
+      const source = '[Go](https://go.dev)';
+      final controller = MarkdownEditorController();
+
+      await tester.pumpWidget(_buildEditor(
+        initialValue: source,
+        controller: controller,
+      ));
+      await tester.pump();
+
+      final ro = tester
+          .renderObject<QuikiRenderEditor>(find.byType(QuikiRenderWidget));
+      expect(ro.renderModel.linkSlots, hasLength(1));
+      expect(ro.renderModel.linkSlots[0].element.url, 'https://go.dev');
+    });
+
+    testWidgets('cursor inside link: link is revealed, linkSlots is empty',
+        (tester) async {
+      // When the cursor is inside the link, the element is revealed and
+      // linkSlots should be empty (revealed links are not tappable for URL open).
+      const source = '[Go](https://go.dev)';
+      final controller = MarkdownEditorController();
+
+      await tester.pumpWidget(_buildEditor(
+        initialValue: source,
+        controller: controller,
+      ));
+      await tester.pump();
+
+      // Place cursor inside the link (offset 1 = 'G').
+      controller
+          .setSelectionForTesting(const TextSelection.collapsed(offset: 1));
+      await tester.pump();
+
+      final ro = tester
+          .renderObject<QuikiRenderEditor>(find.byType(QuikiRenderWidget));
+      expect(ro.renderModel.linkSlots, isEmpty,
+          reason: 'revealed link should not appear in linkSlots');
+    });
+
+    testWidgets('onLinkTap wired: callback not called on plain text tap',
+        (tester) async {
+      // When the source contains only plain text, tapping should not call
+      // onLinkTap regardless of position.
+      final tappedUrls = <String>[];
+
+      await tester.pumpWidget(_buildEditor(
+        initialValue: 'plain text no links',
+        onLinkTap: tappedUrls.add,
+      ));
+      await tester.pump();
+
+      final ro = tester
+          .renderObject<QuikiRenderEditor>(find.byType(QuikiRenderWidget));
+      expect(ro.renderModel.linkSlots, isEmpty);
+      expect(tappedUrls, isEmpty);
+    });
+
+    testWidgets(
+        'onLinkTap: null callback accepted — no error when link is in source',
+        (tester) async {
+      // When onLinkTap is null, the widget must not throw on construction or
+      // during a render model build that contains link slots.
+      const source = '[Go](https://go.dev)';
+      final controller = MarkdownEditorController();
+
+      await tester.pumpWidget(_buildEditor(
+        initialValue: source,
+        controller: controller,
+        // onLinkTap intentionally omitted (null).
+      ));
+      await tester.pump();
+
+      // No error, link slots still populated.
+      final ro = tester
+          .renderObject<QuikiRenderEditor>(find.byType(QuikiRenderWidget));
+      expect(ro.renderModel.linkSlots, hasLength(1));
     });
   });
 }

@@ -27,6 +27,7 @@ class QuikiEditor extends StatefulWidget {
     this.onChanged,
     this.plainTextMode = false,
     this.imageLoader,
+    this.onLinkTap,
   });
 
   final TextEditingController controller;
@@ -44,6 +45,11 @@ class QuikiEditor extends StatefulWidget {
   /// per-path image load cache and passes loaded [dart:ui.Image] objects to
   /// [QuikiRenderWidget] for painting.
   final Future<Uint8List?> Function(String path)? imageLoader;
+
+  /// Called when the user taps a collapsed inline link.  Receives the raw URL
+  /// string from the markdown source.  If null, tapping a collapsed link is a
+  /// no-op (cursor does not move either).
+  final void Function(String url)? onLinkTap;
 
   @override
   QuikiEditorState createState() => QuikiEditorState();
@@ -594,6 +600,15 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     // Bug 1: globalToLocal already accounts for the scroll translation baked
     // into the render tree — do NOT add scrollOffset again.
     final localPos = re.globalToLocal(details.globalPosition);
+
+    // Link tap detection: if the tap lands on a collapsed link, call
+    // onLinkTap and do NOT move the cursor.
+    final linkUrl = re.linkUrlForOffset(localPos);
+    if (linkUrl != null) {
+      widget.onLinkTap?.call(linkUrl);
+      return;
+    }
+
     final position = re.positionForOffset(localPos);
     _updateValue(
       _value.copyWith(

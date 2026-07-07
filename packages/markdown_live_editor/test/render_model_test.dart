@@ -530,4 +530,142 @@ void main() {
       expect(m.imageSlots, isEmpty);
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Stage 6 — link element render model tests
+  // ---------------------------------------------------------------------------
+
+  group('RenderModel.build — link elements', () {
+    // source = '[Go](https://go.dev)' (20 chars)
+    // content 'Go' at source offsets 1..2 (2 chars)
+    // openDelimLen = 1, closeDelimLen = 2 + 'https://go.dev'.length + 1 = 17
+    // closing delimiter starts at offset 20 - 17 = 3
+
+    test('collapsed link: renderedLength = 2 ("Go"), textSpan = "Go"', () {
+      const source = '[Go](https://go.dev)';
+      final els = MdParser.parse(source);
+      final m = _build(source, els, cursorOffset: -1);
+
+      expect(m.renderedLength, 2);
+      expect(m.textSpan.toPlainText(), 'Go');
+    });
+
+    test('collapsed link: offset map — opening "[" maps to rendered 0', () {
+      const source = '[Go](https://go.dev)';
+      final els = MdParser.parse(source);
+      final m = _build(source, els, cursorOffset: -1);
+
+      // Opening delimiter '[' (source 0) → rendered 0.
+      expect(m.sourceToRendered[0], 0);
+    });
+
+    test('collapsed link: offset map — content chars map one-to-one', () {
+      const source = '[Go](https://go.dev)';
+      final els = MdParser.parse(source);
+      final m = _build(source, els, cursorOffset: -1);
+
+      // 'G' at source 1 → rendered 0.
+      expect(m.sourceToRendered[1], 0);
+      // 'o' at source 2 → rendered 1.
+      expect(m.sourceToRendered[2], 1);
+    });
+
+    test('collapsed link: offset map — closing delimiters map to rendered 2',
+        () {
+      const source = '[Go](https://go.dev)';
+      final els = MdParser.parse(source);
+      final m = _build(source, els, cursorOffset: -1);
+
+      // All closing delimiter chars ']'(3) through ')'(19) → rendered 2.
+      for (var i = 3; i <= 19; i++) {
+        expect(m.sourceToRendered[i], 2,
+            reason: 'source[$i] (closing delim) should map to rendered 2');
+      }
+      // End sentinel.
+      expect(m.sourceToRendered[20], 2);
+    });
+
+    test('collapsed link: renderedToSource — rendered 0 → source 1 (G)', () {
+      const source = '[Go](https://go.dev)';
+      final els = MdParser.parse(source);
+      final m = _build(source, els, cursorOffset: -1);
+
+      expect(m.renderedToSource[0], 1); // rendered 'G' → source 'G'
+      expect(m.renderedToSource[1], 2); // rendered 'o' → source 'o'
+      // End sentinel: rendered 2 → source.length (20).
+      expect(m.renderedToSource[2], 20);
+    });
+
+    test('collapsed link: content span has underline + link color', () {
+      const source = '[Go](https://go.dev)';
+      final els = MdParser.parse(source);
+      final m = _build(source, els, cursorOffset: -1);
+
+      final children = m.textSpan.children!;
+      expect(children, hasLength(1));
+      final contentSpan = children[0] as TextSpan;
+      expect(contentSpan.style?.decoration, TextDecoration.underline);
+      expect(contentSpan.style?.color, isNotNull);
+      // Verify the color differs from baseStyle (plain text) color.
+      expect(contentSpan.style?.color, isNot(_base.color));
+    });
+
+    test('collapsed link: linkSlots has one entry with correct url', () {
+      const source = '[Go](https://go.dev)';
+      final els = MdParser.parse(source);
+      final m = _build(source, els, cursorOffset: -1);
+
+      expect(m.linkSlots, hasLength(1));
+      expect(m.linkSlots[0].element.url, 'https://go.dev');
+      expect(m.linkSlots[0].renderedStart, 0);
+      expect(m.linkSlots[0].renderedEnd, 2);
+    });
+
+    test('revealed link: all chars visible, identity mapping', () {
+      // cursorOffset = 1 → cursor inside 'G', element revealed.
+      const source = '[Go](https://go.dev)';
+      final els = MdParser.parse(source);
+      final m = _build(source, els, cursorOffset: 1);
+
+      expect(m.renderedLength, source.length);
+      expect(m.textSpan.toPlainText(), source);
+
+      // Identity mapping.
+      for (var i = 0; i <= source.length; i++) {
+        expect(m.sourceToRendered[i], i);
+      }
+    });
+
+    test('revealed link: no linkSlots (cursor inside = not collapsed)', () {
+      const source = '[Go](https://go.dev)';
+      final els = MdParser.parse(source);
+      final m = _build(source, els, cursorOffset: 1);
+
+      expect(m.linkSlots, isEmpty);
+    });
+
+    test('two collapsed links: two linkSlots with correct rendered bounds', () {
+      // source = '[a](b) and [c](d)'
+      // link1: '[a](b)' at 0..6, content 'a' at rendered 0..1
+      // ' and ' plain text (5 chars) → rendered 1..6
+      // link2: '[c](d)' at 11..17, content 'c' at rendered 6..7
+      const source = '[a](b) and [c](d)';
+      final els = MdParser.parse(source);
+      final m = _build(source, els, cursorOffset: -1);
+
+      expect(m.linkSlots, hasLength(2));
+      expect(m.linkSlots[0].element.url, 'b');
+      expect(m.linkSlots[0].renderedStart, 0);
+      expect(m.linkSlots[0].renderedEnd, 1);
+      expect(m.linkSlots[1].element.url, 'd');
+      // ' and ' = 5 chars after 'a', so link2 content starts at rendered 6.
+      expect(m.linkSlots[1].renderedStart, 6);
+      expect(m.linkSlots[1].renderedEnd, 7);
+    });
+
+    test('no linkSlots when source has no link elements', () {
+      final m = _build('hello world', [], cursorOffset: -1);
+      expect(m.linkSlots, isEmpty);
+    });
+  });
 }

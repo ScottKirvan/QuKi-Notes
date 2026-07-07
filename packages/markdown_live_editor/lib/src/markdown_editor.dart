@@ -257,6 +257,7 @@ class MarkdownEditor extends StatefulWidget {
     this.focusNode,
     this.autofocus = false,
     this.imageLoader,
+    this.onLinkTap,
   });
 
   final String initialValue;
@@ -277,6 +278,11 @@ class MarkdownEditor extends StatefulWidget {
   /// If null, or if the callback returns null, a gray placeholder rect is
   /// painted in place of the image.
   final Future<Uint8List?> Function(String path)? imageLoader;
+
+  /// Called when the user taps a collapsed inline link.  Receives the raw URL
+  /// string from the markdown source.  If null, tapping a collapsed link is a
+  /// no-op (cursor does not move either).
+  final void Function(String url)? onLinkTap;
 
   @override
   State<MarkdownEditor> createState() => _MarkdownEditorState();
@@ -444,6 +450,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
       onChanged: widget.onChanged,
       plainTextMode: _plainTextMode,
       imageLoader: widget.imageLoader,
+      onLinkTap: widget.onLinkTap,
     );
   }
 }
