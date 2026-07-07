@@ -22,7 +22,7 @@ What to do at the **start** and **end** of every implementation session, and the
    - `notes/dev/manifesto.md` — normative philosophy + tonality (load-bearing)
    - `CLAUDE.md` (repo root) — high-level context + locked decisions table
    - `notes/dev/design_spec.md` — full spec; jump to the section relevant to today's task
-   - `notes/dev/decisions.md` — rationale behind every locked decision; do not relitigate without discussing with Scott
+   - `notes/dev/decisions.md` — rationale behind every locked decision; do not relitigate without project-owner input
    - `notes/dev/open_questions.md` — if your task touches an open question, propose a resolution before implementing
 
 2. **Check repo state:**
@@ -50,22 +50,22 @@ What to do at the **start** and **end** of every implementation session, and the
 2. **Stop. Do NOT open a PR.** Push the branch and report back to the Spec session. The Spec session reviews the diff, runs `dart format`, creates the PR, and monitors CI.
 3. Every commit must follow conventional commit format — commits land individually on `main` via rebase merge. PR title is descriptive only.
 4. If you made a non-trivial implementation decision during the session (one of two viable approaches, novel pattern), add an entry to `decisions.md` and link it from your report back to Spec (Spec will include it in the PR body).
-5. If you discovered a new open question (couldn't be resolved without more info from Scott), add it to `open_questions.md`.
-6. **Never** commit or push to `main` unless Scott explicitly instructs it. **Never** force-push. **Never** use `--no-verify`.
+5. If you discovered a new open question (couldn't be resolved without more information), add it to `open_questions.md`.
+6. **Never** commit or push to `main` unless explicitly instructed by the project owner. **Never** force-push. **Never** use `--no-verify`.
 
 ## Hard rules (do not violate without explicit instruction)
 
 | Rule | Source |
 |---|---|
-| Do not open a PR. Stop after code + tests pass, push the branch, report back to Spec. Spec reviews the diff and opens the PR. | Scott's workflow rule |
-| Never commit to `main` unless Scott explicitly instructs it. | Scott's workflow rule |
+| Do not open a PR. Stop after code + tests pass, push the branch, report back to Spec. Spec reviews the diff and opens the PR. | project workflow rule |
+| Never commit to `main` unless explicitly instructed by the project owner. | project workflow rule |
 | Manifesto is normative. If a request conflicts with the manifesto, push back before implementing. | `manifesto.md` |
 | No vault-like features (folders, tags, backlinks, archive, pinning). | `manifesto.md` "Is NOT" list |
 | `lib/core/` and `lib/shared/models/` stay Flutter-free. Flutter imports go in `lib/ui/` / `lib/features/`. **Exception**: `lib/core/transports/` may import Flutter for `settingsView()` — CLI ignores that method (ADR-21). | ADR-16, ADR-21 |
 | Any plugin secret (OAuth token, API key) lives in `flutter_secure_storage`, namespaced per plugin. Never in `shared_preferences`, files, or source. | ADR-2 |
 | No analytics, no crash reporting, no telemetry SDK. Ever. | ADR-12 |
 | `build-ios.yml` is a stub and must NOT be wired to trigger automatically | CLAUDE.md |
-| Platform guards must use the mobile/desktop distinction — never `Platform.isAndroid` alone for anything that will apply to iOS. Use `Platform.isAndroid \|\| Platform.isIOS` (or a `_isMobile` helper). iOS builds are deferred but the codebase must be iOS-compatible from day one — no regression testing from scratch when iOS activates. | Scott's explicit requirement |
+| Platform guards must use the mobile/desktop distinction — never `Platform.isAndroid` alone for anything that will apply to iOS. Use `Platform.isAndroid \|\| Platform.isIOS` (or a `_isMobile` helper). iOS builds are deferred but the codebase must be iOS-compatible from day one — no regression testing from scratch when iOS activates. | project requirement |
 | Plugin secrets and full QuKi contents are never logged. | ADR-12 |
 | Image base64-embedding in markdown is forbidden. Images are separate binary files referenced as `![](../images/...)`. | ADR-4 |
 | `deletedAt` is the only correct way to delete a QuKi. Background sweep hard-deletes after 24h in MVP. | ADR-5 |
@@ -81,8 +81,8 @@ What to do at the **start** and **end** of every implementation session, and the
 
 - `just` is the task runner. Common targets: `just android`, `just windows`, `just test`, `just lint`, `just gen`, `just docs`.
 - `gh` (GitHub CLI) is available for PR/issue/run operations. Prefer it over the web UI when scripting.
-- Scott runs the app on a physical Android device for manual test. Claude does not need to run the app — but `flutter analyze` and `flutter test` must pass locally before opening a PR.
+The app is tested on a physical Android device for manual test. Claude does not need to run the app — but `flutter analyze` and `flutter test` must pass locally before opening a PR.
 
 ## When in doubt
 
-Ask Scott. The cost of one clarifying question is much lower than the cost of a PR that misses the intent.
+Ask the Spec session. The cost of one clarifying question is much lower than the cost of a PR that misses the intent.

@@ -519,7 +519,7 @@ Sub-tasks in priority order:
 4. **Snackbar auto-dismiss + paragraph spacing** — toss result snackbar 2s/4s duration; undo snackbar 4s via explicit `Timer` workaround (Flutter 3.44 + Material 3 bug); stylesheet paragraph padding reduced. ✓ Complete (v0.8.0).
 5. **Editor navigation redesign** — `← Stream` and `Toss ▼` removed; top-left QuKis icon (Lucide) + top-right hamburger (≡) with Send…/QuKis/Settings; `TossPickerSheet` title → "Send this QuKi via…"; snackbar copy → "Sent!" / "Send failed"; Settings section "Tosses" → "Transports". ✓ Complete (v0.8.0). ADR-23 (Lucide icons).
 6. **Editor single-root architecture** — replaced push-based QuKi loading with `activeQukiIdProvider` (NotifierProvider<String?>); editor is now the permanent root, `StreamScreen` sets the provider and pops; `AutoSaveController.resetForQuki(id:)` switches save target without disposal; share-in routes through provider (no second EditorScreen). ✓ Complete (v0.8.1).
-7. **WYSIWYG markdown rendering (OQ-1 / #27)** — live GFM rendering (bold, italic, headings, task lists, code blocks, etc.). ✓ Complete (v0.9.1). Fenced code block rendering deferred per Scott's decision.
+7. **WYSIWYG markdown rendering (OQ-1 / #27)** — live GFM rendering (bold, italic, headings, task lists, code blocks, etc.). ✓ Complete (v0.9.1). Fenced code block rendering deferred.
 8. **Primer DHC color palette (#37)** — replace `Colors.deepPurple` seed with GitHub Primer Dark High Contrast `ColorScheme`. ✓ Complete (v0.9.2, PR #63). Primer LHC for light mode also applied.
 9. **Auto-capitalization bug (#32)** — `TextCapitalization.none` on editor IME config. Partially addressed (v0.9.2). #74 (super_editor-specific root cause) closed when super_editor removed. Spell check (#83) and swipe-to-type remain open features — unblocked now that `markdown_live_editor` uses plain `TextField`.
 10. **Editor auto-focus + keyboard dismiss** — cursor visible and keyboard raised on Android cold launch; keyboard dismiss button added then later removed (PR #137). Known follow-up: #72 keyboard not always raised on cold launch.
@@ -686,7 +686,7 @@ Tracked in `notes/dev/open_questions.md`. Snapshot of what's outstanding at spec
 - `notes/dev/testing.md` — testing strategy + bug-fix discipline
 - `notes/dev/pr_template.md` — PR title format + body template
 - `notes/dev/cli_design.md` — working hypothesis for a future CLI
-- `notes/dev/dev_env_setup.md` — Scott's Windows 11 setup guide
+- `notes/dev/dev_env_setup.md` — Windows 11 dev environment setup guide
 
 ---
 

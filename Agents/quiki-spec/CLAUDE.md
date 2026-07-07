@@ -67,17 +67,17 @@ If a proposed task conflicts with any of these, push back before scoping — do 
 
 The implementation agent writes code + tests and stops. **It does not open a PR.** The Spec session owns review, format, PR creation, attribution verification, and CI monitoring.
 
-After every implementation sub-agent completes, the Spec session **must** do all of the following before reporting to Scott:
+After every implementation sub-agent completes, the Spec session **must** do all of the following before reporting back:
 
-### 1 — Discuss the brief with Scott before launching
+### 1 — Discuss the brief before launching
 
-- Walk Scott through the brief: what changes, what files, what tests.
-- Show Scott the exact prompt to be sent to the implementation agent.
-- Only launch after Scott approves.
+- Walk through the brief: what changes, what files, what tests.
+- Share the exact prompt to be sent to the implementation agent.
+- Only launch after approval.
 
-### 2 — Notify Scott when context compaction occurs
+### 2 — Notify when context compaction occurs
 
-When a conversation summary appears at the top of the context (instead of the real history), call it out explicitly in the reply so Scott knows context was lost, even when he is remote.
+When a conversation summary appears at the top of the context (instead of the real history), call it out explicitly in the reply so it is visible, even when working remotely.
 
 ### 3 — Review the agent's work before creating any PR
 
@@ -89,7 +89,7 @@ This is a genuine code review, not a compliance checklist. The agent had no cont
 |---|---|
 | **Branch name** | Professional and descriptive (`fix/...`, `feat/...`, `chore/...`). No random strings. |
 | **Commit attribution** | Every commit message must contain zero Claude/Anthropic attribution. Check with `git log`. Remove any attribution before continuing. |
-| **`dart format`** | Run `dart format --set-exit-if-changed packages/markdown_live_editor/lib packages/markdown_live_editor/test` (or the equivalent `just` target). If it fails, fix it or ask Scott to run locally and push. |
+| **`dart format`** | Run `dart format --set-exit-if-changed packages/markdown_live_editor/lib packages/markdown_live_editor/test` (or the equivalent `just` target). If it fails, fix it or ask the project owner to run locally and push. |
 | **Tests** | Run independently — do not rely solely on the agent's report: `just lint` (root lint + format), `just test` (root 114 tests), and `cd packages/markdown_live_editor && flutter test` (package tests). Fix any failures before creating the PR. |
 
 **Then read the full diff and review for:**
@@ -101,14 +101,14 @@ This is a genuine code review, not a compliance checklist. The agent had no cont
 - **Readability and simplicity**: naming is clear, structure follows existing conventions, no unnecessary abstraction. Three similar lines is fine; a premature helper is not.
 - **Test coverage**: do the tests cover the correctness invariants called out in the brief? For offset-map work: are the actual table values asserted, not just `toPlainText()` and length?
 
-Narrate what you found in each area when reporting back to Scott — "I checked X and it's correct because Y" is more useful than silence.
+Narrate what you found in each area — "I checked X and it's correct because Y" is more useful than silence.
 
 ### 4 — Create the PR
 
 Spec creates the PR (not the agent). Use `gh pr create`. The PR body must include:
 - Summary of changes
-- Step-by-step device test instructions specific enough for Scott to verify without guessing
-- Deferred section listing intentional omissions (so Anton does not file them as bugs)
+- Step-by-step device test instructions specific enough to verify without guessing
+- Deferred section listing intentional omissions (so they are not filed as bugs)
 - Zero Claude/Anthropic attribution
 
 After creating: immediately check the PR body for attribution (`gh pr view --json body`) and remove any found.
@@ -117,15 +117,15 @@ After creating: immediately check the PR body for attribution (`gh pr view --jso
 
 After PR creation, monitor CI:
 - **`flutter analyze` errors**: fix directly in the working tree, commit, push.
-- **`dart format` failures**: ask Scott to run `dart format lib/ test/ packages/markdown_live_editor/lib/ packages/markdown_live_editor/test/` locally and push a formatting commit.
+- **`dart format` failures**: ask the project owner to run `dart format lib/ test/ packages/markdown_live_editor/lib/ packages/markdown_live_editor/test/` locally and push a formatting commit.
 - **Test failures**: diagnose root cause, update test if behaviour intentionally changed, commit and push.
 - After each fix push, wait for the next CI result before declaring green.
 
 Do not spawn a background agent to monitor CI — fix inline and use `gh run watch` or `gh pr checks` to poll.
 
-### 6 — Report to Scott
+### 6 — Report status
 
-Once CI is green: summarize what changed, confirm no attribution anywhere, and let Scott know the PR is ready to merge. Scott merges, deletes the branch, and device-tests. Never assume a branch or PR still exists after Scott has merged — always start fresh from main.
+Once CI is green: summarize what changed, confirm no attribution anywhere, and report that the PR is ready to merge. The project owner merges, deletes the branch, and device-tests. Never assume a branch or PR still exists after it has been merged — always start fresh from main.
 
 ---
 
@@ -144,7 +144,7 @@ See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phas
 - Phase 3.24 (PR #203, v0.16.1): ADR-31 Stage 1 device-test fixes — scroll hit-test double-count, gesture kind tracking (mouse vs touch), keyboard lifecycle (`connectionClosed` → `unfocus`), long-press word selection.
 - Phase 3.25 (PR #205): ADR-31 Stage 2 — `MdParser` + `RenderModel`; reveal/collapse for h1–h3, bold, italic; bidirectional offset maps.
 - Phase 3.26 (PR #209, merged 2026-07-05): ADR-31 Stage 2 rendering fixes — reveal condition `<= element.end`, delimiter color = `baseStyle`.
-- Phase 3.27: ADR-31 Stage 3— boundary-reveal and tap-to-source assessed complete via IME-native source-level cursor positions; arrow-key device-test deferred pending Scott verification.
+- Phase 3.27: ADR-31 Stage 3— boundary-reveal and tap-to-source assessed complete via IME-native source-level cursor positions; arrow-key device-test deferred pending device verification.
 - Phase 3.28 (PR #211, merged 2026-07-06): ADR-31 Stage 4 — `ul`/`ol`/`checkboxUnchecked`/`checkboxChecked` element kinds; variable-length N→M marker substitution; block-relative ordered-list sequence numbers.
 - CI extended to cover `packages/markdown_live_editor/` (format check + tests) (PR #210).
 - Spec session process refined: brief style (WHAT + constraints, not HOW), pre-PR test checklist (run independently), code review depth (manifesto + architectural fit + safety).
@@ -154,11 +154,11 @@ See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phas
 - Phase 3.30: ADR-31 Stage 5 — inline images (real embedded image widgets in the custom paint pass).
 
 **Phase 3 remaining (open bugs/deferred):**
-- **#72 cold launch keyboard**: deferred (Scott's explicit call).
+- **#72 cold launch keyboard**: deferred (project owner's explicit call).
 - **#130 checkbox tap-to-toggle**: deferred from 3.22.
 - **#77 tabs/indenting in lists**: open.
 - **#188 share-in launches new instance**: open — Android `launchMode` issue.
-- **Long-press drag after word select** does not extend selection on touch (gesture arena conflict). Deferred — Scott confirmed "good enough for now."
+- **Long-press drag after word select** does not extend selection on touch (gesture arena conflict). Deferred — confirmed "good enough for now."
 - **QuKi list sort order** after editing older notes may be inconsistent on Android FUSE storage. Deferred.
 - **Unscoped features**: #79, #80, #81, #83, #84 (ADR-29/QuickJS), #87, #135, #136, #178, #181, #182, #183, #184. See `notes/dev/roadmap.md`.
 
