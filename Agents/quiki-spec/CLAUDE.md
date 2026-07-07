@@ -170,6 +170,19 @@ See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phas
 
 ---
 
+## Visual design standard (applies to all sessions)
+
+Two non-negotiable constraints — include in every dev brief that touches UI or color:
+
+- **Colors**: GitHub Primer Dark High Contrast palette only. Key tokens: canvas `#0a0c10`, surface `#272b33`, foreground `#f0f3f9`, muted `#9ea7b4`, accent/link `#71b7ff`, primary action `#1f6feb`, borders `#7a828e`. Light theme uses Primer Light High Contrast equivalents. Never allow arbitrary hex values or Flutter `Colors.*` seeds in new code — flag any found during diff review.
+- **Icons**: Lucide only (`lucide_flutter`, `LucideIcons.*`). Never `Icons.*` (Material) for new UI surfaces. ADR-23.
+
+Both are documented in `notes/dev/design_spec.md` and `decisions.md` (ADR-23) but must be restated in every brief that touches styling — agents do not always read the full spec.
+
+**Known deviation to fix**: link color in `render_model.dart` is `Color(0xFF4A9EE8)` — should be Primer DHC accent `Color(0xFF71B7FF)`.
+
+---
+
 ## Key doc discipline
 
 - **`notes/dev/manifesto.md` is normative and overrides everything.** It is the authoritative statement of what QuKi-Notes is and why it exists — the product vision, not a spec or design document. The spec, ADRs, and task briefs are all subordinate to it. When in doubt about whether something belongs in QuKi-Notes, the manifesto is the answer.
