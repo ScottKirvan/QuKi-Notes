@@ -298,7 +298,7 @@ class MdParser {
                 continue;
               }
               // No matching close: skip both delimiter chars so the second
-              // char is not re-examined as an italic opener (bug #219).
+              // char is not re-examined as an italic opener.
               i += 2;
               continue;
             }
