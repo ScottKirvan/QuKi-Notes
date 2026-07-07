@@ -137,6 +137,7 @@ QuKi-Notes/
 | | 3.29 ADR-31 Stage 4 device regressions — list auto-continue IME sync, ol block-relative numbering, plain text mode | Complete (PR #213) |
 | | 3.30 ADR-31 Stage 5 — block-level inline images | Complete (PR #215) |
 | | 3.31 ADR-31 Stage 6 — inline link rendering and tap-to-navigate | Complete (PR #217) |
+| | 3.32 Clipboard toolbar — Cut/Copy/Paste/Select All on Android | Complete (PR #218, v0.17.0) |
 | 4 | Sync plugin axis + first sync backend | v1.1+ |
 | 5 | iPadOS / iOS / macOS builds | Deferred |
 | 6 | MCP plugin axis | v2.0+ |

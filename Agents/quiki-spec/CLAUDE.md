@@ -133,7 +133,7 @@ Once CI is green: summarize what changed, confirm no attribution anywhere, and r
 
 See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phase table.
 
-**Current version**: v0.16.1 (released 2026-07-05). Stages 2–6 (PRs #205, #209, #211, #213, #215, #217) landed post-release and are unreleased.
+**Current version**: v0.17.0 (released 2026-07-07). ADR-31 Stages 1–6 + clipboard toolbar all shipped.
 
 **No implementation session in progress.** No active brief in `Agents/quiki-dev/CLAUDE.md`.
 
@@ -151,6 +151,7 @@ See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phas
 - Phase 3.29 (PR #213, merged 2026-07-06): ADR-31 Stage 4 device regressions — list auto-continue IME sync, ol block-relative numbering (`1. 1. 1.` → `1. 2. 3.`, `5. 1. 1.` → `5. 6. 7.`), plain text mode toggle.
 - Phase 3.30 (PR #215, merged 2026-07-06): ADR-31 Stage 5 — block-level `![alt](path)` image rendering; `ImageSlot`; async image cache; path resolution via ADR-4.
 - Phase 3.31 (PR #217, merged 2026-07-06): ADR-31 Stage 6 — inline `[text](url)` link rendering; `LinkSlot`; tap-to-navigate via `url_launcher` (ADR-32); `onLinkTap` callback.
+- Phase 3.32 (PR #218, merged 2026-07-07, v0.17.0): Clipboard toolbar — Cut/Copy/Paste/Select All on Android. `ContextMenuController` + `AdaptiveTextSelectionToolbar`. Collapsed cursor shows Paste + Select All only; Select All re-shows toolbar immediately. Bug filed: #219 (`**` delimiter visibility when note contains existing `*`).
 
 **Next up — architectural design required before any brief:**
 - **Rich list content** (links, bold, italic inside list items): parser currently skips inline scan on list lines. Requires two-pass parser restructure — detect list prefix, then scan content inline. New ADR entry needed.
