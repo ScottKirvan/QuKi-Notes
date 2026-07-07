@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_flutter/lucide_flutter.dart';
 
 import '../../core/storage/android_storage_channel.dart';
 import '../../core/storage/storage_base_path_provider.dart';
@@ -256,7 +257,7 @@ class _StorageSetupScreenState extends ConsumerState<StorageSetupScreen>
                 _OptionCard(
                   title: filesystemTitle,
                   subtitle: filesystemSubtitle,
-                  icon: Icons.folder_open_outlined,
+                  icon: LucideIcons.folderOpen,
                   loading: _busy,
                   onTap: _busy ? null : _requestFilesystemStorage,
                 ),
@@ -265,7 +266,7 @@ class _StorageSetupScreenState extends ConsumerState<StorageSetupScreen>
                   title: 'Use app storage',
                   subtitle: 'QuKis are kept private to this app. '
                       'They will be removed if you uninstall.',
-                  icon: Icons.lock_outline,
+                  icon: LucideIcons.lock,
                   onTap: _busy ? null : _useAppStorage,
                 ),
                 const Spacer(),
