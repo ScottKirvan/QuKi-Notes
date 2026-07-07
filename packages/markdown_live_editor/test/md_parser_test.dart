@@ -676,4 +676,410 @@ void main() {
       expect(els[0].end, 11);
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Strikethrough (~~text~~)
+  // ---------------------------------------------------------------------------
+
+  group('MdParser.parse — strikethrough', () {
+    test('"~~text~~" → [strikethrough(0, 8)]', () {
+      final els = MdParser.parse('~~text~~');
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.strikethrough);
+      expect(els[0].start, 0);
+      expect(els[0].end, 8);
+    });
+
+    test('"hello ~~world~~ there" → [strikethrough(6, 15)]', () {
+      final els = MdParser.parse('hello ~~world~~ there');
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.strikethrough);
+      expect(els[0].start, 6);
+      expect(els[0].end, 15); // '~~world~~' = 9 chars starting at 6 → end 15
+    });
+
+    test('unmatched "~~" with no closing → no element', () {
+      expect(MdParser.parse('~~no close'), isEmpty);
+    });
+
+    test('unmatched "~~" alone → no element', () {
+      expect(MdParser.parse('~~'), isEmpty);
+    });
+
+    test(
+        'unmatched "~~" before valid "~~ok~~" → only the valid element (skip fallthrough)',
+        () {
+      // '~~word ~~ok~~': the leading '~~' has no close before '~~ok~~'.
+      // After skipping the unmatched '~~', the valid '~~ok~~' at offset 7 is found.
+      const source = '~~word ~~ok~~';
+      final els = MdParser.parse(source);
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.strikethrough);
+      expect(els[0].start, 7);
+      expect(els[0].end, 13);
+    });
+
+    test('strikethrough openDelimLen = 2, closeDelimLen = 2', () {
+      final el = MdParser.parse('~~hi~~').first;
+      expect(el.openDelimLen, 2);
+      expect(el.closeDelimLen, 2);
+    });
+
+    test('strikethrough isDelimiter: first two and last two chars are delims',
+        () {
+      // '~~hi~~' → start=0, end=6
+      final el = MdParser.parse('~~hi~~').first;
+      expect(el.isDelimiter(0), isTrue);
+      expect(el.isDelimiter(1), isTrue);
+      expect(el.isDelimiter(2), isFalse); // 'h'
+      expect(el.isDelimiter(3), isFalse); // 'i'
+      expect(el.isDelimiter(4), isTrue);
+      expect(el.isDelimiter(5), isTrue);
+    });
+
+    test('strikethrough adjacent to bold on same line', () {
+      // '**bold** ~~struck~~'
+      const source = '**bold** ~~struck~~';
+      final els = MdParser.parse(source);
+      expect(els, hasLength(2));
+      expect(els[0].kind, MdElKind.bold);
+      expect(els[0].start, 0);
+      expect(els[0].end, 8);
+      expect(els[1].kind, MdElKind.strikethrough);
+      expect(els[1].start, 9);
+      expect(els[1].end, 19);
+    });
+
+    test('strikethrough adjacent to italic on same line', () {
+      // '*italic* ~~struck~~'
+      const source = '*italic* ~~struck~~';
+      final els = MdParser.parse(source);
+      expect(els, hasLength(2));
+      expect(els[0].kind, MdElKind.italic);
+      expect(els[1].kind, MdElKind.strikethrough);
+    });
+
+    test('"~~~~" (empty strikethrough content) → no element', () {
+      expect(MdParser.parse('~~~~'), isEmpty);
+    });
+
+    test('cross-line strikethrough → no element', () {
+      expect(
+        MdParser.parse('~~crosses\nlines~~')
+            .where((e) => e.kind == MdElKind.strikethrough),
+        isEmpty,
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Inline code (`code`)
+  // ---------------------------------------------------------------------------
+
+  group('MdParser.parse — inline code', () {
+    test('"` code`" → [inlineCode(0, 6)]', () {
+      final els = MdParser.parse('`code`');
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.inlineCode);
+      expect(els[0].start, 0);
+      expect(els[0].end, 6);
+    });
+
+    test('"hello `world` there" → [inlineCode(6, 13)]', () {
+      final els = MdParser.parse('hello `world` there');
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.inlineCode);
+      expect(els[0].start, 6);
+      expect(els[0].end, 13);
+    });
+
+    test('unmatched backtick → no element', () {
+      expect(MdParser.parse('`no close'), isEmpty);
+    });
+
+    test('inline code content with bold delimiters → not parsed as bold', () {
+      // Content '**x**' inside backticks must not produce bold elements.
+      final els = MdParser.parse('`**x**`');
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.inlineCode);
+      // No nested bold element.
+      expect(els.where((e) => e.kind == MdElKind.bold), isEmpty);
+    });
+
+    test('inline code content with italic delimiters → not parsed as italic',
+        () {
+      final els = MdParser.parse('`_text_`');
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.inlineCode);
+      expect(els.where((e) => e.kind == MdElKind.italic), isEmpty);
+    });
+
+    test('inline code content with "~~" → not parsed as strikethrough', () {
+      final els = MdParser.parse('`~~text~~`');
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.inlineCode);
+      expect(els.where((e) => e.kind == MdElKind.strikethrough), isEmpty);
+    });
+
+    test('inline code content with "[" → not parsed as link', () {
+      final els = MdParser.parse('`[not a link](url)`');
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.inlineCode);
+      expect(els.where((e) => e.kind == MdElKind.link), isEmpty);
+    });
+
+    test('inlineCode openDelimLen = 1, closeDelimLen = 1', () {
+      final el = MdParser.parse('`hi`').first;
+      expect(el.openDelimLen, 1);
+      expect(el.closeDelimLen, 1);
+    });
+
+    test('inlineCode isDelimiter: first and last char', () {
+      // '`hi`' → start=0, end=4
+      final el = MdParser.parse('`hi`').first;
+      expect(el.isDelimiter(0), isTrue);
+      expect(el.isDelimiter(1), isFalse); // 'h'
+      expect(el.isDelimiter(2), isFalse); // 'i'
+      expect(el.isDelimiter(3), isTrue);
+    });
+
+    test('inline code adjacent to bold: "`code` **bold**"', () {
+      const source = '`code` **bold**';
+      final els = MdParser.parse(source);
+      expect(els, hasLength(2));
+      expect(els[0].kind, MdElKind.inlineCode);
+      expect(els[1].kind, MdElKind.bold);
+    });
+
+    test('inline code takes priority: backtick inside code span closes span',
+        () {
+      // Ensure the parser stops at the first closing backtick.
+      // '`a b`c' → one inlineCode(0, 5), then 'c' is plain.
+      final els = MdParser.parse('`a b`c');
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.inlineCode);
+      expect(els[0].start, 0);
+      expect(els[0].end, 5);
+    });
+
+    test('cross-line inline code → no element', () {
+      expect(
+        MdParser.parse('`crosses\nlines`')
+            .where((e) => e.kind == MdElKind.inlineCode),
+        isEmpty,
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // h4–h6
+  // ---------------------------------------------------------------------------
+
+  group('MdParser.parse — h4, h5, h6', () {
+    test('"#### Hello" → [h4(0, 10)]', () {
+      final els = MdParser.parse('#### Hello');
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.h4);
+      expect(els[0].start, 0);
+      expect(els[0].end, 10);
+    });
+
+    test('"##### Hello" → [h5(0, 11)]', () {
+      final els = MdParser.parse('##### Hello');
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.h5);
+      expect(els[0].start, 0);
+      expect(els[0].end, 11);
+    });
+
+    test('"###### Hello" → [h6(0, 12)]', () {
+      final els = MdParser.parse('###### Hello');
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.h6);
+      expect(els[0].start, 0);
+      expect(els[0].end, 12);
+    });
+
+    test('h4 openDelimLen = 5 ("#### ")', () {
+      final el = MdParser.parse('#### Hi').first;
+      expect(el.kind, MdElKind.h4);
+      expect(el.openDelimLen, 5);
+    });
+
+    test('h5 openDelimLen = 6 ("##### ")', () {
+      final el = MdParser.parse('##### Hi').first;
+      expect(el.kind, MdElKind.h5);
+      expect(el.openDelimLen, 6);
+    });
+
+    test('h6 openDelimLen = 7 ("###### ")', () {
+      final el = MdParser.parse('###### Hi').first;
+      expect(el.kind, MdElKind.h6);
+      expect(el.openDelimLen, 7);
+    });
+
+    test('"####### not a heading" → no element (7 hashes)', () {
+      // GFM only defines h1–h6.
+      expect(MdParser.parse('####### too deep'), isEmpty);
+    });
+
+    test('h4–h6 isDelimiter: prefix chars are delimiters, content is not', () {
+      final el = MdParser.parse('#### Title').first;
+      // '#### ' = 5 chars (indices 0–4) are delimiters.
+      for (var i = 0; i < 5; i++) {
+        expect(el.isDelimiter(i), isTrue, reason: 'index $i should be delim');
+      }
+      expect(el.isDelimiter(5), isFalse); // 'T'
+    });
+
+    test('existing h1–h3 still parse correctly after h4–h6 added', () {
+      final h1 = MdParser.parse('# H1').first;
+      expect(h1.kind, MdElKind.h1);
+      final h2 = MdParser.parse('## H2').first;
+      expect(h2.kind, MdElKind.h2);
+      final h3 = MdParser.parse('### H3').first;
+      expect(h3.kind, MdElKind.h3);
+    });
+
+    test('h4 on one line, bold on next → two elements', () {
+      const source = '#### Title\n**bold**';
+      final els = MdParser.parse(source);
+      expect(els, hasLength(2));
+      expect(els[0].kind, MdElKind.h4);
+      expect(els[1].kind, MdElKind.bold);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Bare URL autolinks
+  // ---------------------------------------------------------------------------
+
+  group('MdParser.parse — bare URL autolinks', () {
+    test('"https://example.com" → [autolink(0, 19)]', () {
+      const url = 'https://example.com';
+      final els = MdParser.parse(url);
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.autolink);
+      expect(els[0].start, 0);
+      expect(els[0].end, url.length);
+    });
+
+    test('"http://example.com" → [autolink(0, 18)]', () {
+      const url = 'http://example.com';
+      final els = MdParser.parse(url);
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.autolink);
+      expect(els[0].start, 0);
+      expect(els[0].end, url.length);
+    });
+
+    test('bare URL mid-line: "visit https://example.com now"', () {
+      const source = 'visit https://example.com now';
+      final els = MdParser.parse(source);
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.autolink);
+      expect(els[0].start, 6); // 'visit ' = 6
+      expect(els[0].end, 6 + 'https://example.com'.length);
+    });
+
+    test('URL at end of line (no trailing whitespace)', () {
+      const source = 'see https://example.com';
+      final els = MdParser.parse(source);
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.autolink);
+      expect(els[0].end, source.length);
+    });
+
+    test('URL ends at first whitespace', () {
+      // 'https://a.com more' → URL is only 'https://a.com' (13 chars).
+      const source = 'https://a.com more text';
+      final els = MdParser.parse(source);
+      expect(els, hasLength(1));
+      expect(els[0].end, 'https://a.com'.length);
+    });
+
+    test('bare URL preceded by non-space text (no space before url)', () {
+      // 'texthttps://example.com' — should still detect the URL.
+      // Per spec: URL starts at first char of 'https://'.
+      const source = 'texthttps://example.com';
+      final els = MdParser.parse(source);
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.autolink);
+      expect(els[0].start, 4); // 'text' = 4 chars
+    });
+
+    test('bare URL url field contains the raw URL text', () {
+      const url = 'https://example.com';
+      final el = MdParser.parse(url).first;
+      expect(el.url, url);
+    });
+
+    test('URL inside "[text](url)" link is NOT also an autolink', () {
+      // The scanner must not double-match a URL already inside a link.
+      const source = '[Go](https://go.dev)';
+      final els = MdParser.parse(source);
+      // One link element, no autolink.
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.link);
+      expect(els.where((e) => e.kind == MdElKind.autolink), isEmpty);
+    });
+
+    test('URL inside "![alt](url)" image is NOT an autolink', () {
+      // Block image line — no autolink inside the parentheses.
+      final els = MdParser.parse('![alt](https://example.com/img.jpg)');
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.image);
+      expect(els.where((e) => e.kind == MdElKind.autolink), isEmpty);
+    });
+
+    test('no ftp:// autolink (only https:// and http:// supported)', () {
+      expect(
+        MdParser.parse('ftp://example.com')
+            .where((e) => e.kind == MdElKind.autolink),
+        isEmpty,
+      );
+    });
+
+    test('no bare domain detection (must start with scheme)', () {
+      expect(
+        MdParser.parse('example.com')
+            .where((e) => e.kind == MdElKind.autolink),
+        isEmpty,
+      );
+    });
+
+    test('autolink openDelimLen = 0 (URL is content, no delimiter to hide)',
+        () {
+      final el = MdParser.parse('https://a.com').first;
+      expect(el.openDelimLen, 0);
+    });
+
+    test('autolink closeDelimLen = 0', () {
+      final el = MdParser.parse('https://a.com').first;
+      expect(el.closeDelimLen, 0);
+    });
+
+    test('autolink isDelimiter: no chars are delimiters', () {
+      final el = MdParser.parse('https://a.com').first;
+      for (var i = el.start; i < el.end; i++) {
+        expect(el.isDelimiter(i), isFalse);
+      }
+    });
+
+    test('autolink url field contains the extracted URL', () {
+      const url = 'https://example.com/path?q=1';
+      final el = MdParser.parse(url).first;
+      expect(el.url, url);
+    });
+
+    test('two bare URLs on one line → two autolink elements', () {
+      const source = 'https://a.com and https://b.com';
+      final els = MdParser.parse(source);
+      expect(els, hasLength(2));
+      expect(els[0].kind, MdElKind.autolink);
+      expect(els[0].url, 'https://a.com');
+      expect(els[1].kind, MdElKind.autolink);
+      expect(els[1].url, 'https://b.com');
+    });
+  });
 }
