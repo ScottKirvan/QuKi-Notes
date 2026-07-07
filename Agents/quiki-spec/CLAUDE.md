@@ -133,29 +133,33 @@ Once CI is green: summarize what changed, confirm no attribution anywhere, and r
 
 See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phase table.
 
-**Current version**: v0.16.1 (released 2026-07-05). Stages 2–4 (PRs #205, #209, #211) landed post-release and are unreleased.
+**Current version**: v0.16.1 (released 2026-07-05). Stages 2–6 (PRs #205, #209, #211, #213, #215, #217) landed post-release and are unreleased.
 
 **No implementation session in progress.** No active brief in `Agents/quiki-dev/CLAUDE.md`.
 
-**Resolved since last spec sync (Sessions 16–18):**
+**Resolved since last spec sync:**
 - Phase 3.22 post-ship rendering bugs (PR #194, v0.15.2): list bullets, checkbox visibility, toolbar selection fix.
 - ADR-31: Custom RenderObject + TextInputClient live-preview markdown engine. Supersedes ADR-30.
 - Phase 3.23 (PR #201, v0.16.0): ADR-31 Stage 1 — `QuikiRenderEditor extends RenderBox` + `QuikiEditorState implements TextInputClient`, plain-text editor replacing `TextField`.
 - Phase 3.24 (PR #203, v0.16.1): ADR-31 Stage 1 device-test fixes — scroll hit-test double-count, gesture kind tracking (mouse vs touch), keyboard lifecycle (`connectionClosed` → `unfocus`), long-press word selection.
 - Phase 3.25 (PR #205): ADR-31 Stage 2 — `MdParser` + `RenderModel`; reveal/collapse for h1–h3, bold, italic; bidirectional offset maps.
 - Phase 3.26 (PR #209, merged 2026-07-05): ADR-31 Stage 2 rendering fixes — reveal condition `<= element.end`, delimiter color = `baseStyle`.
-- Phase 3.27: ADR-31 Stage 3— boundary-reveal and tap-to-source assessed complete via IME-native source-level cursor positions; arrow-key device-test deferred pending device verification.
+- Phase 3.27: ADR-31 Stage 3 — boundary-reveal and tap-to-source assessed complete via IME-native source-level cursor positions; arrow-key device-test deferred pending device verification.
 - Phase 3.28 (PR #211, merged 2026-07-06): ADR-31 Stage 4 — `ul`/`ol`/`checkboxUnchecked`/`checkboxChecked` element kinds; variable-length N→M marker substitution; block-relative ordered-list sequence numbers.
 - CI extended to cover `packages/markdown_live_editor/` (format check + tests) (PR #210).
 - Spec session process refined: brief style (WHAT + constraints, not HOW), pre-PR test checklist (run independently), code review depth (manifesto + architectural fit + safety).
 - Phase 3.29 (PR #213, merged 2026-07-06): ADR-31 Stage 4 device regressions — list auto-continue IME sync, ol block-relative numbering (`1. 1. 1.` → `1. 2. 3.`, `5. 1. 1.` → `5. 6. 7.`), plain text mode toggle.
+- Phase 3.30 (PR #215, merged 2026-07-06): ADR-31 Stage 5 — block-level `![alt](path)` image rendering; `ImageSlot`; async image cache; path resolution via ADR-4.
+- Phase 3.31 (PR #217, merged 2026-07-06): ADR-31 Stage 6 — inline `[text](url)` link rendering; `LinkSlot`; tap-to-navigate via `url_launcher` (ADR-32); `onLinkTap` callback.
 
-**Next up:**
-- Phase 3.30: ADR-31 Stage 5 — inline images (real embedded image widgets in the custom paint pass).
+**Next up — architectural design required before any brief:**
+- **Rich list content** (links, bold, italic inside list items): parser currently skips inline scan on list lines. Requires two-pass parser restructure — detect list prefix, then scan content inline. New ADR entry needed.
+- **Inline images** (mid-sentence `![alt](path)`): single-`TextPainter` model cannot reflow text around inline images. Requires multi-segment layout design. New ADR entry needed.
+- Both were confirmed high-priority by the project owner (2026-07-06): "lists of links are common" and "images aren't worth supporting if we can't do inline."
 
 **Phase 3 remaining (open bugs/deferred):**
 - **#72 cold launch keyboard**: deferred (project owner's explicit call).
-- **#130 checkbox tap-to-toggle**: deferred from 3.22.
+- **#130 checkbox tap-to-toggle**: deferred; link-tap pattern from PR #217 shows the implementation path.
 - **#77 tabs/indenting in lists**: open.
 - **#188 share-in launches new instance**: open — Android `launchMode` issue.
 - **Long-press drag after word select** does not extend selection on touch (gesture arena conflict). Deferred — confirmed "good enough for now."
