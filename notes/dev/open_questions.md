@@ -12,7 +12,7 @@ Do not implement past one of these without proposing a resolution in the PR body
 1. `_parseBody` / `_extractBody` replaced with `deserializeMarkdownToDocument` / `serializeDocumentToMarkdown` (both built into `super_editor`; `super_editor_markdown` companion package deprecated and merged upstream). `MarkdownSyntax.normal` used for GFM compatibility.
 2. Custom `EditReaction` subclasses added in `lib/features/editor/markdown_inline_reactions.dart`: bold (`**x**`), italic (`_x_`, `*x*`), inline code (`` `x` ``), task list (`- [ ] `). Block reactions (headings, lists, blockquote) were already provided by `createDefaultDocumentEditor`. ADR-24.
 
-Fenced code block rendering deferred (Scott decision — not a priority for quick-capture use case).
+Fenced code block rendering deferred — not a priority for quick-capture use case.
 
 ---
 

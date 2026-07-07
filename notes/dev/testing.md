@@ -132,7 +132,7 @@ All three must be green for merge. No exceptions, no `--no-verify`, no `[skip ci
 
 **Coverage**: no threshold enforced. Coverage thresholds are a perverse incentive (write tests to chase the number, not the risk). The PR review is the gatekeeper — "where's the test for this code path?" is the right question, not "is coverage above 80%?".
 
-Integration tests are **not** run in CI for MVP (they require a device/emulator). Scott runs them locally when merging significant Phase 1+ PRs:
+Integration tests are **not** run in CI for MVP (they require a device/emulator). The project owner runs them locally when merging significant Phase 1+ PRs:
 
 ```bash
 flutter test integration_test/

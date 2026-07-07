@@ -1,6 +1,6 @@
 # Pull Request Template
 
-Use this as the **body** of every PR. Scott uses **rebase & merge** — each commit lands individually on `main`. Every commit in the PR must follow conventional commit format; the PR title is descriptive only.
+Use this as the **body** of every PR. The project uses **rebase & merge** — each commit lands individually on `main`. Every commit in the PR must follow conventional commit format; the PR title is descriptive only.
 
 ## Title format
 
@@ -34,7 +34,7 @@ Phase <N>: <task name as it appears in design_spec.md → Development Pipeline>
 
 ## Test Instructions
 
-Step-by-step manual test for Scott on Android device:
+Step-by-step manual test on Android device:
 
 1. <step>
 2. <step>

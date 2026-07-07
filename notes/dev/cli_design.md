@@ -6,7 +6,7 @@
 
 ## Why Capture This Now
 
-Scott may want a `quki` command-line interface in the future for:
+A `quki` command-line interface may be useful in the future for:
 
 - Scripted toss-from-a-pipe (`echo "ship it" | quki toss daily-log`)
 - Batch import / export
@@ -94,7 +94,7 @@ These do **not** block MVP. Recorded here to remember when the CLI work starts.
 
 ## When To Promote This Doc
 
-When Scott opens the first PR that scaffolds `bin/quki.dart`:
+When the first PR that scaffolds `bin/quki.dart` opens:
 
 1. Move locked decisions here into ADRs in `decisions.md`.
 2. Convert OQs above into resolved entries or move them to `open_questions.md`.
