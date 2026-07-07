@@ -23,6 +23,8 @@
 * upload APK as artifact when triggered via workflow_dispatch ([1d38f7d](https://github.com/ScottKirvan/QuKi-Notes/commit/1d38f7d547370643417a82180e406be8e5538001))
 * upload build artifacts on workflow_dispatch for Windows, Linux, iOS ([e252bb6](https://github.com/ScottKirvan/QuKi-Notes/commit/e252bb6fe6f017c6d65dd9bd043b79e64a927308))
 
+Includes PRs: [#205](https://github.com/ScottKirvan/QuKi-Notes/pull/205), [#206](https://github.com/ScottKirvan/QuKi-Notes/pull/206), [#207](https://github.com/ScottKirvan/QuKi-Notes/pull/207), [#208](https://github.com/ScottKirvan/QuKi-Notes/pull/208), [#209](https://github.com/ScottKirvan/QuKi-Notes/pull/209), [#210](https://github.com/ScottKirvan/QuKi-Notes/pull/210), [#211](https://github.com/ScottKirvan/QuKi-Notes/pull/211), [#212](https://github.com/ScottKirvan/QuKi-Notes/pull/212), [#213](https://github.com/ScottKirvan/QuKi-Notes/pull/213), [#214](https://github.com/ScottKirvan/QuKi-Notes/pull/214), [#215](https://github.com/ScottKirvan/QuKi-Notes/pull/215), [#216](https://github.com/ScottKirvan/QuKi-Notes/pull/216), [#217](https://github.com/ScottKirvan/QuKi-Notes/pull/217), [#218](https://github.com/ScottKirvan/QuKi-Notes/pull/218)
+
 ## [0.16.1](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.16.0...v0.16.1) (2026-07-05)
 
 
