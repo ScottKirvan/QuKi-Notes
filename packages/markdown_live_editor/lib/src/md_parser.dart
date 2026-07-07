@@ -297,6 +297,10 @@ class MdParser {
                 i = closeIdx + 2;
                 continue;
               }
+              // No matching close: skip both delimiter chars so the second
+              // char is not re-examined as an italic opener (bug #219).
+              i += 2;
+              continue;
             }
           }
 
