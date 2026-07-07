@@ -1,3 +1,3 @@
 <!-- x-release-please-start-version -->
-version=0.16.1
+version=0.17.0
 <!-- x-release-please-end -->

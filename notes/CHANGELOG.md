@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.17.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.16.1...v0.17.0) (2026-07-07)
+
+
+### Features
+
+* **editor:** implement selection toolbar for mobile (ADR-31) ([d5deca4](https://github.com/ScottKirvan/QuKi-Notes/commit/d5deca473cd0d39dfb3a21aeb087bd5c37e1a20c))
+* **markdown_live_editor:** ADR-31 Stage 2 — parser + reveal/collapse for headings, bold, italic ([f5888dc](https://github.com/ScottKirvan/QuKi-Notes/commit/f5888dc36215e1994755e20c66489546a4b8bb6f))
+* **markdown_live_editor:** ADR-31 Stage 4 — list glyphs, checkboxes, ordered-list numbering ([fc3fed3](https://github.com/ScottKirvan/QuKi-Notes/commit/fc3fed39d30292b4e5d5dbeed9d3e3ef85b5a66a))
+* **markdown_live_editor:** ADR-31 Stage 5 — block-level inline images ([1645ee7](https://github.com/ScottKirvan/QuKi-Notes/commit/1645ee74155f9a2d52f9bc0ea9858579c3f48398))
+* **markdown_live_editor:** ADR-31 Stage 6 — inline link rendering and tap-to-navigate ([eb8114b](https://github.com/ScottKirvan/QuKi-Notes/commit/eb8114ba868c64a706c276824ad904f8be3296f2))
+
+
+### Bug Fixes
+
+* **editor:** show toolbar on collapsed selection; re-show after Select All ([a8b926c](https://github.com/ScottKirvan/QuKi-Notes/commit/a8b926cdab691f9b1430050fdea4b65814bf7e64))
+* extend CI format check and tests to cover packages/markdown_live_editor ([62e1bcc](https://github.com/ScottKirvan/QuKi-Notes/commit/62e1bccefe95dded60c6c8162a94c3bbf347118b))
+* **markdown_live_editor:** ADR-31 Stage 2 — reveal at element.end + delimiter color ([0acbfe5](https://github.com/ScottKirvan/QuKi-Notes/commit/0acbfe5cecd66f07d02f683a31d478a238d488d0))
+* **markdown_live_editor:** image cache — replace map on update so render object detects change ([625a5fa](https://github.com/ScottKirvan/QuKi-Notes/commit/625a5fa9456621564368fe44df1655b30764a098))
+* **markdown_live_editor:** list auto-continue IME sync, ol source numbering, plain text mode ([e14c4f3](https://github.com/ScottKirvan/QuKi-Notes/commit/e14c4f314bb1bbd76d26f50b1e4d6e73bf56be0f))
+* **markdown_live_editor:** ol block-relative seqNum (GFM-compatible) ([2c29257](https://github.com/ScottKirvan/QuKi-Notes/commit/2c292577262752e0917a1e5f6b7b74fadfd0d336))
+* upload APK as artifact when triggered via workflow_dispatch ([1d38f7d](https://github.com/ScottKirvan/QuKi-Notes/commit/1d38f7d547370643417a82180e406be8e5538001))
+* upload build artifacts on workflow_dispatch for Windows, Linux, iOS ([e252bb6](https://github.com/ScottKirvan/QuKi-Notes/commit/e252bb6fe6f017c6d65dd9bd043b79e64a927308))
+
 ## [0.16.1](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.16.0...v0.16.1) (2026-07-05)
 
 
