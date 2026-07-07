@@ -605,9 +605,7 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('MdParser.parse — unmatched bold delimiter fallthrough (bug #219)', () {
-    test(
-        'unmatched "**" alone → no elements — regression: bug #219',
-        () {
+    test('unmatched "**" alone → no elements — regression: bug #219', () {
       // '**' with no close: both chars are literal, no element emitted.
       expect(MdParser.parse('**'), isEmpty);
     });
@@ -633,9 +631,7 @@ void main() {
       expect(els[0].end, 15); // closing '*' + 1
     });
 
-    test(
-        'unmatched "__" alone → no elements — regression: bug #219',
-        () {
+    test('unmatched "__" alone → no elements — regression: bug #219', () {
       expect(MdParser.parse('__'), isEmpty);
     });
 
@@ -658,8 +654,7 @@ void main() {
       expect(els[0].end, 15); // closing '_' + 1
     });
 
-    test(
-        'matched "**word**" still produces bold element — regression guard',
+    test('matched "**word**" still produces bold element — regression guard',
         () {
       final els = MdParser.parse('**word**');
       expect(els, hasLength(1));
