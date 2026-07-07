@@ -330,8 +330,9 @@ void main() {
       expect(find.byType(AdaptiveTextSelectionToolbar), findsOneWidget);
     });
 
-    testWidgets('showToolbarForTesting: no toolbar when selection is collapsed',
-        (tester) async {
+    testWidgets(
+        'showToolbarForTesting: toolbar IS shown for a collapsed selection '
+        '(paste unreachable fix)', (tester) async {
       final controller = MarkdownEditorController();
 
       await tester.pumpWidget(_buildEditor(
@@ -348,8 +349,136 @@ void main() {
       state.showToolbarForTesting();
       await tester.pump();
 
+      expect(state.isToolbarShown, isTrue,
+          reason: 'toolbar must appear for a collapsed selection so Paste is '
+              'reachable via long-press on an empty line or between words');
+    });
+
+    testWidgets(
+        'collapsed selection: toolbar shows only Paste and Select All — '
+        'no Cut, no Copy', (tester) async {
+      final controller = MarkdownEditorController();
+
+      await tester.pumpWidget(_buildEditor(
+        initialValue: 'some text',
+        controller: controller,
+      ));
+
+      controller
+          .setSelectionForTesting(const TextSelection.collapsed(offset: 3));
+      await tester.pump();
+
+      final state = _editorState(tester);
+      state.showToolbarForTesting();
+      await tester.pump();
+
+      expect(state.isToolbarShown, isTrue);
+
+      // There must be exactly 2 ContextMenuItemButton widgets: Paste and
+      // Select All.  Cut and Copy must not be in the tree.
+      expect(find.text('Paste'), findsOneWidget,
+          reason: 'Paste must appear for a collapsed selection');
+      expect(find.text('Select All'), findsOneWidget,
+          reason: 'Select All must appear for a collapsed selection');
+      expect(find.text('Cut'), findsNothing,
+          reason: 'Cut must NOT appear when there is no selection to cut');
+      expect(find.text('Copy'), findsNothing,
+          reason: 'Copy must NOT appear when there is no selection to copy');
+    });
+
+    testWidgets(
+        'non-collapsed selection: toolbar shows all 4 buttons '
+        '(Cut, Copy, Paste, Select All)', (tester) async {
+      final controller = MarkdownEditorController();
+
+      await tester.pumpWidget(_buildEditor(
+        initialValue: 'some text here',
+        controller: controller,
+      ));
+
+      controller.setSelectionForTesting(
+          const TextSelection(baseOffset: 0, extentOffset: 4));
+      await tester.pump();
+
+      final state = _editorState(tester);
+      state.showToolbarForTesting();
+      await tester.pump();
+
+      expect(state.isToolbarShown, isTrue);
+      expect(find.text('Cut'), findsOneWidget,
+          reason: 'Cut must appear for a non-collapsed selection');
+      expect(find.text('Copy'), findsOneWidget,
+          reason: 'Copy must appear for a non-collapsed selection');
+      expect(find.text('Paste'), findsOneWidget,
+          reason: 'Paste must appear for a non-collapsed selection');
+      expect(find.text('Select All'), findsOneWidget,
+          reason: 'Select All must appear for a non-collapsed selection');
+    });
+
+    testWidgets('Select All re-shows toolbar (copy after Select All fix)',
+        (tester) async {
+      final controller = MarkdownEditorController();
+
+      await tester.pumpWidget(_buildEditor(
+        initialValue: 'hello world',
+        controller: controller,
+      ));
+
+      // Start with a collapsed selection.
+      controller
+          .setSelectionForTesting(const TextSelection.collapsed(offset: 3));
+      await tester.pump();
+
+      final state = _editorState(tester);
+      state.showToolbarForTesting();
+      await tester.pump();
+
+      expect(state.isToolbarShown, isTrue,
+          reason: 'toolbar must be visible before tapping Select All');
+
+      // Tap the Select All button.
+      await tester.tap(find.text('Select All'));
+      await tester.pump();
+
+      // The toolbar must re-appear with all 4 buttons (full selection).
+      expect(state.isToolbarShown, isTrue,
+          reason:
+              'toolbar must re-appear after Select All so Copy is reachable');
+      expect(find.text('Cut'), findsOneWidget);
+      expect(find.text('Copy'), findsOneWidget);
+      expect(find.text('Paste'), findsOneWidget);
+      expect(find.text('Select All'), findsOneWidget);
+    });
+
+    testWidgets('toolbar re-shown after Select All is dismissed by next tap',
+        (tester) async {
+      final controller = MarkdownEditorController();
+
+      await tester.pumpWidget(_buildEditor(
+        initialValue: 'dismiss me',
+        controller: controller,
+      ));
+
+      controller
+          .setSelectionForTesting(const TextSelection.collapsed(offset: 0));
+      await tester.pump();
+
+      final state = _editorState(tester);
+      state.showToolbarForTesting();
+      await tester.pump();
+
+      // Tap Select All to re-show the toolbar.
+      await tester.tap(find.text('Select All'));
+      await tester.pump();
+      expect(state.isToolbarShown, isTrue,
+          reason: 'toolbar must be visible after Select All');
+
+      // A subsequent tap must dismiss it.
+      await tester.tapAt(tester.getCenter(find.byType(MarkdownEditor)));
+      await tester.pump();
+
       expect(state.isToolbarShown, isFalse,
-          reason: 'toolbar must not appear for a collapsed selection');
+          reason: 'toolbar must be dismissed by _onTapDown after the re-show');
     });
 
     testWidgets('toolbar is dismissed on next tap', (tester) async {
