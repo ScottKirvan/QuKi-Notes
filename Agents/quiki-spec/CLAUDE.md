@@ -135,7 +135,7 @@ See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phas
 
 **Current version**: v0.17.0 (released 2026-07-07). ADR-31 Stages 1–6 + clipboard toolbar all shipped.
 
-**No implementation session in progress.** No active brief in `Agents/quiki-dev/CLAUDE.md`.
+**In progress**: #219 — `**` delimiter fallthrough creates spurious italic element. Fix in `fix/bold-delimiter-fallthrough`.
 
 **Resolved since last spec sync:**
 - Phase 3.22 post-ship rendering bugs (PR #194, v0.15.2): list bullets, checkbox visibility, toolbar selection fix.
@@ -177,6 +177,7 @@ Two non-negotiable constraints — include in every dev brief that touches UI or
 
 - **Colors**: GitHub Primer Dark High Contrast palette only. Key tokens: canvas `#0a0c10`, surface `#272b33`, foreground `#f0f3f9`, muted `#9ea7b4`, accent/link `#71b7ff`, primary action `#1f6feb`, borders `#7a828e`. Light theme uses Primer Light High Contrast equivalents. Never allow arbitrary hex values or Flutter `Colors.*` seeds in new code — flag any found during diff review.
 - **Icons**: Lucide only (`lucide_flutter`, `LucideIcons.*`). Never `Icons.*` (Material) for new UI surfaces. ADR-23.
+- **Markdown element styling**: rendered elements (headings h1–h3, bold, italic, code spans, blockquotes) must visually match GitHub Dark High Contrast — type scale, font weight, and emphasis conventions, not only colors.
 
 Both are documented in `notes/dev/design_spec.md` and `decisions.md` (ADR-23) but must be restated in every brief that touches styling — agents do not always read the full spec.
 
