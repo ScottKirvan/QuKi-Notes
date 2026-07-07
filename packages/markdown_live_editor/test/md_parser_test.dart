@@ -599,4 +599,86 @@ void main() {
       expect(els[0].kind, MdElKind.h1);
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Bug #219 — unmatched '**' / '__' must not fall through to italic check
+  // ---------------------------------------------------------------------------
+
+  group('MdParser.parse — unmatched bold delimiter fallthrough (bug #219)', () {
+    test(
+        'unmatched "**" alone → no elements — regression: bug #219',
+        () {
+      // '**' with no close: both chars are literal, no element emitted.
+      expect(MdParser.parse('**'), isEmpty);
+    });
+
+    test(
+        'unmatched "**" with plain text after → no elements — regression: bug #219',
+        () {
+      // '**word': no matching close '**', so both '*' chars are literal.
+      expect(MdParser.parse('**word'), isEmpty);
+    });
+
+    test(
+        'unmatched "**" before a valid "*italic*" → only one italic element — regression: bug #219',
+        () {
+      // '**hello *world*': the leading '**' has no close '**'.
+      // Neither of the two '*' chars in '**' should be reused as an italic opener.
+      // The only element is the correctly matched '*world*' at offset 8–15.
+      const source = '**hello *world*';
+      final els = MdParser.parse(source);
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.italic);
+      expect(els[0].start, 8); // '*' in '*world*'
+      expect(els[0].end, 15); // closing '*' + 1
+    });
+
+    test(
+        'unmatched "__" alone → no elements — regression: bug #219',
+        () {
+      expect(MdParser.parse('__'), isEmpty);
+    });
+
+    test(
+        'unmatched "__" with plain text after → no elements — regression: bug #219',
+        () {
+      expect(MdParser.parse('__word'), isEmpty);
+    });
+
+    test(
+        'unmatched "__" before a valid "_italic_" → only one italic element — regression: bug #219',
+        () {
+      // '__hello _world_': the leading '__' has no close '__'.
+      // The only element is the correctly matched '_world_' at offset 8–15.
+      const source = '__hello _world_';
+      final els = MdParser.parse(source);
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.italic);
+      expect(els[0].start, 8); // '_' in '_world_'
+      expect(els[0].end, 15); // closing '_' + 1
+    });
+
+    test(
+        'matched "**word**" still produces bold element — regression guard',
+        () {
+      final els = MdParser.parse('**word**');
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.bold);
+      expect(els[0].start, 0);
+      expect(els[0].end, 8);
+    });
+
+    test(
+        'unmatched "**" on same line as matched "*italic*" → correct italic only — regression: bug #219',
+        () {
+      // Variant: '** and *ok*' — unmatched '**' at start, then a valid '*ok*'.
+      const source = '** and *ok*';
+      final els = MdParser.parse(source);
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.italic);
+      // '*ok*' starts at offset 7, ends at offset 11
+      expect(els[0].start, 7);
+      expect(els[0].end, 11);
+    });
+  });
 }
