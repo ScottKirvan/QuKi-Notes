@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
@@ -8,6 +9,13 @@ import 'editor_config.dart';
 import 'md_parser.dart';
 import 'quiki_render_editor.dart';
 import 'render_model.dart';
+
+/// True when running on a mobile platform (Android or iOS).
+///
+/// iOS builds are deferred but the codebase must remain iOS-compatible;
+/// guard all mobile-specific behaviours with this helper rather than
+/// Platform.isAndroid alone.
+bool get _isMobile => Platform.isAndroid || Platform.isIOS;
 
 // ---------------------------------------------------------------------------
 // _QuikiEditor — stateful widget
@@ -66,6 +74,11 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
 
   // Bug 4: anchor offset for long-press word selection.
   int? _longPressAnchor;
+
+  // Selection toolbar — shown on mobile after a long-press word-select.
+  // ContextMenuController manages the OverlayEntry lifecycle correctly
+  // alongside Flutter's own context menus.
+  final ContextMenuController _toolbarController = ContextMenuController();
 
   // Parse cache — re-parsed only when text changes.
   String _lastParsedText = '';
@@ -167,6 +180,7 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
 
   @override
   void dispose() {
+    _toolbarController.remove();
     widget.controller.removeListener(_onControllerChanged);
     widget.focusNode.removeListener(_onFocusChanged);
     _connection?.close();
@@ -292,7 +306,126 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
   bool onFocusReceived() => false;
 
   @override
-  void showToolbar() {}
+  void showToolbar() {
+    _showSelectionToolbar();
+  }
+
+  /// Whether the selection toolbar is currently visible.
+  ///
+  /// Exposed for widget tests only — do not use in production code.
+  @visibleForTesting
+  bool get isToolbarShown => _toolbarController.isShown;
+
+  /// Forces the selection toolbar to appear regardless of platform.
+  ///
+  /// Exposed for widget tests that simulate the mobile long-press scenario on
+  /// a desktop test host where [_isMobile] is always false.  Do not call this
+  /// from production code.
+  @visibleForTesting
+  void showToolbarForTesting() => _showSelectionToolbar(skipMobileCheck: true);
+
+  // Thin @visibleForTesting wrappers so clipboard operation tests can invoke
+  // the private methods without going through gesture simulation.
+
+  @visibleForTesting
+  void copySelectionForTesting() => _copySelection();
+
+  @visibleForTesting
+  void cutSelectionForTesting() => _cutSelection();
+
+  @visibleForTesting
+  void pasteFromClipboardForTesting() => _pasteFromClipboard();
+
+  @visibleForTesting
+  void selectAllForTesting() => _selectAll();
+
+  // -------------------------------------------------------------------------
+  // Selection toolbar — mobile only.
+  //
+  // Shown after a long-press produces a non-collapsed selection.
+  // Uses ContextMenuController so Flutter's overlay lifecycle is managed
+  // correctly alongside any system context menus.
+  //
+  // Anchor: positioned above the selection start.  getOffsetForCaret returns a
+  // local caret offset relative to the text origin (no padding); localToGlobal
+  // converts to screen coordinates.  TextSelectionToolbarAnchors handles
+  // screen-edge avoidance automatically.
+  // -------------------------------------------------------------------------
+
+  void _showSelectionToolbar({bool skipMobileCheck = false}) {
+    if (!skipMobileCheck && !_isMobile) return;
+    if (!_value.selection.isValid || _value.selection.isCollapsed) return;
+
+    final re = _renderEditor;
+    if (re == null) return;
+
+    // Compute the global position above the selection start.
+    final caretLocalOffset =
+        re.getOffsetForCaret(TextPosition(offset: _value.selection.start));
+    // Add padding.topLeft to convert from text-painter space to render-object
+    // local space, then use localToGlobal for screen coordinates.
+    final localCaretOffset = caretLocalOffset + re.localPadding.topLeft;
+    final globalCaretOffset = re.localToGlobal(localCaretOffset);
+
+    // primaryAnchor: just above the selection start (toolbar prefers to appear
+    // above the selection; AdaptiveTextSelectionToolbar flips to below when
+    // there is insufficient space).
+    final primaryAnchor = Offset(
+      globalCaretOffset.dx,
+      globalCaretOffset.dy,
+    );
+    // secondaryAnchor: below the selection end (fallback when above is clipped).
+    final caretEndLocalOffset =
+        re.getOffsetForCaret(TextPosition(offset: _value.selection.end));
+    final localEndOffset = caretEndLocalOffset + re.localPadding.topLeft;
+    final globalEndOffset = re.localToGlobal(localEndOffset);
+    final secondaryAnchor = Offset(
+      globalEndOffset.dx,
+      globalEndOffset.dy + re.preferredLineHeight,
+    );
+
+    _toolbarController.show(
+      context: context,
+      contextMenuBuilder: (ctx) {
+        return AdaptiveTextSelectionToolbar.buttonItems(
+          anchors: TextSelectionToolbarAnchors(
+            primaryAnchor: primaryAnchor,
+            secondaryAnchor: secondaryAnchor,
+          ),
+          buttonItems: [
+            ContextMenuButtonItem(
+              label: 'Cut',
+              onPressed: () {
+                _toolbarController.remove();
+                _cutSelection();
+              },
+            ),
+            ContextMenuButtonItem(
+              label: 'Copy',
+              onPressed: () {
+                _toolbarController.remove();
+                _copySelection();
+              },
+            ),
+            ContextMenuButtonItem(
+              label: 'Paste',
+              onPressed: () {
+                _toolbarController.remove();
+                _pasteFromClipboard();
+              },
+            ),
+            ContextMenuButtonItem(
+              label: 'Select All',
+              onPressed: () {
+                _toolbarController.remove();
+                _selectAll();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   // -------------------------------------------------------------------------
   // Internal value update — keeps _value, controller, and IME in sync.
@@ -582,6 +715,9 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
   // -------------------------------------------------------------------------
 
   void _onTapDown(TapDownDetails details) {
+    // Dismiss the selection toolbar on any new tap.
+    _toolbarController.remove();
+
     // Bug 3: handle all focus/connection states so the keyboard is always
     // shown after a tap regardless of how the previous session ended.
     if (!widget.focusNode.hasFocus) {
@@ -668,8 +804,12 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
 
   void _onLongPressEnd(LongPressEndDetails details) {
     _longPressAnchor = null;
-    // Ask the IME to show the copy/paste toolbar.
-    _connection?.show();
+    // On mobile, show the selection toolbar when a non-collapsed word selection
+    // resulted from the long press.  Do NOT call _connection?.show() here —
+    // reopening the keyboard after a long-press select is wrong on Android.
+    // On desktop, keyboard shortcuts cover all clipboard operations; no toolbar
+    // is needed.
+    _showSelectionToolbar();
   }
 
   TextSelection _selectWordAt(int offset) {
