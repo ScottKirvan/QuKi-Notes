@@ -40,7 +40,7 @@ If a proposed task conflicts with any of these, push back before scoping — do 
 
 **To assign an implementation task:**
 1. Edit `Agents/quiki-dev/CLAUDE.md` → replace the "Current Task Brief" section with the new brief.
-2. Include: branch name, PR title, files to touch, integration notes, tests required, checklist reminders.
+2. Include: branch name, PR title, files to touch, integration notes, tests required, checklist reminders. **Always specify the conventional commit type explicitly.** Use `fix:` for closing gaps in declared behavior (GFM completeness, color/icon standard violations, spec deficiencies). Use `feat:` only for genuinely new capabilities not previously in scope. Do not leave the type for the agent to infer.
 3. **Specify every interaction behavior explicitly.** If the task touches UI, describe what each user action does — do not leave interaction patterns for the implementation session to infer. Any behavior not described in the brief or the manifesto must not be implemented; the implementation session should flag it as an open question instead.
 4. **Do NOT prescribe implementation details.** Field names, data structures, algorithm design, and class organization are for the implementation session to decide. The brief specifies WHAT to build and key constraints (correctness invariants, performance bounds, integration seams, test requirements). The value of two-session review comes from the agent making independent design choices — if the brief dictates HOW, the review becomes rubber-stamping rather than a genuine second opinion. Flag correctness invariants (e.g., "all source delimiter positions must map to the same rendered offset") without specifying the data structure that enforces them.
 5. If the task resolves an open question, update `notes/dev/open_questions.md`.
@@ -135,7 +135,7 @@ See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phas
 
 **Current version**: v0.17.0 (released 2026-07-07). ADR-31 Stages 1–6 + clipboard toolbar all shipped.
 
-**In progress**: #219 — `**` delimiter fallthrough creates spurious italic element. Fix in `fix/bold-delimiter-fallthrough`.
+**PR #222 open, pending merge**: GFM inline markup batch — strikethrough, inline code, h4–h6, bare URL autolinks, blockquotes, horizontal rules, link color fix, Material→Lucide icon fixes. CI green.
 
 **Resolved since last spec sync:**
 - Phase 3.22 post-ship rendering bugs (PR #194, v0.15.2): list bullets, checkbox visibility, toolbar selection fix.
@@ -181,7 +181,7 @@ Two non-negotiable constraints — include in every dev brief that touches UI or
 
 Both are documented in `notes/dev/design_spec.md` and `decisions.md` (ADR-23) but must be restated in every brief that touches styling — agents do not always read the full spec.
 
-**Known deviation to fix**: link color in `render_model.dart` is `Color(0xFF4A9EE8)` — should be Primer DHC accent `Color(0xFF71B7FF)`.
+**Known deviations**: none currently tracked.
 
 ---
 

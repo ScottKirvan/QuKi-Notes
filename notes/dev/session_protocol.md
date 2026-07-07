@@ -39,6 +39,7 @@ What to do at the **start** and **end** of every implementation session, and the
 ## While working
 
 - Branch name: `feat/<short-slug>` or `fix/<short-slug>` or `chore/<slug>`.
+- Commit type: use `fix:` for closing gaps in declared behavior — missing GFM elements, color/icon standard violations, spec deficiencies. Use `feat:` only for genuinely new capabilities not previously in scope. Mislabeling corrections as features inflates the version history.
 - Run `just lint` and `just test` before every commit.
 - Add a comment in code only when the logic is not self-evident from the code itself. Do not add docstrings or comments to code you didn't change.
 - If you need a new runtime dependency, **stop and propose an ADR entry first**.
