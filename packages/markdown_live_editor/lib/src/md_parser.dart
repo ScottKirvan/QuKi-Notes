@@ -20,6 +20,8 @@ enum MdElKind {
   image,
   link,
   autolink,
+  blockquote,
+  hr,
 }
 
 // ---------------------------------------------------------------------------
@@ -100,6 +102,10 @@ class MdElement {
         MdElKind.link => 1,
         // Autolink: URL is the content itself — no delimiter characters.
         MdElKind.autolink => 0,
+        // Blockquote: '> ' is the opening delimiter (2 chars).
+        MdElKind.blockquote => 2,
+        // Hr: the entire source line is the delimiter; no content chars emitted.
+        MdElKind.hr => end - start,
       };
 
   /// For [MdElKind.link]: the length of the closing delimiter `](url)`.
@@ -121,7 +127,11 @@ class MdElement {
         // Image has no separate closing delimiter (the full line is the opener).
         MdElKind.image ||
         // Autolink has no delimiter characters at all.
-        MdElKind.autolink =>
+        MdElKind.autolink ||
+        // Blockquote closing delimiter: none (content extends to end of line).
+        MdElKind.blockquote ||
+        // Hr: no separate closing delimiter (full line is the opener).
+        MdElKind.hr =>
           0,
         MdElKind.bold => 2,
         MdElKind.italic => 1,
@@ -241,6 +251,22 @@ class MdParser {
           end: lineEnd,
         ));
 
+        // Step 2b — Horizontal rule: a line of 3+ '-', '*', or '_' (with
+        // optional spaces between them, no other characters).
+        // Must be checked BEFORE the ul step because '- - -' starts with '- '.
+      } else if (_isHrLine(line)) {
+        olBlockStart = 0;
+        olRunCount = 0;
+        result
+            .add(MdElement(kind: MdElKind.hr, start: lineStart, end: lineEnd));
+
+        // Step 2c — Blockquote: a line starting with '> ' (greater-than + space).
+      } else if (line.startsWith('> ') || line == '> ') {
+        olBlockStart = 0;
+        olRunCount = 0;
+        result.add(MdElement(
+            kind: MdElKind.blockquote, start: lineStart, end: lineEnd));
+
         // Step 3 — Unordered list ('- ', '* ', '+ ').
       } else if (line.startsWith('- ') ||
           line.startsWith('* ') ||
@@ -336,8 +362,14 @@ class MdParser {
           }
 
           // Check bare URL autolinks: 'https://' or 'http://'
-          // Only match when we land on the 'h' that starts the scheme.
+          // Word-boundary guard: only match at the start of a line or when
+          // the immediately preceding character is whitespace (space or tab).
+          // Any other preceding character (letter, digit, punctuation) suppresses
+          // the match to avoid false positives like 'texthttps://...'.
           if (source[i] == 'h' &&
+              (i == lineStart ||
+                  source[i - 1] == ' ' ||
+                  source[i - 1] == '\t') &&
               (source.startsWith('https://', i) ||
                   source.startsWith('http://', i))) {
             // Find the end of the URL: first whitespace char or end of line.
@@ -473,6 +505,32 @@ class MdParser {
   static bool _isDigit(String ch) {
     final code = ch.codeUnitAt(0);
     return code >= 0x30 && code <= 0x39;
+  }
+
+  /// Returns true if [line] is a GFM horizontal rule.
+  ///
+  /// A horizontal rule is a line consisting entirely of 3 or more '-', '*', or
+  /// '_' characters with optional spaces between them and no other characters.
+  /// The three characters must all be the same type.
+  static bool _isHrLine(String line) {
+    if (line.isEmpty) return false;
+    // The hr character must be '-', '*', or '_'.
+    final hrChar =
+        line[0] == '-' || line[0] == '*' || line[0] == '_' ? line[0] : null;
+    if (hrChar == null) return false;
+    var count = 0;
+    for (var ci = 0; ci < line.length; ci++) {
+      final c = line[ci];
+      if (c == hrChar) {
+        count++;
+      } else if (c == ' ') {
+        // Spaces are allowed between hr characters.
+      } else {
+        // Any other character disqualifies the line.
+        return false;
+      }
+    }
+    return count >= 3;
   }
 
   // Find the first occurrence of the two-char sequence [delim] in

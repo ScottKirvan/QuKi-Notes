@@ -97,8 +97,15 @@ void main() {
       expect(els[1].end, 18);
     });
 
-    test('"****" → [] (empty bold content not emitted)', () {
-      expect(MdParser.parse('****'), isEmpty);
+    test(
+        '"****" → [hr] (4 asterisks = valid GFM thematic break, checked before inline scan)',
+        () {
+      // With hr support added: '****' is a valid GFM thematic break (4 matched
+      // asterisks, no other chars). The block-level hr check runs before the
+      // inline scan, so '****' is now an hr rather than an empty-bold non-element.
+      final els = MdParser.parse('****');
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.hr);
     });
 
     test('"**no close" → [] (no matching close delimiter)', () {
@@ -1022,14 +1029,17 @@ void main() {
       expect(els[0].end, 'https://a.com'.length);
     });
 
-    test('bare URL preceded by non-space text (no space before url)', () {
-      // 'texthttps://example.com' — should still detect the URL.
-      // Per spec: URL starts at first char of 'https://'.
-      const source = 'texthttps://example.com';
-      final els = MdParser.parse(source);
-      expect(els, hasLength(1));
-      expect(els[0].kind, MdElKind.autolink);
-      expect(els[0].start, 4); // 'text' = 4 chars
+    test(
+        'bare URL preceded by non-space text → no autolink (word-boundary guard)',
+        () {
+      // 'texthttps://example.com': 'h' of 'https://' is preceded by 't' (a letter).
+      // The word-boundary guard suppresses the match — no autolink emitted.
+      // This test was updated when the word-boundary guard was added.
+      expect(
+        MdParser.parse('texthttps://example.com')
+            .where((e) => e.kind == MdElKind.autolink),
+        isEmpty,
+      );
     });
 
     test('bare URL url field contains the raw URL text', () {

@@ -333,6 +333,68 @@ class QuikiRenderEditor extends RenderBox {
     // Draw text.
     _textPainter.paint(canvas, textOrigin);
 
+    // Draw blockquote left border stripes for collapsed blockquote slots.
+    //
+    // For each collapsed blockquote line, look up the Y position of the first
+    // content character via TextPainter.getOffsetForCaret().  Paint a 3px-wide
+    // vertical stripe in the border color (#7a828e) at the left edge of the
+    // content area, spanning one line height.
+    const Color blockquoteBorderColor = Color(0xFF7A828E);
+    for (final bq in _renderModel.blockquoteSlots) {
+      final el = bq.element;
+      final cursorSrc = sel.isValid ? sel.baseOffset : -1;
+      final revealed = cursorSrc >= el.start && cursorSrc <= el.end;
+      if (revealed) continue;
+
+      final contentOffset = _textPainter.getOffsetForCaret(
+        TextPosition(offset: bq.renderedStart),
+        Rect.zero,
+      );
+      final lineHeight = _textPainter.preferredLineHeight;
+      // Paint the stripe at the left edge of the text area, same Y as content.
+      final stripeRect = Rect.fromLTWH(
+        textOrigin.dx,
+        textOrigin.dy + contentOffset.dy,
+        3.0,
+        lineHeight,
+      );
+      canvas.drawRect(
+        stripeRect,
+        Paint()
+          ..color = blockquoteBorderColor
+          ..style = PaintingStyle.fill,
+      );
+    }
+
+    // Draw horizontal rules for collapsed hr slots.
+    //
+    // For each collapsed hr line, look up the Y position via
+    // TextPainter.getOffsetForCaret() at the hr's renderedCharOffset.  Paint
+    // a 1px-wide horizontal line in muted color (#9ea7b4) at the vertical
+    // midpoint of where that line of text would sit.
+    const Color hrColor = Color(0xFF9EA7B4);
+    for (final hr in _renderModel.hrSlots) {
+      final el = hr.element;
+      final cursorSrc = sel.isValid ? sel.baseOffset : -1;
+      final revealed = cursorSrc >= el.start && cursorSrc <= el.end;
+      if (revealed) continue;
+
+      final caretOffset = _textPainter.getOffsetForCaret(
+        TextPosition(offset: hr.renderedCharOffset),
+        Rect.zero,
+      );
+      final lineHeight = _textPainter.preferredLineHeight;
+      // Horizontal line at vertical midpoint of the line.
+      final midY = textOrigin.dy + caretOffset.dy + lineHeight / 2;
+      canvas.drawLine(
+        Offset(textOrigin.dx, midY),
+        Offset(textOrigin.dx + paintWidth, midY),
+        Paint()
+          ..color = hrColor
+          ..strokeWidth = 1.0,
+      );
+    }
+
     // Draw images (or placeholders) for collapsed image slots.
     //
     // Each image slot corresponds to a line that emits no rendered characters.

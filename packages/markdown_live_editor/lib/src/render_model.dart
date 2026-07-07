@@ -25,6 +25,47 @@ class ImageSlot {
 }
 
 // ---------------------------------------------------------------------------
+// BlockquoteSlot — carries one collapsed blockquote element and its rendered
+// position, so QuikiRenderEditor can paint the left border stripe.
+// ---------------------------------------------------------------------------
+
+/// Describes a collapsed blockquote element that QuikiRenderEditor must
+/// decorate with a left border stripe.
+///
+/// [renderedStart] is the rendered character offset of the first content
+/// character (after the '> ' delimiter).  QuikiRenderEditor uses this to
+/// look up the Y coordinate of the line via TextPainter.getOffsetForCaret().
+class BlockquoteSlot {
+  const BlockquoteSlot({
+    required this.element,
+    required this.renderedStart,
+  });
+
+  final MdElement element;
+
+  /// Rendered offset of the first content character of the blockquote.
+  final int renderedStart;
+}
+
+// ---------------------------------------------------------------------------
+// HrSlot — carries one hr element and its rendered position, so
+// QuikiRenderEditor can paint the horizontal rule line.
+// ---------------------------------------------------------------------------
+
+/// Describes a collapsed horizontal rule element that QuikiRenderEditor must
+/// paint as a thin horizontal line.
+///
+/// [renderedCharOffset] is the rendered character offset at which the hr line
+/// sits in the TextPainter flow.  Since the hr emits no rendered characters,
+/// this is the position of the newline that follows (or the end sentinel).
+class HrSlot {
+  const HrSlot({required this.element, required this.renderedCharOffset});
+
+  final MdElement element;
+  final int renderedCharOffset;
+}
+
+// ---------------------------------------------------------------------------
 // LinkSlot — carries one collapsed link element for tap-to-navigate lookup.
 // ---------------------------------------------------------------------------
 
@@ -63,6 +104,8 @@ class RenderModel {
     required this.renderedToSource,
     this.imageSlots = const [],
     this.linkSlots = const [],
+    this.blockquoteSlots = const [],
+    this.hrSlots = const [],
   });
 
   /// The rendered TextSpan to pass to TextPainter.  Contains only visible
@@ -93,6 +136,14 @@ class RenderModel {
   /// for tap purposes (cursor moves normally, no URL open).
   final List<LinkSlot> linkSlots;
 
+  /// Collapsed blockquote elements.  QuikiRenderEditor uses this list to paint
+  /// the left border stripe for each blockquote line.
+  final List<BlockquoteSlot> blockquoteSlots;
+
+  /// Collapsed horizontal rule elements.  QuikiRenderEditor uses this list to
+  /// paint a thin horizontal line in place of the source text.
+  final List<HrSlot> hrSlots;
+
   int renderedForSource(int srcOff) =>
       sourceToRendered[srcOff.clamp(0, sourceToRendered.length - 1)];
 
@@ -106,6 +157,8 @@ class RenderModel {
     renderedToSource: [0],
     imageSlots: const [],
     linkSlots: const [],
+    blockquoteSlots: const [],
+    hrSlots: const [],
   );
 
   /// Build a [RenderModel] from [source], parsed [elements], and the current
@@ -127,6 +180,8 @@ class RenderModel {
     var eIdx = 0;
     final slots = <ImageSlot>[];
     final links = <LinkSlot>[];
+    final blockquotes = <BlockquoteSlot>[];
+    final hrs = <HrSlot>[];
 
     void flushBuf() {
       if (bufText.isNotEmpty) {
@@ -177,6 +232,44 @@ class RenderModel {
         // Fast-forward si to the last char of the element (outer loop increments).
         si = currentEl.end - 1;
         continue;
+      }
+
+      // -----------------------------------------------------------------------
+      // Collapsed hr: record an HrSlot and fast-forward past all source chars.
+      // The hr line emits no rendered characters (entire line is the delimiter).
+      // -----------------------------------------------------------------------
+      if (!revealed &&
+          currentEl != null &&
+          currentEl.kind == MdElKind.hr &&
+          si == currentEl.start) {
+        hrs.add(HrSlot(element: currentEl, renderedCharOffset: ri));
+
+        // Map all source chars to the current rendered position.
+        for (var d = currentEl.start; d < currentEl.end; d++) {
+          srcToRnd[d] = ri;
+        }
+
+        // Fast-forward si to the last char of the element.
+        si = currentEl.end - 1;
+        continue;
+      }
+
+      // -----------------------------------------------------------------------
+      // Collapsed blockquote slot recording.
+      //
+      // At the first content character (after the '> ' delimiter), record the
+      // rendered position so QuikiRenderEditor can paint the left border stripe.
+      // -----------------------------------------------------------------------
+      if (!revealed &&
+          currentEl != null &&
+          currentEl.kind == MdElKind.blockquote) {
+        final contentStart = currentEl.start + currentEl.openDelimLen;
+        if (si == contentStart) {
+          blockquotes.add(BlockquoteSlot(
+            element: currentEl,
+            renderedStart: ri,
+          ));
+        }
       }
 
       // -----------------------------------------------------------------------
@@ -296,6 +389,8 @@ class RenderModel {
       renderedToSource: rndToSrc,
       imageSlots: slots,
       linkSlots: links,
+      blockquoteSlots: blockquotes,
+      hrSlots: hrs,
     );
   }
 }
@@ -307,8 +402,10 @@ class RenderModel {
 /// Primer DHC accent / link color.
 const Color _linkColor = Color(0xFF71B7FF);
 
-/// Primer DHC surface color — used as inline code background.
-const Color _codeBackground = Color(0xFF272B33);
+/// Primer DHC neutral elevated — used as inline code background.
+/// Chosen to be visually distinct from both the canvas (#0a0c10) and
+/// surface (#272b33); closer to GitHub's code-block background on dark theme.
+const Color _codeBackground = Color(0xFF3D444D);
 
 /// Primer DHC foreground color.
 const Color _foreground = Color(0xFFF0F3F9);
@@ -365,6 +462,12 @@ TextStyle _contentStyle(MdElKind kind, TextStyle base) => switch (kind) {
           decoration: TextDecoration.underline,
           decorationColor: _linkColor,
         ),
+      // Blockquote: content in muted color.
+      MdElKind.blockquote => base.copyWith(color: _muted),
+      // Hr: the entire source line is the delimiter; no content chars rendered
+      // as text.  This case is reached only in revealed mode (cursor inside hr),
+      // where the raw source '---' etc. shows in base style.
+      MdElKind.hr => base,
       // List kinds: content in baseStyle (marker substituted separately).
       // Image: revealed mode shows raw source in baseStyle.
       MdElKind.ul ||
