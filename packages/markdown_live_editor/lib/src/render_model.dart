@@ -228,7 +228,10 @@ class RenderModel {
       // with rendered chars in Stage 6 (no nested markup inside link text).
       // renderedStart = ri (current rendered position); renderedEnd = ri + contentLen.
       // -----------------------------------------------------------------------
-      if (!revealed && currentEl != null && currentEl.kind == MdElKind.link) {
+      if (!revealed &&
+          currentEl != null &&
+          (currentEl.kind == MdElKind.link ||
+              currentEl.kind == MdElKind.autolink)) {
         final contentStart = currentEl.start + currentEl.openDelimLen;
         final contentEnd = currentEl.end - currentEl.closeDelimLen;
         if (si == contentStart) {
@@ -301,9 +304,17 @@ class RenderModel {
 // Content style helper — file-private.
 // ---------------------------------------------------------------------------
 
-/// Mid-blue that reads clearly on both light and dark backgrounds.
-/// Not configurable in Stage 6 — can be exposed via MarkdownEditorConfig later.
-const Color _linkColor = Color(0xFF4A9EE8);
+/// Primer DHC accent / link color.
+const Color _linkColor = Color(0xFF71B7FF);
+
+/// Primer DHC surface color — used as inline code background.
+const Color _codeBackground = Color(0xFF272B33);
+
+/// Primer DHC foreground color.
+const Color _foreground = Color(0xFFF0F3F9);
+
+/// Primer DHC muted color — used for delimiter characters in revealed mode.
+const Color _muted = Color(0xFF9EA7B4);
 
 TextStyle _contentStyle(MdElKind kind, TextStyle base) => switch (kind) {
       MdElKind.h1 => base.copyWith(
@@ -318,10 +329,38 @@ TextStyle _contentStyle(MdElKind kind, TextStyle base) => switch (kind) {
           fontSize: (base.fontSize ?? 16.0) * 1.25,
           fontWeight: FontWeight.bold,
         ),
+      // h4: ~1.0× body size, bold, foreground — same size, heavier weight.
+      MdElKind.h4 => base.copyWith(
+          fontWeight: FontWeight.bold,
+          color: _foreground,
+        ),
+      // h5: ~0.875× body size, bold, foreground.
+      MdElKind.h5 => base.copyWith(
+          fontSize: (base.fontSize ?? 16.0) * 0.875,
+          fontWeight: FontWeight.bold,
+          color: _foreground,
+        ),
+      // h6: ~0.85× body size, bold, muted.
+      MdElKind.h6 => base.copyWith(
+          fontSize: (base.fontSize ?? 16.0) * 0.85,
+          fontWeight: FontWeight.bold,
+          color: _muted,
+        ),
       MdElKind.bold => base.copyWith(fontWeight: FontWeight.bold),
       MdElKind.italic => base.copyWith(fontStyle: FontStyle.italic),
-      // Link: underlined + distinct mid-blue color.
-      MdElKind.link => base.copyWith(
+      // Strikethrough: foreground color with line-through decoration.
+      MdElKind.strikethrough => base.copyWith(
+          color: _foreground,
+          decoration: TextDecoration.lineThrough,
+        ),
+      // Inline code: monospace, distinct background.
+      MdElKind.inlineCode => base.copyWith(
+          fontFamily: 'monospace',
+          backgroundColor: _codeBackground,
+          color: _foreground,
+        ),
+      // Link and autolink: underlined + Primer DHC accent color.
+      MdElKind.link || MdElKind.autolink => base.copyWith(
           color: _linkColor,
           decoration: TextDecoration.underline,
           decorationColor: _linkColor,

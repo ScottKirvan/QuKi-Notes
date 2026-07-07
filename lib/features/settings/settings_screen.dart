@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../core/app_info.dart';
@@ -65,7 +66,7 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ListTile(
             title: const Text('Change location'),
-            trailing: const Icon(Icons.chevron_right),
+            trailing: const Icon(LucideIcons.chevronRight),
             onTap: () => Navigator.push<void>(
               context,
               MaterialPageRoute(
@@ -106,7 +107,7 @@ class SettingsScreen extends ConsumerWidget {
           sectionHeader('Notes'),
           ListTile(
             title: const Text('Trash'),
-            trailing: const Icon(Icons.chevron_right),
+            trailing: const Icon(LucideIcons.chevronRight),
             onTap: () => Navigator.push<void>(
               context,
               MaterialPageRoute(

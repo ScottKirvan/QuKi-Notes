@@ -707,16 +707,40 @@ void main() {
     });
 
     test(
-        'unmatched "~~" before valid "~~ok~~" → only the valid element (skip fallthrough)',
+        'unmatched "~~" (no close on line) does not produce italic via fallthrough',
         () {
-      // '~~word ~~ok~~': the leading '~~' has no close before '~~ok~~'.
-      // After skipping the unmatched '~~', the valid '~~ok~~' at offset 7 is found.
-      const source = '~~word ~~ok~~';
+      // '~~word': no closing '~~' on the line.
+      // Both tilde chars must be skipped — neither should become an italic '*' analog.
+      // Result: no elements (tildes are plain text).
+      expect(MdParser.parse('~~word'), isEmpty);
+    });
+
+    test(
+        '"~~ ~~ok~~" → greedy: first "~~" closes on nearest "~~", producing one strikethrough',
+        () {
+      // source = '~~ ~~ok~~' (9 chars, indices 0..8).
+      // i=0: sees '~~', closeStart=2; nearest '~~' in [2..9) is at pos 3.
+      // → strikethrough(0, 5), content = ' ' (space at pos 2).
+      // i=5: 'o','k' plain; then '~~' at pos 7 has no close in [9..9) → skip.
+      // Result: one strikethrough(0, 5).
+      const source = '~~ ~~ok~~';
       final els = MdParser.parse(source);
       expect(els, hasLength(1));
       expect(els[0].kind, MdElKind.strikethrough);
-      expect(els[0].start, 7);
-      expect(els[0].end, 13);
+      expect(els[0].start, 0);
+      expect(els[0].end, 5);
+    });
+
+    test('"text ~~a~~ ~~b~~" → two separate strikethrough elements', () {
+      const source = 'text ~~a~~ ~~b~~';
+      final els = MdParser.parse(source);
+      expect(els, hasLength(2));
+      expect(els[0].kind, MdElKind.strikethrough);
+      expect(els[0].start, 5);
+      expect(els[0].end, 10); // '~~a~~' = 5 chars at pos 5
+      expect(els[1].kind, MdElKind.strikethrough);
+      expect(els[1].start, 11);
+      expect(els[1].end, 16); // '~~b~~' = 5 chars at pos 11
     });
 
     test('strikethrough openDelimLen = 2, closeDelimLen = 2', () {
@@ -1042,8 +1066,7 @@ void main() {
 
     test('no bare domain detection (must start with scheme)', () {
       expect(
-        MdParser.parse('example.com')
-            .where((e) => e.kind == MdElKind.autolink),
+        MdParser.parse('example.com').where((e) => e.kind == MdElKind.autolink),
         isEmpty,
       );
     });

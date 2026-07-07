@@ -6,14 +6,20 @@ enum MdElKind {
   h1,
   h2,
   h3,
+  h4,
+  h5,
+  h6,
   bold,
   italic,
+  strikethrough,
+  inlineCode,
   ul,
   ol,
   checkboxUnchecked,
   checkboxChecked,
   image,
   link,
+  autolink,
 }
 
 // ---------------------------------------------------------------------------
@@ -76,8 +82,13 @@ class MdElement {
         MdElKind.h1 => 2, // '# '
         MdElKind.h2 => 3, // '## '
         MdElKind.h3 => 4, // '### '
+        MdElKind.h4 => 5, // '#### '
+        MdElKind.h5 => 6, // '##### '
+        MdElKind.h6 => 7, // '###### '
         MdElKind.bold => 2, // '**' or '__'
         MdElKind.italic => 1, // '*' or '_'
+        MdElKind.strikethrough => 2, // '~~'
+        MdElKind.inlineCode => 1, // '`'
         MdElKind.ul => 2, // '- ' / '* ' / '+ '
         MdElKind.ol => _srcOlDelimLen, // '{digits}. ' — variable
         MdElKind.checkboxUnchecked => 6, // '- [ ] '
@@ -87,6 +98,8 @@ class MdElement {
         // Link: opening '[' is the only opening delimiter (1 char).
         // The closing delimiter is '](url)' — handled by closeDelimLen.
         MdElKind.link => 1,
+        // Autolink: URL is the content itself — no delimiter characters.
+        MdElKind.autolink => 0,
       };
 
   /// For [MdElKind.link]: the length of the closing delimiter `](url)`.
@@ -98,15 +111,22 @@ class MdElement {
         MdElKind.h1 ||
         MdElKind.h2 ||
         MdElKind.h3 ||
+        MdElKind.h4 ||
+        MdElKind.h5 ||
+        MdElKind.h6 ||
         MdElKind.ul ||
         MdElKind.ol ||
         MdElKind.checkboxUnchecked ||
         MdElKind.checkboxChecked ||
         // Image has no separate closing delimiter (the full line is the opener).
-        MdElKind.image =>
+        MdElKind.image ||
+        // Autolink has no delimiter characters at all.
+        MdElKind.autolink =>
           0,
         MdElKind.bold => 2,
         MdElKind.italic => 1,
+        MdElKind.strikethrough => 2,
+        MdElKind.inlineCode => 1,
         // Link closing delimiter: '](url)' = '](' + url + ')'
         MdElKind.link => _linkCloseDelimLen,
       };
@@ -128,7 +148,7 @@ class MdElement {
         MdElKind.checkboxUnchecked => '☐ ',
         MdElKind.checkboxChecked => '☑ ',
         MdElKind.ol => '$seqNum. ',
-        // Heading, inline, image, and link elements: no text substitution glyph.
+        // Heading, inline, image, link, and autolink elements: no text substitution glyph.
         _ => '',
       };
 
@@ -171,8 +191,23 @@ class MdParser {
     for (final line in lines) {
       final lineEnd = lineStart + line.length; // exclusive, excluding '\n'
 
-      // Step 1 — Heading check (longest prefix first).
-      if (line.startsWith('### ')) {
+      // Step 1 — Heading check (longest prefix first to avoid prefix collisions).
+      if (line.startsWith('###### ')) {
+        olBlockStart = 0;
+        olRunCount = 0;
+        result
+            .add(MdElement(kind: MdElKind.h6, start: lineStart, end: lineEnd));
+      } else if (line.startsWith('##### ')) {
+        olBlockStart = 0;
+        olRunCount = 0;
+        result
+            .add(MdElement(kind: MdElKind.h5, start: lineStart, end: lineEnd));
+      } else if (line.startsWith('#### ')) {
+        olBlockStart = 0;
+        olRunCount = 0;
+        result
+            .add(MdElement(kind: MdElKind.h4, start: lineStart, end: lineEnd));
+      } else if (line.startsWith('### ')) {
         olBlockStart = 0;
         olRunCount = 0;
         result
@@ -258,6 +293,25 @@ class MdParser {
         // Step 5 — Inline scan (non-list, non-heading lines only).
         var i = lineStart;
         while (i < lineEnd) {
+          // Check inline code: '`content`'
+          // Must be checked before bold/italic/strikethrough because backtick
+          // content is always literal — no nested markup scanning inside.
+          if (source[i] == '`') {
+            final closeIdx = _findCloseSingle(source, i + 1, lineEnd, '`');
+            if (closeIdx != -1 && closeIdx > i + 1) {
+              result.add(MdElement(
+                kind: MdElKind.inlineCode,
+                start: i,
+                end: closeIdx + 1,
+              ));
+              i = closeIdx + 1;
+              continue;
+            }
+            // No matching close: skip the backtick.
+            i++;
+            continue;
+          }
+
           // Check link: '[text](url)'
           // A '[' immediately preceded by '!' is image syntax — skip.
           if (source[i] == '[' && (i == lineStart || source[i - 1] != '!')) {
@@ -281,6 +335,29 @@ class MdParser {
             }
           }
 
+          // Check bare URL autolinks: 'https://' or 'http://'
+          // Only match when we land on the 'h' that starts the scheme.
+          if (source[i] == 'h' &&
+              (source.startsWith('https://', i) ||
+                  source.startsWith('http://', i))) {
+            // Find the end of the URL: first whitespace char or end of line.
+            var urlEnd = i + 1;
+            while (urlEnd < lineEnd &&
+                source[urlEnd] != ' ' &&
+                source[urlEnd] != '\t') {
+              urlEnd++;
+            }
+            final rawUrl = source.substring(i, urlEnd);
+            result.add(MdElement(
+              kind: MdElKind.autolink,
+              start: i,
+              end: urlEnd,
+              url: rawUrl,
+            ));
+            i = urlEnd;
+            continue;
+          }
+
           // Check bold: '**' or '__'
           if (i + 1 < lineEnd) {
             final c0 = source[i];
@@ -302,6 +379,24 @@ class MdParser {
               i += 2;
               continue;
             }
+          }
+
+          // Check strikethrough: '~~content~~'
+          if (i + 1 < lineEnd && source[i] == '~' && source[i + 1] == '~') {
+            final closeStart = i + 2;
+            final closeIdx = _findClose(source, closeStart, lineEnd, '~~');
+            if (closeIdx != -1 && closeIdx > closeStart) {
+              result.add(MdElement(
+                kind: MdElKind.strikethrough,
+                start: i,
+                end: closeIdx + 2,
+              ));
+              i = closeIdx + 2;
+              continue;
+            }
+            // No matching close: skip both tilde chars.
+            i += 2;
+            continue;
           }
 
           // Check italic: '*' or '_' (single char, not followed by same char)
