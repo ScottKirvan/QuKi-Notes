@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Markdown element kinds supported through Stage 5.
+// Markdown element kinds supported through Stage 6.
 // ---------------------------------------------------------------------------
 
 enum MdElKind {
@@ -13,6 +13,7 @@ enum MdElKind {
   checkboxUnchecked,
   checkboxChecked,
   image,
+  link,
 }
 
 // ---------------------------------------------------------------------------
@@ -27,6 +28,7 @@ class MdElement {
     this.seqNum = 0,
     int srcOlDelimLen = 0,
     this.imagePath = '',
+    this.url = '',
   }) : _srcOlDelimLen = srcOlDelimLen;
 
   /// Kind of markdown element.
@@ -54,6 +56,11 @@ class MdElement {
   /// Empty string for all non-image kinds.
   final String imagePath;
 
+  /// For [MdElKind.link]: the URL string extracted from `[text](url)`.
+  /// The content between `](` and the final `)`.
+  /// Empty string for all non-link kinds.
+  final String url;
+
   /// True if [offset] falls within this element's source range.
   bool containsOffset(int offset) => offset >= start && offset < end;
 
@@ -62,6 +69,9 @@ class MdElement {
   /// For [MdElKind.image]: the full line length — the entire `![alt](path)` is
   /// treated as the "delimiter" so that in revealed mode the user sees and edits
   /// the raw source directly. The render layer handles painting.
+  ///
+  /// For [MdElKind.link]: 1 — just the `[` opening bracket. The closing
+  /// delimiter `](url)` is handled by [closeDelimLen].
   int get openDelimLen => switch (kind) {
         MdElKind.h1 => 2, // '# '
         MdElKind.h2 => 3, // '## '
@@ -74,7 +84,14 @@ class MdElement {
         MdElKind.checkboxChecked => 6, // '- [x] ' or '- [X] '
         // Image: the full source line is the delimiter; no content chars emitted.
         MdElKind.image => end - start,
+        // Link: opening '[' is the only opening delimiter (1 char).
+        // The closing delimiter is '](url)' — handled by closeDelimLen.
+        MdElKind.link => 1,
       };
+
+  /// For [MdElKind.link]: the length of the closing delimiter `](url)`.
+  /// = 2 (for `](`) + url.length + 1 (for `)`).
+  int get _linkCloseDelimLen => 2 + url.length + 1;
 
   /// Length of the closing delimiter (0 for block-level elements).
   int get closeDelimLen => switch (kind) {
@@ -90,6 +107,8 @@ class MdElement {
           0,
         MdElKind.bold => 2,
         MdElKind.italic => 1,
+        // Link closing delimiter: '](url)' = '](' + url + ')'
+        MdElKind.link => _linkCloseDelimLen,
       };
 
   /// The string that replaces the source marker in collapsed (rendered) mode.
@@ -109,7 +128,7 @@ class MdElement {
         MdElKind.checkboxUnchecked => '☐ ',
         MdElKind.checkboxChecked => '☑ ',
         MdElKind.ol => '$seqNum. ',
-        // Heading, inline, and image elements: no text substitution glyph.
+        // Heading, inline, image, and link elements: no text substitution glyph.
         _ => '',
       };
 
@@ -239,6 +258,29 @@ class MdParser {
         // Step 5 — Inline scan (non-list, non-heading lines only).
         var i = lineStart;
         while (i < lineEnd) {
+          // Check link: '[text](url)'
+          // A '[' immediately preceded by '!' is image syntax — skip.
+          if (source[i] == '[' && (i == lineStart || source[i - 1] != '!')) {
+            final textClose = _findCloseSingle(source, i + 1, lineEnd, ']');
+            if (textClose != -1 &&
+                textClose + 1 < lineEnd &&
+                source[textClose + 1] == '(') {
+              final urlClose =
+                  _findCloseSingle(source, textClose + 2, lineEnd, ')');
+              if (urlClose != -1) {
+                final extractedUrl = source.substring(textClose + 2, urlClose);
+                result.add(MdElement(
+                  kind: MdElKind.link,
+                  start: i,
+                  end: urlClose + 1,
+                  url: extractedUrl,
+                ));
+                i = urlClose + 1;
+                continue;
+              }
+            }
+          }
+
           // Check bold: '**' or '__'
           if (i + 1 < lineEnd) {
             final c0 = source[i];

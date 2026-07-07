@@ -466,4 +466,137 @@ void main() {
       expect(els[0].imagePath, '');
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Stage 6 — link element tests
+  // ---------------------------------------------------------------------------
+
+  group('MdParser.parse — link elements', () {
+    test('"[text](url)" → one link element covering the full pattern', () {
+      const source = '[Go](https://go.dev)';
+      final els = MdParser.parse(source);
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.link);
+      // start = index of '[', end = index of ')' + 1
+      expect(els[0].start, 0);
+      expect(els[0].end, source.length);
+    });
+
+    test('url extracted correctly from "[Go](https://go.dev)"', () {
+      final els = MdParser.parse('[Go](https://go.dev)');
+      expect(els, hasLength(1));
+      expect(els[0].url, 'https://go.dev');
+    });
+
+    test('"![alt](url)" not parsed as link — image not link', () {
+      final els = MdParser.parse('![alt](https://example.com)');
+      // The whole line is a block image, not a link.
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.image);
+    });
+
+    test('"[a](b) and [c](d)" → two link elements, non-overlapping', () {
+      const source = '[a](b) and [c](d)';
+      final els = MdParser.parse(source);
+      expect(els, hasLength(2));
+      expect(els[0].kind, MdElKind.link);
+      expect(els[0].start, 0);
+      expect(els[0].end, 6); // '[a](b)' = 6 chars
+      expect(els[0].url, 'b');
+      expect(els[1].kind, MdElKind.link);
+      expect(els[1].start, 11);
+      expect(els[1].end, 17); // '[c](d)' = 6 chars at offset 11
+      expect(els[1].url, 'd');
+    });
+
+    test('cross-line "[text\\n](url)" → no link element', () {
+      // '[' and ')' not on the same line — no link.
+      final els = MdParser.parse('[text\n](url)');
+      expect(els.where((e) => e.kind == MdElKind.link), isEmpty);
+    });
+
+    test('"[]()" → link element with empty text and empty url', () {
+      final els = MdParser.parse('[]()');
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.link);
+      expect(els[0].url, '');
+      expect(els[0].start, 0);
+      expect(els[0].end, 4);
+    });
+
+    test('"[no close url" → no link element (missing closing paren)', () {
+      final els = MdParser.parse('[no close url');
+      expect(els.where((e) => e.kind == MdElKind.link), isEmpty);
+    });
+
+    test(
+        'link element with text adjacent to bold: "[**b**](url)" → 1 link only',
+        () {
+      // Bold inside link text is not separately parsed — link takes priority
+      // since it is checked first in the inline scan.
+      const source = '[**b**](url)';
+      final els = MdParser.parse(source);
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.link);
+      expect(els[0].url, 'url');
+    });
+
+    test('link openDelimLen = 1 (the "[" char)', () {
+      final els = MdParser.parse('[hi](http://x.com)');
+      expect(els, hasLength(1));
+      expect(els[0].openDelimLen, 1);
+    });
+
+    test('link closeDelimLen = 2 + url.length + 1', () {
+      // url = 'http://x.com' (12 chars), closeDelimLen = 2 + 12 + 1 = 15
+      final els = MdParser.parse('[hi](http://x.com)');
+      expect(els, hasLength(1));
+      final url = els[0].url;
+      expect(els[0].closeDelimLen, 2 + url.length + 1);
+    });
+
+    test(
+        'link isDelimiter: "[" is opening delim, "](...)" chars are closing delim',
+        () {
+      // source = '[Go](https://go.dev)'
+      // start=0, end=20, openDelimLen=1, closeDelimLen=2+14+1=17
+      // content 'Go' at offsets 1..2 (not delimiters)
+      // closing delimiter starts at end - closeDelimLen = 20 - 17 = 3
+      const source = '[Go](https://go.dev)';
+      final els = MdParser.parse(source);
+      expect(els, hasLength(1));
+      final el = els[0];
+      expect(el.isDelimiter(0), isTrue, reason: '"[" is delimiter');
+      expect(el.isDelimiter(1), isFalse, reason: '"G" is content');
+      expect(el.isDelimiter(2), isFalse, reason: '"o" is content');
+      expect(el.isDelimiter(3), isTrue, reason: '"]" starts closing delim');
+      expect(el.isDelimiter(19), isTrue, reason: '")" ends closing delim');
+    });
+
+    test('link url field is empty for non-link elements', () {
+      final els = MdParser.parse('**bold**');
+      expect(els, hasLength(1));
+      expect(els[0].url, '');
+    });
+
+    test('link in a line with surrounding plain text', () {
+      const source = 'visit [Go](https://go.dev) now';
+      final els = MdParser.parse(source);
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.link);
+      // '[Go](https://go.dev)' starts at offset 6.
+      expect(els[0].start, 6);
+      expect(els[0].end, 6 + '[Go](https://go.dev)'.length);
+      expect(els[0].url, 'https://go.dev');
+    });
+
+    test('link on a heading line is NOT parsed (headings skip inline scan)',
+        () {
+      // Headings are handled before the inline scan; links inside headings
+      // are not recognized in the current parser.
+      final els = MdParser.parse('# See [Go](https://go.dev)');
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.h1);
+    });
+  });
 }

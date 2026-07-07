@@ -286,6 +286,24 @@ class QuikiRenderEditor extends RenderBox {
   /// The padding insets configured for this editor.
   EdgeInsets get localPadding => _padding;
 
+  /// Returns the URL of the collapsed link at [localPosition], or null if the
+  /// tap does not hit any collapsed link.
+  ///
+  /// Hit-tests by mapping the tap to a rendered offset and checking whether
+  /// that offset falls within the [renderedStart, renderedEnd) range of any
+  /// collapsed [LinkSlot].
+  String? linkUrlForOffset(Offset localPosition) {
+    final textOffset = localPosition - _padding.topLeft;
+    final renderedPos = _textPainter.getPositionForOffset(textOffset);
+    final ri = renderedPos.offset;
+    for (final slot in _renderModel.linkSlots) {
+      if (ri >= slot.renderedStart && ri < slot.renderedEnd) {
+        return slot.element.url;
+      }
+    }
+    return null;
+  }
+
   // -------------------------------------------------------------------------
   // Paint
   // -------------------------------------------------------------------------
