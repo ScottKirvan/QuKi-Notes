@@ -223,33 +223,20 @@ class RenderModel {
       // -----------------------------------------------------------------------
       // Collapsed link slot recording.
       //
-      // When we first arrive at the start of a collapsed link element, record
-      // the rendered start offset.  When we reach the closing delimiter start
-      // (= end - closeDelimLen), record the rendered end offset and store the
-      // LinkSlot.  Both markers are captured before any characters for that
-      // position are emitted, so they correctly bracket the rendered content.
+      // At the first content character (si == contentStart), we know both
+      // bounds of the rendered content range because content chars are 1:1
+      // with rendered chars in Stage 6 (no nested markup inside link text).
+      // renderedStart = ri (current rendered position); renderedEnd = ri + contentLen.
       // -----------------------------------------------------------------------
       if (!revealed && currentEl != null && currentEl.kind == MdElKind.link) {
         final contentStart = currentEl.start + currentEl.openDelimLen;
         final contentEnd = currentEl.end - currentEl.closeDelimLen;
         if (si == contentStart) {
-          // First content character — record the rendered start.
-          // We stash it temporarily using the srcToRnd entry we haven't set yet.
-          // Actual recording happens via a separate tracker below; we mark
-          // _linkSlotPending logic inline in the loop.
-          //
-          // Simple approach: scan forward and emit the slot immediately when
-          // we know both bounds.  Since the loop is left-to-right and we are
-          // at contentStart, renderedStart = ri (current rendered position).
-          // renderedEnd will be ri + (contentEnd - contentStart).  Compute it
-          // now and add the slot, then continue with normal char processing.
           final contentLen = contentEnd - contentStart;
-          final renderedLinkStart = ri;
-          final renderedLinkEnd = ri + contentLen;
           links.add(LinkSlot(
             element: currentEl,
-            renderedStart: renderedLinkStart,
-            renderedEnd: renderedLinkEnd,
+            renderedStart: ri,
+            renderedEnd: ri + contentLen,
           ));
         }
       }
