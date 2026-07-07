@@ -1104,5 +1104,215 @@ void main() {
       expect(els[1].kind, MdElKind.autolink);
       expect(els[1].url, 'https://b.com');
     });
+
+    // Word-boundary guard tests (regression for mid-word URL match).
+    test(
+        '"texthttps://example.com" → no autolink (no whitespace before scheme)',
+        () {
+      // The 'h' of 'https://' is immediately preceded by 't' (a letter),
+      // so the word-boundary guard must suppress the match.
+      expect(
+        MdParser.parse('texthttps://example.com')
+            .where((e) => e.kind == MdElKind.autolink),
+        isEmpty,
+      );
+    });
+
+    test(
+        '"word https://example.com" (space before) → one autolink — word-boundary guard',
+        () {
+      const source = 'word https://example.com';
+      final els =
+          MdParser.parse(source).where((e) => e.kind == MdElKind.autolink);
+      expect(els, hasLength(1));
+      expect(els.first.url, 'https://example.com');
+    });
+
+    test(
+        '"(https://example.com)" — "(" precedes URL → no autolink (non-whitespace boundary)',
+        () {
+      // Decision: only whitespace (space, tab) or start-of-line counts as a
+      // valid word boundary before a URL. Any other character — including
+      // punctuation like '(' — suppresses the match.  This keeps the rule
+      // simple and avoids false positives in pasted code or prose.
+      expect(
+        MdParser.parse('(https://example.com)')
+            .where((e) => e.kind == MdElKind.autolink),
+        isEmpty,
+      );
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Blockquotes ('> ')
+  // ---------------------------------------------------------------------------
+
+  group('MdParser.parse — blockquote', () {
+    test('">> text" → one blockquote element, start/end, openDelimLen = 2', () {
+      const source = '> text';
+      final els = MdParser.parse(source);
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.blockquote);
+      expect(els[0].start, 0);
+      expect(els[0].end, source.length);
+      expect(els[0].openDelimLen, 2);
+    });
+
+    test('blockquote openDelimLen = 2 ("> " prefix)', () {
+      final el = MdParser.parse('> hello').first;
+      expect(el.openDelimLen, 2);
+    });
+
+    test('blockquote closeDelimLen = 0', () {
+      final el = MdParser.parse('> hello').first;
+      expect(el.closeDelimLen, 0);
+    });
+
+    test('blockquote isDelimiter: first two chars are delimiters', () {
+      // '> text' → '>' at 0 and ' ' at 1 are delimiters; 't' at 2 is content.
+      final el = MdParser.parse('> text').first;
+      expect(el.isDelimiter(0), isTrue);
+      expect(el.isDelimiter(1), isTrue);
+      expect(el.isDelimiter(2), isFalse);
+    });
+
+    test('">text" (no space after ">") → NOT a blockquote (plain text)', () {
+      expect(
+        MdParser.parse('>text').where((e) => e.kind == MdElKind.blockquote),
+        isEmpty,
+      );
+    });
+
+    test('">" alone (no space) → NOT a blockquote', () {
+      expect(
+        MdParser.parse('>').where((e) => e.kind == MdElKind.blockquote),
+        isEmpty,
+      );
+    });
+
+    test('">" followed by space alone → blockquote with empty content', () {
+      // "> " (greater-than + space, nothing after) — we emit the element
+      // because the prefix is valid.  Content length = 0 (nothing after "> ").
+      // Decision: emit the element so the cursor-inside reveal model works
+      // correctly when the user places the cursor on an otherwise-blank
+      // blockquote line.
+      final els = MdParser.parse('> ');
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.blockquote);
+    });
+
+    test('multi-line: one blockquote element per "> " line', () {
+      const source = '> line one\n> line two';
+      final els = MdParser.parse(source);
+      expect(els, hasLength(2));
+      expect(els[0].kind, MdElKind.blockquote);
+      expect(els[0].start, 0);
+      expect(els[0].end, 10); // '> line one' = 10 chars
+      expect(els[1].kind, MdElKind.blockquote);
+      expect(els[1].start, 11); // after '\n'
+      expect(els[1].end, 21); // '> line two' = 10 chars
+    });
+
+    test('blockquote followed by plain line → only blockquote element', () {
+      const source = '> quoted\nplain text';
+      final els = MdParser.parse(source);
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.blockquote);
+    });
+
+    test('collapsedMarker for blockquote is empty string', () {
+      final el = MdParser.parse('> hi').first;
+      expect(el.collapsedMarker, '');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // Horizontal rule ('---', '***', '___')
+  // ---------------------------------------------------------------------------
+
+  group('MdParser.parse — horizontal rule', () {
+    test('"---" → hr element', () {
+      final els = MdParser.parse('---');
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.hr);
+    });
+
+    test('"***" → hr element', () {
+      final els = MdParser.parse('***');
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.hr);
+    });
+
+    test('"___" → hr element', () {
+      final els = MdParser.parse('___');
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.hr);
+    });
+
+    test('"----" (4 dashes) → hr element', () {
+      final els = MdParser.parse('----');
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.hr);
+    });
+
+    test('"--" (only 2 chars) → NOT an hr', () {
+      expect(
+        MdParser.parse('--').where((e) => e.kind == MdElKind.hr),
+        isEmpty,
+      );
+    });
+
+    test('"---x" → NOT an hr (extra non-dash character)', () {
+      expect(
+        MdParser.parse('---x').where((e) => e.kind == MdElKind.hr),
+        isEmpty,
+      );
+    });
+
+    test('hr start/end covers full source line', () {
+      const source = '---';
+      final el = MdParser.parse(source).first;
+      expect(el.start, 0);
+      expect(el.end, 3);
+    });
+
+    test('hr in multi-line source has correct start/end', () {
+      const source = 'before\n---\nafter';
+      final els = MdParser.parse(source);
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.hr);
+      // 'before\n' = 7 chars → hr starts at 7, ends at 10.
+      expect(els[0].start, 7);
+      expect(els[0].end, 10);
+    });
+
+    test('hr openDelimLen = line length (entire line is delimiter)', () {
+      final el = MdParser.parse('---').first;
+      expect(el.openDelimLen, 3);
+    });
+
+    test('hr closeDelimLen = 0', () {
+      final el = MdParser.parse('---').first;
+      expect(el.closeDelimLen, 0);
+    });
+
+    test('all hr chars are isDelimiter', () {
+      final el = MdParser.parse('---').first;
+      for (var i = el.start; i < el.end; i++) {
+        expect(el.isDelimiter(i), isTrue);
+      }
+    });
+
+    test('hr collapsedMarker is empty string', () {
+      final el = MdParser.parse('---').first;
+      expect(el.collapsedMarker, '');
+    });
+
+    test('"- - -" (dashes with spaces) → hr element (spaces allowed)', () {
+      // GFM allows optional spaces between hr characters.
+      final els = MdParser.parse('- - -');
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.hr);
+    });
   });
 }
