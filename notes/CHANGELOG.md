@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.18.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.17.0...v0.18.0) (2026-07-07)
+
+
+### Features
+
+* **editor:** blockquotes, horizontal rules, autolink word-boundary, inline code bg fix ([15f5353](https://github.com/ScottKirvan/QuKi-Notes/commit/15f5353cb84389d8b17ce1135ce7fde8d4510229))
+
+
+### Bug Fixes
+
+* **parser:** GFM inline markup batch — strikethrough, inlineCode, h4-h6, autolinks; icon + color fixes ([f45dc10](https://github.com/ScottKirvan/QuKi-Notes/commit/f45dc10a2e9dafbe9f904bd290d528cc368c9172))
+* **parser:** skip both chars of unmatched '**'/'__' to prevent spurious italic ([b7d8b71](https://github.com/ScottKirvan/QuKi-Notes/commit/b7d8b71b2fea2e976a079b3a66e01759a50ae317)), closes [#219](https://github.com/ScottKirvan/QuKi-Notes/issues/219)
+
 ## [0.17.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.16.1...v0.17.0) (2026-07-07)
 
 
