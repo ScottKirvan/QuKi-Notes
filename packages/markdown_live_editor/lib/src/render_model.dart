@@ -66,6 +66,39 @@ class HrSlot {
 }
 
 // ---------------------------------------------------------------------------
+// CheckboxSlot — carries one collapsed checkbox element for tap-to-toggle.
+// ---------------------------------------------------------------------------
+
+/// Describes a collapsed checkbox element (unchecked ☐ or checked ☑).
+///
+/// [element] is the parsed [MdElement] with kind [MdElKind.checkboxUnchecked]
+/// or [MdElKind.checkboxChecked].
+/// [renderedMarkerStart] is the rendered character offset of the first
+/// character of the collapsed glyph ('☐' or '☑').
+/// [renderedMarkerEnd] is the exclusive end of the marker — always
+/// [renderedMarkerStart] + 2 (the glyph + its trailing space).
+///
+/// QuikiRenderEditor uses these to hit-test a tap: if the tap maps to a
+/// rendered offset in [renderedMarkerStart, renderedMarkerEnd), the checkbox
+/// was tapped and [element.start] is returned as the source offset to toggle.
+class CheckboxSlot {
+  const CheckboxSlot({
+    required this.element,
+    required this.renderedMarkerStart,
+    required this.renderedMarkerEnd,
+  });
+
+  final MdElement element;
+
+  /// Rendered offset of the first character of the collapsed checkbox glyph.
+  final int renderedMarkerStart;
+
+  /// Rendered offset just past the last character of the collapsed glyph
+  /// (= renderedMarkerStart + 2).
+  final int renderedMarkerEnd;
+}
+
+// ---------------------------------------------------------------------------
 // LinkSlot — carries one collapsed link element for tap-to-navigate lookup.
 // ---------------------------------------------------------------------------
 
@@ -104,6 +137,7 @@ class RenderModel {
     required this.renderedToSource,
     this.imageSlots = const [],
     this.linkSlots = const [],
+    this.checkboxSlots = const [],
     this.blockquoteSlots = const [],
     this.hrSlots = const [],
   });
@@ -136,6 +170,12 @@ class RenderModel {
   /// for tap purposes (cursor moves normally, no URL open).
   final List<LinkSlot> linkSlots;
 
+  /// Collapsed checkbox elements.  QuikiEditorState uses this list to determine
+  /// whether a tap falls on a collapsed ☐/☑ glyph and, if so, which source
+  /// offset to toggle.  Only contains collapsed checkbox elements — revealed
+  /// checkboxes (cursor inside) behave as plain text for tap purposes.
+  final List<CheckboxSlot> checkboxSlots;
+
   /// Collapsed blockquote elements.  QuikiRenderEditor uses this list to paint
   /// the left border stripe for each blockquote line.
   final List<BlockquoteSlot> blockquoteSlots;
@@ -157,6 +197,7 @@ class RenderModel {
     renderedToSource: [0],
     imageSlots: const [],
     linkSlots: const [],
+    checkboxSlots: const [],
     blockquoteSlots: const [],
     hrSlots: const [],
   );
@@ -180,6 +221,7 @@ class RenderModel {
     var eIdx = 0;
     final slots = <ImageSlot>[];
     final links = <LinkSlot>[];
+    final checkboxes = <CheckboxSlot>[];
     final blockquotes = <BlockquoteSlot>[];
     final hrs = <HrSlot>[];
 
@@ -307,6 +349,18 @@ class RenderModel {
           srcToRnd[d] = markerRenderedStart;
         }
 
+        // Record a CheckboxSlot for collapsed checkbox elements so that
+        // QuikiRenderEditor can hit-test taps on the ☐/☑ glyph.
+        // The marker is always 2 rendered chars ('☐ ' or '☑ ').
+        if (currentEl.kind == MdElKind.checkboxUnchecked ||
+            currentEl.kind == MdElKind.checkboxChecked) {
+          checkboxes.add(CheckboxSlot(
+            element: currentEl,
+            renderedMarkerStart: markerRenderedStart,
+            renderedMarkerEnd: markerRenderedStart + 2,
+          ));
+        }
+
         // Skip past the source delimiter chars (si will be incremented by
         // the outer for-loop so advance to delimEnd - 1).
         si = delimEnd - 1;
@@ -389,6 +443,7 @@ class RenderModel {
       renderedToSource: rndToSrc,
       imageSlots: slots,
       linkSlots: links,
+      checkboxSlots: checkboxes,
       blockquoteSlots: blockquotes,
       hrSlots: hrs,
     );

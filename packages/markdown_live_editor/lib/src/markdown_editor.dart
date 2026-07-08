@@ -258,6 +258,7 @@ class MarkdownEditor extends StatefulWidget {
     this.autofocus = false,
     this.imageLoader,
     this.onLinkTap,
+    this.onCheckboxToggle,
   });
 
   final String initialValue;
@@ -283,6 +284,12 @@ class MarkdownEditor extends StatefulWidget {
   /// string from the markdown source.  If null, tapping a collapsed link is a
   /// no-op (cursor does not move either).
   final void Function(String url)? onLinkTap;
+
+  /// Called when the user taps a collapsed checkbox glyph (☐ or ☑).
+  /// Receives the source offset of the checkbox element's start so the caller
+  /// can swap the 6-char marker ('- [ ] ' ↔ '- [x] ') and trigger auto-save.
+  /// If null, tapping a collapsed checkbox is a no-op (cursor does not move).
+  final void Function(int sourceOffset)? onCheckboxToggle;
 
   @override
   State<MarkdownEditor> createState() => _MarkdownEditorState();
@@ -451,6 +458,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
       plainTextMode: _plainTextMode,
       imageLoader: widget.imageLoader,
       onLinkTap: widget.onLinkTap,
+      onCheckboxToggle: widget.onCheckboxToggle,
     );
   }
 }

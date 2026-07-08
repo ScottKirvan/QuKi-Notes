@@ -727,10 +727,12 @@ void main() {
 
       final slot = m.checkboxSlots[0];
       // ri = 0 is in [0, 2) → hit
-      expect(0 >= slot.renderedMarkerStart && 0 < slot.renderedMarkerEnd, isTrue,
+      expect(
+          0 >= slot.renderedMarkerStart && 0 < slot.renderedMarkerEnd, isTrue,
           reason: 'rendered offset 0 should fall in marker range');
       // ri = 1 is in [0, 2) → hit
-      expect(1 >= slot.renderedMarkerStart && 1 < slot.renderedMarkerEnd, isTrue,
+      expect(
+          1 >= slot.renderedMarkerStart && 1 < slot.renderedMarkerEnd, isTrue,
           reason: 'rendered offset 1 should fall in marker range');
     });
 
@@ -744,7 +746,8 @@ void main() {
 
       final slot = m.checkboxSlots[0];
       // ri = 2 is the first content char — should NOT be inside the marker range
-      expect(2 >= slot.renderedMarkerStart && 2 < slot.renderedMarkerEnd, isFalse,
+      expect(
+          2 >= slot.renderedMarkerStart && 2 < slot.renderedMarkerEnd, isFalse,
           reason: 'rendered offset 2 (content) should not be in marker range');
     });
 
@@ -760,11 +763,14 @@ void main() {
       expect(m.checkboxSlots, isEmpty);
     });
 
-    test('two collapsed checkboxes: two checkboxSlots with correct offsets', () {
+    test('two collapsed checkboxes: two checkboxSlots with correct offsets',
+        () {
       // source = '- [ ] one\n- [x] two'
-      // line 1: '- [ ] one' (9 chars) — rendered '☐ one', marker at rendered 0
-      // '\n' at source offset 9, rendered offset 6
-      // line 2: '- [x] two' starts at source 10 — rendered '☑ two', marker at rendered 7
+      // line 1: '- [ ] one' (9 source chars)
+      //   collapsed marker '☐ ' (2 rendered) + content 'one' (3 rendered) = 5 rendered
+      // '\n' at source offset 9 → 1 rendered char (rendered offset 5)
+      // line 2: '- [x] two' starts at source offset 10
+      //   collapsed marker '☑ ' starts at rendered offset 6
       const source = '- [ ] one\n- [x] two';
       final els = MdParser.parse(source);
       final m = _build(source, els, cursorOffset: -1);
@@ -780,9 +786,9 @@ void main() {
       final slot1 = m.checkboxSlots[1];
       expect(slot1.element.kind, MdElKind.checkboxChecked);
       expect(slot1.element.start, 10);
-      // After '☐ one\n' (7 rendered chars), second marker at rendered 7.
-      expect(slot1.renderedMarkerStart, 7);
-      expect(slot1.renderedMarkerEnd, 9);
+      // '☐ one\n' = 2 + 3 + 1 = 6 rendered chars; second marker at rendered 6.
+      expect(slot1.renderedMarkerStart, 6);
+      expect(slot1.renderedMarkerEnd, 8);
     });
   });
 }
