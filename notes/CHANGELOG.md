@@ -9,6 +9,8 @@
 * **storage:** skip sidecar write when file missing or corrupt ([#75](https://github.com/ScottKirvan/QuKi-Notes/issues/75)) ([8a91004](https://github.com/ScottKirvan/QuKi-Notes/commit/8a9100400bf9d5cecbcfbcda472c78c3a52121f0))
 * **storage:** store modifiedAt in sidecar JSON to decouple sort from filesystem mtime ([#75](https://github.com/ScottKirvan/QuKi-Notes/issues/75)) ([4fff805](https://github.com/ScottKirvan/QuKi-Notes/commit/4fff805445e8e19521d6483d794b39b6d873c7a3))
 
+Includes PRs: [#223](https://github.com/ScottKirvan/QuKi-Notes/pull/223), [#224](https://github.com/ScottKirvan/QuKi-Notes/pull/224), [#225](https://github.com/ScottKirvan/QuKi-Notes/pull/225), [#226](https://github.com/ScottKirvan/QuKi-Notes/pull/226)
+
 ## [0.18.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.17.0...v0.18.0) (2026-07-07)
 
 
