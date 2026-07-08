@@ -56,13 +56,13 @@ void main() {
       expect(await storage.read(meta.id), 'updated');
     });
 
-    test('leaves .meta file unchanged', () async {
+    test('writes modifiedAt to .meta file after update()', () async {
       final meta = await storage.create('v1');
       final metaPath = '${tmpDir.path}/.meta/${meta.id}.json';
-      final contentBefore = await File(metaPath).readAsString();
       await storage.update(meta.id, 'v2');
       final contentAfter = await File(metaPath).readAsString();
-      expect(contentAfter, contentBefore);
+      // After update(), the sidecar must contain a modifiedAt field.
+      expect(contentAfter, contains('"modifiedAt"'));
     });
   });
 
@@ -137,6 +137,38 @@ void main() {
       final meta = await storage.create('hidden');
       await storage.softDelete(meta.id);
       expect(await storage.scanActive(), isEmpty);
+    });
+
+    test(
+        'scanActive reads modifiedAt from sidecar, not filesystem mtime — regression #75',
+        () async {
+      // 1. Create a note — sidecar writes createdAt; _readMeta currently uses
+      //    stat.modified as modifiedAt. Record T1 = time of creation.
+      final t1 = DateTime.now();
+      final meta = await storage.create('original');
+
+      // 2. Wait 2 seconds so the next filesystem write gets a clearly later mtime.
+      await Future<void>.delayed(const Duration(seconds: 2));
+
+      // 3. Write directly to the .md file, bypassing storage.update(), so the
+      //    filesystem mtime (T2 ≈ T1 + 2s) advances but the sidecar is unchanged.
+      final mdPath = '${tmpDir.path}/${meta.id}.md';
+      await File(mdPath).writeAsString('same content but later mtime');
+
+      // 4. scanActive() — with the bug, returns T2; with the fix, returns T1.
+      final results = await storage.scanActive();
+      final found = results.firstWhere((m) => m.id == meta.id);
+
+      // The fix stores modifiedAt in the sidecar at create() time (≈ T1).
+      // If _readMeta still reads stat.modified it returns T2 (≈ T1 + 2s).
+      // Assert that the returned modifiedAt is within 500ms of T1 (sidecar),
+      // NOT T2. Filesystem mtime is ≥ 1.5s later, so the 500ms bound is safe.
+      expect(
+        found.modifiedAt.difference(t1).inMilliseconds.abs(),
+        lessThan(500),
+        reason:
+            'modifiedAt must come from the sidecar (≈ T1), not the filesystem mtime (T2 = T1 + 2s)',
+      );
     });
   });
 
