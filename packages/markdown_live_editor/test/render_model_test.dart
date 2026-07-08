@@ -668,4 +668,121 @@ void main() {
       expect(m.linkSlots, isEmpty);
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // CheckboxSlot — checkbox tap-to-toggle (#130)
+  // ---------------------------------------------------------------------------
+
+  group('RenderModel.build — checkboxSlots', () {
+    test(
+        'unchecked checkbox collapsed: checkboxSlots has one entry; renderedMarkerStart == 0',
+        () {
+      // source = '- [ ] foo' (9 chars)
+      // collapsed marker '☐ ' (2 rendered chars) at rendered offset 0
+      // renderedMarkerEnd = renderedMarkerStart + 2 = 2
+      const source = '- [ ] foo';
+      final els = MdParser.parse(source);
+      final m = _build(source, els, cursorOffset: -1);
+
+      expect(m.checkboxSlots, hasLength(1));
+      final slot = m.checkboxSlots[0];
+      expect(slot.element.kind, MdElKind.checkboxUnchecked);
+      expect(slot.element.start, 0);
+      expect(slot.renderedMarkerStart, 0);
+      expect(slot.renderedMarkerEnd, slot.renderedMarkerStart + 2);
+    });
+
+    test(
+        'checked checkbox collapsed: checkboxSlots has one entry; renderedMarkerStart == 0',
+        () {
+      // source = '- [x] bar' (9 chars)
+      // collapsed marker '☑ ' (2 rendered chars) at rendered offset 0
+      const source = '- [x] bar';
+      final els = MdParser.parse(source);
+      final m = _build(source, els, cursorOffset: -1);
+
+      expect(m.checkboxSlots, hasLength(1));
+      final slot = m.checkboxSlots[0];
+      expect(slot.element.kind, MdElKind.checkboxChecked);
+      expect(slot.element.start, 0);
+      expect(slot.renderedMarkerStart, 0);
+      expect(slot.renderedMarkerEnd, slot.renderedMarkerStart + 2);
+    });
+
+    test('no checkboxSlots when source has no checkbox elements', () {
+      const source = '- plain list item';
+      final els = MdParser.parse(source);
+      final m = _build(source, els, cursorOffset: -1);
+
+      expect(m.checkboxSlots, isEmpty);
+    });
+
+    test(
+        'rendered offset within [renderedMarkerStart, renderedMarkerEnd) hits the slot',
+        () {
+      // Verify that both rendered positions 0 and 1 fall inside the marker range.
+      const source = '- [ ] foo';
+      final els = MdParser.parse(source);
+      final m = _build(source, els, cursorOffset: -1);
+
+      final slot = m.checkboxSlots[0];
+      // ri = 0 is in [0, 2) → hit
+      expect(0 >= slot.renderedMarkerStart && 0 < slot.renderedMarkerEnd, isTrue,
+          reason: 'rendered offset 0 should fall in marker range');
+      // ri = 1 is in [0, 2) → hit
+      expect(1 >= slot.renderedMarkerStart && 1 < slot.renderedMarkerEnd, isTrue,
+          reason: 'rendered offset 1 should fall in marker range');
+    });
+
+    test(
+        'rendered offset outside [renderedMarkerStart, renderedMarkerEnd) misses the slot',
+        () {
+      // ri = 2 is NOT in [0, 2) → miss (that is the content 'f' of 'foo')
+      const source = '- [ ] foo';
+      final els = MdParser.parse(source);
+      final m = _build(source, els, cursorOffset: -1);
+
+      final slot = m.checkboxSlots[0];
+      // ri = 2 is the first content char — should NOT be inside the marker range
+      expect(2 >= slot.renderedMarkerStart && 2 < slot.renderedMarkerEnd, isFalse,
+          reason: 'rendered offset 2 (content) should not be in marker range');
+    });
+
+    test(
+        'revealed checkbox (cursor inside): no checkboxSlot recorded for that element',
+        () {
+      // When cursor is inside the element it is revealed — slot must not be added.
+      const source = '- [ ] foo';
+      final els = MdParser.parse(source);
+      // cursorOffset = 1 → inside element → revealed
+      final m = _build(source, els, cursorOffset: 1);
+
+      expect(m.checkboxSlots, isEmpty);
+    });
+
+    test('two collapsed checkboxes: two checkboxSlots with correct offsets', () {
+      // source = '- [ ] one\n- [x] two'
+      // line 1: '- [ ] one' (9 chars) — rendered '☐ one', marker at rendered 0
+      // '\n' at source offset 9, rendered offset 6
+      // line 2: '- [x] two' starts at source 10 — rendered '☑ two', marker at rendered 7
+      const source = '- [ ] one\n- [x] two';
+      final els = MdParser.parse(source);
+      final m = _build(source, els, cursorOffset: -1);
+
+      expect(m.checkboxSlots, hasLength(2));
+
+      final slot0 = m.checkboxSlots[0];
+      expect(slot0.element.kind, MdElKind.checkboxUnchecked);
+      expect(slot0.element.start, 0);
+      expect(slot0.renderedMarkerStart, 0);
+      expect(slot0.renderedMarkerEnd, 2);
+
+      final slot1 = m.checkboxSlots[1];
+      expect(slot1.element.kind, MdElKind.checkboxChecked);
+      expect(slot1.element.start, 10);
+      // After '☐ one\n' (7 rendered chars), second marker at rendered 7.
+      expect(slot1.renderedMarkerStart, 7);
+      expect(slot1.renderedMarkerEnd, 9);
+    });
+  });
 }
