@@ -127,6 +127,30 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     }
   }
 
+  /// Toggles the checkbox marker at [sourceOffset] in the current editor value.
+  ///
+  /// Reads the 6-char marker starting at [sourceOffset] and swaps
+  /// '- [ ] ' ↔ '- [x] ' (uppercase '- [X] ' is also treated as checked).
+  /// Calls [_editorController.setValue] to update the editor, then notifies
+  /// [_autoSave] so the change is persisted.
+  void _onCheckboxToggle(int sourceOffset) {
+    final current = _editorController.currentValue;
+    if (sourceOffset < 0 || sourceOffset + 6 > current.length) return;
+    final marker = current.substring(sourceOffset, sourceOffset + 6);
+    final String replacement;
+    if (marker == '- [ ] ') {
+      replacement = '- [x] ';
+    } else if (marker == '- [x] ' || marker == '- [X] ') {
+      replacement = '- [ ] ';
+    } else {
+      return;
+    }
+    final newText =
+        current.replaceRange(sourceOffset, sourceOffset + 6, replacement);
+    _editorController.setValue(newText);
+    _autoSave.notifyChanged();
+  }
+
   /// Opens [url] in the platform's default browser.
   ///
   /// Errors from [Uri.parse] (malformed URL) or [launchUrl] (no handler found)
@@ -346,6 +370,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                 ),
                 imageLoader: _loadImage,
                 onLinkTap: _onLinkTap,
+                onCheckboxToggle: _onCheckboxToggle,
               ),
             ),
             FormattingToolbar(controller: _editorController),

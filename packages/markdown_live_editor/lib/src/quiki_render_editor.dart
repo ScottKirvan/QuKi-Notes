@@ -304,6 +304,26 @@ class QuikiRenderEditor extends RenderBox {
     return null;
   }
 
+  /// Returns the source offset of the collapsed checkbox element whose glyph
+  /// (☐ or ☑) was tapped at [localPosition], or null if the tap does not hit
+  /// any collapsed checkbox glyph.
+  ///
+  /// Hit-tests by mapping the tap to a rendered offset and checking whether
+  /// that offset falls within the [renderedMarkerStart, renderedMarkerEnd)
+  /// range of any collapsed [CheckboxSlot].  Returns [element.start] of the
+  /// matching slot so the caller can locate the 6-char marker in the source.
+  int? checkboxSourceOffsetForTap(Offset localPosition) {
+    final textOffset = localPosition - _padding.topLeft;
+    final renderedPos = _textPainter.getPositionForOffset(textOffset);
+    final ri = renderedPos.offset;
+    for (final slot in _renderModel.checkboxSlots) {
+      if (ri >= slot.renderedMarkerStart && ri < slot.renderedMarkerEnd) {
+        return slot.element.start;
+      }
+    }
+    return null;
+  }
+
   // -------------------------------------------------------------------------
   // Paint
   // -------------------------------------------------------------------------

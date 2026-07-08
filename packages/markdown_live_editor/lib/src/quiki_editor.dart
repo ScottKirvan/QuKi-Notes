@@ -36,6 +36,7 @@ class QuikiEditor extends StatefulWidget {
     this.plainTextMode = false,
     this.imageLoader,
     this.onLinkTap,
+    this.onCheckboxToggle,
   });
 
   final TextEditingController controller;
@@ -58,6 +59,12 @@ class QuikiEditor extends StatefulWidget {
   /// string from the markdown source.  If null, tapping a collapsed link is a
   /// no-op (cursor does not move either).
   final void Function(String url)? onLinkTap;
+
+  /// Called when the user taps a collapsed checkbox glyph (☐ or ☑).
+  /// Receives the source offset of the checkbox element's start so the caller
+  /// can swap the 6-char marker ('- [ ] ' ↔ '- [x] ') and trigger auto-save.
+  /// If null, tapping a collapsed checkbox is a no-op (cursor does not move).
+  final void Function(int sourceOffset)? onCheckboxToggle;
 
   @override
   QuikiEditorState createState() => QuikiEditorState();
@@ -761,6 +768,14 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     final linkUrl = re.linkUrlForOffset(localPos);
     if (linkUrl != null) {
       widget.onLinkTap?.call(linkUrl);
+      return;
+    }
+
+    // Checkbox tap detection: if the tap lands on a collapsed ☐/☑ glyph,
+    // call onCheckboxToggle with the source offset and do NOT move the cursor.
+    final checkboxSrcOffset = re.checkboxSourceOffsetForTap(localPos);
+    if (checkboxSrcOffset != null) {
+      widget.onCheckboxToggle?.call(checkboxSrcOffset);
       return;
     }
 
