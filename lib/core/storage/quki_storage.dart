@@ -82,19 +82,18 @@ class QuKiStorage {
   }
 
   /// Writes [modifiedAt] into the sidecar JSON, preserving any existing fields
-  /// (most importantly [createdAt]).  If the sidecar is missing or corrupt,
-  /// writes a best-effort file with only [modifiedAt]; [_readMeta] will fall
-  /// back to [stat.modified] for [createdAt] in that unlikely case.
+  /// (most importantly [createdAt]).
+  ///
+  /// Returns without writing if the sidecar is missing or unreadable —
+  /// [_readMeta] falls back to [stat.modified] in those cases.
   Future<void> _writeSidecarModifiedAt(String id, DateTime modifiedAt) async {
     final file = _metaFile(id);
-    Map<String, dynamic> existing = {};
-    if (await file.exists()) {
-      try {
-        existing =
-            jsonDecode(await file.readAsString()) as Map<String, dynamic>;
-      } catch (_) {
-        // Corrupt sidecar — start fresh.
-      }
+    if (!await file.exists()) return;
+    Map<String, dynamic> existing;
+    try {
+      existing = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+    } catch (_) {
+      return; // Corrupt sidecar — skip update; _readMeta falls back to stat.modified.
     }
     existing['modifiedAt'] = modifiedAt.toIso8601String();
     await file.writeAsString(jsonEncode(existing));
