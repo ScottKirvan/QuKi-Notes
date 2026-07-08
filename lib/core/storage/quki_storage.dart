@@ -52,9 +52,13 @@ class QuKiStorage {
     await _ensureDirs();
     final id = const Uuid().v4();
     final now = DateTime.now();
+    final nowUtc = now.toUtc();
 
     await _metaFile(id).writeAsString(
-      jsonEncode({'createdAt': now.toIso8601String()}),
+      jsonEncode({
+        'createdAt': now.toIso8601String(),
+        'modifiedAt': nowUtc.toIso8601String(),
+      }),
     );
     await _writeAtomic(_mdFile(id), body);
 
@@ -62,12 +66,38 @@ class QuKiStorage {
       id: id,
       filePath: _mdFile(id).path,
       createdAt: now,
-      modifiedAt: now,
+      modifiedAt: nowUtc,
     );
   }
 
-  Future<void> update(String id, String body) async {
+  /// Updates the content of an existing QuKi and records [modifiedAt] (defaults
+  /// to [DateTime.now] in UTC) in the sidecar `.meta/{id}.json` so that sort
+  /// order is derived from an explicit timestamp rather than filesystem mtime.
+  Future<DateTime> update(String id, String body,
+      {DateTime? modifiedAt}) async {
+    final ts = (modifiedAt ?? DateTime.now()).toUtc();
     await _writeAtomic(_mdFile(id), body);
+    await _writeSidecarModifiedAt(id, ts);
+    return ts;
+  }
+
+  /// Writes [modifiedAt] into the sidecar JSON, preserving any existing fields
+  /// (most importantly [createdAt]).  If the sidecar is missing or corrupt,
+  /// writes a best-effort file with only [modifiedAt]; [_readMeta] will fall
+  /// back to [stat.modified] for [createdAt] in that unlikely case.
+  Future<void> _writeSidecarModifiedAt(String id, DateTime modifiedAt) async {
+    final file = _metaFile(id);
+    Map<String, dynamic> existing = {};
+    if (await file.exists()) {
+      try {
+        existing =
+            jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+      } catch (_) {
+        // Corrupt sidecar — start fresh.
+      }
+    }
+    existing['modifiedAt'] = modifiedAt.toIso8601String();
+    await file.writeAsString(jsonEncode(existing));
   }
 
   Future<String> read(String id) => _mdFile(id).readAsString();
@@ -131,15 +161,24 @@ class QuKiStorage {
   ) async {
     final metaFile = File(p.join(metaDir.path, '$id.json'));
     if (!await metaFile.exists()) return null;
-    final stat = await mdFile.stat();
     final json =
         jsonDecode(await metaFile.readAsString()) as Map<String, dynamic>;
     final createdAt = DateTime.parse(json['createdAt'] as String);
+    // Read modifiedAt from the sidecar when present (set by create/update).
+    // Fall back to filesystem mtime for notes written before this change.
+    final DateTime modifiedAt;
+    final rawModifiedAt = json['modifiedAt'] as String?;
+    if (rawModifiedAt != null) {
+      modifiedAt = DateTime.parse(rawModifiedAt);
+    } else {
+      final stat = await mdFile.stat();
+      modifiedAt = stat.modified;
+    }
     return QuKiMeta(
       id: id,
       filePath: mdFile.path,
       createdAt: createdAt,
-      modifiedAt: stat.modified,
+      modifiedAt: modifiedAt,
     );
   }
 
