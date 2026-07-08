@@ -95,10 +95,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   Future<String> _writeQuKi(String? currentId, String body) async {
     final storage = ref.read(quKiStorageProvider);
     if (currentId != null) {
-      await storage.update(currentId, body);
-      ref
-          .read(quKiIndexProvider.notifier)
-          .updateMeta(currentId, DateTime.now());
+      final modifiedAt = await storage.update(currentId, body);
+      ref.read(quKiIndexProvider.notifier).updateMeta(currentId, modifiedAt);
       return currentId;
     } else {
       final meta = await storage.create(body);

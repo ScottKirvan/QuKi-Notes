@@ -32,8 +32,10 @@ class _FakeQuKiStorage extends QuKiStorage {
   }
 
   @override
-  Future<void> update(String id, String body) async {
+  Future<DateTime> update(String id, String body,
+      {DateTime? modifiedAt}) async {
     saves.add((id: id, body: body));
+    return modifiedAt?.toUtc() ?? DateTime.now().toUtc();
   }
 
   @override
