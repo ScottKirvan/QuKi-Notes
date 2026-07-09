@@ -66,7 +66,6 @@ The following elements render in the editor:
 | `1. item` | Ordered list with computed number |
 | `- [ ] task` / `- [x] task` | Task checkbox (unchecked / checked) |
 | `[label](url)` | Link — shows label; tap to open URL |
-| `![alt](path)` | Embedded image |
 | `> text` | Blockquote |
 | `---` | Horizontal rule |
 | `http://...` bare URL | Autolink |
