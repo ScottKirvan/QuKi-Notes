@@ -18,18 +18,24 @@ Download the latest release from [GitHub Releases](https://github.com/ScottKirva
 
 ## First launch
 
-The app opens directly into the editor — blank, cursor ready. No onboarding, no sign-in. Start typing.
+On first launch you will see a one-time setup screen asking where to store your QuKis:
 
-Your QuKi saves automatically as you type. When you are done, send it somewhere or leave it — it will be in your QuKi list when you return.
+- **Filesystem storage** — QuKis are stored in a folder you choose. Files are accessible via any file manager and survive uninstall. Recommended.
+- **App storage** — QuKis are stored in the app's private directory. Files are not accessible via file manager and are deleted on uninstall. A warning is shown in Settings when this is active.
+
+This screen appears once. You can change the location later in **Settings → Storage**.
+
+After choosing, the editor opens — blank, cursor ready. Start typing.
+
+Your QuKi saves automatically as you type. When you are done, send it somewhere or leave it — it will be in your QuKis list when you return.
 
 ## Navigation at a glance
 
 The editor is home. It does not have a back button.
 
-- **QuKis icon** (top left in the editor) — opens your QuKis list
-- **Menu** (top right, three-line icon) — Send..., QuKis, Settings
+In the editor top bar:
 
-From the QuKis list:
-
-- **+ icon** (top right) — new QuKi
-- **Settings icon** (top right) — Settings
+- **QuKis icon** (top left) — opens your QuKis list
+- **Type icon** — switch between live-preview and plain-text mode
+- **+ icon** — start a new QuKi
+- **Menu** (three-line icon, top right) — Send..., QuKis, Settings

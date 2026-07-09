@@ -25,7 +25,7 @@ Swipe left on a QuKi to delete it. An **Undo** option appears briefly. After tha
 
 ## Recently Deleted
 
-Deleted QuKis are held in Recently Deleted until you remove them permanently. Open it from **Settings → Recently Deleted**.
+Deleted QuKis are held in Recently Deleted until you remove them permanently. Open it from **Settings → Notes → Trash**.
 
 - Tap a QuKi to restore it.
 - Swipe to permanently delete it (confirmation required).
