@@ -133,9 +133,9 @@ Once CI is green: summarize what changed, confirm no attribution anywhere, and r
 
 See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phase table.
 
-**Current version**: v0.17.0 (released 2026-07-07). ADR-31 Stages 1–6 + clipboard toolbar all shipped.
+**Current version**: v0.18.1 (released 2026-07-08). Full GFM inline element support + checkbox tap-to-toggle + sort order fix all shipped.
 
-**PR #222 open, pending merge**: GFM inline markup batch — strikethrough, inline code, h4–h6, bare URL autolinks, blockquotes, horizontal rules, link color fix, Material→Lucide icon fixes. CI green.
+**No PR currently open.**
 
 **Resolved since last spec sync:**
 - Phase 3.22 post-ship rendering bugs (PR #194, v0.15.2): list bullets, checkbox visibility, toolbar selection fix.
@@ -151,7 +151,12 @@ See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phas
 - Phase 3.29 (PR #213, merged 2026-07-06): ADR-31 Stage 4 device regressions — list auto-continue IME sync, ol block-relative numbering (`1. 1. 1.` → `1. 2. 3.`, `5. 1. 1.` → `5. 6. 7.`), plain text mode toggle.
 - Phase 3.30 (PR #215, merged 2026-07-06): ADR-31 Stage 5 — block-level `![alt](path)` image rendering; `ImageSlot`; async image cache; path resolution via ADR-4.
 - Phase 3.31 (PR #217, merged 2026-07-06): ADR-31 Stage 6 — inline `[text](url)` link rendering; `LinkSlot`; tap-to-navigate via `url_launcher` (ADR-32); `onLinkTap` callback.
-- Phase 3.32 (PR #218, merged 2026-07-07, v0.17.0): Clipboard toolbar — Cut/Copy/Paste/Select All on Android. `ContextMenuController` + `AdaptiveTextSelectionToolbar`. Collapsed cursor shows Paste + Select All only; Select All re-shows toolbar immediately. Bug filed: #219 (`**` delimiter visibility when note contains existing `*`).
+- Phase 3.32 (PR #218, merged 2026-07-07, v0.17.0): Clipboard toolbar — Cut/Copy/Paste/Select All on Android. `ContextMenuController` + `AdaptiveTextSelectionToolbar`.
+- Phase 3.33 (v0.18.0): Bold delimiter fallthrough fix (#219) — unmatched `**`/`__` skips both chars, prevents spurious italic.
+- Phase 3.34 (v0.18.0): GFM inline markup batch — strikethrough `~~`, inline code `` ` ``, h4/h5/h6, bare URL autolinks; icon + color fixes (link color #4A9EE8 → #71B7FF, Material → Lucide icon violations).
+- Phase 3.35 (v0.18.0): GFM second batch — blockquotes `> `, horizontal rules `---`/`***`/`___`, autolink word-boundary guard, inline code background fix.
+- Phase 3.36 (PRs #224, v0.18.1): Sort order fix (#75) — `modifiedAt` stored as UTC ISO-8601 in `.meta/{id}.json` sidecar; decouples list sort from filesystem mtime; migration fallback to `stat.modified` for pre-v0.18.1 notes.
+- Phase 3.37 (PR #226, v0.18.1): Checkbox tap-to-toggle (#130) — `CheckboxSlot` in `RenderModel`; `checkboxSourceOffsetForTap()` in `QuikiRenderEditor`; `onCheckboxToggle` callback through `MarkdownEditor` → `EditorScreen`; tapping collapsed ☐/☑ toggles `- [ ] ` ↔ `- [x] ` and triggers auto-save.
 
 **Next up — architectural design required before any brief:**
 - **Rich list content** (links, bold, italic inside list items): parser currently skips inline scan on list lines. Requires two-pass parser restructure — detect list prefix, then scan content inline. New ADR entry needed.
@@ -160,11 +165,9 @@ See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phas
 
 **Phase 3 remaining (open bugs/deferred):**
 - **#72 cold launch keyboard**: deferred (project owner's explicit call).
-- **#130 checkbox tap-to-toggle**: deferred; link-tap pattern from PR #217 shows the implementation path.
 - **#77 tabs/indenting in lists**: open.
 - **#188 share-in launches new instance**: open — Android `launchMode` issue.
 - **Long-press drag after word select** does not extend selection on touch (gesture arena conflict). Deferred — confirmed "good enough for now."
-- **QuKi list sort order** after editing older notes may be inconsistent on Android FUSE storage. Deferred.
 - **Unscoped features**: #79, #80, #81, #83, #84 (ADR-29/QuickJS), #87, #135, #136, #178, #181, #182, #183, #184. See `notes/dev/roadmap.md`.
 
 **Phase 4+:** Sync plugin axis (v1.1+), MCP (v2.0+) — not in scope until Phase 3 is complete.
@@ -177,7 +180,7 @@ Two non-negotiable constraints — include in every dev brief that touches UI or
 
 - **Colors**: GitHub Primer Dark High Contrast palette only. Key tokens: canvas `#0a0c10`, surface `#272b33`, foreground `#f0f3f9`, muted `#9ea7b4`, accent/link `#71b7ff`, primary action `#1f6feb`, borders `#7a828e`. Light theme uses Primer Light High Contrast equivalents. Never allow arbitrary hex values or Flutter `Colors.*` seeds in new code — flag any found during diff review.
 - **Icons**: Lucide only (`lucide_flutter`, `LucideIcons.*`). Never `Icons.*` (Material) for new UI surfaces. ADR-23.
-- **Markdown element styling**: rendered elements (headings h1–h3, bold, italic, code spans, blockquotes) must visually match GitHub Dark High Contrast — type scale, font weight, and emphasis conventions, not only colors.
+- **Markdown element styling**: rendered elements (headings h1–h6, bold, italic, strikethrough, inline code, blockquotes) must visually match GitHub Dark High Contrast — type scale, font weight, and emphasis conventions, not only colors.
 
 Both are documented in `notes/dev/design_spec.md` and `decisions.md` (ADR-23) but must be restated in every brief that touches styling — agents do not always read the full spec.
 

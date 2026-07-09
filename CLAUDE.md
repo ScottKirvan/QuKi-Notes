@@ -138,6 +138,11 @@ QuKi-Notes/
 | | 3.30 ADR-31 Stage 5 — block-level inline images | Complete (PR #215) |
 | | 3.31 ADR-31 Stage 6 — inline link rendering and tap-to-navigate | Complete (PR #217) |
 | | 3.32 Clipboard toolbar — Cut/Copy/Paste/Select All on Android | Complete (PR #218, v0.17.0) |
+| | 3.33 Bold delimiter fallthrough fix (#219) | Complete (v0.18.0) |
+| | 3.34 GFM inline markup batch — strikethrough, inline code, h4–h6, bare URL autolinks; icon + color fixes | Complete (v0.18.0) |
+| | 3.35 GFM second batch — blockquotes, horizontal rules, autolink word-boundary, inline code bg | Complete (v0.18.0) |
+| | 3.36 Sort order fix — sidecar modifiedAt decouples list sort from filesystem mtime (#75) | Complete (PRs #224, v0.18.1) |
+| | 3.37 Checkbox tap-to-toggle (#130) | Complete (PR #226, v0.18.1) |
 | 4 | Sync plugin axis + first sync backend | v1.1+ |
 | 5 | iPadOS / iOS / macOS builds | Deferred |
 | 6 | MCP plugin axis | v2.0+ |
@@ -158,15 +163,15 @@ QuKi-Notes/
 
 ---
 
-## Implementation Notes (current as of v0.16.1; Stages 2–4 post-v0.16.1, unreleased)
+## Implementation Notes (current as of v0.18.1)
 
 **Navigation**: Editor is the permanent root. `app.dart` home = `EditorScreen`; it never has a back button. `activeQukiIdProvider` (NotifierProvider<String?>) controls which QuKi is loaded. `StreamScreen` sets `activeQukiIdProvider` and pops — no second `EditorScreen` is ever pushed. QuKis list slides in from the left; Settings slides in from the right (directional per affordance position).
 
-**Storage layer (ADR-25, ADR-27, ADR-28)**: `lib/core/storage/` — `QuKiStorage` (file I/O, write-to-temp-then-rename for atomicity), `QuKiIndex` (Riverpod `Notifier<List<QuKiMeta>>`, in-memory, rescanned on `StreamScreen.initState`), `TrashIndex` (same pattern for `.trash/`), `QuKiSearch` (content scan at query time). Directory: `<storage-root>/qukis/{uuid}.md` + `.meta/{uuid}.json` (createdAt) + `.trash/`. `modifiedAt` = filesystem `mtime`. First-launch setup modal: user picks "Filesystem storage" (`Documents/QuKi_Notes`, requires `MANAGE_EXTERNAL_STORAGE` on Android) or "App storage" (`getApplicationDocumentsDirectory()`); changeable from Settings.
+**Storage layer (ADR-25, ADR-27, ADR-28)**: `lib/core/storage/` — `QuKiStorage` (file I/O, write-to-temp-then-rename for atomicity), `QuKiIndex` (Riverpod `Notifier<List<QuKiMeta>>`, in-memory, rescanned on `StreamScreen.initState`), `TrashIndex` (same pattern for `.trash/`), `QuKiSearch` (content scan at query time). Directory: `<storage-root>/qukis/{uuid}.md` + `.meta/{uuid}.json` (createdAt + modifiedAt) + `.trash/`. `modifiedAt` stored as UTC ISO-8601 in sidecar; `_readMeta()` falls back to `stat.modified` for pre-v0.18.1 notes (gain sidecar modifiedAt on next edit). `QuKiStorage.update()` returns `Future<DateTime>` — caller passes the same timestamp to `updateMeta()` to keep in-memory and on-disk state identical. First-launch setup modal: user picks "Filesystem storage" (`Documents/QuKi_Notes`, requires `MANAGE_EXTERNAL_STORAGE` on Android) or "App storage" (`getApplicationDocumentsDirectory()`); changeable from Settings.
 
 **Auto-save (ADR-6)**: `AutoSaveController` — 2s idle debounce + 30s periodic + lifecycle hooks. Accepts a `Future<void> Function(String body)` write callback. Tracks `_lastSavedBody` and skips writes when content is identical. `resetForQuki(id:, initialBody:)` switches the save target without disposing the controller.
 
-**Editor (ADR-31 Stages 2–4, post-v0.16.1)**: `packages/markdown_live_editor/` (monorepo path dep) — custom `QuikiRenderEditor extends RenderBox` + `QuikiEditorState implements TextInputClient`, replacing `TextField`. Stage 2 adds `MdParser` (flat left-to-right scanner; h1/h2/h3, bold `**`/`__`, italic `*`/`_`; no cross-line matching) and `RenderModel` (O(n+m) build; bidirectional offset maps `sourceToRendered`/`renderedToSource`; element containing cursor is *revealed* — raw source visible at `baseStyle`; all others *collapsed* — delimiters hidden, content in heading/bold/italic style). Reveal condition: `cursorOffset >= element.start && cursorOffset <= element.end`. Stage 4 adds `ul`, `ol`, `checkboxUnchecked`, `checkboxChecked` element kinds with variable-length N→M marker substitution (`- ` → `• `, `- [ ] ` → `☐ `, `- [x] ` → `☑ `, `N. ` → position-computed `seqNum. `); all source delimiter positions map to marker start in `srcToRnd`; ordered-list seqNums are block-relative (first line's source digit sets block start; subsequent lines increment by 1 regardless of source digit). `positionForOffset`, `getOffsetForCaret`, and `paint` all route through offset maps for correct caret and selection placement. Parse cache: `_lastParsedText`/`_elements` re-parses only on text change. `FormattingToolbar` lives in the package. Public API: `setValue()`, `requestFocus()`, `wrapSelection()`, `toggleLinePrefix()`, `toggleUnorderedList()`, `toggleOrderedList()`, `togglePlainTextMode()`. `MarkdownEditorController.setValue()` is the seam to `EditorScreen`; `onChanged` → `_autoSave.notifyChanged()`.
+**Editor (ADR-31, all stages shipped, v0.18.1)**: `packages/markdown_live_editor/` (monorepo path dep) — custom `QuikiRenderEditor extends RenderBox` + `QuikiEditorState implements TextInputClient`, replacing `TextField`. `MdParser` (flat left-to-right scanner; no cross-line matching) handles: h1–h6, bold `**`/`__`, italic `*`/`_`, strikethrough `~~`, inline code `` ` ``, `ul`/`ol`/`checkboxUnchecked`/`checkboxChecked` list kinds, block-level images `![alt](path)`, inline links `[text](url)`, bare URL autolinks `https://`/`http://`, blockquotes `> `, horizontal rules `---`/`***`/`___`. `RenderModel` (O(n+m) build; bidirectional offset maps `sourceToRendered`/`renderedToSource`; element containing cursor is *revealed* — raw source visible at `baseStyle`; all others *collapsed* — delimiters hidden, content styled). Variable-length N→M marker substitution for list kinds. `ImageSlot`, `LinkSlot`, `CheckboxSlot`, `BlockquoteSlot`, `HrSlot` carry collapsed-element metadata for paint and tap-handling. Tap callbacks: `onLinkTap(url)` and `onCheckboxToggle(sourceOffset)` — both fire from `_onTapDown` before cursor placement, return early (cursor does not move). `FormattingToolbar` in the package. Public API: `setValue()`, `requestFocus()`, `wrapSelection()`, `toggleLinePrefix()`, `toggleUnorderedList()`, `toggleOrderedList()`, `togglePlainTextMode()`. `MarkdownEditorController.setValue()` is the seam to `EditorScreen`; `onChanged` → `_autoSave.notifyChanged()`.
 
 **Recently Deleted (PR #103)**: `lib/features/recently_deleted/recently_deleted_screen.dart` — `Consumer` over `trashIndexProvider`, newest-first list. Tap → restore. Swipe → confirmation → hard delete. Accessible via Settings → Recently Deleted.
 
@@ -184,6 +189,6 @@ QuKi-Notes/
 
 **ShareSheetToss always succeeds (#92)**: `share_plus` fires `ShareResultStatus.dismissed` on Android even on success. Dropped the status check; always returns `TossResult(success: true, message: 'Shared.')`.
 
-**Known bugs (open)**: #72 keyboard on cold launch — deferred (Scott's call); #73 rapid shares may lose content; #75 opening a note moves it to top of list; #77 tabs/indenting broken in lists; #130 checkbox tap-to-toggle not implemented; #188 share-in launches a new app instance (Android `launchMode` issue).
+**Known bugs (open)**: #72 keyboard on cold launch — deferred (Scott's call); #73 rapid shares may lose content; #77 tabs/indenting broken in lists; #188 share-in launches a new app instance (Android `launchMode` issue).
 
-**Last Updated**: 2026-07-06
+**Last Updated**: 2026-07-08
