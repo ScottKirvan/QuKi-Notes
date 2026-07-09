@@ -32,7 +32,7 @@ QuKi Notes is a capture app. You open it, type a thought (a **QuKi**), and close
 
 A QuKi doesn't need a destination. Sometimes it's just something that needed somewhere to live — off your mind, available if it ever turns out to be useful. When it does need to go somewhere, there's a Send action: clipboard, Android share sheet, or any transport plugin you wire up. No vault, no folder structure, no organization ritual.
 
-The project prioritizes **radical simplicity** in the UI (one screen, no navigation depth, no configuration required to start) and **open extensibility** in the backend — a plugin axis for transports, a reserved axis for sync, and a reserved axis for MCP integration. Read the [manifesto](notes/dev/manifesto.md) for the full philosophy.
+The project prioritizes **radical simplicity** in the UI (one screen, no navigation depth, a one-time storage choice on first launch and then cursor-ready forever after) and **open extensibility** in the backend — a plugin axis for transports, a reserved axis for sync, and a reserved axis for MCP integration. Read the [manifesto](notes/dev/manifesto.md) for the full philosophy.
 
 > [!NOTE]
 > **Status: v0.18.1 · Closed beta.**

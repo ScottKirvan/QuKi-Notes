@@ -10,7 +10,7 @@ Open Settings from the editor via **Menu → Settings**, or from the QuKis list 
 
 Shows where your QuKis are stored. Tap **Change location** to switch between filesystem and app storage.
 
-- **Filesystem storage** — files are stored in the folder you chose on first launch. Accessible via file manager; survives uninstall.
+- **Filesystem storage** — files are stored in an accessible location on your device (the folder you chose on desktop; `Documents/QuKi_Notes` on Android). Accessible via file manager; survives uninstall.
 - **App storage** — files are stored in the app's private directory. A persistent warning is shown: "Files will be removed on uninstall. Change location."
 
 Changing the location affects new QuKis only. Existing files remain in the previous location and must be moved manually if needed.
