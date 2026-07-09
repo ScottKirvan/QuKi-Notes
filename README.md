@@ -28,9 +28,9 @@ Ephemeral notes captured on whatever device is at hand, dispatched wherever they
 
 ## What is QuKi Notes?
 
-QuKi Notes is a capture app. You open it, type a thought (a **QuKi**), and close it. That's it.
+QuKi Notes is a scratchpad and pasteboard — a blank canvas when you open it. Type a thought, draft a message, jot a list, dump a link. Use the content right there, send it somewhere with a transport plugin, or just let it drift into the list as newer things arrive. All three are valid outcomes.
 
-A QuKi doesn't need a destination. Sometimes it's just something that needed somewhere to live — off your mind, available if it ever turns out to be useful. When it does need to go somewhere, there's a Send action: clipboard, Android share sheet, or any transport plugin you wire up. No vault, no folder structure, no organization ritual.
+A QuKi doesn't need a destination. Sometimes it's just something that needed somewhere to live — off your mind, available if it ever turns out to be useful. No vault, no folder structure, no organization ritual.
 
 The project prioritizes **radical simplicity** in the UI (one screen, no navigation depth, a one-time storage choice on first launch and then cursor-ready forever after) and **open extensibility** in the backend — a plugin axis for transports, a reserved axis for sync, and a reserved axis for MCP integration. Read the [manifesto](notes/dev/manifesto.md) for the full philosophy.
 
