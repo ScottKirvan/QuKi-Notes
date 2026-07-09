@@ -3,7 +3,7 @@ layout: home
 hero:
   name: QuKi Notes
   text: Open the app. Type. Done.
-  tagline: A scratchpad and pasteboard on whatever device is at hand. Write, use, send, or let it go.
+  tagline: Scratchpad. Pasteboard. Blank canvas. For the thought that won't wait.
   actions:
     - theme: brand
       text: Get Started
@@ -12,12 +12,12 @@ hero:
       text: GitHub
       link: https://github.com/ScottKirvan/QuKi-Notes
 features:
-  - title: Blank canvas
-    details: The editor opens blank and ready. No setup, no folders, no decisions — just type.
-  - title: Send anywhere
-    details: Send a QuKi to the clipboard, your share sheet, or any transport you configure.
-  - title: Nothing to manage
-    details: No folders, tags, or backlinks. QuKis stay on your device until you delete them.
+  - title: Open and go
+    details: Tap the icon, start typing. No title, no template, no folder to pick first.
+  - title: Send when ready
+    details: Clipboard, share sheet, or any transport you wire up. A QuKi goes somewhere when you decide — not before.
+  - title: Nothing to file
+    details: No taxonomy to maintain. QuKis live newest-first, stay searchable, and stay on your device until you decide otherwise.
 ---
 
 <div style="text-align:center; margin-top: 2rem; font-size: 0.875rem; color: var(--vp-c-text-2);">
