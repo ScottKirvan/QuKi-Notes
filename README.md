@@ -53,7 +53,6 @@ The project prioritizes **radical simplicity** in the UI (one screen, no navigat
 | **Share Sheet transport** | Opens the system share dialog; Android and Windows |
 | **Android share-in** | Receive text shared from any other app into a new QuKi |
 | **Live-preview WYSIWYG editor** | The note renders as you type. Headings appear as headings, links show their label, images appear inline, checkboxes look like checkboxes. The element the cursor is inside reveals its raw markdown — move the cursor away and it renders again. No mode switch, no tap-to-flip. |
-| **Inline images** | Images referenced as `![alt](path)` render as actual embedded images in the note |
 | **Link navigation** | Tap a rendered link to open it in the browser; keyboard entry into the link reveals its source for editing |
 | **Task checkbox tap** | Tap a rendered checkbox to toggle `[ ]` ↔ `[x]` without entering edit mode |
 | **Formatting toolbar** | Bold, italic, strikethrough, inline code, H1, unordered list, ordered list, task list |
