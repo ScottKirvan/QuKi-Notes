@@ -16,8 +16,8 @@ features:
     details: Tap the icon, start typing. No title, no template, no folder to pick first.
   - title: Send when ready
     details: Clipboard, share sheet, or any transport you wire up. A QuKi goes somewhere when you decide — not before.
-  - title: Nothing to file
-    details: No taxonomy to maintain. QuKis live newest-first, stay searchable, and stay on your device until you decide otherwise.
+  - title: Plain files, always yours
+    details: Every QuKi is a plain .md file on your device. No cloud, no account, no lock-in. Read or move them without ever opening the app.
 ---
 
 <div style="text-align:center; margin-top: 2rem; font-size: 0.875rem; color: var(--vp-c-text-2);">
