@@ -35,36 +35,36 @@ A QuKi doesn't need a destination. Sometimes it's just something that needed som
 The project prioritizes **radical simplicity** in the UI (one screen, no navigation depth, no configuration required to start) and **open extensibility** in the backend — a plugin axis for transports, a reserved axis for sync, and a reserved axis for MCP integration. Read the [manifesto](notes/dev/manifesto.md) for the full philosophy.
 
 > [!NOTE]
-> **Status: v0.13.0 · Phase 3 complete.**
-> Core capture, local storage, transport plugins, block-flip WYSIWYG markdown editing, and Recently Deleted are all shipped. All design docs and Claude session directives are committed to the repo — start with the [manifesto](notes/dev/manifesto.md).
+> **Status: v0.18.1 · Closed beta.**
+> Core capture, local storage, transport plugins, live-preview WYSIWYG markdown editing, and Recently Deleted are all shipped. All design docs and Claude session directives are committed to the repo — start with the [manifesto](notes/dev/manifesto.md).
 
 ---
 
 ## Features
-
-Shipped and working in v0.9.6:
 
 | Feature | Details |
 |---|---|
 | **Instant capture** | App opens to a blank editor — no title field, no setup, cursor ready |
 | **Auto-save** | 2 s idle debounce + 30 s periodic + app lifecycle hooks; no save button |
 | **QuKis list** | Newest-first, case-insensitive search, swipe-to-delete |
-| **Recently Deleted** | Soft-deleted QuKis held until you remove them; restore or permanently delete |
+| **Recently Deleted** | Soft-deleted QuKis held in Trash until you remove them; restore or permanently delete |
 | **Transport plugins** | Compile-time registry; two built-in transports |
 | **Clipboard transport** | Copies full QuKi text to system clipboard; Android, Windows, Linux |
 | **Share Sheet transport** | Opens the system share dialog; Android and Windows |
 | **Android share-in** | Receive text shared from any other app into a new QuKi |
-| **Block-flip WYSIWYG editor** | Document split into one block per line; idle blocks render via `flutter_markdown`; tap a block to edit, tap away to render |
-| **Formatting toolbar** | Bold, italic, strikethrough, H1, unordered list, ordered list, task list |
-| **List auto-continue** | Press Enter at the end of a list item to continue the list; Enter on an empty item exits the list |
-| **Inline markdown shortcuts** | `**x**` → bold, `_x_` / `*x*` → italic, `` `x` `` → code, `- [ ] ` → task item |
+| **Live-preview WYSIWYG editor** | The note renders as you type. Headings appear as headings, links show their label, images appear inline, checkboxes look like checkboxes. The element the cursor is inside reveals its raw markdown — move the cursor away and it renders again. No mode switch, no tap-to-flip. |
+| **Inline images** | Images referenced as `![alt](path)` render as actual embedded images in the note |
+| **Link navigation** | Tap a rendered link to open it in the browser; keyboard entry into the link reveals its source for editing |
 | **Task checkbox tap** | Tap a rendered checkbox to toggle `[ ]` ↔ `[x]` without entering edit mode |
-| **Cross-block keyboard navigation** | Arrow-up/down at block boundaries moves focus to the adjacent block |
-| **Plain-text toggle** | T icon in the app bar — switch between block-flip WYSIWYG and a single plain-text field |
+| **Formatting toolbar** | Bold, italic, strikethrough, inline code, H1, unordered list, ordered list, task list |
+| **List auto-continue** | Press Enter at the end of a list item to continue the list; Enter on an empty item exits the list |
+| **Inline markdown** | `**x**` → bold, `_x_` / `*x*` → italic, `` `x` `` → code, `~~x~~` → strikethrough, `- [ ] ` → task item, `# ` → heading, `> ` → blockquote, `---` → rule; autolinks detected |
+| **Plain-text toggle** | Type icon in the app bar — switch the entire note to a plain-text field for bulk edits or raw paste |
+| **Storage location** | On first launch, choose between filesystem storage (files survive uninstall, accessible via file manager) or app storage |
 | **Primer High Contrast theme** | GitHub Primer Dark HC in dark mode; Primer Light HC in light mode |
 | **Desktop keyboard shortcuts** | Ctrl+T (Send...), Ctrl+N (new QuKi) on Windows / Linux |
 | **Window-state persistence** | Size and position remembered between sessions (Windows / Linux) |
-| **Settings** | Per-transport enable/disable; theme follows system |
+| **Settings** | Per-transport enable/disable; storage location; theme follows system |
 | **No telemetry** | No analytics, no crash reporting, no tracking — ever |
 
 Not in this release:
@@ -167,7 +167,7 @@ Platform release builds (Android APK, Windows bundle, Linux tarball) are trigger
 | Framework | Flutter / Dart | Single codebase; all active platforms |
 | State / DI | `flutter_riverpod` + `riverpod_generator` | `@riverpod` code-gen throughout |
 | Local storage | Individual `.md` files + `.meta/{uuid}.json` sidecars | `dart:io`; no ORM; `mtime` is the source of truth for `modifiedAt` |
-| Editor | `markdown_live_editor` (monorepo package) | Block-flip WYSIWYG; `flutter_markdown` for rendering, `TextField` per block for editing; GFM-compatible storage |
+| Editor | `markdown_live_editor` (monorepo package) | Custom `RenderObject` + `TextInputClient` live-preview engine; per-element reveal/collapse; plain markdown source is always the canonical buffer (ADR-31) |
 | Icons | `lucide_flutter` | Migrated from Material icons in v0.8.0 |
 | Desktop window | `window_manager` | Size/position persistence on Windows + Linux |
 | Clipboard / share | `share_plus` | Cross-platform clipboard; Android share dialog |
@@ -224,6 +224,9 @@ Architecture decisions are logged as ADRs in [notes/dev/decisions.md](notes/dev/
 | No dynamic plugin loading | Transport plugins compiled in; no runtime discovery | ADR-14 |
 | `lib/core/` Flutter-free | Preserves a future CLI sharing core logic | ADR-16 |
 | File-based storage | Individual `.md` files; no ORM; `mtime` is `modifiedAt` | ADR-25 |
+| Storage location | First-launch modal; filesystem (SAF/`MANAGE_EXTERNAL_STORAGE`) or app storage | ADR-27/28 |
+| Live-preview editor engine | Custom `RenderObject` + `TextInputClient`; per-element reveal/collapse; no `TextField`/`EditableText` | ADR-31 |
+| Link tap navigates | Tapping a rendered link opens the URL; keyboard entry reveals source | ADR-31/32 |
 | Soft-delete → `.trash/` | Swipe moves to `.trash/`; restore or hard-delete from Recently Deleted | ADR-5 |
 | Save vs. send | Auto-save always on; send is always user-initiated | ADR-6 |
 | No sync in MVP | Local-only; sync is opt-in plugin axis, not a core feature | ADR-18 |
@@ -280,7 +283,7 @@ All planning documents live in `notes/dev/`. Read these before proposing structu
 |---|---|
 | [manifesto.md](notes/dev/manifesto.md) | Normative philosophy — read this first |
 | [design_spec.md](notes/dev/design_spec.md) | Full feature spec, vocabulary, development phases |
-| [decisions.md](notes/dev/decisions.md) | Architecture Decision Records (ADR-1 → ADR-26) |
+| [decisions.md](notes/dev/decisions.md) | Architecture Decision Records (ADR-1 → ADR-32) |
 | [open_questions.md](notes/dev/open_questions.md) | Active blockers and unresolved questions |
 | [dependencies.md](notes/dev/dependencies.md) | Approved packages and rationale by phase |
 | [testing.md](notes/dev/testing.md) | Test strategy and conventions |
@@ -295,18 +298,23 @@ All planning documents live in `notes/dev/`. Read these before proposing structu
 | 0 | Bootstrap scaffold | Complete |
 | 1 | Local QuKi capture on Android | Complete (v0.3.0) |
 | 2 | Transport plugin system + built-in transports | Complete (v0.5.0) |
-| 3 | Polish, share-in, desktop | Complete (v0.13.0) |
-| &ensp;3.1 | Android share-in | Complete |
-| &ensp;3.2 | Windows + Linux CI verification | Complete |
-| &ensp;3.3 | Platform guard: share-in on desktop | Complete |
+| 3 | Polish, share-in, desktop | In progress |
+| &ensp;3.1 | Android share-in | Complete (v0.6.0) |
+| &ensp;3.2 | Windows + Linux CI verification | Complete (v0.6.1) |
+| &ensp;3.3 | Platform guard: share-in on desktop | Complete (v0.6.2) |
 | &ensp;3.4 | Desktop keyboard shortcuts + window-state | Complete (v0.7–v0.8) |
 | &ensp;3.5 | WYSIWYG markdown rendering | Complete (v0.9.1) |
 | &ensp;3.6 | Primer High Contrast theme | Complete (v0.9.2) |
 | &ensp;3.7 | Editor UX polish batch | Complete (v0.9.4–v0.9.5) |
 | &ensp;3.8 | Storage migration: Drift → individual `.md` files | Complete (v0.9.6) |
 | &ensp;3.9 | Recently Deleted screen | Complete (v0.9.6) |
-| &ensp;3.10 | WYSIWYG editor rewrite (ADR-26) — all 4 stages | Complete (v0.10.0–v0.12.0) |
-| &ensp;3.11 | Stream performance (lazy loading) | Deferred — threshold not hit |
+| &ensp;3.10 | WYSIWYG editor rewrite (ADR-26) — block-flip | Complete (v0.10.0–v0.12.0) |
+| &ensp;3.11 | App icon | Complete (v0.12.0–v0.13.0) |
+| &ensp;3.12 | Storage location choice — first-launch modal (ADR-27/28) | Complete (v0.14.0) |
+| &ensp;3.13 | Keyboard on cold launch (#72) | Complete (v0.14.x) |
+| &ensp;3.14 | Live-preview editor engine (ADR-31) — all 6 stages | Complete (v0.16.0–v0.18.0) |
+| &ensp;3.15 | Storage sidecar modifiedAt fix (#75) | Complete (v0.18.1) |
+| &ensp;3.16 | Stream performance (lazy loading) | Deferred — threshold not hit |
 | 4 | Sync plugin axis + first sync backend | v1.1+ |
 | 5 | iOS / iPadOS / macOS builds | Deferred |
 | 6 | MCP plugin axis | v2.0+ |
