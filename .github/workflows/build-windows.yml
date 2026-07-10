@@ -25,19 +25,40 @@ jobs:
       - name: Build Windows release
         run: flutter build windows --release
 
-      - name: Zip release
-        run: Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath quki-notes-windows.zip
+      - name: Install WiX 4
+        run: |
+          dotnet tool install --global wix --version "4.*"
+          $wixVersion = (wix --version).Trim()
+          wix extension add "WixToolset.UI.wixext/$wixVersion"
 
-      - name: Upload zip as artifact (manual dispatch)
+      - name: Get version from pubspec
+        id: version
+        shell: bash
+        run: |
+          version=$(grep '^version:' pubspec.yaml | sed 's/version: //' | sed 's/+.*//')
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Generate app file manifest
+        run: powershell installer\harvest.ps1
+
+      - name: Build MSI
+        run: >
+          wix build installer\Product.wxs installer\AppFiles.wxs
+          -arch x64
+          -d Version=${{ steps.version.outputs.version }}
+          -ext WixToolset.UI.wixext
+          -o quki-notes-windows.msi
+
+      - name: Upload MSI as artifact (manual dispatch)
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: quki-notes-windows
-          path: quki-notes-windows.zip
+          path: quki-notes-windows.msi
           retention-days: 14
 
       - name: Upload to GitHub Release
         if: github.event_name != 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
-          files: quki-notes-windows.zip
+          files: quki-notes-windows.msi

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs"
+     xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
+
+  <Package Name="QuKi Notes"
+           Manufacturer="Scott Kirvan"
+           Version="$(var.Version)"
+           UpgradeCode="{3E4A8F12-7C9D-4B6E-A531-8E2C6F4B9D7A}"
+           Language="1033"
+           Scope="perMachine">
+
+    <MajorUpgrade DowngradeErrorMessage="A newer version of QuKi Notes is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <ui:WixUI Id="WixUI_FeatureTree" />
+    <WixVariable Id="WixUILicenseRtf" Value="installer\License.rtf" />
+
+    <StandardDirectory Id="ProgramFiles6432Folder">
+      <Directory Id="INSTALLFOLDER" Name="QuKi Notes" />
+    </StandardDirectory>
+
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="ApplicationProgramsFolder" Name="QuKi Notes" />
+    </StandardDirectory>
+
+    <Component Id="ApplicationShortcut" Directory="ApplicationProgramsFolder" Guid="*">
+      <Shortcut Id="AppStartMenuShortcut"
+                Name="QuKi Notes"
+                Description="Capture and toss ephemeral notes"
+                Target="[INSTALLFOLDER]quki_notes.exe"
+                WorkingDirectory="INSTALLFOLDER" />
+      <RemoveFolder Id="RemoveAppProgramsFolder" Directory="ApplicationProgramsFolder" On="uninstall" />
+      <RegistryValue Root="HKCU" Key="Software\ScottKirvan\QuKiNotes"
+                     Name="installed" Type="integer" Value="1" KeyPath="yes" />
+    </Component>
+
+    <Component Id="ContextMenuTxt" Directory="TARGETDIR" Guid="*">
+      <RegistryValue Root="HKCR" Key=".txt\shell\Open with QuKi Notes"
+                     Type="string" Value="Open with QuKi Notes" KeyPath="yes" />
+      <RegistryValue Root="HKCR" Key=".txt\shell\Open with QuKi Notes\command"
+                     Type="string" Value='"[INSTALLFOLDER]quki_notes.exe" "%1"' />
+    </Component>
+
+    <Component Id="ContextMenuMd" Directory="TARGETDIR" Guid="*">
+      <RegistryValue Root="HKCR" Key=".md\shell\Open with QuKi Notes"
+                     Type="string" Value="Open with QuKi Notes" KeyPath="yes" />
+      <RegistryValue Root="HKCR" Key=".md\shell\Open with QuKi Notes\command"
+                     Type="string" Value='"[INSTALLFOLDER]quki_notes.exe" "%1"' />
+    </Component>
+
+    <Feature Id="MainApp" Title="QuKi Notes" Level="1" Absent="disallow"
+             Description="The QuKi Notes application (required).">
+      <ComponentGroupRef Id="AppFiles" />
+      <ComponentRef Id="ApplicationShortcut" />
+    </Feature>
+
+    <Feature Id="ExplorerContextMenu" Title="Explorer Context Menu" Level="1"
+             Description="Add 'Open with QuKi Notes' to the right-click menu for .txt and .md files in File Explorer.">
+      <ComponentRef Id="ContextMenuTxt" />
+      <ComponentRef Id="ContextMenuMd" />
+    </Feature>
+
+  </Package>
+
+</Wix>
