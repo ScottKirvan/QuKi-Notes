@@ -48,7 +48,7 @@
                      Type="string" Value='"[INSTALLFOLDER]quki_notes.exe" "%1"' />
     </Component>
 
-    <Feature Id="MainApp" Title="QuKi Notes" Level="1" Absent="disallow"
+    <Feature Id="MainApp" Title="QuKi Notes" Level="1"
              Description="The QuKi Notes application (required).">
       <ComponentGroupRef Id="AppFiles" />
       <ComponentRef Id="ApplicationShortcut" />
