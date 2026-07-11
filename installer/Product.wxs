@@ -24,7 +24,7 @@
                   Impersonate="yes" />
 
     <UI>
-      <ui:WixUI Id="WixUI_FeatureTree" />
+      <ui:WixUI Id="WixUI_InstallDir" InstallDirectory="INSTALLFOLDER" />
       <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="LaunchApp"
                Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1" />
     </UI>
@@ -48,41 +48,10 @@
                      Name="installed" Type="integer" Value="1" KeyPath="yes" />
     </Component>
 
-    <Component Id="ContextMenuTxt" Directory="TARGETDIR" Guid="*">
-      <RegistryValue Root="HKCR" Key=".txt\shell\Open with QuKi Notes"
-                     Type="string" Value="Open with QuKi Notes" KeyPath="yes" />
-      <RegistryValue Root="HKCR" Key=".txt\shell\Open with QuKi Notes\command"
-                     Type="string" Value='"[INSTALLFOLDER]quki_notes.exe" "%1"' />
-    </Component>
-
-    <Component Id="ContextMenuMd" Directory="TARGETDIR" Guid="*">
-      <RegistryValue Root="HKCR" Key=".md\shell\Open with QuKi Notes"
-                     Type="string" Value="Open with QuKi Notes" KeyPath="yes" />
-      <RegistryValue Root="HKCR" Key=".md\shell\Open with QuKi Notes\command"
-                     Type="string" Value='"[INSTALLFOLDER]quki_notes.exe" "%1"' />
-    </Component>
-
-    <Component Id="ClassicContextMenu" Directory="TARGETDIR" Guid="*">
-      <RegistryValue Root="HKLM"
-                     Key="SOFTWARE\Classes\CLSID\{86ca1aa0-34aa-4e8b-a509-50c905bae2a2}\InprocServer32"
-                     Type="string" Value="" KeyPath="yes" />
-    </Component>
-
     <Feature Id="MainApp" Title="QuKi Notes" Level="1"
-             Description="The QuKi Notes application (required).">
+             Description="The QuKi Notes application.">
       <ComponentGroupRef Id="AppFiles" />
       <ComponentRef Id="ApplicationShortcut" />
-    </Feature>
-
-    <Feature Id="ExplorerContextMenu" Title="Explorer Context Menu" Level="1"
-             Description="Add 'Open with QuKi Notes' to the right-click menu for .txt and .md files in File Explorer.">
-      <ComponentRef Id="ContextMenuTxt" />
-      <ComponentRef Id="ContextMenuMd" />
-    </Feature>
-
-    <Feature Id="ClassicContextMenuFeature" Title="Classic Right-Click Menu (Windows 11)" Level="1000"
-             Description="Reverts the Windows 11 right-click menu to the classic style so context menu entries appear without clicking 'Show more options'. Restart File Explorer after install (taskkill /f /im explorer.exe &amp; start explorer.exe).">
-      <ComponentRef Id="ClassicContextMenu" />
     </Feature>
 
   </Package>
