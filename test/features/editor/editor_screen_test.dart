@@ -32,8 +32,7 @@ class _FakeQuKiStorage extends QuKiStorage {
   }
 
   @override
-  Future<DateTime> update(String id, String body,
-      {DateTime? modifiedAt}) async {
+  Future<DateTime> update(String id, String body, {DateTime? modifiedAt}) async {
     saves.add((id: id, body: body));
     return modifiedAt?.toUtc() ?? DateTime.now().toUtc();
   }
@@ -73,9 +72,7 @@ class _FakeQuKiIndex extends QuKiIndexNotifier {
 
   @override
   void removeMeta(String id) {
-    state.whenData(
-      (list) => state = AsyncValue.data(list.where((m) => m.id != id).toList()),
-    );
+    state.whenData((list) => state = AsyncValue.data(list.where((m) => m.id != id).toList()));
   }
 
   @override
@@ -105,10 +102,7 @@ class _ThrowingTransport extends TransportPlugin {
   }
 }
 
-Widget _buildEditor({
-  QuKiStorage? storage,
-  List<QuKiMeta> initialIndex = const [],
-}) {
+Widget _buildEditor({QuKiStorage? storage, List<QuKiMeta> initialIndex = const []}) {
   final s = storage ?? _FakeQuKiStorage();
   return ProviderScope(
     overrides: [
@@ -126,8 +120,7 @@ Future<void> cleanup(WidgetTester tester) async {
 
 void main() {
   group('EditorScreen renders', () {
-    testWidgets('shows MarkdownEditor on launch with QuikiEditor',
-        (tester) async {
+    testWidgets('shows MarkdownEditor on launch with QuikiEditor', (tester) async {
       await tester.pumpWidget(_buildEditor());
       await tester.pump();
 
@@ -137,8 +130,7 @@ void main() {
       await cleanup(tester);
     });
 
-    testWidgets('shows QuKis icon, + button, hamburger — no back button',
-        (tester) async {
+    testWidgets('shows QuKis icon, + button, hamburger — no back button', (tester) async {
       await tester.pumpWidget(_buildEditor());
       await tester.pump();
 
@@ -150,8 +142,7 @@ void main() {
       await cleanup(tester);
     });
 
-    testWidgets('hamburger menu contains Send..., QuKis, Settings',
-        (tester) async {
+    testWidgets('hamburger menu contains Send..., QuKis, Settings', (tester) async {
       await tester.pumpWidget(_buildEditor());
       await tester.pump();
 
@@ -168,28 +159,30 @@ void main() {
   });
 
   group('EditorScreen navigation', () {
-    testWidgets(
-        'no back button even when navigator-pushed — EditorScreen is always root',
-        (tester) async {
-      await tester.pumpWidget(ProviderScope(
-        overrides: [
-          quKiStorageProvider.overrideWithValue(_FakeQuKiStorage()),
-          quKiIndexProvider.overrideWith(() => _FakeQuKiIndex(const [])),
-        ],
-        child: MaterialApp(
-          home: Builder(
-            builder: (ctx) => Scaffold(
-              body: ElevatedButton(
-                onPressed: () => Navigator.push<void>(
-                  ctx,
-                  MaterialPageRoute(builder: (_) => const EditorScreen()),
+    testWidgets('no back button even when navigator-pushed — EditorScreen is always root', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            quKiStorageProvider.overrideWithValue(_FakeQuKiStorage()),
+            quKiIndexProvider.overrideWith(() => _FakeQuKiIndex(const [])),
+          ],
+          child: MaterialApp(
+            home: Builder(
+              builder: (ctx) => Scaffold(
+                body: ElevatedButton(
+                  onPressed: () => Navigator.push<void>(
+                    ctx,
+                    MaterialPageRoute(builder: (_) => const EditorScreen()),
+                  ),
+                  child: const Text('Push'),
                 ),
-                child: const Text('Push'),
               ),
             ),
           ),
         ),
-      ));
+      );
       await tester.pump();
       await tester.tap(find.text('Push'));
       await tester.pump();
@@ -204,30 +197,26 @@ void main() {
   });
 
   group('EditorScreen QuKis icon (#86)', () {
-    testWidgets(
-        'disabled when index is empty — '
-        'regression: icon was always enabled regardless of DB state (#86)',
-        (tester) async {
+    testWidgets('disabled when index is empty — '
+        'regression: icon was always enabled regardless of DB state (#86)', (tester) async {
       await tester.pumpWidget(_buildEditor());
       await tester.pump();
       await tester.pump(Duration.zero);
 
       final iconButton = tester.widget<IconButton>(
-        find.ancestor(
-          of: find.byIcon(LucideIcons.fileStack),
-          matching: find.byType(IconButton),
-        ),
+        find.ancestor(of: find.byIcon(LucideIcons.fileStack), matching: find.byType(IconButton)),
       );
-      expect(iconButton.onPressed, isNull,
-          reason: 'QuKis icon must be disabled when the index is empty');
+      expect(
+        iconButton.onPressed,
+        isNull,
+        reason: 'QuKis icon must be disabled when the index is empty',
+      );
 
       await cleanup(tester);
     });
 
-    testWidgets(
-        'enabled when index has items — '
-        'regression: icon did not react to index changes (#86)',
-        (tester) async {
+    testWidgets('enabled when index has items — '
+        'regression: icon did not react to index changes (#86)', (tester) async {
       final meta = QuKiMeta(
         id: 'test-id',
         filePath: '/fake/test-id.md',
@@ -240,13 +229,13 @@ void main() {
       await tester.pump(Duration.zero);
 
       final iconButton = tester.widget<IconButton>(
-        find.ancestor(
-          of: find.byIcon(LucideIcons.fileStack),
-          matching: find.byType(IconButton),
-        ),
+        find.ancestor(of: find.byIcon(LucideIcons.fileStack), matching: find.byType(IconButton)),
       );
-      expect(iconButton.onPressed, isNotNull,
-          reason: 'QuKis icon must be enabled when there are QuKis');
+      expect(
+        iconButton.onPressed,
+        isNotNull,
+        reason: 'QuKis icon must be enabled when there are QuKis',
+      );
 
       await cleanup(tester);
     });
@@ -263,13 +252,10 @@ void main() {
       await tester.tap(find.text('Send...'));
       await tester.pump();
 
-      expect(
-        find.text('Nothing to toss — write something first.'),
-        findsOneWidget,
-      );
+      expect(find.text('Nothing to send — write something first.'), findsOneWidget);
       final snackBar = tester.firstWidget<SnackBar>(
         find.ancestor(
-          of: find.text('Nothing to toss — write something first.'),
+          of: find.text('Nothing to send — write something first.'),
           matching: find.byType(SnackBar),
         ),
       );
@@ -278,29 +264,25 @@ void main() {
       await cleanup(tester);
     });
 
-    testWidgets(
-        'shows error snackbar with Retry when plugin throws — '
-        'regression: plugin crash left UI in indeterminate state',
-        (tester) async {
-      await tester.pumpWidget(ProviderScope(
-        overrides: [
-          quKiStorageProvider.overrideWithValue(_FakeQuKiStorage()),
-          quKiIndexProvider.overrideWith(() => _FakeQuKiIndex(const [])),
-          enabledTransportsProvider
-              .overrideWithValue(const [_ThrowingTransport()]),
-        ],
-        child: const MaterialApp(home: EditorScreen()),
-      ));
+    testWidgets('shows error snackbar with Retry when plugin throws — '
+        'regression: plugin crash left UI in indeterminate state', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            quKiStorageProvider.overrideWithValue(_FakeQuKiStorage()),
+            quKiIndexProvider.overrideWith(() => _FakeQuKiIndex(const [])),
+            enabledTransportsProvider.overrideWithValue(const [_ThrowingTransport()]),
+          ],
+          child: const MaterialApp(home: EditorScreen()),
+        ),
+      );
       await tester.pump();
 
       // Focus the editor and inject text via the TextInputClient.
       await tester.tap(find.byType(MarkdownEditor));
       await tester.pump();
       tester.testTextInput.updateEditingValue(
-        const TextEditingValue(
-          text: 'toss me',
-          selection: TextSelection.collapsed(offset: 7),
-        ),
+        const TextEditingValue(text: 'toss me', selection: TextSelection.collapsed(offset: 7)),
       );
       await tester.pump();
 
@@ -344,17 +326,18 @@ void main() {
       await tester.pump(const Duration(seconds: 3));
       await tester.pump(); // flush async save completion
 
-      expect(storage.saves, isNotEmpty,
-          reason: 'AutoSaveController must write after debounce fires');
+      expect(
+        storage.saves,
+        isNotEmpty,
+        reason: 'AutoSaveController must write after debounce fires',
+      );
       expect(storage.saves.first.body, 'debounce test');
 
       await cleanup(tester);
     });
 
-    testWidgets(
-        'loading a QuKi without editing does not rewrite the file — '
-        'regression: _onActiveQukiChanged triggered spurious saves (#75)',
-        (tester) async {
+    testWidgets('loading a QuKi without editing does not rewrite the file — '
+        'regression: _onActiveQukiChanged triggered spurious saves (#75)', (tester) async {
       late Directory tmpDir;
       late QuKiStorage storage;
       late QuKiMeta meta;
@@ -366,19 +349,22 @@ void main() {
       });
       addTearDown(() => tmpDir.delete(recursive: true));
 
-      final statBefore =
-          await tester.runAsync(() => File(meta.filePath).stat());
+      final statBefore = await tester.runAsync(() => File(meta.filePath).stat());
 
-      final container = ProviderContainer(overrides: [
-        quKiStorageProvider.overrideWithValue(storage),
-        quKiIndexProvider.overrideWith(() => _FakeQuKiIndex([meta])),
-      ]);
+      final container = ProviderContainer(
+        overrides: [
+          quKiStorageProvider.overrideWithValue(storage),
+          quKiIndexProvider.overrideWith(() => _FakeQuKiIndex([meta])),
+        ],
+      );
       addTearDown(container.dispose);
 
-      await tester.pumpWidget(UncontrolledProviderScope(
-        container: container,
-        child: const MaterialApp(home: EditorScreen()),
-      ));
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: EditorScreen()),
+        ),
+      );
       await tester.pump();
 
       // setId triggers _onActiveQukiChanged → read → setValue.
@@ -392,17 +378,18 @@ void main() {
 
       final statAfter = await tester.runAsync(() => File(meta.filePath).stat());
 
-      expect(statAfter!.modified, equals(statBefore!.modified),
-          reason:
-              'mtime must not change when a QuKi is loaded without editing');
+      expect(
+        statAfter!.modified,
+        equals(statBefore!.modified),
+        reason: 'mtime must not change when a QuKi is loaded without editing',
+      );
 
       await cleanup(tester);
     });
   });
 
   group('EditorScreen switching QuKi', () {
-    testWidgets('loads body of the selected QuKi into the editor',
-        (tester) async {
+    testWidgets('loads body of the selected QuKi into the editor', (tester) async {
       late Directory tmpDir;
       late QuKiStorage storage;
       late QuKiMeta meta;
@@ -414,16 +401,20 @@ void main() {
       });
       addTearDown(() => tmpDir.delete(recursive: true));
 
-      final container = ProviderContainer(overrides: [
-        quKiStorageProvider.overrideWithValue(storage),
-        quKiIndexProvider.overrideWith(() => _FakeQuKiIndex([meta])),
-      ]);
+      final container = ProviderContainer(
+        overrides: [
+          quKiStorageProvider.overrideWithValue(storage),
+          quKiIndexProvider.overrideWith(() => _FakeQuKiIndex([meta])),
+        ],
+      );
       addTearDown(container.dispose);
 
-      await tester.pumpWidget(UncontrolledProviderScope(
-        container: container,
-        child: const MaterialApp(home: EditorScreen()),
-      ));
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: EditorScreen()),
+        ),
+      );
       await tester.pump();
 
       // Focus the editor so QuikiEditorState opens a TextInputConnection.
