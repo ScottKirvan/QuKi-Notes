@@ -55,7 +55,8 @@ class EditorScreen extends ConsumerStatefulWidget {
   ConsumerState<EditorScreen> createState() => _EditorScreenState();
 }
 
-class _EditorScreenState extends ConsumerState<EditorScreen> with WidgetsBindingObserver {
+class _EditorScreenState extends ConsumerState<EditorScreen>
+    with WidgetsBindingObserver {
   late final MarkdownEditorController _editorController;
   late final AutoSaveController _autoSave;
 
@@ -144,7 +145,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen> with WidgetsBinding
     } else {
       return;
     }
-    final newText = current.replaceRange(sourceOffset, sourceOffset + 6, replacement);
+    final newText =
+        current.replaceRange(sourceOffset, sourceOffset + 6, replacement);
     _editorController.setValue(newText);
     _autoSave.notifyChanged();
   }
@@ -198,7 +200,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen> with WidgetsBinding
   }
 
   Future<void> _openSettings() async {
-    await Navigator.push<void>(context, _slideFromRight(const SettingsScreen()));
+    await Navigator.push<void>(
+        context, _slideFromRight(const SettingsScreen()));
   }
 
   Future<void> _onToss() async {
@@ -216,7 +219,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen> with WidgetsBinding
     final enabled = ref.read(enabledTransportsProvider);
     if (enabled.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No transports enabled.'), duration: Duration(seconds: 2)),
+        const SnackBar(
+            content: Text('No transports enabled.'),
+            duration: Duration(seconds: 2)),
       );
       return;
     }
@@ -240,7 +245,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen> with WidgetsBinding
     final now = DateTime.now();
     final ctx = TossContext(
       firedAt: now,
-      quki: QukiMetadata(id: _autoSave.savedId ?? 'unsaved', createdAt: now, modifiedAt: now),
+      quki: QukiMetadata(
+          id: _autoSave.savedId ?? 'unsaved', createdAt: now, modifiedAt: now),
     );
 
     TossResult result;
@@ -262,8 +268,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen> with WidgetsBinding
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(result.message ?? (result.success ? 'Sent!' : 'Send failed.')),
-        duration: result.success ? const Duration(seconds: 2) : const Duration(seconds: 4),
+        content:
+            Text(result.message ?? (result.success ? 'Sent!' : 'Send failed.')),
+        duration: result.success
+            ? const Duration(seconds: 2)
+            : const Duration(seconds: 4),
         action: (!result.success && result.retryable)
             ? SnackBarAction(label: 'Retry', onPressed: _onToss)
             : null,
@@ -300,10 +309,15 @@ class _EditorScreenState extends ConsumerState<EditorScreen> with WidgetsBinding
         actions: [
           IconButton(
             icon: const Icon(LucideIcons.type),
-            tooltip: _editorController.plainTextMode ? 'Block mode' : 'Plain text',
-            onPressed: () => setState(() => _editorController.togglePlainTextMode()),
+            tooltip:
+                _editorController.plainTextMode ? 'Block mode' : 'Plain text',
+            onPressed: () =>
+                setState(() => _editorController.togglePlainTextMode()),
           ),
-          IconButton(icon: const Icon(LucideIcons.plus), tooltip: 'New QuKi', onPressed: _newQuKi),
+          IconButton(
+              icon: const Icon(LucideIcons.plus),
+              tooltip: 'New QuKi',
+              onPressed: _newQuKi),
           PopupMenuButton<String>(
             icon: const Icon(LucideIcons.menu),
             tooltip: 'Menu',
@@ -337,7 +351,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen> with WidgetsBinding
                 onChanged: (_) => _autoSave.notifyChanged(),
                 controller: _editorController,
                 config: MarkdownEditorConfig(
-                  textStyle: TextStyle(color: scheme.onSurface, fontSize: 16, height: 1.4),
+                  textStyle: TextStyle(
+                      color: scheme.onSurface, fontSize: 16, height: 1.4),
                 ),
                 imageLoader: _loadImage,
                 onLinkTap: _onLinkTap,
