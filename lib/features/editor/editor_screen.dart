@@ -72,6 +72,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     _autoSave.start();
 
     WidgetsBinding.instance.addObserver(this);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _editorController.requestFocus();
+    });
   }
 
   @override
@@ -375,7 +379,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
             _newQuKi();
           },
         },
-        child: Focus(autofocus: true, skipTraversal: true, child: scaffold),
+        child: Focus(skipTraversal: true, child: scaffold),
       );
     }
     return scaffold;
