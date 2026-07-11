@@ -12,8 +12,22 @@
     <MajorUpgrade DowngradeErrorMessage="A newer version of QuKi Notes is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
-    <ui:WixUI Id="WixUI_FeatureTree" />
     <WixVariable Id="WixUILicenseRtf" Value="installer\License.rtf" />
+
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOX" Value="1" />
+    <Property Id="WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT" Value="Launch QuKi Notes" />
+
+    <CustomAction Id="LaunchApp"
+                  Directory="INSTALLFOLDER"
+                  ExeCommand='"[INSTALLFOLDER]quki_notes.exe"'
+                  Return="asyncNoWait"
+                  Impersonate="yes" />
+
+    <UI>
+      <ui:WixUI Id="WixUI_FeatureTree" />
+      <Publish Dialog="ExitDialog" Control="Finish" Event="DoAction" Value="LaunchApp"
+               Condition="WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1" />
+    </UI>
 
     <StandardDirectory Id="ProgramFiles6432Folder">
       <Directory Id="INSTALLFOLDER" Name="QuKi Notes" />
