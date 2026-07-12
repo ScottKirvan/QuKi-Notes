@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.18.2](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.18.1...v0.18.2) (2026-07-12)
+
+
+### Bug Fixes
+
+* dart format - CI / build breaker ([2afb9b1](https://github.com/ScottKirvan/QuKi-Notes/commit/2afb9b1d6b2cd526c6e5a28af85e22955694fd9d))
+* **editor:** focus editor on launch via postFrameCallback — fixes keyboard on Windows/Linux ([#72](https://github.com/ScottKirvan/QuKi-Notes/issues/72)) ([923cec2](https://github.com/ScottKirvan/QuKi-Notes/commit/923cec2d7cf2d04467ad485137462500e8de1bd6))
+* text fixup "toss" -&gt; "send" ([f963cc0](https://github.com/ScottKirvan/QuKi-Notes/commit/f963cc0198d2dce0c1e33e58b66ae1d606b7ef94))
+
 ## [0.18.1](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.18.0...v0.18.1) (2026-07-08)
 
 
