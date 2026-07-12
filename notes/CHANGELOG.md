@@ -9,6 +9,8 @@
 * **editor:** focus editor on launch via postFrameCallback — fixes keyboard on Windows/Linux ([#72](https://github.com/ScottKirvan/QuKi-Notes/issues/72)) ([923cec2](https://github.com/ScottKirvan/QuKi-Notes/commit/923cec2d7cf2d04467ad485137462500e8de1bd6))
 * text fixup "toss" -&gt; "send" ([f963cc0](https://github.com/ScottKirvan/QuKi-Notes/commit/f963cc0198d2dce0c1e33e58b66ae1d606b7ef94))
 
+Includes PRs: [#227](https://github.com/ScottKirvan/QuKi-Notes/pull/227), [#228](https://github.com/ScottKirvan/QuKi-Notes/pull/228), [#229](https://github.com/ScottKirvan/QuKi-Notes/pull/229), [#230](https://github.com/ScottKirvan/QuKi-Notes/pull/230), [#231](https://github.com/ScottKirvan/QuKi-Notes/pull/231), [#232](https://github.com/ScottKirvan/QuKi-Notes/pull/232)
+
 ## [0.18.1](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.18.0...v0.18.1) (2026-07-08)
 
 
