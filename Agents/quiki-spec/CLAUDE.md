@@ -135,7 +135,13 @@ See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phas
 
 **Current version**: v0.18.2 (released 2026-07-12). Cold launch keyboard fix (all platforms) + Windows MSI installer shipped.
 
-**No PR currently open.**
+**PR #233 open** (docs/spec-sync-v0.18.2): this file + root CLAUDE.md synced to v0.18.2. Docs-only, CI green, ready to merge.
+
+**Issues filed 2026-07-15** (testing batch): #234–#256. Bugs: #234 toolbar obscures last line, #235 toolbar visible when unfocused, #236 cursor after closing delimiter, #237 blockquote rendering, #238 text selection UX. Features: #239 reading mode + T button, #240 nested inline formats (arch blocker), #241 nested/indented lists (arch blocker), #242 nested blockquotes, #243 GitHub callouts, #244 fenced code, #245 tables, #246 external URL images, #247 clipboard paste images (blocked), #248 toolbar context highlight, #249 sticky plaintext mode, #250 cursor/arrow nav, #251 nav bar redesign, #252 default notes, #253 help modal, #254 HTML rendering, #255 definition lists, #256 syntax highlighting (follow-on to #244).
+
+**Reading mode design (decided 2026-07-15)**: T button is a 2-way rendered ↔ plaintext toggle always. Keyboard visibility = edit vs reading mode. Reading mode is triggered by user dismissing keyboard (unfocus) — hides FormattingToolbar and cursor. Existing notes open in reading mode (no keyboard); new/empty notes open in edit mode (keyboard visible). T button icon: edit+rendered = markdown mark, edit+plaintext = `code-xml`, read+rendered = `book-open`, read+plaintext = `code-xml`. Tracked in #235 (toolbar hiding) and #239 (full reading mode UX).
+
+**Issue scope policy**: File all issues regardless of perceived scope or manifesto fit — issues are a record, not a commitment. GFM alignment with manifesto (velocity/frictionless) is broader than previously assumed.
 
 **Resolved since last spec sync:**
 - Phase 3.22 post-ship rendering bugs (PR #194, v0.15.2): list bullets, checkbox visibility, toolbar selection fix.
@@ -166,10 +172,16 @@ See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phas
 - Both were confirmed high-priority by the project owner (2026-07-06): "lists of links are common" and "images aren't worth supporting if we can't do inline."
 
 **Phase 3 remaining (open bugs/deferred):**
-- **#77 tabs/indenting in lists**: open.
+- **#77 tabs/indenting in lists**: open (related to #241 nested lists arch blocker).
 - **#188 share-in launches new instance**: open — Android `launchMode` issue.
-- **Long-press drag after word select** does not extend selection on touch (gesture arena conflict). Deferred — confirmed "good enough for now."
+- **#234 toolbar obscures last line**: open.
+- **#235 toolbar visible when unfocused / #239 reading mode**: open — same underlying change.
+- **#236 cursor placement after format button**: open — 1-line fix.
+- **#237 blockquote rendering**: open — needs custom paint + screenshot iteration.
+- **#238 text selection UX**: open — significant work, platform-specific.
+- **Long-press drag after word select** does not extend selection on touch. Deferred.
 - **Unscoped features**: #79, #80, #81, #83, #84 (ADR-29/QuickJS), #87, #135, #136, #178, #181, #182, #183, #184. See `notes/dev/roadmap.md`.
+- **New issues from testing (2026-07-15)**: #240–#256. See issue tracker.
 
 **Phase 4+:** Sync plugin axis (v1.1+), MCP (v2.0+) — not in scope until Phase 3 is complete.
 
