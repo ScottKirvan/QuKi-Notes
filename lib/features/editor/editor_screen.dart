@@ -64,6 +64,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   void initState() {
     super.initState();
     _editorController = MarkdownEditorController();
+    _editorController.onFocusChanged = () {
+      if (mounted) setState(() {});
+    };
 
     _autoSave = AutoSaveController(
       onSave: _writeQuKi,
@@ -80,6 +83,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   @override
   void dispose() {
+    _editorController.onFocusChanged = null;
     WidgetsBinding.instance.removeObserver(this);
     _autoSave.dispose();
     super.dispose();
@@ -182,7 +186,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     _editorController.setValue(body);
 
     _autoSave.resetForQuki(id: qukiId, initialBody: body);
-    if (qukiId == null) _editorController.requestFocus();
+    if (qukiId == null) {
+      _editorController.requestFocus();
+    } else {
+      _editorController.unfocus();
+    }
   }
 
   Future<void> _newQuKi() async {
@@ -284,6 +292,14 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     );
   }
 
+  // `LucideIcons.type` is a placeholder; edit+rendered ideally uses the markdown mark SVG.
+  IconData _tButtonIcon() {
+    if (_editorController.plainTextMode) return LucideIcons.codeXml;
+    return _editorController.hasActiveBlock
+        ? LucideIcons.type
+        : LucideIcons.bookOpen;
+  }
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
@@ -312,9 +328,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         ),
         actions: [
           IconButton(
-            icon: const Icon(LucideIcons.type),
-            tooltip:
-                _editorController.plainTextMode ? 'Block mode' : 'Plain text',
+            icon: Icon(_tButtonIcon()),
+            tooltip: _editorController.plainTextMode
+                ? 'Rendered mode'
+                : 'Plain text',
             onPressed: () =>
                 setState(() => _editorController.togglePlainTextMode()),
           ),
@@ -357,13 +374,15 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                 config: MarkdownEditorConfig(
                   textStyle: TextStyle(
                       color: scheme.onSurface, fontSize: 16, height: 1.4),
+                  contentPadding: const EdgeInsets.fromLTRB(12, 12, 12, 36),
                 ),
                 imageLoader: _loadImage,
                 onLinkTap: _onLinkTap,
                 onCheckboxToggle: _onCheckboxToggle,
               ),
             ),
-            FormattingToolbar(controller: _editorController),
+            if (_editorController.hasActiveBlock)
+              FormattingToolbar(controller: _editorController),
           ],
         ),
       ),
