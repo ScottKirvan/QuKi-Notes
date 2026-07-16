@@ -351,13 +351,12 @@ class RenderModel {
 
         // Record a CheckboxSlot for collapsed checkbox elements so that
         // QuikiRenderEditor can hit-test taps on the ☐/☑ glyph.
-        // The marker is always 2 rendered chars ('☐ ' or '☑ ').
         if (currentEl.kind == MdElKind.checkboxUnchecked ||
             currentEl.kind == MdElKind.checkboxChecked) {
           checkboxes.add(CheckboxSlot(
             element: currentEl,
             renderedMarkerStart: markerRenderedStart,
-            renderedMarkerEnd: markerRenderedStart + 2,
+            renderedMarkerEnd: markerRenderedStart + marker.length,
           ));
         }
 
