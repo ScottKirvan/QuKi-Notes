@@ -10,7 +10,6 @@ import '../../core/transports/registry_provider.dart';
 import '../../core/transports/transport_settings_notifier.dart';
 import '../recently_deleted/recently_deleted_screen.dart';
 import '../setup/storage_setup_screen.dart';
-import 'help_dialog.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -134,11 +133,6 @@ class SettingsScreen extends ConsumerWidget {
                 trailing: Text('v$version'),
               );
             },
-          ),
-          ListTile(
-            title: const Text('Help / About'),
-            trailing: const Icon(LucideIcons.chevronRight),
-            onTap: () => showHelpDialog(context),
           ),
         ],
       ),
