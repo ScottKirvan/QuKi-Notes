@@ -134,31 +134,31 @@ void main() {
       await cleanup(tester);
     });
 
-    testWidgets('shows QuKis icon, + button, hamburger — no back button',
+    testWidgets(
+        'shows QuKis icon, + button, Send, Settings — no back button or hamburger',
         (tester) async {
       await tester.pumpWidget(_buildEditor());
       await tester.pump();
 
       expect(find.byIcon(LucideIcons.fileStack), findsOneWidget);
       expect(find.byIcon(LucideIcons.plus), findsOneWidget);
-      expect(find.byIcon(LucideIcons.menu), findsOneWidget);
+      expect(find.byIcon(LucideIcons.send), findsOneWidget);
+      expect(find.byIcon(LucideIcons.settings), findsOneWidget);
+      expect(find.byIcon(LucideIcons.menu), findsNothing);
       expect(find.byIcon(LucideIcons.arrowLeft), findsNothing);
 
       await cleanup(tester);
     });
 
-    testWidgets('hamburger menu contains Send..., QuKis, Settings',
+    testWidgets('Send and Settings are standalone IconButtons (#251)',
         (tester) async {
       await tester.pumpWidget(_buildEditor());
       await tester.pump();
 
-      await tester.tap(find.byIcon(LucideIcons.menu));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-
-      expect(find.text('Send...'), findsOneWidget);
-      expect(find.text('QuKis'), findsOneWidget);
-      expect(find.text('Settings'), findsOneWidget);
+      // Send and Settings are direct AppBar actions — no popup required.
+      expect(find.byIcon(LucideIcons.send), findsOneWidget);
+      expect(find.byIcon(LucideIcons.settings), findsOneWidget);
+      expect(find.byType(PopupMenuButton), findsNothing);
 
       await cleanup(tester);
     });
@@ -262,10 +262,7 @@ void main() {
       await tester.pumpWidget(_buildEditor());
       await tester.pump();
 
-      await tester.tap(find.byIcon(LucideIcons.menu));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.tap(find.text('Send...'));
+      await tester.tap(find.byIcon(LucideIcons.send));
       await tester.pump();
 
       expect(find.text('Nothing to send — write something first.'),
@@ -307,10 +304,7 @@ void main() {
       );
       await tester.pump();
 
-      await tester.tap(find.byIcon(LucideIcons.menu));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 300));
-      await tester.tap(find.text('Send...'));
+      await tester.tap(find.byIcon(LucideIcons.send));
 
       // Multiple pumps to let the async toss chain (flush → toss → snackbar) settle.
       await tester.pump();

@@ -9,6 +9,7 @@ import 'package:logging/logging.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:markdown_live_editor/markdown_live_editor.dart';
 import 'package:path/path.dart' as p;
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../app.dart';
 import '../../core/storage/quki_index.dart';
@@ -78,6 +79,14 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _editorController.requestFocus();
+    });
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final prefs = await SharedPreferences.getInstance();
+      if (!mounted) return;
+      if (prefs.getBool('plainTextMode') ?? false) {
+        setState(() => _editorController.togglePlainTextMode());
+      }
     });
   }
 
@@ -330,34 +339,26 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
             tooltip: _editorController.plainTextMode
                 ? 'Rendered mode'
                 : 'Plain text',
-            onPressed: () =>
-                setState(() => _editorController.togglePlainTextMode()),
+            onPressed: () async {
+              setState(() => _editorController.togglePlainTextMode());
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setBool(
+                  'plainTextMode', _editorController.plainTextMode);
+            },
           ),
           IconButton(
               icon: const Icon(LucideIcons.plus),
               tooltip: 'New QuKi',
               onPressed: _newQuKi),
-          PopupMenuButton<String>(
-            icon: const Icon(LucideIcons.menu),
-            tooltip: 'Menu',
-            onSelected: (value) {
-              switch (value) {
-                case 'send':
-                  _onToss();
-                  break;
-                case 'qukis':
-                  _openQuKisList();
-                  break;
-                case 'settings':
-                  _openSettings();
-                  break;
-              }
-            },
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: 'send', child: Text('Send...')),
-              PopupMenuItem(value: 'qukis', child: Text('QuKis')),
-              PopupMenuItem(value: 'settings', child: Text('Settings')),
-            ],
+          IconButton(
+            icon: const Icon(LucideIcons.send),
+            tooltip: 'Send',
+            onPressed: _onToss,
+          ),
+          IconButton(
+            icon: const Icon(LucideIcons.settings),
+            tooltip: 'Settings',
+            onPressed: _openSettings,
           ),
         ],
       ),
