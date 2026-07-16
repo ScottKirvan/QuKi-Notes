@@ -50,3 +50,5 @@ flutter_launcher_icons:
 
 flutter:
   uses-material-design: true
+  assets:
+    - media/QuKiNotes_v2_Rainbow_transparent.png
