@@ -292,12 +292,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     );
   }
 
-  // `LucideIcons.type` is a placeholder; edit+rendered ideally uses the markdown mark SVG.
-  IconData _tButtonIcon() {
-    if (_editorController.plainTextMode) return LucideIcons.codeXml;
-    return _editorController.hasActiveBlock
-        ? LucideIcons.type
-        : LucideIcons.bookOpen;
+  Widget _tButtonWidget() {
+    if (_editorController.plainTextMode) return const Icon(LucideIcons.codeXml);
+    if (_editorController.hasActiveBlock) return const _MarkdownMarkIcon();
+    return const Icon(LucideIcons.bookOpen);
   }
 
   @override
@@ -328,7 +326,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         ),
         actions: [
           IconButton(
-            icon: Icon(_tButtonIcon()),
+            icon: _tButtonWidget(),
             tooltip: _editorController.plainTextMode
                 ? 'Rendered mode'
                 : 'Plain text',
@@ -403,4 +401,87 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     }
     return scaffold;
   }
+}
+
+// Markdown mark icon — standard markdown logo (M + ↓ inside a rounded rect).
+// Drawn as a CustomPainter so no external SVG dependency is needed.
+// Inherits color from the ambient IconTheme.
+class _MarkdownMarkIcon extends StatelessWidget {
+  const _MarkdownMarkIcon();
+
+  @override
+  Widget build(BuildContext context) {
+    final color = IconTheme.of(context).color ?? Colors.white;
+    return CustomPaint(
+      size: const Size(24, 15),
+      painter: _MarkdownMarkPainter(color: color),
+    );
+  }
+}
+
+class _MarkdownMarkPainter extends CustomPainter {
+  const _MarkdownMarkPainter({required this.color});
+  final Color color;
+
+  // SVG viewBox is 0 0 208 128; scale uniformly to painter size.
+  static const double _vw = 208;
+  static const double _vh = 128;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final sx = size.width / _vw;
+    final sy = size.height / _vh;
+    canvas.scale(sx, sy);
+
+    final stroke = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 10
+      ..strokeJoin = StrokeJoin.round;
+
+    final fill = Paint()
+      ..color = color
+      ..style = PaintingStyle.fill;
+
+    canvas.drawRRect(
+      RRect.fromLTRBR(5, 5, 203, 123, const Radius.circular(10)),
+      stroke,
+    );
+
+    // "M" glyph
+    canvas.drawPath(
+      Path()
+        ..moveTo(30, 98)
+        ..lineTo(30, 30)
+        ..lineTo(50, 30)
+        ..lineTo(70, 55)
+        ..lineTo(90, 30)
+        ..lineTo(110, 30)
+        ..lineTo(110, 98)
+        ..lineTo(90, 98)
+        ..lineTo(90, 59)
+        ..lineTo(70, 84)
+        ..lineTo(50, 59)
+        ..lineTo(50, 98)
+        ..close(),
+      fill,
+    );
+
+    // Down-arrow "↓" glyph
+    canvas.drawPath(
+      Path()
+        ..moveTo(155, 98)
+        ..lineTo(125, 65)
+        ..lineTo(145, 65)
+        ..lineTo(145, 30)
+        ..lineTo(165, 30)
+        ..lineTo(165, 65)
+        ..lineTo(185, 65)
+        ..close(),
+      fill,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_MarkdownMarkPainter old) => old.color != color;
 }
