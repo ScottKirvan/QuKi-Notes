@@ -135,7 +135,11 @@ See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phas
 
 **Current version**: v0.18.2 (released 2026-07-12). Cold launch keyboard fix (all platforms) + Windows MSI installer shipped.
 
-**PR #233 open** (docs/spec-sync-v0.18.2): this file + root CLAUDE.md synced to v0.18.2. Docs-only, CI green, ready to merge.
+**PRs open (CI green, ready to merge):**
+- **PR #233** (`docs/spec-sync-v0.18.2`): this file + root CLAUDE.md synced to v0.18.2. Docs-only, CI green.
+- **PR #257** (`fix/editor-ux-polish`) — Phase 3.40: reading mode + toolbar gating (#235), wrapSelection cursor fix (#236), scroll padding (#234), T-button icon states + markdown mark icon (#239). Base: `main`.
+- **PR #258** (`feat/editor-polish-2`) — Phase 3.41: sticky plaintext mode (#249), standalone Send/Settings AppBar buttons (#251). Base: `fix/editor-ux-polish` → after #257 merges: `git checkout feat/editor-polish-2 && git rebase main && git push --force-with-lease origin feat/editor-polish-2`.
+- **PR #259** (`fix/share-in-single-instance`) — Phase 3.42: share-in single-instance fix (#188), `launchMode singleTask`. Base: `main`.
 
 **Issues filed 2026-07-15** (testing batch): #234–#256. Bugs: #234 toolbar obscures last line, #235 toolbar visible when unfocused, #236 cursor after closing delimiter, #237 blockquote rendering, #238 text selection UX. Features: #239 reading mode + T button, #240 nested inline formats (arch blocker), #241 nested/indented lists (arch blocker), #242 nested blockquotes, #243 GitHub callouts, #244 fenced code, #245 tables, #246 external URL images, #247 clipboard paste images (blocked), #248 toolbar context highlight, #249 sticky plaintext mode, #250 cursor/arrow nav, #251 nav bar redesign, #252 default notes, #253 help modal, #254 HTML rendering, #255 definition lists, #256 syntax highlighting (follow-on to #244).
 
@@ -165,6 +169,9 @@ See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phas
 - Phase 3.37 (PR #226, v0.18.1): Checkbox tap-to-toggle (#130) — `CheckboxSlot` in `RenderModel`; `checkboxSourceOffsetForTap()` in `QuikiRenderEditor`; `onCheckboxToggle` callback through `MarkdownEditor` → `EditorScreen`; tapping collapsed ☐/☑ toggles `- [ ] ` ↔ `- [x] ` and triggers auto-save.
 - Phase 3.38 (PR #232, v0.18.2): Cold launch keyboard fix (#72) — `_EditorScreenState.initState()` posts `requestFocus()` via `postFrameCallback` on all platforms; removed `autofocus: true` from desktop `Focus` wrapper. Root cause: outer `Focus(autofocus: true)` claimed autofocus before the editor's `FocusNode`, so `TextInput.attach()` was never called. Fix is deterministic (fires after first frame) and avoids the double-tap regression from the earlier `autofocus: true` attempt (which was against the now-superseded ADR-26 editor).
 - Phase 3.39 (PR #230, v0.18.2): Windows MSI installer — WiX 4, optional Explorer context menu (right-click → "New QuKi"), built by `build-windows.yml` in CI. Installer files in `installer/`.
+- Phase 3.40 (PR #257, CI green): Reading mode (#235, #239) — keyboard visible = edit mode (`FormattingToolbar` visible); keyboard dismissed = reading mode (toolbar hidden). `MarkdownEditorController.onFocusChanged` callback + `unfocus()` method added. Existing notes open in reading mode. T button `_tButtonWidget()` — edit+rendered = `_MarkdownMarkIcon` (`CustomPainter`, standard markdown logo, 24×15); edit+plaintext = `codeXml`; read+rendered = `bookOpen`; read+plaintext = `codeXml`. `wrapSelection()` cursor fix (#236) — between delimiters when no selection. Scroll padding (#234) — `contentPadding: fromLTRB(12,12,12,36)`.
+- Phase 3.41 (PR #258, CI green): Sticky plaintext mode (#249) — `shared_preferences` key `'plainTextMode'`, loaded on first frame, saved on toggle. Standalone Send/Settings buttons (#251) — `PopupMenuButton` removed; `LucideIcons.send` + `LucideIcons.settings` as direct `AppBar.actions`.
+- Phase 3.42 (PR #259, CI green): Share-in single-instance fix (#188) — `launchMode="singleTask"` in `AndroidManifest.xml` (was `singleTop`).
 
 **Next up — architectural design required before any brief:**
 - **Rich list content** (links, bold, italic inside list items): parser currently skips inline scan on list lines. Requires two-pass parser restructure — detect list prefix, then scan content inline. New ADR entry needed.
@@ -173,10 +180,6 @@ See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phas
 
 **Phase 3 remaining (open bugs/deferred):**
 - **#77 tabs/indenting in lists**: open (related to #241 nested lists arch blocker).
-- **#188 share-in launches new instance**: open — Android `launchMode` issue.
-- **#234 toolbar obscures last line**: open.
-- **#235 toolbar visible when unfocused / #239 reading mode**: open — same underlying change.
-- **#236 cursor placement after format button**: open — 1-line fix.
 - **#237 blockquote rendering**: open — needs custom paint + screenshot iteration.
 - **#238 text selection UX**: open — significant work, platform-specific.
 - **Long-press drag after word select** does not extend selection on touch. Deferred.

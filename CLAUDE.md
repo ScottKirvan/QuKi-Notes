@@ -145,6 +145,9 @@ QuKi-Notes/
 | | 3.37 Checkbox tap-to-toggle (#130) | Complete (PR #226, v0.18.1) |
 | | 3.38 Cold launch keyboard focus — postFrameCallback requestFocus() on all platforms (#72) | Complete (PR #232, v0.18.2) |
 | | 3.39 Windows MSI installer (WiX 4) with optional Explorer context menu | Complete (PR #230, v0.18.2) |
+| | 3.40 Reading mode + toolbar gating + wrapSelection cursor + scroll padding + T-button icons + markdown mark icon (#234, #235, #236, #239) | PR #257 open (CI green) |
+| | 3.41 Sticky plaintext mode + standalone Send/Settings AppBar buttons (#249, #251) | PR #258 open (CI green) |
+| | 3.42 Share-in single-instance fix (#188) — launchMode singleTask | PR #259 open (CI green) |
 | 4 | Sync plugin axis + first sync backend | v1.1+ |
 | 5 | iPadOS / iOS / macOS builds | Deferred |
 | 6 | MCP plugin axis | v2.0+ |
@@ -165,7 +168,7 @@ QuKi-Notes/
 
 ---
 
-## Implementation Notes (current as of v0.18.2)
+## Implementation Notes (current as of v0.18.2 + PRs #257–#259 pending)
 
 **Navigation**: Editor is the permanent root. `app.dart` home = `EditorScreen`; it never has a back button. `activeQukiIdProvider` (NotifierProvider<String?>) controls which QuKi is loaded. `StreamScreen` sets `activeQukiIdProvider` and pops — no second `EditorScreen` is ever pushed. QuKis list slides in from the left; Settings slides in from the right (directional per affordance position).
 
@@ -195,6 +198,20 @@ QuKi-Notes/
 
 **Windows installer**: `installer/` directory — WiX 4 MSI with optional Explorer context menu (right-click → "New QuKi"). Built by `build-windows.yml` in CI.
 
-**Known bugs (open)**: #73 rapid shares may lose content; #77 tabs/indenting broken in lists; #188 share-in launches a new app instance (Android `launchMode` issue).
+**Reading mode (PR #257, #235, #239)**: Keyboard visible = edit mode (`FormattingToolbar` visible); keyboard dismissed = reading mode (`FormattingToolbar` hidden). `MarkdownEditorController.onFocusChanged` (new `VoidCallback?`) fires `EditorScreen.setState()` on focus change. `_editorController.hasActiveBlock` drives `FormattingToolbar` visibility. Existing notes open in reading mode (`unfocus()` on load); new/empty notes open in edit mode (`requestFocus()`). `unfocus()` is a new controller method; `onFocusChanged` is nulled in `dispose()`.
 
-**Last Updated**: 2026-07-15
+**T button icon states (PR #257, #239)**: `_tButtonWidget()` in `EditorScreen` — edit+rendered = `_MarkdownMarkIcon` (standard markdown logo M+↓ in rounded rect, `CustomPainter`, 24×15, color from ambient `IconTheme`); edit+plaintext = `LucideIcons.codeXml`; read+rendered = `LucideIcons.bookOpen`; read+plaintext = `LucideIcons.codeXml`. No new package dependency. `_MarkdownMarkPainter` scales SVG viewBox 0 0 208 128 to painter size.
+
+**`wrapSelection()` cursor fix (PR #257, #236)**: When no text is selected, cursor now lands between inserted delimiters (at `sel.start + prefix.length`), not after the closing suffix.
+
+**Scroll padding (PR #257, #234)**: `contentPadding: EdgeInsets.fromLTRB(12, 12, 12, 36)` in `MarkdownEditorConfig`.
+
+**Sticky plaintext mode (PR #258, #249)**: Persisted in `shared_preferences` under key `'plainTextMode'`. Loaded async in `postFrameCallback` on first frame. Saved on every T button toggle (async `onPressed`).
+
+**AppBar navigation (PR #258, #251)**: `PopupMenuButton` removed. Send (`LucideIcons.send`) and Settings (`LucideIcons.settings`) are direct `IconButton` actions in `AppBar.actions`.
+
+**Share-in single instance (PR #259, #188)**: `android:launchMode="singleTask"` in `AndroidManifest.xml`. Was `singleTop` (only prevents duplicates when activity is at top of stack; insufficient when app is backgrounded). `FlutterActivity.onNewIntent()` already forwards to the engine — no Kotlin change needed.
+
+**Known bugs (open)**: #73 rapid shares may lose content; #77 tabs/indenting broken in lists.
+
+**Last Updated**: 2026-07-16
