@@ -351,6 +351,37 @@ void main() {
       expect(controller.currentValue, 'hello__');
     });
 
+    testWidgets(
+        'places cursor between delimiters (not after suffix) when no text selected',
+        (tester) async {
+      // Regression: wrapSelection with collapsed cursor used to land the cursor
+      // after the closing delimiter. It should land between prefix and suffix so
+      // the user can type immediately inside the wrapped pair.
+      final controller = MarkdownEditorController();
+
+      await tester.pumpWidget(_buildEditor(
+        initialValue: 'hello',
+        controller: controller,
+      ));
+
+      controller
+          .setSelectionForTesting(const TextSelection.collapsed(offset: 5));
+      await tester.pump();
+
+      controller.wrapSelection('**', '**');
+      await tester.pump();
+
+      // Text: h e l l o * * * *
+      //       0 1 2 3 4 5 6 7 8
+      // Cursor must be at 7 — between opening ** (5–6) and closing ** (7–8).
+      expect(controller.currentValue, 'hello****');
+      expect(
+        controller.selectionForTesting,
+        const TextSelection.collapsed(offset: 7),
+        reason: 'cursor must land between delimiters, not after closing suffix',
+      );
+    });
+
     testWidgets('wraps with strikethrough markers', (tester) async {
       final controller = MarkdownEditorController();
 

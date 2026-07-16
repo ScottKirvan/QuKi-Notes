@@ -102,6 +102,14 @@ class MarkdownEditorController {
   /// FormattingToolbar enable/disable purposes.
   bool get hasActiveBlock => _state?._focusNode.hasFocus ?? false;
 
+  /// Called each time the editor's FocusNode gains or loses focus.
+  ///
+  /// Set in the host widget's [initState] so host UI (toolbar visibility,
+  /// AppBar icons) rebuilds on keyboard show/hide without polling.
+  VoidCallback? onFocusChanged;
+
+  void unfocus() => _state?._focusNode.unfocus();
+
   String get currentValue => _state?._textController.text ?? '';
 
   void setValue(String value) => _state?._setValue(value);
@@ -123,6 +131,13 @@ class MarkdownEditorController {
     final tc = _state?._textController;
     if (tc == null) return;
     tc.value = tc.value.copyWith(selection: selection);
+  }
+
+  /// Returns the current editor selection. Intended for widget tests only.
+  @visibleForTesting
+  TextSelection get selectionForTesting {
+    final tc = _state?._textController;
+    return tc?.selection ?? const TextSelection.collapsed(offset: 0);
   }
 
   /// Returns the current selection if valid; otherwise returns the last saved
@@ -147,7 +162,12 @@ class MarkdownEditorController {
     tc.value = TextEditingValue(
       text: newText,
       selection: TextSelection.collapsed(
-        offset: sel.start + prefix.length + selected.length + suffix.length,
+        // When no text was selected, place cursor between delimiters so the
+        // user can type immediately. When text was wrapped, cursor goes after
+        // the closing delimiter (standard wrap behaviour).
+        offset: sel.start +
+            prefix.length +
+            (selected.isEmpty ? 0 : selected.length + suffix.length),
       ),
     );
     _state?._focusNode.requestFocus();
@@ -348,6 +368,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   void _onFocusChanged() {
     // Trigger a rebuild so buildTextSpan() re-evaluates cursor-line status.
     if (mounted) setState(() {});
+    widget.controller?.onFocusChanged?.call();
   }
 
   /// Saves the last valid selection so toolbar methods can use it after focus
