@@ -367,7 +367,8 @@ void main() {
       expect(el.collapsedMarker, '• ');
     });
 
-    test('collapsedMarker for checkboxUnchecked = "☐︎ " (glyph + U+FE0E + space)',
+    test(
+        'collapsedMarker for checkboxUnchecked = "☐︎ " (glyph + U+FE0E + space)',
         () {
       final el = MdElement(kind: MdElKind.checkboxUnchecked, start: 0, end: 10);
       expect(el.collapsedMarker, '☐︎ ');
