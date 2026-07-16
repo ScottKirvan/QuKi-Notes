@@ -18,6 +18,7 @@ import '../../core/transports/transport_plugin.dart';
 
 import 'auto_save_controller.dart';
 import 'toss_picker_sheet.dart';
+import '../settings/help_dialog.dart';
 import '../settings/settings_screen.dart';
 import '../stream/stream_screen.dart';
 
@@ -350,6 +351,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
               icon: const Icon(LucideIcons.plus),
               tooltip: 'New QuKi',
               onPressed: _newQuKi),
+          IconButton(
+            icon: const Icon(LucideIcons.circleHelp),
+            tooltip: 'Help',
+            onPressed: () => showHelpDialog(context),
+          ),
           IconButton(
             icon: const Icon(LucideIcons.send),
             tooltip: 'Send',
