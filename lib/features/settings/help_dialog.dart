@@ -49,6 +49,12 @@ class _HelpDialog extends StatelessWidget {
     return Dialog(
       backgroundColor:
           isDark ? const Color(0xFF3c4048) : scheme.surfaceContainerHigh,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(28),
+        side: BorderSide(
+          color: isDark ? const Color(0xFF7a828e) : const Color(0xFFd0d7de),
+        ),
+      ),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(24, 28, 24, 16),
         child: Column(
