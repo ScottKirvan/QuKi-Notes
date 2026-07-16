@@ -45,7 +45,10 @@ class _HelpDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Dialog(
+      backgroundColor:
+          isDark ? const Color(0xFF3c4048) : scheme.surfaceContainerHigh,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(24, 28, 24, 16),
         child: Column(
@@ -146,10 +149,9 @@ class _LinkRow extends StatelessWidget {
   final bool accent;
 
   Future<void> _open() async {
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
+    try {
+      await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+    } catch (_) {}
   }
 
   @override
