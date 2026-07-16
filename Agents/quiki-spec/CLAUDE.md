@@ -133,7 +133,7 @@ Once CI is green: summarize what changed, confirm no attribution anywhere, and r
 
 See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phase table.
 
-**Current version**: v0.18.1 (released 2026-07-08). Full GFM inline element support + checkbox tap-to-toggle + sort order fix all shipped.
+**Current version**: v0.18.2 (released 2026-07-12). Cold launch keyboard fix (all platforms) + Windows MSI installer shipped.
 
 **No PR currently open.**
 
@@ -157,6 +157,8 @@ See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phas
 - Phase 3.35 (v0.18.0): GFM second batch — blockquotes `> `, horizontal rules `---`/`***`/`___`, autolink word-boundary guard, inline code background fix.
 - Phase 3.36 (PRs #224, v0.18.1): Sort order fix (#75) — `modifiedAt` stored as UTC ISO-8601 in `.meta/{id}.json` sidecar; decouples list sort from filesystem mtime; migration fallback to `stat.modified` for pre-v0.18.1 notes.
 - Phase 3.37 (PR #226, v0.18.1): Checkbox tap-to-toggle (#130) — `CheckboxSlot` in `RenderModel`; `checkboxSourceOffsetForTap()` in `QuikiRenderEditor`; `onCheckboxToggle` callback through `MarkdownEditor` → `EditorScreen`; tapping collapsed ☐/☑ toggles `- [ ] ` ↔ `- [x] ` and triggers auto-save.
+- Phase 3.38 (PR #232, v0.18.2): Cold launch keyboard fix (#72) — `_EditorScreenState.initState()` posts `requestFocus()` via `postFrameCallback` on all platforms; removed `autofocus: true` from desktop `Focus` wrapper. Root cause: outer `Focus(autofocus: true)` claimed autofocus before the editor's `FocusNode`, so `TextInput.attach()` was never called. Fix is deterministic (fires after first frame) and avoids the double-tap regression from the earlier `autofocus: true` attempt (which was against the now-superseded ADR-26 editor).
+- Phase 3.39 (PR #230, v0.18.2): Windows MSI installer — WiX 4, optional Explorer context menu (right-click → "New QuKi"), built by `build-windows.yml` in CI. Installer files in `installer/`.
 
 **Next up — architectural design required before any brief:**
 - **Rich list content** (links, bold, italic inside list items): parser currently skips inline scan on list lines. Requires two-pass parser restructure — detect list prefix, then scan content inline. New ADR entry needed.
@@ -164,7 +166,6 @@ See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phas
 - Both were confirmed high-priority by the project owner (2026-07-06): "lists of links are common" and "images aren't worth supporting if we can't do inline."
 
 **Phase 3 remaining (open bugs/deferred):**
-- **#72 cold launch keyboard**: deferred (project owner's explicit call).
 - **#77 tabs/indenting in lists**: open.
 - **#188 share-in launches new instance**: open — Android `launchMode` issue.
 - **Long-press drag after word select** does not extend selection on touch (gesture arena conflict). Deferred — confirmed "good enough for now."
