@@ -155,8 +155,8 @@ class MdElement {
   /// placeholder rect in the paint pass.
   String get collapsedMarker => switch (kind) {
         MdElKind.ul => '• ',
-        MdElKind.checkboxUnchecked => '□ ',
-        MdElKind.checkboxChecked => '■ ',
+        MdElKind.checkboxUnchecked => '☐︎ ',
+        MdElKind.checkboxChecked => '☑︎ ',
         MdElKind.ol => '$seqNum. ',
         // Heading, inline, image, link, and autolink elements: no text substitution glyph.
         _ => '',

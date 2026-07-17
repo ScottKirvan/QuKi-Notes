@@ -261,61 +261,62 @@ void main() {
     });
 
     // -------------------------------------------------------------------------
-    // checkboxUnchecked — variable-length substitution (6 src → 2 rendered)
-    // Marker is '□ ' (U+25A1 WHITE SQUARE + space) — not in Unicode emoji
-    // variation sequences, so renders as plain text on all platforms.
+    // checkboxUnchecked — variable-length substitution (6 src → 3 rendered)
+    // Marker is '☐︎ ' (glyph + text variation selector + space) to force
+    // text presentation and prevent Android from rendering ☑ as a blue emoji.
     // -------------------------------------------------------------------------
-    test('checkboxUnchecked collapsed: "- [ ] item" → rendered "□ item"', () {
+    test('checkboxUnchecked collapsed: "- [ ] item" → rendered "☐︎ item"', () {
       // source = '- [ ] item' (10 chars)
-      // marker '- [ ] ' (6 source chars) → '□ ' (2 rendered chars)
+      // marker '- [ ] ' (6 source chars) → '☐︎ ' (3 rendered chars)
       // content 'item' (4 chars)
-      // rendered = '□ item' (6 chars)
+      // rendered = '☐︎ item' (7 chars)
       const source = '- [ ] item';
       final els = MdParser.parse(source);
       final m = _build(source, els, cursorOffset: -1);
 
-      expect(m.textSpan.toPlainText(), '□ item');
-      expect(m.renderedLength, 6);
+      expect(m.textSpan.toPlainText(), '☐︎ item');
+      expect(m.renderedLength, 7);
     });
 
     test(
-        'checkboxUnchecked collapsed: offset map — 6 source marker chars → 2 rendered',
+        'checkboxUnchecked collapsed: offset map — 6 source marker chars → 3 rendered',
         () {
       // source = '- [ ] item'
       // src offsets 0..5 (the marker '- [ ] ') all map to rendered 0
-      // src offset 6 ('i') maps to rendered 2
+      // src offset 6 ('i') maps to rendered 3
       const source = '- [ ] item';
       final els = MdParser.parse(source);
       final m = _build(source, els, cursorOffset: -1);
 
-      // All source marker positions map to rendered 0 (start of '□ ').
+      // All source marker positions map to rendered 0 (start of '☐︎ ').
       for (var d = 0; d < 6; d++) {
         expect(m.sourceToRendered[d], 0,
             reason: 'source[$d] should map to rendered 0');
       }
-      // Content starts at rendered 2.
-      expect(m.sourceToRendered[6], 2); // 'i'
-      expect(m.sourceToRendered[7], 3); // 't'
-      expect(m.sourceToRendered[8], 4); // 'e'
-      expect(m.sourceToRendered[9], 5); // 'm'
-      expect(m.sourceToRendered[10], 6); // end sentinel
+      // Content starts at rendered 3.
+      expect(m.sourceToRendered[6], 3); // 'i'
+      expect(m.sourceToRendered[7], 4); // 't'
+      expect(m.sourceToRendered[8], 5); // 'e'
+      expect(m.sourceToRendered[9], 6); // 'm'
+      expect(m.sourceToRendered[10], 7); // end sentinel
 
-      // renderedToSource: rendered 0, 1 (the '□ ') map to source 0.
-      expect(m.renderedToSource[0], 0); // '□' → source 0
-      expect(m.renderedToSource[1], 0); // ' ' → source 0
+      // renderedToSource: rendered 0, 1, 2 (the '☐︎ ') map to source 0.
+      expect(m.renderedToSource[0], 0); // '☐' → source 0
+      expect(m.renderedToSource[1], 0); // '︎' → source 0
+      expect(m.renderedToSource[2], 0); // ' ' → source 0
       // Content chars.
-      expect(m.renderedToSource[2], 6); // 'i'
-      expect(m.renderedToSource[3], 7); // 't'
-      expect(m.renderedToSource[4], 8); // 'e'
-      expect(m.renderedToSource[5], 9); // 'm'
+      expect(m.renderedToSource[3], 6); // 'i'
+      expect(m.renderedToSource[4], 7); // 't'
+      expect(m.renderedToSource[5], 8); // 'e'
+      expect(m.renderedToSource[6], 9); // 'm'
       // End sentinel.
-      expect(m.renderedToSource[6], 10);
+      expect(m.renderedToSource[7], 10);
     });
 
     test(
         'checkboxUnchecked collapsed: tapping rendered marker resolves inside element',
         () {
-      // sourceForRendered(0) and (1) must both be inside the element range
+      // sourceForRendered(0), (1), (2) must all be inside the element range
       // [0, 10) — so a tap on any part of the marker triggers reveal.
       const source = '- [ ] item';
       final els = MdParser.parse(source);
@@ -323,22 +324,25 @@ void main() {
 
       final src0 = m.sourceForRendered(0);
       final src1 = m.sourceForRendered(1);
+      final src2 = m.sourceForRendered(2);
       expect(els[0].containsOffset(src0), isTrue,
           reason: 'rendered 0 → source $src0 should be inside element');
       expect(els[0].containsOffset(src1), isTrue,
           reason: 'rendered 1 → source $src1 should be inside element');
+      expect(els[0].containsOffset(src2), isTrue,
+          reason: 'rendered 2 → source $src2 should be inside element');
     });
 
     // -------------------------------------------------------------------------
     // checkboxChecked
     // -------------------------------------------------------------------------
-    test('checkboxChecked collapsed: "- [x] done" → rendered "■ done"', () {
+    test('checkboxChecked collapsed: "- [x] done" → rendered "☑︎ done"', () {
       const source = '- [x] done';
       final els = MdParser.parse(source);
       final m = _build(source, els, cursorOffset: -1);
 
-      expect(m.textSpan.toPlainText(), '■ done');
-      expect(m.renderedLength, 6);
+      expect(m.textSpan.toPlainText(), '☑︎ done');
+      expect(m.renderedLength, 7);
     });
 
     // -------------------------------------------------------------------------
@@ -680,8 +684,8 @@ void main() {
         'unchecked checkbox collapsed: checkboxSlots has one entry; renderedMarkerStart == 0',
         () {
       // source = '- [ ] foo' (9 chars)
-      // collapsed marker '□ ' (2 rendered chars: U+25A1 + space)
-      // renderedMarkerEnd = renderedMarkerStart + 2 = 2
+      // collapsed marker '☐︎ ' (3 rendered chars: glyph + U+FE0E + space)
+      // renderedMarkerEnd = renderedMarkerStart + 3 = 3
       const source = '- [ ] foo';
       final els = MdParser.parse(source);
       final m = _build(source, els, cursorOffset: -1);
@@ -691,14 +695,14 @@ void main() {
       expect(slot.element.kind, MdElKind.checkboxUnchecked);
       expect(slot.element.start, 0);
       expect(slot.renderedMarkerStart, 0);
-      expect(slot.renderedMarkerEnd, slot.renderedMarkerStart + 2);
+      expect(slot.renderedMarkerEnd, slot.renderedMarkerStart + 3);
     });
 
     test(
         'checked checkbox collapsed: checkboxSlots has one entry; renderedMarkerStart == 0',
         () {
       // source = '- [x] bar' (9 chars)
-      // collapsed marker '■ ' (2 rendered chars: U+25A0 + space)
+      // collapsed marker '☑︎ ' (3 rendered chars: glyph + U+FE0E + space)
       const source = '- [x] bar';
       final els = MdParser.parse(source);
       final m = _build(source, els, cursorOffset: -1);
@@ -708,7 +712,7 @@ void main() {
       expect(slot.element.kind, MdElKind.checkboxChecked);
       expect(slot.element.start, 0);
       expect(slot.renderedMarkerStart, 0);
-      expect(slot.renderedMarkerEnd, slot.renderedMarkerStart + 2);
+      expect(slot.renderedMarkerEnd, slot.renderedMarkerStart + 3);
     });
 
     test('no checkboxSlots when source has no checkbox elements', () {
@@ -728,11 +732,11 @@ void main() {
       final m = _build(source, els, cursorOffset: -1);
 
       final slot = m.checkboxSlots[0];
-      // ri = 0 is in [0, 2) → hit (glyph char)
+      // ri = 0 is in [0, 2) → hit
       expect(
           0 >= slot.renderedMarkerStart && 0 < slot.renderedMarkerEnd, isTrue,
           reason: 'rendered offset 0 should fall in marker range');
-      // ri = 1 is in [0, 2) → hit (space char)
+      // ri = 1 is in [0, 2) → hit
       expect(
           1 >= slot.renderedMarkerStart && 1 < slot.renderedMarkerEnd, isTrue,
           reason: 'rendered offset 1 should fall in marker range');
@@ -741,16 +745,16 @@ void main() {
     test(
         'rendered offset outside [renderedMarkerStart, renderedMarkerEnd) misses the slot',
         () {
-      // ri = 2 is NOT in [0, 2) → miss (that is the content 'f' of 'foo')
+      // ri = 3 is NOT in [0, 3) → miss (that is the content 'f' of 'foo')
       const source = '- [ ] foo';
       final els = MdParser.parse(source);
       final m = _build(source, els, cursorOffset: -1);
 
       final slot = m.checkboxSlots[0];
-      // ri = 2 is the first content char — should NOT be inside the marker range
+      // ri = 3 is the first content char — should NOT be inside the marker range
       expect(
-          2 >= slot.renderedMarkerStart && 2 < slot.renderedMarkerEnd, isFalse,
-          reason: 'rendered offset 2 (content) should not be in marker range');
+          3 >= slot.renderedMarkerStart && 3 < slot.renderedMarkerEnd, isFalse,
+          reason: 'rendered offset 3 (content) should not be in marker range');
     });
 
     test(
@@ -769,10 +773,10 @@ void main() {
         () {
       // source = '- [ ] one\n- [x] two'
       // line 1: '- [ ] one' (9 source chars)
-      //   collapsed marker '□ ' (2 rendered: U+25A1 + space) + content 'one' (3 rendered) = 5 rendered
-      // '\n' at source offset 9 → 1 rendered char (rendered offset 5)
+      //   collapsed marker '☐︎ ' (3 rendered: glyph + U+FE0E + space) + content 'one' (3 rendered) = 6 rendered
+      // '\n' at source offset 9 → 1 rendered char (rendered offset 6)
       // line 2: '- [x] two' starts at source offset 10
-      //   collapsed marker '■ ' starts at rendered offset 6
+      //   collapsed marker '☑︎ ' starts at rendered offset 7
       const source = '- [ ] one\n- [x] two';
       final els = MdParser.parse(source);
       final m = _build(source, els, cursorOffset: -1);
@@ -783,14 +787,14 @@ void main() {
       expect(slot0.element.kind, MdElKind.checkboxUnchecked);
       expect(slot0.element.start, 0);
       expect(slot0.renderedMarkerStart, 0);
-      expect(slot0.renderedMarkerEnd, 2);
+      expect(slot0.renderedMarkerEnd, 3);
 
       final slot1 = m.checkboxSlots[1];
       expect(slot1.element.kind, MdElKind.checkboxChecked);
       expect(slot1.element.start, 10);
-      // '□ one\n' = 2 + 3 + 1 = 6 rendered chars; second marker at rendered 6.
-      expect(slot1.renderedMarkerStart, 6);
-      expect(slot1.renderedMarkerEnd, 8);
+      // '☐︎ one\n' = 3 + 3 + 1 = 7 rendered chars; second marker at rendered 7.
+      expect(slot1.renderedMarkerStart, 7);
+      expect(slot1.renderedMarkerEnd, 10);
     });
   });
 }
