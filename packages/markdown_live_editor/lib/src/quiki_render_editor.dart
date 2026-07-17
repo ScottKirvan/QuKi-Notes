@@ -434,20 +434,23 @@ class QuikiRenderEditor extends RenderBox {
         Rect.zero,
       );
       final lineHeight = _textPainter.preferredLineHeight;
-      final boxSize = lineHeight * 0.55;
+      final boxSize = lineHeight * 0.72;
       final boxRect = Rect.fromLTWH(
         textOrigin.dx + caretOffset.dx,
-        textOrigin.dy + caretOffset.dy + (lineHeight - boxSize) / 2,
+        textOrigin.dy +
+            caretOffset.dy +
+            (lineHeight - boxSize) / 2 +
+            lineHeight / 3,
         boxSize,
         boxSize,
       );
-      final rrect = RRect.fromRectAndRadius(boxRect, const Radius.circular(2));
+      final rrect = RRect.fromRectAndRadius(boxRect, const Radius.circular(3));
       canvas.drawRRect(
         rrect,
         Paint()
           ..color = cb.color
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.5,
+          ..strokeWidth = 1.8,
       );
       if (cb.checked) {
         final path = Path()
@@ -462,7 +465,7 @@ class QuikiRenderEditor extends RenderBox {
           Paint()
             ..color = cb.color
             ..style = PaintingStyle.stroke
-            ..strokeWidth = 1.6
+            ..strokeWidth = 2.0
             ..strokeCap = StrokeCap.round
             ..strokeJoin = StrokeJoin.round,
         );

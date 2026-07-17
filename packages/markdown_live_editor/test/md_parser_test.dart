@@ -368,17 +368,17 @@ void main() {
     });
 
     test(
-        'collapsedMarker for checkboxUnchecked = "  " (two blank chars; box painted via Canvas)',
+        'collapsedMarker for checkboxUnchecked = "   " (three blank chars; box painted via Canvas)',
         () {
       final el = MdElement(kind: MdElKind.checkboxUnchecked, start: 0, end: 10);
-      expect(el.collapsedMarker, '  ');
+      expect(el.collapsedMarker, '   ');
     });
 
     test(
-        'collapsedMarker for checkboxChecked = "  " (two blank chars; box painted via Canvas)',
+        'collapsedMarker for checkboxChecked = "   " (three blank chars; box painted via Canvas)',
         () {
       final el = MdElement(kind: MdElKind.checkboxChecked, start: 0, end: 10);
-      expect(el.collapsedMarker, '  ');
+      expect(el.collapsedMarker, '   ');
     });
 
     test('collapsedMarker for ol with seqNum=3 = "3. "', () {
