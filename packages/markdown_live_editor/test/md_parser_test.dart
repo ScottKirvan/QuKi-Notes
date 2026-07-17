@@ -367,14 +367,17 @@ void main() {
       expect(el.collapsedMarker, '• ');
     });
 
-    test('collapsedMarker for checkboxUnchecked = "□ "', () {
+    test(
+        'collapsedMarker for checkboxUnchecked = "☐︎ " (glyph + U+FE0E + space)',
+        () {
       final el = MdElement(kind: MdElKind.checkboxUnchecked, start: 0, end: 10);
-      expect(el.collapsedMarker, '□ ');
+      expect(el.collapsedMarker, '☐︎ ');
     });
 
-    test('collapsedMarker for checkboxChecked = "■ "', () {
+    test('collapsedMarker for checkboxChecked = "☑︎ " (glyph + U+FE0E + space)',
+        () {
       final el = MdElement(kind: MdElKind.checkboxChecked, start: 0, end: 10);
-      expect(el.collapsedMarker, '■ ');
+      expect(el.collapsedMarker, '☑︎ ');
     });
 
     test('collapsedMarker for ol with seqNum=3 = "3. "', () {

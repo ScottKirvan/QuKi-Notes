@@ -356,7 +356,7 @@ class RenderModel {
           checkboxes.add(CheckboxSlot(
             element: currentEl,
             renderedMarkerStart: markerRenderedStart,
-            renderedMarkerEnd: markerRenderedStart + 2,
+            renderedMarkerEnd: markerRenderedStart + marker.length,
           ));
         }
 
