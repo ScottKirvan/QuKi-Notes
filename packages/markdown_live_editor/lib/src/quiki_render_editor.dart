@@ -415,6 +415,60 @@ class QuikiRenderEditor extends RenderBox {
       );
     }
 
+    // Draw checkbox glyphs for collapsed checkbox slots.
+    //
+    // Painted directly via Canvas rather than as a Unicode text glyph: on
+    // Android, font-fallback shaping resolves a font per text run (not per
+    // character), so a checked-box glyph can render as a large colour emoji
+    // or a small monochrome symbol depending on what precedes it in the same
+    // document — see #267. Drawing the box/checkmark ourselves sidesteps
+    // font fallback entirely and guarantees consistent, theme-aware output.
+    for (final cb in _renderModel.checkboxSlots) {
+      final el = cb.element;
+      final cursorSrc = sel.isValid ? sel.baseOffset : -1;
+      final revealed = cursorSrc >= el.start && cursorSrc <= el.end;
+      if (revealed) continue;
+
+      final caretOffset = _textPainter.getOffsetForCaret(
+        TextPosition(offset: cb.renderedMarkerStart),
+        Rect.zero,
+      );
+      final lineHeight = _textPainter.preferredLineHeight;
+      final boxSize = lineHeight * 0.55;
+      final boxRect = Rect.fromLTWH(
+        textOrigin.dx + caretOffset.dx,
+        textOrigin.dy + caretOffset.dy + (lineHeight - boxSize) / 2,
+        boxSize,
+        boxSize,
+      );
+      final rrect = RRect.fromRectAndRadius(boxRect, const Radius.circular(2));
+      canvas.drawRRect(
+        rrect,
+        Paint()
+          ..color = cb.color
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.5,
+      );
+      if (cb.checked) {
+        final path = Path()
+          ..moveTo(boxRect.left + boxRect.width * 0.2,
+              boxRect.top + boxRect.height * 0.52)
+          ..lineTo(boxRect.left + boxRect.width * 0.42,
+              boxRect.top + boxRect.height * 0.74)
+          ..lineTo(boxRect.left + boxRect.width * 0.82,
+              boxRect.top + boxRect.height * 0.28);
+        canvas.drawPath(
+          path,
+          Paint()
+            ..color = cb.color
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.6
+            ..strokeCap = StrokeCap.round
+            ..strokeJoin = StrokeJoin.round,
+        );
+      }
+    }
+
     // Draw images (or placeholders) for collapsed image slots.
     //
     // Each image slot corresponds to a line that emits no rendered characters.

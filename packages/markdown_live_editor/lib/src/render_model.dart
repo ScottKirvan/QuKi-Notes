@@ -69,14 +69,20 @@ class HrSlot {
 // CheckboxSlot — carries one collapsed checkbox element for tap-to-toggle.
 // ---------------------------------------------------------------------------
 
-/// Describes a collapsed checkbox element (unchecked ☐ or checked ☑).
+/// Describes a collapsed checkbox element (unchecked or checked).
 ///
 /// [element] is the parsed [MdElement] with kind [MdElKind.checkboxUnchecked]
-/// or [MdElKind.checkboxChecked].
-/// [renderedMarkerStart] is the rendered character offset of the first
-/// character of the collapsed glyph ('☐' or '☑').
+/// or [MdElKind.checkboxChecked]. The box and checkmark are painted directly
+/// by QuikiRenderEditor via Canvas — not rendered as a Unicode glyph — because
+/// Android's font-fallback shaping picks a font per text run rather than per
+/// character, so a checked-box glyph can render as a large colour emoji or a
+/// small monochrome symbol depending on what precedes it in the document.
+/// See #267.
+///
+/// [renderedMarkerStart] is the rendered character offset of the first of the
+/// two blank characters reserved for the glyph.
 /// [renderedMarkerEnd] is the exclusive end of the marker — always
-/// [renderedMarkerStart] + 2 (the glyph + its trailing space).
+/// [renderedMarkerStart] + 2.
 ///
 /// QuikiRenderEditor uses these to hit-test a tap: if the tap maps to a
 /// rendered offset in [renderedMarkerStart, renderedMarkerEnd), the checkbox
@@ -86,16 +92,25 @@ class CheckboxSlot {
     required this.element,
     required this.renderedMarkerStart,
     required this.renderedMarkerEnd,
+    required this.checked,
+    required this.color,
   });
 
   final MdElement element;
 
-  /// Rendered offset of the first character of the collapsed checkbox glyph.
+  /// Rendered offset of the first of the two blank marker characters.
   final int renderedMarkerStart;
 
-  /// Rendered offset just past the last character of the collapsed glyph
+  /// Rendered offset just past the last blank marker character
   /// (= renderedMarkerStart + 2).
   final int renderedMarkerEnd;
+
+  /// Whether this is a checked (vs unchecked) checkbox.
+  final bool checked;
+
+  /// The color to paint the box outline / checkmark in — matches the
+  /// surrounding text color so it adapts to the active theme.
+  final Color color;
 }
 
 // ---------------------------------------------------------------------------
@@ -350,13 +365,15 @@ class RenderModel {
         }
 
         // Record a CheckboxSlot for collapsed checkbox elements so that
-        // QuikiRenderEditor can hit-test taps on the ☐/☑ glyph.
+        // QuikiRenderEditor can hit-test taps on and paint the checkbox.
         if (currentEl.kind == MdElKind.checkboxUnchecked ||
             currentEl.kind == MdElKind.checkboxChecked) {
           checkboxes.add(CheckboxSlot(
             element: currentEl,
             renderedMarkerStart: markerRenderedStart,
             renderedMarkerEnd: markerRenderedStart + marker.length,
+            checked: currentEl.kind == MdElKind.checkboxChecked,
+            color: markerStyle.color ?? _foreground,
           ));
         }
 
