@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/widgets.dart';
@@ -434,19 +433,13 @@ class QuikiRenderEditor extends RenderBox {
         TextPosition(offset: cb.renderedMarkerStart),
         Rect.zero,
       );
-      final markerEndOffset = _textPainter.getOffsetForCaret(
-        TextPosition(offset: cb.renderedMarkerEnd),
-        Rect.zero,
-      );
       final lineHeight = _textPainter.preferredLineHeight;
-      // Size the box off the *measured* reserved marker width rather than a
-      // fixed fraction of line height: the collapsed marker reserves a fixed
-      // number of blank characters, and that reserved width can be narrower
-      // than a line-height-based box at typical font sizes, leaving no gap
-      // (or overlap) before the content text. Clamping to a fraction of the
-      // measured width guarantees a visible gap regardless of font metrics.
-      final reservedWidth = markerEndOffset.dx - caretOffset.dx;
-      final boxSize = math.min(lineHeight * 0.72, reservedWidth * 0.62);
+      // Fixed fraction of line height, independent of the reserved marker
+      // width: the box is a tap target, so it must stay a comfortable,
+      // predictable size rather than shrinking to whatever gap happens to
+      // be available. The collapsed marker (md_parser.dart) reserves enough
+      // blank characters to keep this box clear of the content text.
+      final boxSize = lineHeight * 0.8;
       final boxRect = Rect.fromLTWH(
         textOrigin.dx + caretOffset.dx,
         textOrigin.dy +
@@ -456,7 +449,8 @@ class QuikiRenderEditor extends RenderBox {
         boxSize,
         boxSize,
       );
-      final rrect = RRect.fromRectAndRadius(boxRect, const Radius.circular(3));
+      final rrect =
+          RRect.fromRectAndRadius(boxRect, Radius.circular(boxSize * 0.2));
       canvas.drawRRect(
         rrect,
         Paint()
