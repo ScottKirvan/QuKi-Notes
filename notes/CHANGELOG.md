@@ -30,6 +30,8 @@
 
 * undo solid-square checkbox glyphs ([#267](https://github.com/ScottKirvan/QuKi-Notes/issues/267)) ([dffa792](https://github.com/ScottKirvan/QuKi-Notes/commit/dffa792f68e48419b58eb48dc949fc3253bed98e))
 
+Includes PRs: [#233](https://github.com/ScottKirvan/QuKi-Notes/pull/233), [#257](https://github.com/ScottKirvan/QuKi-Notes/pull/257), [#258](https://github.com/ScottKirvan/QuKi-Notes/pull/258), [#259](https://github.com/ScottKirvan/QuKi-Notes/pull/259), [#260](https://github.com/ScottKirvan/QuKi-Notes/pull/260), [#262](https://github.com/ScottKirvan/QuKi-Notes/pull/262), [#270](https://github.com/ScottKirvan/QuKi-Notes/pull/270), [#271](https://github.com/ScottKirvan/QuKi-Notes/pull/271), [#273](https://github.com/ScottKirvan/QuKi-Notes/pull/273), [#274](https://github.com/ScottKirvan/QuKi-Notes/pull/274)
+
 ## [0.18.2](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.18.1...v0.18.2) (2026-07-12)
 
 
