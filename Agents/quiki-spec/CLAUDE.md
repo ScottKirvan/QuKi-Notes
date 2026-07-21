@@ -133,15 +133,27 @@ Once CI is green: summarize what changed, confirm no attribution anywhere, and r
 
 See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phase table.
 
-**Current version**: v0.18.2 (released 2026-07-12). Cold launch keyboard fix (all platforms) + Windows MSI installer shipped.
+**Current version**: v0.18.2 (released 2026-07-12) is still the latest *tagged* release — but `main` has moved well past it. A power outage interrupted the previous spec session before this sync happened, and implementation/docs/devops work continued on another machine in the meantime, so this file had drifted from actual repo state. Re-synced 2026-07-21; see below for what actually landed.
 
-**PRs open (CI green, ready to merge):**
-- **PR #233** (`docs/spec-sync-v0.18.2`): this file + root CLAUDE.md synced to v0.18.2. Docs-only, CI green.
-- **PR #257** (`fix/editor-ux-polish`) — Phase 3.40: reading mode + toolbar gating (#235), wrapSelection cursor fix (#236), scroll padding (#234), T-button icon states + markdown mark icon (#239). Base: `main`.
-- **PR #258** (`feat/editor-polish-2`) — Phase 3.41: sticky plaintext mode (#249), standalone Send/Settings AppBar buttons (#251). Base: `fix/editor-ux-polish` → after #257 merges: `git checkout feat/editor-polish-2 && git rebase main && git push --force-with-lease origin feat/editor-polish-2`.
-- **PR #259** (`fix/share-in-single-instance`) — Phase 3.42: share-in single-instance fix (#188), `launchMode singleTask`. Base: `main`.
+**PRs open:**
+- **PR #262** (`release-please--branches--main--components--quki_notes`): auto-generated release PR, CI green. Bundles #257–#260 (below) into **v0.19.0**. Merge when ready to cut the release — not gated on anything else in this list.
+- **PR #270** (`fix/checkbox-text-presentation`) — Phase 3.44: checkbox rendering fix (#267), CI green. Opened directly on GitHub during the gap (not through the usual dev-session → spec-review handoff) — **needs a proper spec review pass before merge**, same as any other implementation PR. See root `CLAUDE.md` implementation notes for what it does.
+
+**Merged since last sync (were "open, CI green" in the stale version of this file — all confirmed merged via `gh pr list`):**
+- **PR #233** (`docs/spec-sync-v0.18.2`, merged 2026-07-16): this file + root CLAUDE.md synced to v0.18.2.
+- **PR #257** (`fix/editor-ux-polish`, merged 2026-07-16) — Phase 3.40: reading mode + toolbar gating (#235), wrapSelection cursor fix (#236), scroll padding (#234), T-button icon states + markdown mark icon (#239).
+- **PR #258** (`feat/editor-polish-2`, merged 2026-07-16) — Phase 3.41: sticky plaintext mode (#249), standalone Send/Settings AppBar buttons (#251).
+- **PR #259** (`fix/share-in-single-instance`, merged 2026-07-16) — Phase 3.42: share-in single-instance fix (#188), `launchMode singleTask`.
+- **PR #260** (`feat/help-about-dialog`, merged 2026-07-16) — Phase 3.43: help/about dialog (#253).
+- **PR #271** (`chore/docs-scale-down`, merged 2026-07-17): docs session — VitePress site scaled down with global zoom. Docs-only.
+
+**Issue-closure discrepancy found during this sync**: #249 (sticky plaintext mode) and #253 (help modal) are still **open** on GitHub even though PR #258 and PR #260 respectively fully implement them — the PR bodies referenced the issues but didn't use a `Closes #N` keyword, so GitHub never auto-closed them. #251 (nav bar redesign) is correctly still open — PR #258 only did the Send/Settings half; the issue's Help button request was explicitly deferred until #253 landed, and now that #260 has shipped a help button, #251 may be fully satisfied too. Flagged to the project owner rather than closed unilaterally — see chat.
+
+**Local git state cleaned up 2026-07-21**: 9 stale local branches (`feat/discord-emoji`, `feat/windows-msi-installer`, `fix/add-shared-release-workflows`, `fix/add-workflow-dispatch-to-release`, `fix/build-artifacts-remaining-platforms`, `fix/changelog-cleanup`, `fix/ci-markdown-live-editor`, `fix/discord-notify-after-builds`, `fix/notify-tag-lookup`) were left over from pre-outage devops sessions on this machine. All were confirmed merged (via `gh pr list --head <branch>`) and already deleted on the remote (GitHub's merge-then-delete-branch), so `git fetch --prune` had only local stale refs to clean up. Deleted locally with `git branch -D`; no content was lost since every one was already on `main` under a different (rebase-and-merge) commit hash.
 
 **Issues filed 2026-07-15** (testing batch): #234–#256. Bugs: #234 toolbar obscures last line, #235 toolbar visible when unfocused, #236 cursor after closing delimiter, #237 blockquote rendering, #238 text selection UX. Features: #239 reading mode + T button, #240 nested inline formats (arch blocker), #241 nested/indented lists (arch blocker), #242 nested blockquotes, #243 GitHub callouts, #244 fenced code, #245 tables, #246 external URL images, #247 clipboard paste images (blocked), #248 toolbar context highlight, #249 sticky plaintext mode, #250 cursor/arrow nav, #251 nav bar redesign, #252 default notes, #253 help modal, #254 HTML rendering, #255 definition lists, #256 syntax highlighting (follow-on to #244).
+
+**Issues filed 2026-07-16/17** (post-#257–260 device testing, likely from the other machine during the outage gap): #261 share-in opens QuKi list instead of routing to the new note in the editor (possible regression from the #259 `singleTask` fix — worth checking), #263 reading mode residual toolbar/cursor visibility, #264 bold formatting intermittently produces `*word**`, #265 keyboard opens after deleting a QuKi from the stream list, #266 tapping a checkbox in read-only mode scrolls to top and opens the keyboard, #267 checkbox rendering inconsistency (being fixed by open PR #270), #268 QuKi list layout polish, #269 search results should show matching text snippet, #272 notes without a `.meta/{uuid}.json` sidecar are silently ignored by the index.
 
 **Reading mode design (decided 2026-07-15)**: T button is a 2-way rendered ↔ plaintext toggle always. Keyboard visibility = edit vs reading mode. Reading mode is triggered by user dismissing keyboard (unfocus) — hides FormattingToolbar and cursor. Existing notes open in reading mode (no keyboard); new/empty notes open in edit mode (keyboard visible). T button icon: edit+rendered = markdown mark, edit+plaintext = `code-xml`, read+rendered = `book-open`, read+plaintext = `code-xml`. Tracked in #235 (toolbar hiding) and #239 (full reading mode UX).
 
