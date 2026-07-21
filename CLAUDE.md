@@ -145,9 +145,11 @@ QuKi-Notes/
 | | 3.37 Checkbox tap-to-toggle (#130) | Complete (PR #226, v0.18.1) |
 | | 3.38 Cold launch keyboard focus — postFrameCallback requestFocus() on all platforms (#72) | Complete (PR #232, v0.18.2) |
 | | 3.39 Windows MSI installer (WiX 4) with optional Explorer context menu | Complete (PR #230, v0.18.2) |
-| | 3.40 Reading mode + toolbar gating + wrapSelection cursor + scroll padding + T-button icons + markdown mark icon (#234, #235, #236, #239) | PR #257 open (CI green) |
-| | 3.41 Sticky plaintext mode + standalone Send/Settings AppBar buttons (#249, #251) | PR #258 open (CI green) |
-| | 3.42 Share-in single-instance fix (#188) — launchMode singleTask | PR #259 open (CI green) |
+| | 3.40 Reading mode + toolbar gating + wrapSelection cursor + scroll padding + T-button icons + markdown mark icon (#234, #235, #236, #239) | Complete (PR #257, v0.19.0-pending) |
+| | 3.41 Sticky plaintext mode + standalone Send/Settings AppBar buttons (#249, #251) | Complete (PR #258, v0.19.0-pending) |
+| | 3.42 Share-in single-instance fix (#188) — launchMode singleTask | Complete (PR #259, v0.19.0-pending) |
+| | 3.43 Help/about dialog — docs, Discord, GitHub links (#253) | Complete (PR #260, v0.19.0-pending) |
+| | 3.44 Checkbox rendering — direct Canvas paint, no font-fallback dependency (#267) | PR #270 open (CI green) — awaiting spec review |
 | 4 | Sync plugin axis + first sync backend | v1.1+ |
 | 5 | iPadOS / iOS / macOS builds | Deferred |
 | 6 | MCP plugin axis | v2.0+ |
@@ -168,7 +170,7 @@ QuKi-Notes/
 
 ---
 
-## Implementation Notes (current as of v0.18.2 + PRs #257–#259 pending)
+## Implementation Notes (current as of v0.18.2 + PRs #257–#260 merged, #262 release-please pending, #270 open)
 
 **Navigation**: Editor is the permanent root. `app.dart` home = `EditorScreen`; it never has a back button. `activeQukiIdProvider` (NotifierProvider<String?>) controls which QuKi is loaded. `StreamScreen` sets `activeQukiIdProvider` and pops — no second `EditorScreen` is ever pushed. QuKis list slides in from the left; Settings slides in from the right (directional per affordance position).
 
@@ -212,6 +214,10 @@ QuKi-Notes/
 
 **Share-in single instance (PR #259, #188)**: `android:launchMode="singleTask"` in `AndroidManifest.xml`. Was `singleTop` (only prevents duplicates when activity is at top of stack; insufficient when app is backgrounded). `FlutterActivity.onNewIntent()` already forwards to the engine — no Kotlin change needed.
 
-**Known bugs (open)**: #73 rapid shares may lose content; #77 tabs/indenting broken in lists.
+**Help/about dialog (PR #260, #253)**: `?` (`circleHelp`) button in editor AppBar opens a help/about dialog — icon + name + version (via `package_info_plus`, loaded async), then three link rows: Documentation (`FilledButton`, accent), Discord, GitHub. Layout mirrors BojuBot's `AboutModal`. New dependency: `flutter_svg` (icon rendering). App icon asset: `media/QuKiNotes_v2_Rainbow_transparent.png`.
 
-**Last Updated**: 2026-07-16
+**Checkbox rendering fix (PR #270 open, #267) — pending spec review**: Root cause was Android font-fallback (Minikin/Skia) resolving one font per text run, not per character — a checked box after an unchecked one in the same run could render as a large color emoji instead of a small monochrome glyph. Fix stops delegating to Unicode glyphs entirely: `collapsedMarker` for checkbox kinds now emits blank placeholder characters (layout width only), and `QuikiRenderEditor.paint()` draws the checkbox itself via `Canvas` (stroked rounded-square, checkmark stroke path when checked) using the same `TextPainter.getOffsetForCaret()` positioning already used for blockquote stripes and horizontal rules. `CheckboxSlot` gained `checked`/`color` fields. Tap-to-toggle hit-testing unaffected.
+
+**Known bugs (open)**: #73 rapid shares may lose content; #77 tabs/indenting broken in lists; #261 share-in opens QuKi list instead of routing straight to the new note in the editor; #263 reading mode residual toolbar/cursor visibility on new/just-dismissed notes; #264 bold formatting intermittently produces `*word**`; #265 keyboard opens after deleting a QuKi from the stream list; #266 tapping a checkbox in read-only mode scrolls to top and opens the keyboard; #272 notes dropped into the storage folder without a matching `.meta/{uuid}.json` sidecar are silently ignored.
+
+**Last Updated**: 2026-07-21
