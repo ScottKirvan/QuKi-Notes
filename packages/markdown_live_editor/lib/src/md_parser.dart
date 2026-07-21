@@ -150,21 +150,25 @@ class MdElement {
   ///
   /// For block list elements, this returns the visual glyph + space.
   ///
-  /// For checkbox elements, this returns three blank characters reserving the
+  /// For checkbox elements, this returns five blank characters reserving the
   /// horizontal space for a glyph plus a gap before the content — the render
   /// object (QuikiRenderEditor) paints the actual box/checkmark itself via
   /// Canvas rather than relying on a Unicode glyph, because Android's
   /// font-fallback shaping picks between a monochrome symbol font and Noto
   /// Color Emoji per text run (not per character), causing checked-box
   /// glyphs to inconsistently render as large colour emoji depending on
-  /// document order. See #267.
+  /// document order. See #267. The box is painted at a fixed size (a
+  /// fraction of line height) rather than shrunk to fit whatever width is
+  /// reserved here — a fixed, comfortable tap target matters more than a
+  /// tight gap — so five characters is a deliberately generous reservation
+  /// to keep the box clear of the following content text.
   ///
   /// For [MdElKind.image]: returns `''` — the image is not a text substitution;
   /// the render object (QuikiRenderEditor) handles painting the image or
   /// placeholder rect in the paint pass.
   String get collapsedMarker => switch (kind) {
         MdElKind.ul => '• ',
-        MdElKind.checkboxUnchecked || MdElKind.checkboxChecked => '   ',
+        MdElKind.checkboxUnchecked || MdElKind.checkboxChecked => '     ',
         MdElKind.ol => '$seqNum. ',
         // Heading, inline, image, link, and autolink elements: no text substitution glyph.
         _ => '',
