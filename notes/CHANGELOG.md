@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.19.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.18.2...v0.19.0) (2026-07-21)
+
+
+### Features
+
+* **editor:** Send+Settings icon buttons, sticky plaintext mode ([#249](https://github.com/ScottKirvan/QuKi-Notes/issues/249), [#251](https://github.com/ScottKirvan/QuKi-Notes/issues/251)) ([fd889fc](https://github.com/ScottKirvan/QuKi-Notes/commit/fd889fc21781ff7a4c2b71fab7016b555eb9b94d))
+* **settings:** help/about dialog — docs, Discord, GitHub ([#253](https://github.com/ScottKirvan/QuKi-Notes/issues/253)) ([03eb986](https://github.com/ScottKirvan/QuKi-Notes/commit/03eb986e03f2443466bfd26a146588894ec42b0f))
+* **settings:** help/about dialog ([#253](https://github.com/ScottKirvan/QuKi-Notes/issues/253)) ([5ac96d2](https://github.com/ScottKirvan/QuKi-Notes/commit/5ac96d24b2c6d05907c025ffb30a199bd7302f90))
+
+
+### Bug Fixes
+
+* **android:** set launchMode singleTask to prevent new instance on share-in ([#188](https://github.com/ScottKirvan/QuKi-Notes/issues/188)) ([448e775](https://github.com/ScottKirvan/QuKi-Notes/commit/448e7759cd25da69eb841017b3a989b5eed62dcb))
+* **editor:** dart format md_parser_test.dart ([f34fe99](https://github.com/ScottKirvan/QuKi-Notes/commit/f34fe990f2209c2977353da1a5b6a53b8d7d579f))
+* **editor:** force text presentation on checkbox glyphs ([#267](https://github.com/ScottKirvan/QuKi-Notes/issues/267)) ([baf617d](https://github.com/ScottKirvan/QuKi-Notes/commit/baf617d8ad2ccb06784005a94ac62fc47f200c1f))
+* **editor:** markdown mark CustomPainter for edit+rendered T button icon ([#239](https://github.com/ScottKirvan/QuKi-Notes/issues/239)) ([34224db](https://github.com/ScottKirvan/QuKi-Notes/commit/34224db358895fef67cab0f04677e3697c59026c))
+* **editor:** paint checkbox glyphs via Canvas instead of Unicode text ([#267](https://github.com/ScottKirvan/QuKi-Notes/issues/267)) ([1dedc6c](https://github.com/ScottKirvan/QuKi-Notes/commit/1dedc6c93a42e8c0505f739a9f746e239b70ac81))
+* **editor:** reading mode, toolbar gating, wrapSelection cursor, bottom padding ([#234](https://github.com/ScottKirvan/QuKi-Notes/issues/234), [#235](https://github.com/ScottKirvan/QuKi-Notes/issues/235), [#236](https://github.com/ScottKirvan/QuKi-Notes/issues/236), [#239](https://github.com/ScottKirvan/QuKi-Notes/issues/239)) ([97e026d](https://github.com/ScottKirvan/QuKi-Notes/commit/97e026d479702394e0a5fec1375100d17eca08ff))
+* **editor:** size checkbox box off measured reserved width, not line height ([aa507fe](https://github.com/ScottKirvan/QuKi-Notes/commit/aa507fe09aa37b9c7a7ee15ea76e2bfbd1ccdd4e))
+* **editor:** stop shrinking checkbox tap target to fit reserved gap ([c4412e7](https://github.com/ScottKirvan/QuKi-Notes/commit/c4412e7871af2f34050ec173971c80d4fe9b688e))
+* **editor:** tune canvas checkbox glyph size, position, and text gap ([94536bd](https://github.com/ScottKirvan/QuKi-Notes/commit/94536bdd40df5c8eef102c7c6613ca7b451cfdbd))
+* **editor:** use geometric square glyphs for checkboxes instead of emoji ([#267](https://github.com/ScottKirvan/QuKi-Notes/issues/267)) ([98c95f5](https://github.com/ScottKirvan/QuKi-Notes/commit/98c95f5624082a4e7785d951755249b9c4ad3822))
+* **settings:** add contrasting border to help dialog ([dea553c](https://github.com/ScottKirvan/QuKi-Notes/commit/dea553cc3cb1ab00f4f0d272790ca8eb9b60bb86))
+* **settings:** help dialog link buttons and dark modal bg ([a8b5f69](https://github.com/ScottKirvan/QuKi-Notes/commit/a8b5f69246065206cac98b542ba4c614e31e7a49))
+
+
+### Reverts
+
+* undo solid-square checkbox glyphs ([#267](https://github.com/ScottKirvan/QuKi-Notes/issues/267)) ([dffa792](https://github.com/ScottKirvan/QuKi-Notes/commit/dffa792f68e48419b58eb48dc949fc3253bed98e))
+
 ## [0.18.2](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.18.1...v0.18.2) (2026-07-12)
 
 
