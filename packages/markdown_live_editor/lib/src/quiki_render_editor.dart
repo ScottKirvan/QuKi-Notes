@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/widgets.dart';
@@ -433,8 +434,19 @@ class QuikiRenderEditor extends RenderBox {
         TextPosition(offset: cb.renderedMarkerStart),
         Rect.zero,
       );
+      final markerEndOffset = _textPainter.getOffsetForCaret(
+        TextPosition(offset: cb.renderedMarkerEnd),
+        Rect.zero,
+      );
       final lineHeight = _textPainter.preferredLineHeight;
-      final boxSize = lineHeight * 0.72;
+      // Size the box off the *measured* reserved marker width rather than a
+      // fixed fraction of line height: the collapsed marker reserves a fixed
+      // number of blank characters, and that reserved width can be narrower
+      // than a line-height-based box at typical font sizes, leaving no gap
+      // (or overlap) before the content text. Clamping to a fraction of the
+      // measured width guarantees a visible gap regardless of font metrics.
+      final reservedWidth = markerEndOffset.dx - caretOffset.dx;
+      final boxSize = math.min(lineHeight * 0.72, reservedWidth * 0.62);
       final boxRect = Rect.fromLTWH(
         textOrigin.dx + caretOffset.dx,
         textOrigin.dy +
