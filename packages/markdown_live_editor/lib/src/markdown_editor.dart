@@ -4,90 +4,15 @@ import 'package:flutter/material.dart';
 
 import 'editor_config.dart';
 import 'quiki_editor.dart';
-import 'span_parser.dart';
-
-// ---------------------------------------------------------------------------
-// Internal TextEditingController that renders markdown via buildTextSpan().
-// ---------------------------------------------------------------------------
-
-class _MarkdownTextController extends TextEditingController {
-  _MarkdownTextController({super.text, required this.config});
-
-  MarkdownEditorConfig config;
-  bool styled = true;
-
-  @override
-  TextSpan buildTextSpan({
-    required BuildContext context,
-    TextStyle? style,
-    required bool withComposing,
-  }) {
-    if (!styled) {
-      return TextSpan(text: text, style: style);
-    }
-
-    final effectiveStyle = style ?? const TextStyle();
-    final baseColor = effectiveStyle.color ?? Colors.black;
-    final syntaxColor = config.syntaxColor ?? baseColor.withValues(alpha: 0.35);
-
-    final headingFontSize = (effectiveStyle.fontSize ?? 16) * 1.4;
-    final headingStyle = effectiveStyle.copyWith(
-      fontSize: headingFontSize,
-      fontWeight: FontWeight.bold,
-      color: baseColor,
-    );
-    final boldStyle = effectiveStyle.copyWith(fontWeight: FontWeight.bold);
-    final italicStyle = effectiveStyle.copyWith(fontStyle: FontStyle.italic);
-    final codeStyle = effectiveStyle.copyWith(fontFamily: 'monospace');
-    final strikethroughStyle =
-        effectiveStyle.copyWith(decoration: TextDecoration.lineThrough);
-    final listPrefixStyle = effectiveStyle.copyWith(color: baseColor);
-    final checkboxStyle = effectiveStyle.copyWith(
-      fontFamily: 'monospace',
-      color: baseColor,
-    );
-
-    final parser = MarkdownSpanParser(
-      textStyle: effectiveStyle,
-      syntaxColor: syntaxColor,
-      headingStyle: headingStyle,
-      boldStyle: boldStyle,
-      italicStyle: italicStyle,
-      codeStyle: codeStyle,
-      strikethroughStyle: strikethroughStyle,
-      listPrefixStyle: listPrefixStyle,
-      checkboxStyle: checkboxStyle,
-    );
-
-    final fullText = text;
-    if (fullText.isEmpty) {
-      return TextSpan(text: '', style: style);
-    }
-
-    // Determine which line the cursor is on.
-    final cursorOffset = selection.isValid ? selection.baseOffset : -1;
-    final cursorLine = cursorOffset >= 0
-        ? '\n'.allMatches(fullText.substring(0, cursorOffset)).length
-        : -1;
-
-    final lines = fullText.split('\n');
-    final allSpans = <InlineSpan>[];
-
-    for (int i = 0; i < lines.length; i++) {
-      if (i > 0) {
-        allSpans.add(TextSpan(text: '\n', style: effectiveStyle));
-      }
-      final lineSpans =
-          parser.parseLine(lines[i], isCursorLine: i == cursorLine);
-      allSpans.addAll(lineSpans);
-    }
-
-    return TextSpan(children: allSpans, style: style);
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Public controller — preserves the existing API exactly.
+//
+// Rendering is done entirely by QuikiRenderEditor from the MdParser/RenderModel
+// pipeline; the plain TextEditingController below is used only as the shared
+// source-of-truth text buffer. (The former _MarkdownTextController.buildTextSpan
+// override and its MarkdownSpanParser were dead code — QuikiRenderEditor never
+// calls buildTextSpan — and were removed with ADR-33.)
 // ---------------------------------------------------------------------------
 
 class MarkdownEditorController {
@@ -316,7 +241,7 @@ class MarkdownEditor extends StatefulWidget {
 }
 
 class _MarkdownEditorState extends State<MarkdownEditor> {
-  late _MarkdownTextController _textController;
+  late TextEditingController _textController;
   late FocusNode _focusNode;
   late bool _ownsFocusNode;
   bool _plainTextMode = false;
@@ -330,10 +255,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   @override
   void initState() {
     super.initState();
-    _textController = _MarkdownTextController(
-      text: widget.initialValue,
-      config: widget.config,
-    );
+    _textController = TextEditingController(text: widget.initialValue);
     _previousValue = _textController.value;
     _ownsFocusNode = widget.focusNode == null;
     _focusNode = widget.focusNode ?? FocusNode();
@@ -344,14 +266,6 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     _focusNode.addListener(_onFocusChanged);
     _textController.addListener(_onTextChanged);
     _textController.addListener(_onSelectionChanged);
-  }
-
-  @override
-  void didUpdateWidget(MarkdownEditor oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.config != oldWidget.config) {
-      _textController.config = widget.config;
-    }
   }
 
   @override
@@ -464,7 +378,6 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   void _togglePlainTextMode() {
     setState(() {
       _plainTextMode = !_plainTextMode;
-      _textController.styled = !_plainTextMode;
     });
   }
 

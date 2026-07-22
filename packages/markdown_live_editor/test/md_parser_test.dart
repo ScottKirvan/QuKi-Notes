@@ -601,13 +601,21 @@ void main() {
       expect(els[0].url, 'https://go.dev');
     });
 
-    test('link on a heading line is NOT parsed (headings skip inline scan)',
+    test('link on a heading line IS parsed (headings get inline scan, ADR-33)',
         () {
-      // Headings are handled before the inline scan; links inside headings
-      // are not recognized in the current parser.
+      // ADR-33 (Stage 1): heading content now flows through the same recursive
+      // inline scanner as paragraphs, so a link inside a heading is recognized.
+      // Previously headings consumed the whole line as one opaque element and
+      // links inside them were not parsed — this behaviour was corrected here.
       final els = MdParser.parse('# See [Go](https://go.dev)');
-      expect(els, hasLength(1));
+      expect(els, hasLength(2));
       expect(els[0].kind, MdElKind.h1);
+      expect(els[0].start, 0);
+      expect(els[0].end, 26);
+      expect(els[1].kind, MdElKind.link);
+      // '# See ' = 6 chars → link starts at offset 6.
+      expect(els[1].start, 6);
+      expect(els[1].url, 'https://go.dev');
     });
   });
 
@@ -727,19 +735,21 @@ void main() {
     });
 
     test(
-        '"~~ ~~ok~~" → greedy: first "~~" closes on nearest "~~", producing one strikethrough',
+        '"~~ ~~ok~~" → CommonMark flanking: leading "~~ " cannot open, span is ~~ok~~',
         () {
       // source = '~~ ~~ok~~' (9 chars, indices 0..8).
-      // i=0: sees '~~', closeStart=2; nearest '~~' in [2..9) is at pos 3.
-      // → strikethrough(0, 5), content = ' ' (space at pos 2).
-      // i=5: 'o','k' plain; then '~~' at pos 7 has no close in [9..9) → skip.
-      // Result: one strikethrough(0, 5).
+      // Under the CommonMark flanking rules (ADR-33) the first '~~' [0,2) is
+      // followed by a space, so it is not left-flanking and cannot open. The
+      // '~~' at [3,5) is a valid opener ('o' follows) and '~~' at [7,9) a valid
+      // closer, yielding strikethrough(3, 9) with content 'ok'. This corrects
+      // the previous greedy behaviour, which produced strikethrough(0, 5), and
+      // matches how GitHub renders this input.
       const source = '~~ ~~ok~~';
       final els = MdParser.parse(source);
       expect(els, hasLength(1));
       expect(els[0].kind, MdElKind.strikethrough);
-      expect(els[0].start, 0);
-      expect(els[0].end, 5);
+      expect(els[0].start, 3);
+      expect(els[0].end, 9);
     });
 
     test('"text ~~a~~ ~~b~~" → two separate strikethrough elements', () {
