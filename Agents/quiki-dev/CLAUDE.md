@@ -52,33 +52,38 @@ Read in this order — do not skip:
 
 > Written and maintained by the Spec session.
 
-### Nested inline markdown — Stage 4 (blockquote content)
+### Nested inline markdown — Stage 4 addendum (blockquote rendering bugs)
 
-**Branch**: `fix/nested-inline-markdown-stage4`
-**Commit type**: `fix:` — corrects a spec-scoping mistake, not a new capability. Blockquotes were wrongly excluded from ADR-33 by carrying forward a stale pre-ADR-31 note; this closes that gap.
-**Suggested PR title** (Spec opens the PR, not you): `fix(editor): nested and combined inline markdown (Stage 4 — blockquotes)`
+**This is additional work on the existing `fix/nested-inline-markdown-stage4` branch, not a new branch.** Stage 4's original scope (blockquote content flows through the inline engine) is already committed there. Device testing on that branch surfaced four real bugs in blockquote *rendering* — pre-existing, not introduced by Stage 4's own change (confirmed: the paint code hasn't been touched since an unrelated checkbox fix, and Stage 4's diff was one line adding content scanning, nothing else). Fix these on top of the same branch so they ship together in the same PR (#283).
 
-**Read first**: `notes/dev/nested_inline_markdown.md` — specifically the "Correction (2026-07-22)" note near the top of the "Scope" section, which explains why blockquotes were wrongly excluded and are now in scope — and `notes/dev/decisions.md` → ADR-33. Stages 1, 2, and 3 (PRs #276, #279, #281, all merged) already built and proved the recursive inline engine on paragraphs, headings, list-item/checkbox content, and single-line HTML detection. This stage is architecturally identical to Stage 2 — read that stage's diff in git history (`fix(editor): nested and combined inline markdown (Stage 2 — list items)`) before starting; you're doing the same thing to a different block kind.
+**Branch**: `fix/nested-inline-markdown-stage4` (checkout the existing branch — do not create a new one, do not rebase/force-push, just add commits on top).
+**Commit type**: `fix:`.
+**PR**: already open as #283 (Spec updates it, not you) — same "do not open a PR" rule as always applies; push the branch and report back.
 
-**The problem, in one sentence**: blockquote lines (`> `) still become one opaque `MdElement` per line with zero inline scanning of their content — `> **important**` shows literal asterisks — the exact same gap headings and list items had before Stages 1 and 2 closed it there. Blockquotes are not an unsupported construct; they already render with real styling (muted color, left border stripe) — only their content was never wired through the inline engine.
+**Read first**: `notes/dev/nested_inline_markdown.md` and `notes/dev/decisions.md` → ADR-33 for context on the broader effort this sits inside. The four bugs below were found via real device testing, not a spec review — read each description carefully, they're independent of each other.
 
-**What to build**: wire blockquote content through the same inline engine, the same way heading and list-item content already do it (`MdParser.parse()`'s blockquote branch — `line.startsWith('> ') || line == '> '` — currently adds one `MdElKind.blockquote` element covering the whole line with no `_scanInline` call after it; the heading/list branches show the pattern to follow).
+**Bug 1 — bare `>` (no space) isn't recognized as a blockquote marker.** `MdParser`'s blockquote check only accepts `> ` (with a space) or exactly `> ` alone. CommonMark's actual rule is: a blockquote marker is either (a) `>` followed by one space, or (b) a single `>` **not** followed by a space — the space is only required when it's actually separating the marker from content. So `>` alone (empty line) and `>content` (content immediately after, no space) are both valid CommonMark blockquotes today on GitHub; QuKi-Notes currently renders both as literal text. Fix the detection to implement the real rule, and note that the marker length becomes variable (1 char for bare `>`, 2 chars for `> `) rather than always 2 — this needs to flow through wherever blockquote's delimiter length is currently assumed fixed.
 
-Constraints, not implementation:
-- Content is everything after the `> ` prefix (`openDelimLen` = 2 for blockquote, already correct).
-- Handle the empty-blockquote case (`line == '> '`, no content after the prefix) — `_scanInline` already returns an empty list when `start >= end`, so this should fall out naturally rather than needing special-casing.
-- The render side (`RenderModel.build()`) should not need new special-casing — it already combines a block's content style with covering inline elements generically (that's how heading+bold and list-item+bold already render correctly). If you find yourself adding blockquote-specific logic to the render loop, stop and reconsider.
-- The blockquote left-border-stripe painting (`BlockquoteSlot`, drawn by `QuikiRenderEditor`) is unaffected — it's driven by block detection, not content.
+**Bug 2 — empty blockquote (`> ` with nothing after it) paints no stripe at all.** This is an off-by-one in `RenderModel.build()`: the code that records a `BlockquoteSlot` (so the stripe can be painted) checks for the render position exactly at "one past the prefix" — but when there's no content, that position coincides with where the block itself ends, and the per-character loop has already retired the block as "no longer current" by the time it gets there. Find why the slot-recording condition and the block-retirement condition collide for zero-content blocks, and fix it so an empty blockquote still gets its stripe.
 
-**Explicitly out of scope for this PR — do not implement, and do not decide to defer something else instead without flagging it back to me first**:
-- Inline image parsing (Stage 5, a separate future brief — pending a UX decision that hasn't been made yet).
+**Bug 3 — the stripe doesn't cover wrapped or multi-line content.** Two related gaps in `QuikiRenderEditor`'s stripe-painting code:
+- Stripe height is hardcoded to one line's height (`_textPainter.preferredLineHeight`), so a single blockquote line that word-wraps to 2+ visual rows only gets a stripe over the first row.
+- Every `> `-prefixed source line is its own independent element with its own independent stripe segment — there's no concept of "these consecutive lines are one blockquote." Real GFM/GitHub behavior: consecutive `>` lines form a single quoted block with one continuous border, not several stacked ones. Fix the stripe painting so consecutive blockquote lines render as one continuous stripe spanning their combined height, and so a single wrapped line's stripe spans its full wrapped height. Whether this is solved by merging adjacent `BlockquoteSlot`s at paint time or by tracking continuation earlier (similar in spirit to how the ordered-list block-relative counter tracks continuation across lines) is your call.
+
+**Bug 4 — stripe positioning: too high, no gap from the text (overlaps it).** See the attached screenshot in the conversation this brief was written from — the stripe sits noticeably higher than the text's actual line box and directly touches/overlaps the content with no visible gap. I have not pixel-diagnosed the exact cause (the render math looks plausible reading it, so this needs empirical verification against the actual rendered output, not just a code read) — compare against how GitHub actually renders a blockquote (small consistent gap between the border and the text, border vertically aligned with the full text line, not just the caret's ascent box) and fix accordingly.
+
+**While fixing all four**: verify — don't just assume — that the stripe color (`#7A828E`) and blockquote text color (`#9EA7B4`) still match the locked Primer Dark High Contrast tokens (root `CLAUDE.md`'s visual design standard) after your spacing/positioning changes; they were already correct before this, don't regress them.
+
+**Explicitly out of scope — do not implement, and do not decide to defer something else instead without flagging it back to me first**:
+- Inline image parsing (Stage 5, a separate future brief, on hold pending the project owner testing GitHub/Obsidian's actual behavior — do not touch anything image-related).
 - List nesting/indentation (#241), Tab/Shift+Tab indent handling (#77), tables — untouched, unrelated future work.
 
-**Tests required**:
-- Nested/combined formatting inside a blockquote (`> **bold**`, `> *italic*`, `> ~~struck~~`, `` > `code` ``, `> [a link](url)`), including a genuinely nested case like `> **bold *italic* text**`, mirroring the list-item test coverage Stages 2/3 already established in `nested_inline_test.dart`.
-- Whole-chain reveal-on-cursor for a nested run inside a blockquote, same rule as elsewhere.
-- The empty-blockquote case (`> ` alone) still works correctly with no content to scan.
-- The left-border-stripe still paints correctly when the blockquote line has inline-formatted content.
-- Every existing single-level blockquote test must keep passing unless a genuine correctness fix requires updating one — explain why if so, same discipline as prior stages.
+**Tests required** (in addition to Stage 4's existing tests, which must keep passing):
+- Bare `>` alone → empty blockquote, produces a stripe (was: literal `>` text).
+- Bare `>content` (no space) → recognized as a blockquote with content, content inline-scanned same as `> content` would be.
+- `> ` alone (existing empty case) → now produces a stripe (regression test for the off-by-one).
+- A blockquote line long enough to wrap at a realistic editor width → stripe spans the full wrapped height, not just one line.
+- Two or more consecutive `> ` lines → one continuous stripe, not visually separate segments.
+- A device-testable style check is fine to leave as a manual verification note in your report rather than an automated test, if the positioning fix isn't cleanly unit-testable — say so explicitly rather than skipping silently.
 
-**Checklist**: `dart format`, `flutter analyze`, package tests (`cd packages/markdown_live_editor && flutter test`) — all clean before pushing. Include in your report-back a short list of example markdown strings (blockquotes — plain and nested) with what you expect each to render as.
+**Checklist**: `dart format`, `flutter analyze`, package tests (`cd packages/markdown_live_editor && flutter test`) — all clean before pushing. Include in your report-back example blockquote strings covering all four bugs with what you expect each to render as, plus explicit confirmation the two color tokens are unchanged.
