@@ -938,4 +938,57 @@ void main() {
       expect(ro.renderModel.linkSlots, hasLength(1));
     });
   });
+
+  // -------------------------------------------------------------------------
+  // Blockquote stripe paint smoke tests (ADR-33 Stage 4, blockquote-indent
+  // round). The left border stripe's vertical extent is now derived from
+  // TextPainter.getBoxesForSelection() over the run's rendered content span.
+  // These pump real blockquotes through a full paint pass and assert no
+  // exception is thrown — guarding the new geometry against edge cases
+  // (empty content, multi-line runs, wrapped lines). They do NOT assert exact
+  // stripe pixel bounds: the widget-test font renders placeholder boxes, so
+  // fine vertical text-metric alignment is not reliably verifiable here.
+  // -------------------------------------------------------------------------
+  group('MarkdownEditor — blockquote stripe paint smoke tests', () {
+    testWidgets('single collapsed blockquote paints without error',
+        (tester) async {
+      await tester.pumpWidget(_buildEditor(initialValue: '> quoted text'));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      final ro = tester
+          .renderObject<QuikiRenderEditor>(find.byType(QuikiRenderWidget));
+      expect(ro.renderModel.blockquoteSlots, hasLength(1));
+    });
+
+    testWidgets('empty blockquote paints without error', (tester) async {
+      await tester.pumpWidget(_buildEditor(initialValue: '> '));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      final ro = tester
+          .renderObject<QuikiRenderEditor>(find.byType(QuikiRenderWidget));
+      expect(ro.renderModel.blockquoteSlots, hasLength(1));
+    });
+
+    testWidgets('multi-line blockquote run paints without error',
+        (tester) async {
+      await tester.pumpWidget(
+        _buildEditor(initialValue: '> line one\n> line two\n> line three'),
+      );
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      final ro = tester
+          .renderObject<QuikiRenderEditor>(find.byType(QuikiRenderWidget));
+      expect(ro.renderModel.blockquoteSlots, hasLength(3));
+    });
+
+    testWidgets('long (wrapping) blockquote paints without error',
+        (tester) async {
+      await tester.pumpWidget(_buildEditor(
+        initialValue:
+            '> ${'this is a deliberately long quoted line that should wrap ' * 3}',
+      ));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    });
+  });
 }

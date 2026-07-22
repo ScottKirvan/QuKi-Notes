@@ -362,8 +362,12 @@ class RenderModel {
         // position coincides with where the block is retired from this loop, so
         // the slot was never emitted (the off-by-one this fixes).
 
-        // Collapsed list/checkbox marker substitution: emit the collapsedMarker
-        // glyph(s) and fast-forward past the source delimiter region.
+        // Collapsed list/checkbox/blockquote marker substitution: emit the
+        // collapsedMarker glyph(s) and fast-forward past the source delimiter
+        // region. For a blockquote the marker is blank indentation characters
+        // (no glyph), reserving horizontal width so the quoted content renders
+        // indented from plain paragraph text; the stripe is still positioned via
+        // the blockquote post-pass below and painted by QuikiRenderEditor.
         if (block.collapsedMarker.isNotEmpty && si == block.start) {
           final marker = block.collapsedMarker;
           final delimEnd = block.start + block.openDelimLen;

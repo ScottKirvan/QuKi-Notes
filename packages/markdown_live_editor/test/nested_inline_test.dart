@@ -23,6 +23,13 @@ MdElement? _first(String src, MdElKind kind) {
 
 const _base = TextStyle(fontSize: 16.0, color: Color(0xFFFFFFFF));
 
+/// The blank-character indent a collapsed blockquote reserves in front of its
+/// content (ADR-33 Stage 4, blockquote-indent round). Mirrors
+/// [MdElement.collapsedMarker] for [MdElKind.blockquote] — kept as a named
+/// constant so the rendered-offset expectations below read intentionally rather
+/// than as magic numbers, and stay correct if the reserved width is retuned.
+const _bqIndent = '    '; // four spaces
+
 RenderModel _build(String source, {int cursorOffset = -1}) {
   return RenderModel.build(
     source: source,
@@ -953,28 +960,31 @@ void main() {
 
     test('"> **bold**" collapsed → "bold", content is bold AND muted', () {
       final m = _build('> **bold**', cursorOffset: -1);
-      // '> ' and '**' delimiters hidden → rendered content is just 'bold'.
-      expect(m.textSpan.toPlainText(), 'bold');
-      final style = _styleAtRendered(m, 0);
+      // '> ' and '**' delimiters hidden; the blockquote reserves a blank indent
+      // (collapsedMarker) in front, so rendered content is the indent + 'bold'.
+      expect(m.textSpan.toPlainText(), '${_bqIndent}bold');
+      // First content char sits just past the reserved indent.
+      final style = _styleAtRendered(m, _bqIndent.length);
       expect(style?.fontWeight, FontWeight.bold);
       expect(style?.color, muted);
     });
 
     test('"> *italic*" collapsed → "italic", content is italic AND muted', () {
       final m = _build('> *italic*', cursorOffset: -1);
-      expect(m.textSpan.toPlainText(), 'italic');
-      final style = _styleAtRendered(m, 0);
+      expect(m.textSpan.toPlainText(), '${_bqIndent}italic');
+      final style = _styleAtRendered(m, _bqIndent.length);
       expect(style?.fontStyle, FontStyle.italic);
       expect(style?.color, muted);
     });
 
     test('nested char in a blockquote carries BOTH bold and italic', () {
-      // '> a **b *c* d** e' collapsed → 'a b c d e'; the 'c' is inside both
-      // bold and italic (and still muted from the blockquote content style).
+      // '> a **b *c* d** e' collapsed → indent + 'a b c d e'; the 'c' is inside
+      // both bold and italic (and still muted from the blockquote content style).
       final m = _build('> a **b *c* d** e', cursorOffset: -1);
-      expect(m.textSpan.toPlainText(), 'a b c d e');
-      // 'a'(0) ' '(1) 'b'(2) ' '(3) 'c'(4) → 'c' at rendered offset 4.
-      final style = _styleAtRendered(m, 4);
+      expect(m.textSpan.toPlainText(), '${_bqIndent}a b c d e');
+      // Content: 'a'(0) ' '(1) 'b'(2) ' '(3) 'c'(4) — shifted right by the
+      // reserved indent, so 'c' is at rendered offset indent + 4.
+      final style = _styleAtRendered(m, _bqIndent.length + 4);
       expect(style?.fontWeight, FontWeight.bold);
       expect(style?.fontStyle, FontStyle.italic);
       expect(style?.color, muted);
@@ -983,8 +993,67 @@ void main() {
     test('plain "> quote" content is muted (unchanged single-level behavior)',
         () {
       final m = _build('> quote', cursorOffset: -1);
-      expect(m.textSpan.toPlainText(), 'quote');
-      expect(_styleAtRendered(m, 0)?.color, muted);
+      expect(m.textSpan.toPlainText(), '${_bqIndent}quote');
+      // Check the first real content char (past the reserved indent).
+      expect(_styleAtRendered(m, _bqIndent.length)?.color, muted);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // RenderModel — blockquote content is horizontally indented from plain
+  // paragraph text (ADR-33 Stage 4, blockquote-indent round). The bug this
+  // guards: blockquote content and plain paragraph content used to start at the
+  // exact same x, because the '>'/'> ' marker was a zero-width hidden delimiter.
+  // The collapsedMarker now reserves real blank width, so the quoted content
+  // renders visibly to the right — the way GitHub/CommonMark indent it.
+  //
+  // The assertion is on actual laid-out glyph x-positions (not a golden image),
+  // so it is geometry, not an eyeball check. Placeholder-box test fonts and real
+  // device fonts differ in absolute space width, so the test pins the indent to
+  // the reserved marker's own measured width rather than to a fixed pixel count.
+  // -------------------------------------------------------------------------
+  group('RenderModel — blockquote content horizontal indent', () {
+    // Rendered-x of the caret at [renderedOffset] in a laid-out (unwrapped) span.
+    double dxAt(RenderModel m, int renderedOffset) {
+      final tp = TextPainter(
+        text: m.textSpan,
+        textDirection: TextDirection.ltr,
+      )..layout();
+      return tp
+          .getOffsetForCaret(TextPosition(offset: renderedOffset), Rect.zero)
+          .dx;
+    }
+
+    double spaceWidth() {
+      final tp = TextPainter(
+        text: const TextSpan(text: ' ', style: _base),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      return tp.width;
+    }
+
+    test('blockquote content starts strictly right of paragraph content', () {
+      // Line 0: a plain paragraph. Line 1: a blockquote. Both content runs start
+      // on their own visual row at x measured from the same left origin.
+      final m = _build('plain\n> quote', cursorOffset: -1);
+      final rendered = m.textSpan.toPlainText(); // 'plain\n    quote'
+      final pDx = dxAt(m, rendered.indexOf('plain'));
+      final qDx = dxAt(m, rendered.indexOf('quote'));
+      expect(pDx, closeTo(0.0, 0.01),
+          reason: 'plain paragraph content is not indented');
+      expect(qDx, greaterThan(pDx),
+          reason: 'blockquote content must be pushed to the right');
+    });
+
+    test('indent equals exactly the reserved marker width', () {
+      // The horizontal offset between the two content runs is precisely the
+      // reserved blank indent (four spaces), independent of the font's absolute
+      // space width — this ties the visual indent to collapsedMarker.
+      final m = _build('plain\n> quote', cursorOffset: -1);
+      final rendered = m.textSpan.toPlainText();
+      final pDx = dxAt(m, rendered.indexOf('plain'));
+      final qDx = dxAt(m, rendered.indexOf('quote'));
+      expect(qDx - pDx, closeTo(_bqIndent.length * spaceWidth(), 0.5));
     });
   });
 
@@ -1003,9 +1072,10 @@ void main() {
     });
 
     test('formatted blockquote: still one slot at renderedStart 0', () {
-      // '> ' and '**' are all hidden delimiters, so the first rendered content
-      // char ('b' of bold) is at rendered offset 0 — same stripe position as a
-      // plain blockquote. Inline formatting does not disturb the stripe.
+      // renderedStart is the rendered offset of the (hidden) marker start, which
+      // is where the reserved blank indent begins — rendered offset 0 for a
+      // top-of-buffer blockquote, exactly as for a plain one. Inline formatting
+      // does not disturb the stripe's start.
       final m = _build('> **bold**', cursorOffset: -1);
       expect(m.blockquoteSlots, hasLength(1));
       expect(m.blockquoteSlots[0].renderedStart, 0);
@@ -1034,22 +1104,30 @@ void main() {
       expect(m.blockquoteSlots[0].element.kind, MdElKind.blockquote);
     });
 
-    test('empty blockquote slot: renderedStart == renderedEnd (zero content)',
+    test('empty blockquote slot: spans only the reserved indent (no content)',
         () {
+      // An empty blockquote has no content text, but the collapsedMarker still
+      // reserves the blank indent, so the rendered span covers exactly that
+      // indent — renderedEnd - renderedStart == the indent width. (Before the
+      // indent was introduced these two offsets were equal; the reserved indent
+      // is what they now differ by.)
       final m = _build('> ', cursorOffset: -1);
       final slot = m.blockquoteSlots.single;
-      expect(slot.renderedStart, slot.renderedEnd);
+      expect(slot.renderedEnd - slot.renderedStart, _bqIndent.length);
     });
 
-    test('renderedEnd spans the full rendered content of the line', () {
-      // '> hello world' collapses to 'hello world' (11 chars); the stripe must
-      // be able to cover the whole content, so renderedEnd - renderedStart
-      // equals the rendered content length (this is what lets the paint layer
-      // span a wrapped line's full height rather than just its first row).
+    test('renderedEnd spans the reserved indent plus the rendered content', () {
+      // '> hello world' collapses to the reserved indent + 'hello world'; the
+      // stripe must be able to cover the whole visual line, so renderedEnd -
+      // renderedStart equals indent + content length (this is what lets the
+      // paint layer span a wrapped line's full height, not just its first row).
       final m = _build('> hello world', cursorOffset: -1);
       final slot = m.blockquoteSlots.single;
       expect(slot.renderedStart, 0);
-      expect(slot.renderedEnd - slot.renderedStart, 'hello world'.length);
+      expect(
+        slot.renderedEnd - slot.renderedStart,
+        _bqIndent.length + 'hello world'.length,
+      );
     });
 
     test('consecutive blockquote slots are adjacent (mergeable into one run)',
@@ -1109,7 +1187,8 @@ void main() {
 
     test('cursor outside collapses to rendered content (no raw markers)', () {
       final m = _build(src, cursorOffset: -1);
-      expect(m.textSpan.toPlainText(), 'a b c d e');
+      // Collapsed: reserved blockquote indent + the rendered content.
+      expect(m.textSpan.toPlainText(), '${_bqIndent}a b c d e');
     });
 
     test('cursor inside the inner italic reveals the WHOLE line raw', () {
