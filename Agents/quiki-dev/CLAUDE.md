@@ -52,4 +52,37 @@ Read in this order — do not skip:
 
 > Written and maintained by the Spec session.
 
-No task currently in progress.
+### Nested inline markdown — Stage 1 (paragraphs & headings only)
+
+**Branch**: `fix/nested-inline-markdown-stage1`
+**Commit type**: `fix:` — closing a gap against the already-locked GFM markdown flavor decision, not a new capability.
+**Suggested PR title** (Spec opens the PR, not you): `fix(editor): nested and combined inline markdown (Stage 1 — paragraphs & headings)`
+
+**Read first**: `notes/dev/nested_inline_markdown.md` (full spec) and `notes/dev/decisions.md` → ADR-33 (locked decision record). Both are normative for this task — the brief below is a summary and file pointer, not a replacement for reading them.
+
+**The problem, in one sentence**: `MdParser`'s inline scanner (`md_parser.dart`) finds the nearest matching delimiter pair and never re-scans what's between them, so `**bold *italic* text**` renders as one flat bold run with literal, un-hidden asterisks inside it — and headings get *zero* inline scanning at all today (a heading line becomes one opaque element, full stop).
+
+**What to build**: replace the flat inline scanner with one that implements CommonMark's delimiter-run + flanking-rule algorithm (see the spec doc for the exact rule — intraword `_` vs `*` behave differently, code spans resolve before emphasis and suppress everything inside them, link/image text can itself contain nested emphasis but not a nested link). It must:
+
+- Support arbitrary nesting and combination of bold, italic, strikethrough, inline code, links, images, and bare-URL autolinks — `~~**_text_**~~` must resolve as strikethrough containing strong containing emphasis, not fail to parse or flatten.
+- Apply identically to **paragraph lines and heading lines** — headings currently get no inline scan at all; that gap closes in this stage.
+- Support backslash escapes: any ASCII punctuation character preceded by `\` renders literally, not as markdown syntax (`\*not italic\*` → literal asterisks). Non-punctuation escapes (`\A`) are literal too — nothing is silently dropped. Backslash-newline hard-break is explicitly **not** part of this — this engine already treats every source newline as a real line break.
+- Reveal-on-cursor for a nested/combined run shows the **entire outermost element** as raw source when the cursor is anywhere inside it — not just the innermost piece. See the spec doc's "Reveal-on-cursor semantics" section; this is a locked product decision, not something to redesign.
+- Preserve the existing bidirectional source↔rendered offset-mapping guarantee (every source offset maps to exactly one rendered offset) — this is load-bearing for cursor placement, tap-to-source, and the boundary-reveal arrow-key behavior from ADR-31. If nesting requires changing how that mapping is built, the invariant itself (not the specific data structure that provides it) must still hold.
+
+**Correctness invariants to test against, not implementation to follow**: `MdElement` currently assumes a flat, non-overlapping partition of the source — that assumption must go, since a nested run needs overlapping ranges (e.g. bold containing italic). Rendered style at any character must be the *combination* of every currently-open ancestor's style. How you represent that (a tree, parent/child links on the existing flat list, something else) is your call — the spec deliberately does not prescribe it.
+
+**Also required, not optional — delete dead code before/while doing this work**: `packages/markdown_live_editor/lib/src/span_parser.dart` (`MarkdownSpanParser`) and its test file `test/span_parser_test.dart` are unreachable — `QuikiEditor`/`QuikiRenderEditor` never call `TextEditingController.buildTextSpan()`, so this ~430-line file and its `_MarkdownTextController.buildTextSpan()` caller in `markdown_editor.dart` never execute. Confirmed via full code review 2026-07-21 — do not treat this as "maybe still used somewhere," it isn't. Delete `span_parser.dart`, delete `span_parser_test.dart`, remove the `export 'src/span_parser.dart';` line from `markdown_live_editor.dart`, and simplify `_MarkdownTextController` accordingly (the `buildTextSpan()` override and the `styled` flag it reads have no live caller).
+
+**Explicitly out of scope for this PR — do not implement, and do not decide to defer something else instead without flagging it back to me first** (see the "implementation session does not decide scope" rule above):
+- List-item content inline scanning — list/checkbox lines still become one opaque element, exactly as today. That's Stage 3, a separate future brief.
+- HTML detection (block or inline) — that's Stage 2, a separate future brief. Don't add it here even though it's tempting to bundle.
+- List nesting/indentation (#241), Tab/Shift+Tab indent handling (#77), tables — untouched, unrelated future work.
+
+**Tests required**:
+- Port relevant cases from CommonMark's official spec test suite (commonmark.org `spec.json`) for the in-scope subset: emphasis/strong delimiter resolution, intraword rules, code-span precedence over emphasis, nested combinations, backslash escapes. Cite the spec example each test is drawn from in a comment.
+- Pull GFM-specific cases (strikethrough, autolinks) from `github/cmark-gfm`'s own test suite, since those aren't in base CommonMark.
+- New QuKi-Notes-specific cases: nested/combined formatting in a heading (currently impossible — must work now), the whole-chain reveal rule (cursor anywhere in a nested run reveals the full outer range), backslash escapes for each in-scope punctuation character.
+- Every existing single-level test in `md_parser_test.dart` / `render_model_test.dart` (bold, italic, strikethrough, code, links, autolinks) must keep passing — rendered visual output for single-level cases must not change, even if the underlying element representation does.
+
+**Checklist**: `dart format`, `flutter analyze`, package tests (`cd packages/markdown_live_editor && flutter test`) — all clean before pushing. Since this is a highly visual change, include in your report-back a short list of example markdown strings (plain, nested, escaped) with what you expect each to render as, so device-testing instructions are easy for Spec to write once the PR opens.
