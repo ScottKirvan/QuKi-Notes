@@ -16,7 +16,7 @@ Normative framing in `manifesto.md` — read that first.
 
 **Date**: 2026-07-21
 
-**Status**: locked decision, not yet implemented. Full spec: `notes/dev/nested_inline_markdown.md` — read that first; this entry is the index pointer.
+**Status**: Stage 1 complete (PR #276, merged 2026-07-21) — paragraphs and headings. Stage 2 (list-item/checkbox content, the original #240 ask) is next; Stage 3 (HTML detection) and further stages not started. Full spec + staged plan: `notes/dev/nested_inline_markdown.md` — read that first; this entry is the index pointer.
 
 **What**: Replace `MdParser`'s flat, non-recursive inline scanner (Step 5 in the current parse loop) with a nested/recursive engine implementing CommonMark's delimiter-run + flanking-rule algorithm, scoped to QuKi-Notes' existing inline subset (bold, italic, strikethrough, inline code, links, images, autolinks) plus backslash escapes. Applies uniformly to paragraphs, headings, and list-item content — today only paragraphs get inline scanning at all. HTML is detected and excluded from markdown scanning (passed through raw), never parsed. Reveal-on-cursor for a nested/combined run shows the entire outermost element as raw source, not just the innermost piece. Reference implementation for correctness (not a runtime dependency): `github/cmark-gfm`, the actual C library github.com renders markdown with.
 
