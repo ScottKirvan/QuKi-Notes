@@ -314,7 +314,7 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
-  // Links / autolinks combine with emphasis (link text stays atomic in Stage 1).
+  // Links / autolinks combine with emphasis, both around AND inside link text.
   // -------------------------------------------------------------------------
   group('links combined with emphasis', () {
     test('"**[GitHub](https://github.com)**" → strong containing link', () {
@@ -334,6 +334,95 @@ void main() {
       expect(bold.start, 0);
       expect(auto.url, 'https://a.com');
       expect(bold.start < auto.start && auto.end < bold.end, isTrue);
+    });
+
+    // ADR-33: link *text* is recursively scanned for nested emphasis.
+    test('"[**bold link**](url)" → link containing a bold label', () {
+      final els = MdParser.parse('[**bold link**](url)');
+      final link = els.firstWhere((e) => e.kind == MdElKind.link);
+      final bold = els.firstWhere((e) => e.kind == MdElKind.bold);
+      expect(link.start, 0);
+      expect(link.url, 'url');
+      // '[' then '**' → bold begins at offset 1; label 'bold link' is 9 chars.
+      expect(bold.start, 1);
+      expect(bold.end, 14); // '**bold link**' = 13 chars starting at 1
+      expect(link.start < bold.start && bold.end < link.end, isTrue);
+    });
+
+    test('"[a *b* ~~c~~](url)" → link containing italic and strikethrough', () {
+      final els = MdParser.parse('[a *b* ~~c~~](url)');
+      expect(els.where((e) => e.kind == MdElKind.link), hasLength(1));
+      expect(els.where((e) => e.kind == MdElKind.italic), hasLength(1));
+      expect(els.where((e) => e.kind == MdElKind.strikethrough), hasLength(1));
+    });
+
+    test('"[`code`](url)" → link containing an inline code label', () {
+      final els = MdParser.parse('[`code`](url)');
+      expect(els.where((e) => e.kind == MdElKind.link), hasLength(1));
+      final code = els.firstWhere((e) => e.kind == MdElKind.inlineCode);
+      expect(code.start, 1);
+      expect(code.end, 7);
+    });
+
+    test('autolink is suppressed inside link text: "[go https://x.com](u)"',
+        () {
+      // The recursive link-text scan runs with links (and autolinks) disabled,
+      // so a bare URL in the label is NOT turned into a nested link — a link
+      // cannot contain another link (CommonMark). Only the outer link results.
+      final els = MdParser.parse('[go https://x.com](u)');
+      expect(els.where((e) => e.kind == MdElKind.link), hasLength(1));
+      expect(els.where((e) => e.kind == MdElKind.autolink), isEmpty);
+      expect(els.firstWhere((e) => e.kind == MdElKind.link).url, 'u');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // RenderModel — nested emphasis inside link text renders combined styles and
+  // reports correct LinkSlot bounds (delimiters inside the label are hidden).
+  // -------------------------------------------------------------------------
+  group('RenderModel — nested emphasis in link text', () {
+    test(
+        '"[**b**](url)" collapsed: label "b" is bold + underlined + link color',
+        () {
+      final m = _build('[**b**](url)', cursorOffset: -1);
+      expect(m.textSpan.toPlainText(), 'b');
+      final style = _styleAtRendered(m, 0); // 'b'
+      expect(style?.fontWeight, FontWeight.bold);
+      expect(style?.decoration, TextDecoration.underline);
+      // Link color differs from the base (white) text color.
+      expect(style?.color, isNot(_base.color));
+    });
+
+    test('"[**b**](url)" collapsed: LinkSlot bounds reflect the 1-char label',
+        () {
+      // Source label "**b**" is 5 chars but renders as 1 ('b'); renderedEnd must
+      // be renderedStart + 1, not renderedStart + 5.
+      final m = _build('[**b**](url)', cursorOffset: -1);
+      expect(m.linkSlots, hasLength(1));
+      expect(m.linkSlots[0].renderedStart, 0);
+      expect(m.linkSlots[0].renderedEnd, 1);
+      expect(m.linkSlots[0].element.url, 'url');
+    });
+
+    test('"[a **b** c](url)" collapsed: label renders "a b c", slot spans it',
+        () {
+      final m = _build('[a **b** c](url)', cursorOffset: -1);
+      expect(m.textSpan.toPlainText(), 'a b c');
+      expect(m.linkSlots, hasLength(1));
+      expect(m.linkSlots[0].renderedStart, 0);
+      expect(m.linkSlots[0].renderedEnd, 5); // 'a b c'
+      // The 'b' (rendered index 2) is bold + link-underlined; 'a' (index 0) is
+      // link-underlined but not bold.
+      expect(_styleAtRendered(m, 2)?.fontWeight, FontWeight.bold);
+      expect(_styleAtRendered(m, 2)?.decoration, TextDecoration.underline);
+      expect(_styleAtRendered(m, 0)?.fontWeight, isNot(FontWeight.bold));
+      expect(_styleAtRendered(m, 0)?.decoration, TextDecoration.underline);
+    });
+
+    test('cursor inside "[**b**](url)" reveals the whole link raw', () {
+      final m = _build('[**b**](url)', cursorOffset: 3); // inside 'b'
+      expect(m.textSpan.toPlainText(), '[**b**](url)');
+      expect(m.linkSlots, isEmpty);
     });
   });
 
