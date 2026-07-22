@@ -22,6 +22,13 @@ enum MdElKind {
   autolink,
   blockquote,
   hr,
+
+  /// A backslash escape of a single ASCII-punctuation character (`\*`, `\[`,
+  /// etc.). The backslash is the (hidden) opening delimiter; the escaped
+  /// punctuation character is content rendered literally in the surrounding
+  /// style. Inline-only; never produced for a non-punctuation escape (`\A`),
+  /// where both characters stay literal with no element (ADR-33).
+  escape,
 }
 
 // ---------------------------------------------------------------------------
@@ -106,6 +113,8 @@ class MdElement {
         MdElKind.blockquote => 2,
         // Hr: the entire source line is the delimiter; no content chars emitted.
         MdElKind.hr => end - start,
+        // Escape: the leading backslash is the (hidden) opening delimiter.
+        MdElKind.escape => 1,
       };
 
   /// For [MdElKind.link]: the length of the closing delimiter `](url)`.
@@ -131,7 +140,10 @@ class MdElement {
         // Blockquote closing delimiter: none (content extends to end of line).
         MdElKind.blockquote ||
         // Hr: no separate closing delimiter (full line is the opener).
-        MdElKind.hr =>
+        MdElKind.hr ||
+        // Escape: only the leading backslash is a delimiter; the escaped
+        // character is content, so there is no closing delimiter.
+        MdElKind.escape =>
           0,
         MdElKind.bold => 2,
         MdElKind.italic => 1,
@@ -170,9 +182,42 @@ class MdElement {
         MdElKind.ul => '• ',
         MdElKind.checkboxUnchecked || MdElKind.checkboxChecked => '     ',
         MdElKind.ol => '$seqNum. ',
-        // Heading, inline, image, link, and autolink elements: no text substitution glyph.
+        // Heading, inline (incl. escape), image, link, and autolink elements:
+        // no text substitution glyph.
         _ => '',
       };
+
+  /// True for block-level element kinds (one per line, non-overlapping):
+  /// headings, list markers, checkboxes, blockquote, block image, and hr.
+  /// False for inline kinds (bold, italic, strikethrough, inline code, link,
+  /// autolink, escape), which may nest and combine within a line.
+  bool get isBlock => switch (kind) {
+        MdElKind.h1 ||
+        MdElKind.h2 ||
+        MdElKind.h3 ||
+        MdElKind.h4 ||
+        MdElKind.h5 ||
+        MdElKind.h6 ||
+        MdElKind.ul ||
+        MdElKind.ol ||
+        MdElKind.checkboxUnchecked ||
+        MdElKind.checkboxChecked ||
+        MdElKind.blockquote ||
+        MdElKind.image ||
+        MdElKind.hr =>
+          true,
+        MdElKind.bold ||
+        MdElKind.italic ||
+        MdElKind.strikethrough ||
+        MdElKind.inlineCode ||
+        MdElKind.link ||
+        MdElKind.autolink ||
+        MdElKind.escape =>
+          false,
+      };
+
+  /// True for inline element kinds. Complement of [isBlock].
+  bool get isInline => !isBlock;
 
   /// Whether source offset [si] (which must be within [start, end)) is a
   /// delimiter character.
@@ -219,31 +264,37 @@ class MdParser {
         olRunCount = 0;
         result
             .add(MdElement(kind: MdElKind.h6, start: lineStart, end: lineEnd));
+        result.addAll(_scanInline(source, lineStart + 7, lineEnd));
       } else if (line.startsWith('##### ')) {
         olBlockStart = 0;
         olRunCount = 0;
         result
             .add(MdElement(kind: MdElKind.h5, start: lineStart, end: lineEnd));
+        result.addAll(_scanInline(source, lineStart + 6, lineEnd));
       } else if (line.startsWith('#### ')) {
         olBlockStart = 0;
         olRunCount = 0;
         result
             .add(MdElement(kind: MdElKind.h4, start: lineStart, end: lineEnd));
+        result.addAll(_scanInline(source, lineStart + 5, lineEnd));
       } else if (line.startsWith('### ')) {
         olBlockStart = 0;
         olRunCount = 0;
         result
             .add(MdElement(kind: MdElKind.h3, start: lineStart, end: lineEnd));
+        result.addAll(_scanInline(source, lineStart + 4, lineEnd));
       } else if (line.startsWith('## ')) {
         olBlockStart = 0;
         olRunCount = 0;
         result
             .add(MdElement(kind: MdElKind.h2, start: lineStart, end: lineEnd));
+        result.addAll(_scanInline(source, lineStart + 3, lineEnd));
       } else if (line.startsWith('# ')) {
         olBlockStart = 0;
         olRunCount = 0;
         result
             .add(MdElement(kind: MdElKind.h1, start: lineStart, end: lineEnd));
+        result.addAll(_scanInline(source, lineStart + 2, lineEnd));
 
         // Step 2 — Checkbox detection (must run before ul, both start with '- ').
       } else if (line.startsWith('- [ ] ')) {
@@ -328,146 +379,10 @@ class MdParser {
       } else {
         olBlockStart = 0;
         olRunCount = 0;
-        // Step 5 — Inline scan (non-list, non-heading lines only).
-        var i = lineStart;
-        while (i < lineEnd) {
-          // Check inline code: '`content`'
-          // Must be checked before bold/italic/strikethrough because backtick
-          // content is always literal — no nested markup scanning inside.
-          if (source[i] == '`') {
-            final closeIdx = _findCloseSingle(source, i + 1, lineEnd, '`');
-            if (closeIdx != -1 && closeIdx > i + 1) {
-              result.add(MdElement(
-                kind: MdElKind.inlineCode,
-                start: i,
-                end: closeIdx + 1,
-              ));
-              i = closeIdx + 1;
-              continue;
-            }
-            // No matching close: skip the backtick.
-            i++;
-            continue;
-          }
-
-          // Check link: '[text](url)'
-          // A '[' immediately preceded by '!' is image syntax — skip.
-          if (source[i] == '[' && (i == lineStart || source[i - 1] != '!')) {
-            final textClose = _findCloseSingle(source, i + 1, lineEnd, ']');
-            if (textClose != -1 &&
-                textClose + 1 < lineEnd &&
-                source[textClose + 1] == '(') {
-              final urlClose =
-                  _findCloseSingle(source, textClose + 2, lineEnd, ')');
-              if (urlClose != -1) {
-                final extractedUrl = source.substring(textClose + 2, urlClose);
-                result.add(MdElement(
-                  kind: MdElKind.link,
-                  start: i,
-                  end: urlClose + 1,
-                  url: extractedUrl,
-                ));
-                i = urlClose + 1;
-                continue;
-              }
-            }
-          }
-
-          // Check bare URL autolinks: 'https://' or 'http://'
-          // Word-boundary guard: only match at the start of a line or when
-          // the immediately preceding character is whitespace (space or tab).
-          // Any other preceding character (letter, digit, punctuation) suppresses
-          // the match to avoid false positives like 'texthttps://...'.
-          if (source[i] == 'h' &&
-              (i == lineStart ||
-                  source[i - 1] == ' ' ||
-                  source[i - 1] == '\t') &&
-              (source.startsWith('https://', i) ||
-                  source.startsWith('http://', i))) {
-            // Find the end of the URL: first whitespace char or end of line.
-            var urlEnd = i + 1;
-            while (urlEnd < lineEnd &&
-                source[urlEnd] != ' ' &&
-                source[urlEnd] != '\t') {
-              urlEnd++;
-            }
-            final rawUrl = source.substring(i, urlEnd);
-            result.add(MdElement(
-              kind: MdElKind.autolink,
-              start: i,
-              end: urlEnd,
-              url: rawUrl,
-            ));
-            i = urlEnd;
-            continue;
-          }
-
-          // Check bold: '**' or '__'
-          if (i + 1 < lineEnd) {
-            final c0 = source[i];
-            final c1 = source[i + 1];
-            if ((c0 == '*' && c1 == '*') || (c0 == '_' && c1 == '_')) {
-              final closeStart = i + 2;
-              final closeIdx = _findClose(source, closeStart, lineEnd, c0 + c1);
-              if (closeIdx != -1 && closeIdx > closeStart) {
-                result.add(MdElement(
-                  kind: MdElKind.bold,
-                  start: i,
-                  end: closeIdx + 2,
-                ));
-                i = closeIdx + 2;
-                continue;
-              }
-              // No matching close: skip both delimiter chars so the second
-              // char is not re-examined as an italic opener.
-              i += 2;
-              continue;
-            }
-          }
-
-          // Check strikethrough: '~~content~~'
-          if (i + 1 < lineEnd && source[i] == '~' && source[i + 1] == '~') {
-            final closeStart = i + 2;
-            final closeIdx = _findClose(source, closeStart, lineEnd, '~~');
-            if (closeIdx != -1 && closeIdx > closeStart) {
-              result.add(MdElement(
-                kind: MdElKind.strikethrough,
-                start: i,
-                end: closeIdx + 2,
-              ));
-              i = closeIdx + 2;
-              continue;
-            }
-            // No matching close: skip both tilde chars.
-            i += 2;
-            continue;
-          }
-
-          // Check italic: '*' or '_' (single char, not followed by same char)
-          {
-            final c0 = source[i];
-            if (c0 == '*' || c0 == '_') {
-              // Must not be the start of a bold sequence (next char is NOT same).
-              final nextIsSame = i + 1 < lineEnd && source[i + 1] == c0;
-              if (!nextIsSame) {
-                final closeStart = i + 1;
-                final closeIdx =
-                    _findCloseSingle(source, closeStart, lineEnd, c0);
-                if (closeIdx != -1 && closeIdx > closeStart) {
-                  result.add(MdElement(
-                    kind: MdElKind.italic,
-                    start: i,
-                    end: closeIdx + 1,
-                  ));
-                  i = closeIdx + 1;
-                  continue;
-                }
-              }
-            }
-          }
-
-          i++;
-        }
+        // Step 5 — Recursive inline scan (paragraph lines). The same scanner is
+        // used for heading content above; list/checkbox/blockquote/image/hr
+        // lines stay opaque (list-content scanning is Stage 3, ADR-33).
+        result.addAll(_scanInline(source, lineStart, lineEnd));
       }
 
       // Advance lineStart past line text + the '\n' separator.
@@ -475,6 +390,13 @@ class MdParser {
       lineStart += line.length + 1;
     }
 
+    // Sort so that a containing element always precedes the elements nested
+    // inside it: primary key start ascending, secondary key end descending
+    // (outer — larger range — before inner at the same start). RenderModel
+    // relies on this ordering to resolve the outermost element under the
+    // cursor and to combine ancestor styles.
+    result
+        .sort((a, b) => a.start != b.start ? a.start - b.start : b.end - a.end);
     return result;
   }
 
@@ -545,24 +467,288 @@ class MdParser {
     return count >= 3;
   }
 
-  // Find the first occurrence of the two-char sequence [delim] in
-  // source[start .. end). Returns the index of the first char of the
-  // sequence, or -1 if not found.
-  static int _findClose(String source, int start, int end, String delim) {
-    for (var i = start; i + 1 < end; i++) {
-      if (source[i] == delim[0] && source[i + 1] == delim[1]) {
-        return i;
+  // ---------------------------------------------------------------------------
+  // Recursive inline scanner (ADR-33).
+  //
+  // Implements the CommonMark delimiter-run + flanking-rule algorithm for the
+  // QuKi-Notes inline subset: emphasis (`*`/`_`), strong (`**`/`__`),
+  // strikethrough (`~~`), inline code, links, bare-URL autolinks, and backslash
+  // escapes. Operates on the half-open source range [start, end) — a single
+  // line's content — treating both boundaries as whitespace for flanking.
+  //
+  // Precedence (per CommonMark): backslash escapes and inline code spans are
+  // resolved first and are fully literal inside; links/autolinks are
+  // bracket/word matched; emphasis is resolved last, over the delimiter runs
+  // left behind by everything above. Emphasis nests arbitrarily.
+  //
+  // Returned elements may nest (overlapping source ranges); they are unsorted
+  // here — MdParser.parse() sorts the combined result.
+  // ---------------------------------------------------------------------------
+  static List<MdElement> _scanInline(String source, int start, int end) {
+    if (start >= end) return const [];
+
+    final out = <MdElement>[];
+    final delims = <_Delim>[];
+    var i = start;
+
+    while (i < end) {
+      final c = source[i];
+
+      // Backslash escape: `\` before an ASCII-punctuation char renders that
+      // char literally (the backslash is hidden). A backslash before anything
+      // else (letter, digit, whitespace, end of line) is a literal backslash —
+      // no element, nothing dropped (ADR-33).
+      if (c == '\\') {
+        if (i + 1 < end && _isAsciiPunct(source[i + 1])) {
+          out.add(MdElement(kind: MdElKind.escape, start: i, end: i + 2));
+          i += 2;
+          continue;
+        }
+        i += 1;
+        continue;
       }
+
+      // Inline code span (single backtick). Content is fully literal — no
+      // emphasis, links, or escapes inside. Resolved before emphasis.
+      if (c == '`') {
+        final closeIdx = source.indexOf('`', i + 1);
+        if (closeIdx != -1 && closeIdx < end && closeIdx > i + 1) {
+          out.add(MdElement(
+            kind: MdElKind.inlineCode,
+            start: i,
+            end: closeIdx + 1,
+          ));
+          i = closeIdx + 1;
+          continue;
+        }
+        // No matching close on this line: literal backtick.
+        i += 1;
+        continue;
+      }
+
+      // Link `[text](url)`. A `[` immediately preceded by `!` is image syntax —
+      // inline images stay literal in Stage 1 (no inline-image render path).
+      // Link text is not re-scanned for emphasis in Stage 1 (atomic).
+      if (c == '[' && (i == start || source[i - 1] != '!')) {
+        final textClose = source.indexOf(']', i + 1);
+        if (textClose != -1 &&
+            textClose < end &&
+            textClose + 1 < end &&
+            source[textClose + 1] == '(') {
+          final urlClose = source.indexOf(')', textClose + 2);
+          if (urlClose != -1 && urlClose < end) {
+            out.add(MdElement(
+              kind: MdElKind.link,
+              start: i,
+              end: urlClose + 1,
+              url: source.substring(textClose + 2, urlClose),
+            ));
+            i = urlClose + 1;
+            continue;
+          }
+        }
+        i += 1;
+        continue;
+      }
+
+      // Bare URL autolink (`https://` / `http://`). Word-boundary guard: only
+      // at content start or after whitespace.
+      if (c == 'h' &&
+          (i == start || source[i - 1] == ' ' || source[i - 1] == '\t') &&
+          (source.startsWith('https://', i) ||
+              source.startsWith('http://', i))) {
+        var urlEnd = i + 1;
+        while (
+            urlEnd < end && source[urlEnd] != ' ' && source[urlEnd] != '\t') {
+          urlEnd++;
+        }
+        out.add(MdElement(
+          kind: MdElKind.autolink,
+          start: i,
+          end: urlEnd,
+          url: source.substring(i, urlEnd),
+        ));
+        i = urlEnd;
+        continue;
+      }
+
+      // Emphasis / strong / strikethrough delimiter run.
+      if (c == '*' || c == '_' || c == '~') {
+        final runLen = _runLength(source, i, end, c);
+        // QuKi-Notes supports strikethrough only as exactly `~~`. Any other
+        // tilde run length is literal (matches prior behaviour: `~~~~` → none).
+        if (c == '~' && runLen != 2) {
+          i += runLen;
+          continue;
+        }
+        final before = i > start ? source[i - 1] : ' ';
+        final after = i + runLen < end ? source[i + runLen] : ' ';
+        final leftFlank = _leftFlanking(before, after);
+        final rightFlank = _rightFlanking(before, after);
+        bool canOpen;
+        bool canClose;
+        if (c == '_') {
+          // Intraword `_` is disallowed: `_` may open/close only next to
+          // whitespace or punctuation, never between two word characters.
+          canOpen = leftFlank && (!rightFlank || _isAsciiPunct(before));
+          canClose = rightFlank && (!leftFlank || _isAsciiPunct(after));
+        } else {
+          canOpen = leftFlank;
+          canClose = rightFlank;
+        }
+        delims.add(_Delim(
+          char: c,
+          start: i,
+          end: i + runLen,
+          count: runLen,
+          origCount: runLen,
+          canOpen: canOpen,
+          canClose: canClose,
+        ));
+        i += runLen;
+        continue;
+      }
+
+      // Ordinary character.
+      i += 1;
     }
-    return -1;
+
+    _processEmphasis(delims, out);
+    return out;
   }
 
-  // Find the first occurrence of the single char [delim] in source[start .. end).
-  // Returns the index, or -1 if not found.
-  static int _findCloseSingle(String source, int start, int end, String delim) {
-    for (var i = start; i < end; i++) {
-      if (source[i] == delim) return i;
+  /// Resolves emphasis/strong/strikethrough spans from the recorded delimiter
+  /// runs, appending resulting [MdElement]s to [out]. Faithful to CommonMark's
+  /// "process emphasis" procedure over the supported subset: nearest valid
+  /// opener wins, the rule-of-three suppresses spurious matches, and `*`/`_`
+  /// runs are consumed one or two delimiters at a time (allowing strong to
+  /// contain emphasis, e.g. `***x***`). `~~` is consumed as a full pair.
+  static void _processEmphasis(List<_Delim> delims, List<MdElement> out) {
+    for (var ci = 0; ci < delims.length; ci++) {
+      final closer = delims[ci];
+      if (closer.removed || !closer.canClose || closer.count == 0) continue;
+      final ch = closer.char;
+
+      // Scan left for the nearest usable opener of the same delimiter char.
+      var oi = ci - 1;
+      var found = false;
+      while (oi >= 0) {
+        final opener = delims[oi];
+        if (!opener.removed &&
+            opener.count > 0 &&
+            opener.canOpen &&
+            opener.char == ch) {
+          // Rule of three: if either side can be both opener and closer, a
+          // match whose combined original length is a multiple of three is
+          // rejected — unless both lengths are themselves multiples of three.
+          final oddMatch = (closer.canOpen || opener.canClose) &&
+              (opener.origCount + closer.origCount) % 3 == 0 &&
+              !(opener.origCount % 3 == 0 && closer.origCount % 3 == 0);
+          if (!oddMatch) {
+            found = true;
+            break;
+          }
+        }
+        oi--;
+      }
+      if (!found) continue;
+
+      final opener = delims[oi];
+      final use =
+          ch == '~' ? 2 : ((opener.count >= 2 && closer.count >= 2) ? 2 : 1);
+      final kind = use == 2
+          ? (ch == '~' ? MdElKind.strikethrough : MdElKind.bold)
+          : MdElKind.italic;
+
+      // Opening delimiters are consumed from the inner (content) side of the
+      // opener run; closing delimiters from the inner side of the closer run.
+      out.add(MdElement(
+        kind: kind,
+        start: opener.end - use,
+        end: closer.start + use,
+      ));
+
+      // Delimiters strictly between opener and closer can no longer match
+      // anything outside this span.
+      for (var k = oi + 1; k < ci; k++) {
+        delims[k].removed = true;
+      }
+
+      opener.end -= use;
+      opener.count -= use;
+      closer.start += use;
+      closer.count -= use;
+      if (opener.count == 0) opener.removed = true;
+      if (closer.count > 0) {
+        ci--; // Re-run this closer for any remaining delimiters.
+      } else {
+        closer.removed = true;
+      }
     }
-    return -1;
   }
+
+  /// Length of the run of identical character [ch] starting at [i], bounded by
+  /// [end].
+  static int _runLength(String source, int i, int end, String ch) {
+    var j = i;
+    while (j < end && source[j] == ch) {
+      j++;
+    }
+    return j - i;
+  }
+
+  /// A delimiter run is left-flanking if it is not followed by whitespace and
+  /// either not followed by punctuation, or preceded by whitespace/punctuation.
+  static bool _leftFlanking(String before, String after) {
+    if (_isInlineWs(after)) return false;
+    if (!_isAsciiPunct(after)) return true;
+    return _isInlineWs(before) || _isAsciiPunct(before);
+  }
+
+  /// A delimiter run is right-flanking if it is not preceded by whitespace and
+  /// either not preceded by punctuation, or followed by whitespace/punctuation.
+  static bool _rightFlanking(String before, String after) {
+    if (_isInlineWs(before)) return false;
+    if (!_isAsciiPunct(before)) return true;
+    return _isInlineWs(after) || _isAsciiPunct(after);
+  }
+
+  static bool _isInlineWs(String ch) => ch == ' ' || ch == '\t' || ch == '\n';
+
+  /// True for the ASCII punctuation characters CommonMark recognizes as
+  /// escapable and as flanking punctuation.
+  static bool _isAsciiPunct(String ch) {
+    if (ch.length != 1) return false;
+    final code = ch.codeUnitAt(0);
+    return (code >= 0x21 && code <= 0x2F) || // ! " # $ % & ' ( ) * + , - . /
+        (code >= 0x3A && code <= 0x40) || //   : ; < = > ? @
+        (code >= 0x5B && code <= 0x60) || //   [ \ ] ^ _ `
+        (code >= 0x7B && code <= 0x7E); //     { | } ~
+  }
+}
+
+// ---------------------------------------------------------------------------
+// _Delim — a mutable delimiter run used while resolving emphasis. `start`/`end`
+// and `count` shrink as delimiters are consumed from a run's inner side.
+// ---------------------------------------------------------------------------
+
+class _Delim {
+  _Delim({
+    required this.char,
+    required this.start,
+    required this.end,
+    required this.count,
+    required this.origCount,
+    required this.canOpen,
+    required this.canClose,
+  });
+
+  final String char;
+  int start;
+  int end;
+  int count;
+  final int origCount;
+  final bool canOpen;
+  final bool canClose;
+  bool removed = false;
 }

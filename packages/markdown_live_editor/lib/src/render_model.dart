@@ -233,12 +233,21 @@ class RenderModel {
     final bufText = StringBuffer();
     TextStyle? bufStyle;
     var ri = 0;
-    var eIdx = 0;
     final slots = <ImageSlot>[];
     final links = <LinkSlot>[];
     final checkboxes = <CheckboxSlot>[];
     final blockquotes = <BlockquoteSlot>[];
     final hrs = <HrSlot>[];
+
+    // Block elements (one per line, non-overlapping) and inline elements
+    // (nested/overlapping) are handled separately. Blocks drive marker
+    // substitution / image / hr / blockquote handling and supply the per-line
+    // content base style; inline elements nest and combine on top (ADR-33).
+    final blocks = <MdElement>[];
+    final inlines = <MdElement>[];
+    for (final e in elements) {
+      (e.isBlock ? blocks : inlines).add(e);
+    }
 
     void flushBuf() {
       if (bufText.isNotEmpty) {
@@ -248,187 +257,157 @@ class RenderModel {
       }
     }
 
+    // Moving cursors: si only ever increases (including fast-forwards), so a
+    // single forward-advancing index into the sorted, non-overlapping block
+    // list suffices. Inline elements nest, so an active set is maintained.
+    var bi = 0; // index into blocks
+    var ii = 0; // index into inlines (added when start <= si)
+    final active = <MdElement>[]; // inline elements currently covering si
+
     for (var si = 0; si < source.length; si++) {
       final char = source[si];
 
-      // Advance eIdx past elements whose end is <= si (no longer relevant).
-      while (eIdx < elements.length && elements[eIdx].end <= si) {
-        eIdx++;
+      // Block element covering si (at most one — blocks never overlap).
+      while (bi < blocks.length && blocks[bi].end <= si) {
+        bi++;
       }
+      final MdElement? block =
+          (bi < blocks.length && si >= blocks[bi].start) ? blocks[bi] : null;
 
-      // Determine which element (if any) contains si.
-      final MdElement? currentEl =
-          (eIdx < elements.length && si >= elements[eIdx].start)
-              ? elements[eIdx]
-              : null;
-
-      final revealed = currentEl != null &&
-          cursorOffset >= currentEl.start &&
-          cursorOffset <= currentEl.end;
-
-      // -----------------------------------------------------------------------
-      // Collapsed image: record an ImageSlot and fast-forward past all source
-      // chars.  The image emits no rendered characters; the newline that
-      // follows (if any) is emitted normally by the next iteration and gives
-      // the TextPainter a line break at the correct position.  We record
-      // [renderedCharOffset] as the current [ri] — the position in rendered
-      // space where the image row sits.  QuikiRenderEditor uses this offset
-      // to look up the Y coordinate via TextPainter.getOffsetForCaret().
-      // -----------------------------------------------------------------------
-      if (!revealed &&
-          currentEl != null &&
-          currentEl.kind == MdElKind.image &&
-          si == currentEl.start) {
-        slots.add(ImageSlot(element: currentEl, renderedCharOffset: ri));
-
-        // Map all source chars of the image line to the current rendered position.
-        for (var d = currentEl.start; d < currentEl.end; d++) {
-          srcToRnd[d] = ri;
-        }
-
-        // Fast-forward si to the last char of the element (outer loop increments).
-        si = currentEl.end - 1;
-        continue;
+      // Inline elements covering si. inlines are sorted (start asc, end desc),
+      // so insertion order == outermost-first.
+      while (ii < inlines.length && inlines[ii].start <= si) {
+        active.add(inlines[ii]);
+        ii++;
       }
+      active.removeWhere((e) => e.end <= si);
+
+      // Reveal unit = the outermost element under the cursor. A block always
+      // encloses its line's inline children, so it is the outermost when
+      // present; otherwise it is the outermost inline covering si.
+      final MdElement? topLevel =
+          block ?? (active.isEmpty ? null : active.first);
+      final revealed = topLevel != null &&
+          cursorOffset >= topLevel.start &&
+          cursorOffset <= topLevel.end;
 
       // -----------------------------------------------------------------------
-      // Collapsed hr: record an HrSlot and fast-forward past all source chars.
-      // The hr line emits no rendered characters (entire line is the delimiter).
+      // Collapsed block special cases (image / hr / blockquote / list marker).
+      // These lines carry no inline children, so block handling is unchanged.
       // -----------------------------------------------------------------------
-      if (!revealed &&
-          currentEl != null &&
-          currentEl.kind == MdElKind.hr &&
-          si == currentEl.start) {
-        hrs.add(HrSlot(element: currentEl, renderedCharOffset: ri));
-
-        // Map all source chars to the current rendered position.
-        for (var d = currentEl.start; d < currentEl.end; d++) {
-          srcToRnd[d] = ri;
+      if (!revealed && block != null) {
+        // Collapsed image: record an ImageSlot, map all chars to the current
+        // rendered position, and fast-forward past the whole line (no rendered
+        // characters emitted; the following newline lands the row correctly).
+        if (block.kind == MdElKind.image && si == block.start) {
+          slots.add(ImageSlot(element: block, renderedCharOffset: ri));
+          for (var d = block.start; d < block.end; d++) {
+            srcToRnd[d] = ri;
+          }
+          si = block.end - 1;
+          continue;
         }
 
-        // Fast-forward si to the last char of the element.
-        si = currentEl.end - 1;
-        continue;
-      }
-
-      // -----------------------------------------------------------------------
-      // Collapsed blockquote slot recording.
-      //
-      // At the first content character (after the '> ' delimiter), record the
-      // rendered position so QuikiRenderEditor can paint the left border stripe.
-      // -----------------------------------------------------------------------
-      if (!revealed &&
-          currentEl != null &&
-          currentEl.kind == MdElKind.blockquote) {
-        final contentStart = currentEl.start + currentEl.openDelimLen;
-        if (si == contentStart) {
-          blockquotes.add(BlockquoteSlot(
-            element: currentEl,
-            renderedStart: ri,
-          ));
-        }
-      }
-
-      // -----------------------------------------------------------------------
-      // Collapsed list marker substitution.
-      //
-      // When we arrive at the first source character of a collapsed list
-      // element's delimiter, emit the collapsedMarker into rendered output
-      // (all marker chars map back to [si], the first source delimiter pos),
-      // then skip the entire source delimiter region by fast-forwarding [si].
-      // -----------------------------------------------------------------------
-      if (!revealed &&
-          currentEl != null &&
-          currentEl.collapsedMarker.isNotEmpty &&
-          si == currentEl.start) {
-        final marker = currentEl.collapsedMarker;
-        final delimEnd = currentEl.start + currentEl.openDelimLen;
-        final markerStyle = _contentStyle(currentEl.kind, baseStyle);
-
-        // Emit the rendered marker glyph(s).
-        flushBuf();
-        if (markerStyle != bufStyle) {
-          bufStyle = markerStyle;
-        }
-        for (final markerChar in marker.split('')) {
-          bufText.write(markerChar);
-          // All rendered marker chars map back to [si] (start of source delim).
-          rndToSrc.add(si);
-          ri++;
-        }
-        flushBuf();
-
-        // Map all source delimiter positions to the rendered start of the marker.
-        final markerRenderedStart = ri - marker.length;
-        for (var d = si; d < delimEnd; d++) {
-          srcToRnd[d] = markerRenderedStart;
+        // Collapsed hr: record an HrSlot and fast-forward (entire line hidden).
+        if (block.kind == MdElKind.hr && si == block.start) {
+          hrs.add(HrSlot(element: block, renderedCharOffset: ri));
+          for (var d = block.start; d < block.end; d++) {
+            srcToRnd[d] = ri;
+          }
+          si = block.end - 1;
+          continue;
         }
 
-        // Record a CheckboxSlot for collapsed checkbox elements so that
-        // QuikiRenderEditor can hit-test taps on and paint the checkbox.
-        if (currentEl.kind == MdElKind.checkboxUnchecked ||
-            currentEl.kind == MdElKind.checkboxChecked) {
-          checkboxes.add(CheckboxSlot(
-            element: currentEl,
-            renderedMarkerStart: markerRenderedStart,
-            renderedMarkerEnd: markerRenderedStart + marker.length,
-            checked: currentEl.kind == MdElKind.checkboxChecked,
-            color: markerStyle.color ?? _foreground,
-          ));
+        // Collapsed blockquote: at the first content char, record the rendered
+        // position so QuikiRenderEditor can paint the left border stripe.
+        if (block.kind == MdElKind.blockquote &&
+            si == block.start + block.openDelimLen) {
+          blockquotes.add(BlockquoteSlot(element: block, renderedStart: ri));
         }
 
-        // Skip past the source delimiter chars (si will be incremented by
-        // the outer for-loop so advance to delimEnd - 1).
-        si = delimEnd - 1;
-        continue;
-      }
+        // Collapsed list/checkbox marker substitution: emit the collapsedMarker
+        // glyph(s) and fast-forward past the source delimiter region.
+        if (block.collapsedMarker.isNotEmpty && si == block.start) {
+          final marker = block.collapsedMarker;
+          final delimEnd = block.start + block.openDelimLen;
+          final markerStyle = _contentStyle(block.kind, baseStyle);
 
-      // -----------------------------------------------------------------------
-      // Collapsed link slot recording.
-      //
-      // At the first content character (si == contentStart), we know both
-      // bounds of the rendered content range because content chars are 1:1
-      // with rendered chars in Stage 6 (no nested markup inside link text).
-      // renderedStart = ri (current rendered position); renderedEnd = ri + contentLen.
-      // -----------------------------------------------------------------------
-      if (!revealed &&
-          currentEl != null &&
-          (currentEl.kind == MdElKind.link ||
-              currentEl.kind == MdElKind.autolink)) {
-        final contentStart = currentEl.start + currentEl.openDelimLen;
-        final contentEnd = currentEl.end - currentEl.closeDelimLen;
-        if (si == contentStart) {
-          final contentLen = contentEnd - contentStart;
-          links.add(LinkSlot(
-            element: currentEl,
-            renderedStart: ri,
-            renderedEnd: ri + contentLen,
-          ));
+          flushBuf();
+          if (markerStyle != bufStyle) {
+            bufStyle = markerStyle;
+          }
+          for (final markerChar in marker.split('')) {
+            bufText.write(markerChar);
+            rndToSrc.add(si);
+            ri++;
+          }
+          flushBuf();
+
+          final markerRenderedStart = ri - marker.length;
+          for (var d = si; d < delimEnd; d++) {
+            srcToRnd[d] = markerRenderedStart;
+          }
+
+          if (block.kind == MdElKind.checkboxUnchecked ||
+              block.kind == MdElKind.checkboxChecked) {
+            checkboxes.add(CheckboxSlot(
+              element: block,
+              renderedMarkerStart: markerRenderedStart,
+              renderedMarkerEnd: markerRenderedStart + marker.length,
+              checked: block.kind == MdElKind.checkboxChecked,
+              color: markerStyle.color ?? _foreground,
+            ));
+          }
+
+          si = delimEnd - 1;
+          continue;
         }
       }
 
       // -----------------------------------------------------------------------
-      // Normal per-character processing.
+      // Collapsed inline link slot recording. A link's text is atomic (not
+      // re-scanned for emphasis in Stage 1), so its content chars are 1:1 with
+      // rendered chars and renderedEnd = ri + contentLen. Skipped when the
+      // link's outermost ancestor is revealed (whole span shows raw).
       // -----------------------------------------------------------------------
+      if (!revealed) {
+        for (final e in active) {
+          if ((e.kind == MdElKind.link || e.kind == MdElKind.autolink) &&
+              si == e.start + e.openDelimLen) {
+            final contentStart = e.start + e.openDelimLen;
+            final contentEnd = e.end - e.closeDelimLen;
+            links.add(LinkSlot(
+              element: e,
+              renderedStart: ri,
+              renderedEnd: ri + (contentEnd - contentStart),
+            ));
+          }
+        }
+      }
 
-      // Determine visibility and style for this character.
+      // -----------------------------------------------------------------------
+      // Normal per-character processing (headings, paragraphs, and the content
+      // of block elements). Style is the combination of the block content style
+      // and every covering inline element's modifier; a char is hidden when it
+      // is a delimiter of the block or of any covering inline element.
+      // -----------------------------------------------------------------------
       bool visible;
       TextStyle charStyle;
 
-      if (currentEl == null) {
-        visible = true;
-        charStyle = baseStyle;
-      } else if (revealed) {
+      if (revealed) {
         visible = true;
         charStyle = baseStyle;
       } else {
-        // Collapsed.
-        if (currentEl.isDelimiter(si)) {
+        final isDelim = (block != null && block.isDelimiter(si)) ||
+            active.any((e) => e.isDelimiter(si));
+        if (isDelim) {
           visible = false;
           charStyle = baseStyle; // unused, but Dart requires initialization
         } else {
           visible = true;
-          charStyle = _contentStyle(currentEl.kind, baseStyle);
+          final contentBase =
+              block != null ? _contentStyle(block.kind, baseStyle) : baseStyle;
+          charStyle = _combinedInlineStyle(contentBase, active);
         }
       }
 
@@ -541,10 +520,64 @@ TextStyle _contentStyle(MdElKind kind, TextStyle base) => switch (kind) {
       MdElKind.hr => base,
       // List kinds: content in baseStyle (marker substituted separately).
       // Image: revealed mode shows raw source in baseStyle.
+      // Escape: the escaped character renders literally in the surrounding
+      // style; the actual style comes from the ancestor combination, so base.
       MdElKind.ul ||
       MdElKind.ol ||
       MdElKind.checkboxUnchecked ||
       MdElKind.checkboxChecked ||
-      MdElKind.image =>
+      MdElKind.image ||
+      MdElKind.escape =>
         base,
     };
+
+// ---------------------------------------------------------------------------
+// Inline style combination — file-private.
+//
+// Applies each covering inline element's style modifier cumulatively, so a
+// character inside nested/combined runs (e.g. bold containing italic
+// containing strikethrough) gets every ancestor's styling at once. Elements
+// are applied outermost→innermost so the innermost wins on conflicting scalar
+// properties (color, background); text decorations accumulate rather than
+// replace, so strikethrough and a link underline can coexist.
+//
+// For a single covering element this reproduces the single-level
+// _contentStyle result exactly, preserving all pre-ADR-33 rendered output.
+// ---------------------------------------------------------------------------
+
+TextStyle _combinedInlineStyle(TextStyle base, List<MdElement> covering) {
+  if (covering.isEmpty) return base;
+  var s = base;
+  final decorations = <TextDecoration>[];
+  for (final e in covering) {
+    switch (e.kind) {
+      case MdElKind.bold:
+        s = s.copyWith(fontWeight: FontWeight.bold);
+      case MdElKind.italic:
+        s = s.copyWith(fontStyle: FontStyle.italic);
+      case MdElKind.strikethrough:
+        s = s.copyWith(color: _foreground);
+        decorations.add(TextDecoration.lineThrough);
+      case MdElKind.inlineCode:
+        s = s.copyWith(
+          fontFamily: 'monospace',
+          backgroundColor: _codeBackground,
+          color: _foreground,
+        );
+      case MdElKind.link:
+      case MdElKind.autolink:
+        s = s.copyWith(color: _linkColor, decorationColor: _linkColor);
+        decorations.add(TextDecoration.underline);
+      case MdElKind.escape:
+        // No style contribution — the escaped character inherits ancestors.
+        break;
+      default:
+        // Block kinds never appear in the covering-inline list.
+        break;
+    }
+  }
+  if (decorations.isNotEmpty) {
+    s = s.copyWith(decoration: TextDecoration.combine(decorations));
+  }
+  return s;
+}
