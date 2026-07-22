@@ -263,6 +263,7 @@ class RenderModel {
     var bi = 0; // index into blocks
     var ii = 0; // index into inlines (added when start <= si)
     final active = <MdElement>[]; // inline elements currently covering si
+    final pendingLinks = <_PendingLink>[]; // links awaiting renderedEnd
 
     for (var si = 0; si < source.length; si++) {
       final char = source[si];
@@ -365,25 +366,40 @@ class RenderModel {
       }
 
       // -----------------------------------------------------------------------
-      // Collapsed inline link slot recording. A link's text is atomic (not
-      // re-scanned for emphasis in Stage 1), so its content chars are 1:1 with
-      // rendered chars and renderedEnd = ri + contentLen. Skipped when the
-      // link's outermost ancestor is revealed (whole span shows raw).
+      // Collapsed inline link slot recording (two-phase). Link text may now
+      // contain nested emphasis/strikethrough/code (ADR-33), whose delimiters
+      // are hidden, so the rendered content length no longer equals the source
+      // content length. renderedStart is captured at the first content char;
+      // renderedEnd is finalized when si reaches the content end (the current
+      // ri = rendered offset just past the last visible label character).
+      // Skipped when the link's outermost ancestor is revealed (whole span raw).
       // -----------------------------------------------------------------------
       if (!revealed) {
         for (final e in active) {
           if ((e.kind == MdElKind.link || e.kind == MdElKind.autolink) &&
               si == e.start + e.openDelimLen) {
-            final contentStart = e.start + e.openDelimLen;
-            final contentEnd = e.end - e.closeDelimLen;
-            links.add(LinkSlot(
+            pendingLinks.add(_PendingLink(
               element: e,
               renderedStart: ri,
-              renderedEnd: ri + (contentEnd - contentStart),
+              contentEnd: e.end - e.closeDelimLen,
             ));
           }
         }
       }
+      // Finalize any pending links whose content ends at this position. (For an
+      // empty link, contentEnd == the just-added contentStart, so it finalizes
+      // in the same iteration — renderedEnd == renderedStart.)
+      pendingLinks.removeWhere((p) {
+        if (p.contentEnd == si) {
+          links.add(LinkSlot(
+            element: p.element,
+            renderedStart: p.renderedStart,
+            renderedEnd: ri,
+          ));
+          return true;
+        }
+        return false;
+      });
 
       // -----------------------------------------------------------------------
       // Normal per-character processing (headings, paragraphs, and the content
@@ -428,6 +444,17 @@ class RenderModel {
 
     // Finalize.
     flushBuf();
+
+    // Any link still pending has content reaching the end of the source (e.g. a
+    // collapsed autolink at end of line); finalize it against the final ri.
+    for (final p in pendingLinks) {
+      links.add(LinkSlot(
+        element: p.element,
+        renderedStart: p.renderedStart,
+        renderedEnd: ri,
+      ));
+    }
+
     srcToRnd[source.length] = ri;
     rndToSrc.add(source.length); // end sentinel: renderedLength → source.length
 
@@ -443,6 +470,24 @@ class RenderModel {
       hrSlots: hrs,
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// _PendingLink — a collapsed link whose renderedStart is known but whose
+// renderedEnd is finalized only once its (possibly delimiter-hiding) label has
+// been fully emitted. File-private to RenderModel.build().
+// ---------------------------------------------------------------------------
+
+class _PendingLink {
+  _PendingLink({
+    required this.element,
+    required this.renderedStart,
+    required this.contentEnd,
+  });
+
+  final MdElement element;
+  final int renderedStart;
+  final int contentEnd;
 }
 
 // ---------------------------------------------------------------------------

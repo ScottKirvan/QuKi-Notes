@@ -540,16 +540,24 @@ void main() {
       expect(els.where((e) => e.kind == MdElKind.link), isEmpty);
     });
 
-    test(
-        'link element with text adjacent to bold: "[**b**](url)" → 1 link only',
+    test('link with bold text: "[**b**](url)" → link + nested bold (ADR-33)',
         () {
-      // Bold inside link text is not separately parsed — link takes priority
-      // since it is checked first in the inline scan.
+      // ADR-33: link text is now recursively scanned, so "**b**" inside the
+      // label resolves to a bold element nested inside the link (previously the
+      // asterisks stayed literal). A link still cannot contain another link.
       const source = '[**b**](url)';
       final els = MdParser.parse(source);
-      expect(els, hasLength(1));
-      expect(els[0].kind, MdElKind.link);
-      expect(els[0].url, 'url');
+      expect(els, hasLength(2));
+      final link = els.firstWhere((e) => e.kind == MdElKind.link);
+      final bold = els.firstWhere((e) => e.kind == MdElKind.bold);
+      expect(link.start, 0);
+      expect(link.end, 12);
+      expect(link.url, 'url');
+      // '[' + '**' → bold begins at offset 1, ends after the closing '**'.
+      expect(bold.start, 1);
+      expect(bold.end, 6);
+      // Bold is strictly inside the link's text span.
+      expect(link.start < bold.start && bold.end < link.end, isTrue);
     });
 
     test('link openDelimLen = 1 (the "[" char)', () {

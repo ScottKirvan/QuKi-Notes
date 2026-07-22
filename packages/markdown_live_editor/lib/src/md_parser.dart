@@ -484,7 +484,12 @@ class MdParser {
   // Returned elements may nest (overlapping source ranges); they are unsorted
   // here — MdParser.parse() sorts the combined result.
   // ---------------------------------------------------------------------------
-  static List<MdElement> _scanInline(String source, int start, int end) {
+  static List<MdElement> _scanInline(
+    String source,
+    int start,
+    int end, {
+    bool scanLinks = true,
+  }) {
     if (start >= end) return const [];
 
     final out = <MdElement>[];
@@ -528,8 +533,12 @@ class MdParser {
 
       // Link `[text](url)`. A `[` immediately preceded by `!` is image syntax —
       // inline images stay literal in Stage 1 (no inline-image render path).
-      // Link text is not re-scanned for emphasis in Stage 1 (atomic).
-      if (c == '[' && (i == start || source[i - 1] != '!')) {
+      // The link text is recursively scanned for nested emphasis/strikethrough/
+      // code/escapes (ADR-33), but not for a nested link — a link cannot contain
+      // another link — so the recursive scan runs with scanLinks: false. The
+      // scan is bounded to the text span [i+1, textClose), so an opener inside
+      // link text can never match a delimiter outside it.
+      if (scanLinks && c == '[' && (i == start || source[i - 1] != '!')) {
         final textClose = source.indexOf(']', i + 1);
         if (textClose != -1 &&
             textClose < end &&
@@ -543,6 +552,9 @@ class MdParser {
               end: urlClose + 1,
               url: source.substring(textClose + 2, urlClose),
             ));
+            out.addAll(
+              _scanInline(source, i + 1, textClose, scanLinks: false),
+            );
             i = urlClose + 1;
             continue;
           }
@@ -552,8 +564,10 @@ class MdParser {
       }
 
       // Bare URL autolink (`https://` / `http://`). Word-boundary guard: only
-      // at content start or after whitespace.
-      if (c == 'h' &&
+      // at content start or after whitespace. Suppressed inside link text
+      // (scanLinks: false) — an autolink counts as a link and links do not nest.
+      if (scanLinks &&
+          c == 'h' &&
           (i == start || source[i - 1] == ' ' || source[i - 1] == '\t') &&
           (source.startsWith('https://', i) ||
               source.startsWith('http://', i))) {
