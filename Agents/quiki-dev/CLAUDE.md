@@ -52,6 +52,39 @@ Read in this order — do not skip:
 
 > Written and maintained by the Spec session.
 
-No task currently in progress.
+### Block indentation — Stage 1 (multi-run rendering foundation + nested blockquotes)
 
-ADR-33 (nested inline markdown) Stages 1-4 are complete and merged (PRs #276, #279, #281, #283). Known limitation shipped with Stage 4: blockquote wrapped-line indentation — documented on `notes/dev/nested_inline_markdown.md` and issue #241, not a standalone task. Stage 5 (inline image syntax parsing) is on hold pending the project owner's own GitHub/Obsidian comparison testing — do not start it without an explicit go-ahead from Spec.
+**Branch**: `feat/block-indentation-stage1`
+**Commit type**: `feat:` — this is genuinely new capability (real block indentation), not closing a gap against an already-declared behavior the way the ADR-33 stages were.
+**Suggested PR title** (Spec opens the PR, not you): `feat(editor): multi-run block indentation, nested blockquotes (ADR-34 Stage 1)`
+
+**Read first, in this order**: `notes/dev/block_indentation.md` (the full spec — read all of it, this brief is a summary) and `notes/dev/decisions.md` → ADR-34. Then read the current state of `packages/markdown_live_editor/lib/src/quiki_render_editor.dart` in full (the single-`TextPainter` layout/paint/hit-test code you're replacing), `render_model.dart` (`BlockquoteSlot`, `groupBlockquoteRuns` — the single-level continuity logic this generalizes), and `md_parser.dart`'s blockquote branch (the depth-1-only marker detection you're extending). Also read `quiki_editor.dart` lines ~690-730 (`_moveUp`/`_moveDown`) to see exactly how the render object's public coordinate API is consumed — this matters for the constraint below.
+
+**The problem, in one sentence**: blockquote content indentation (already shipped) only affects a line's first visual row because `QuikiRenderEditor` lays out the entire document as one continuous `TextPainter` with no per-block width or horizontal offset — real indentation that survives word-wrap requires the indented block to have its own, narrower layout region. This is the exact same constraint blocking #241 (nested lists).
+
+**What to build** — full detail and rationale in the spec doc, this is the summary:
+
+1. Split `QuikiRenderEditor`'s layout into **runs** — maximal sequences of consecutive lines sharing the same indent level — each with its own `TextPainter` at a reduced width and X-offset, stacked vertically. Indent level 0 (the common case — everything today) must produce identical output to the current single-`TextPainter` behavior; this is not optional, it's the primary regression risk of this whole stage.
+2. `RenderModel` exposes run boundaries for the flat rendered text it already produces — a general mechanism (any block element with an indent level), not blockquote-specific, since list-item indent levels reuse this exact mechanism in Stage 3. Its existing offset-mapping and inline-formatting machinery (ADR-33) does not need to change.
+3. Blockquote depth detection in `MdParser`: peel `>` prefixes recursively (each `>`, optionally followed by one space, consumes one level — `> text` = depth 1, `>> text` / `> > text` = depth 2). Marker length becomes "however many characters the depth-counting loop consumed."
+4. Multi-stripe painting for nested blockquotes with **per-level continuity**: a level-K stripe spans every consecutive line whose depth is `>= K`, not just lines with exactly matching depth (see the spec doc's worked example — this is the part that makes this a genuine test of the mechanism, not just "reuse the single-level case at a bigger number").
+
+**Hard constraint, not optional**: `QuikiRenderEditor`'s *public* API — `positionForOffset`, `getOffsetForCaret`, `getPositionForOffset`, `preferredLineHeight`, `textHeight`, `linkUrlForOffset`, `checkboxSourceOffsetForTap` — must keep the exact same method signatures and coordinate semantics (a single local coordinate space spanning the whole render object, as today). `quiki_editor.dart`'s arrow-key navigation, tap handling, and selection logic call these directly and should not need to change at all. The run-based restructuring is entirely internal to `QuikiRenderEditor`; only the *implementation* of these methods gains a "which run does this belong to" indirection step. If you find yourself needing to change `quiki_editor.dart`'s calling code, stop and reconsider — that's a signal the public API contract slipped.
+
+**Explicitly out of scope for this PR — do not implement, and do not decide to defer something else instead without flagging it back to me first**:
+- List-item indent-level detection (Stage 2, a separate future brief) — list parsing is untouched in this stage.
+- Tab/Shift+Tab indent handling (#77) — depends on Stage 2/3 landing first.
+- Inline image parsing (Stage 5, still on hold pending the project owner's own testing) — do not touch anything image-related.
+- Mixed ordered/unordered list nesting, block-relative numbering at depth > 0 — not relevant until Stage 2/3.
+- Tables — unrelated.
+
+**Tests required**:
+- Indent level 0 (no blockquotes/nesting) behaves identically to today — every existing test in the package suite must keep passing unmodified. This is the most important test category in this stage; treat any regression here as a blocker, not a tradeoff.
+- Nested blockquote depth parsing: `>`, `>>`, `>>>`, mixed `> > text` spacing, depth correctly computed and marker length correct.
+- Per-level stripe continuity: the exact worked example from the spec doc (level-1 line, level-2 line, level-1 line → stripe-1 spans all three, stripe-2 spans only the middle) and at least one deeper case (3 levels).
+- A wrapped blockquote line (long enough to word-wrap at a realistic editor width) has every wrapped visual row indented correctly — this is the actual bug this stage exists to fix; do not skip a real regression test for it.
+- Cursor up/down navigation across a run boundary (e.g., last line of a blockquote to the following plain-text line, and vice versa) lands at a sensible position — exact horizontal landing position when crossing between differently-indented runs is your judgment call (clamping to the nearest valid position in the target run is reasonable), but it must not crash, lose the cursor, or land in the wrong run entirely.
+- Tap-to-source, checkbox tap-to-toggle, and link tap-to-navigate still work correctly on lines inside an indented run, not just at indent level 0.
+- Whatever you can confidently assert about visual stripe positioning belongs in a test; anything you can't verify without a device (exact pixel gaps, etc. — see the spec doc's honest test-strategy section) should be flagged clearly in your report, not asserted past your actual confidence.
+
+**Checklist**: `dart format`, `flutter analyze`, package tests (`cd packages/markdown_live_editor && flutter test`) — all clean before pushing. Given the scope, run the full test suite frequently during development, not just at the end — this stage touches the coordinate system every other input-handling test depends on. Include in your report-back: confirmation that `quiki_editor.dart` needed zero or minimal changes (and if it needed more than that, explain exactly why), example nested-blockquote markdown strings with what you expect each to render as, and honest confidence levels on anything visual you couldn't fully verify.
