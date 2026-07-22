@@ -333,6 +333,10 @@ class MdParser {
         olRunCount = 0;
         result.add(MdElement(
             kind: MdElKind.blockquote, start: lineStart, end: lineEnd));
+        // '> ' prefix is 2 chars — scan the remainder inline (ADR-33 Stage 4).
+        // For the empty blockquote ('> ' alone) start == end, so _scanInline
+        // returns an empty list and no inline elements are produced.
+        result.addAll(_scanInline(source, lineStart + 2, lineEnd));
 
         // Step 3 — Unordered list ('- ', '* ', '+ ').
       } else if (line.startsWith('- ') ||
@@ -400,9 +404,9 @@ class MdParser {
         olBlockStart = 0;
         olRunCount = 0;
         // Step 5 — Recursive inline scan (paragraph lines). The same scanner is
-        // used for heading, list, and checkbox content above; an inline HTML
-        // tag mid-paragraph is skipped inside the scanner (ADR-33 Stage 3);
-        // blockquote / image / hr lines stay opaque.
+        // used for heading, list, checkbox, and blockquote content above; an
+        // inline HTML tag mid-paragraph is skipped inside the scanner (ADR-33
+        // Stage 3); image / hr lines stay opaque.
         result.addAll(_scanInline(source, lineStart, lineEnd));
       }
 
