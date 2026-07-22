@@ -209,7 +209,8 @@ void main() {
       expect(italic.first.end, 8);
     });
 
-    test('a complete single-line tag between two paragraphs stays isolated', () {
+    test('a complete single-line tag between two paragraphs stays isolated',
+        () {
       // Sanity: the HTML-only middle line is skipped, both paragraphs scan.
       const src = '*a*\n<div class="*x*">\n*b*';
       final italics = _ofKind(src, MdElKind.italic);
