@@ -371,19 +371,43 @@ class QuikiRenderEditor extends RenderBox {
     const double blockquoteStripeWidth = 3.0;
     const double blockquoteTextGap = 8.0;
     for (final run in groupBlockquoteRuns(_renderModel.blockquoteSlots)) {
-      final lineHeight = _textPainter.preferredLineHeight;
-      final topCaret = _textPainter.getOffsetForCaret(
-        TextPosition(offset: run.first.renderedStart),
-        Rect.zero,
+      // Vertical extent: use the glyph bounding boxes for the run's rendered
+      // content span rather than a caret's line-box position. getOffsetForCaret
+      // returns the top of the *line box*, which — with a line height > 1.0 (the
+      // editor uses height: 1.4) — sits noticeably above the visible text ink, so
+      // a caret-derived stripe reads as too high / belonging to the line above.
+      // getBoxesForSelection with BoxHeightStyle.tight returns boxes that hug the
+      // text's ascent/descent, so the stripe tracks where the glyphs actually
+      // are. A multi-row run (wrapped content, or several merged lines) yields
+      // several boxes; span from the highest top to the lowest bottom.
+      double top;
+      double bottom;
+      final boxes = _textPainter.getBoxesForSelection(
+        TextSelection(
+          baseOffset: run.first.renderedStart,
+          extentOffset: run.last.renderedEnd,
+        ),
+        boxHeightStyle: ui.BoxHeightStyle.tight,
       );
-      // renderedEnd sits on the run's last visual row (accounts for wrapping);
-      // adding one line height gives the bottom of that row.
-      final bottomCaret = _textPainter.getOffsetForCaret(
-        TextPosition(offset: run.last.renderedEnd),
-        Rect.zero,
-      );
-      final top = textOrigin.dy + topCaret.dy;
-      final bottom = textOrigin.dy + bottomCaret.dy + lineHeight;
+      if (boxes.isNotEmpty) {
+        var minTop = boxes.first.top;
+        var maxBottom = boxes.first.bottom;
+        for (final b in boxes) {
+          if (b.top < minTop) minTop = b.top;
+          if (b.bottom > maxBottom) maxBottom = b.bottom;
+        }
+        top = textOrigin.dy + minTop;
+        bottom = textOrigin.dy + maxBottom;
+      } else {
+        // Fallback (e.g. a degenerate empty selection returns no boxes): use the
+        // caret-based line box so the stripe is never dropped entirely.
+        final caret = _textPainter.getOffsetForCaret(
+          TextPosition(offset: run.first.renderedStart),
+          Rect.zero,
+        );
+        top = textOrigin.dy + caret.dy;
+        bottom = top + _textPainter.preferredLineHeight;
+      }
 
       // Sit the stripe in the left margin, gap px to the left of the text.
       // Clamp so it never crosses the render object's left edge when the

@@ -1260,9 +1260,15 @@ void main() {
       expect(els[0].kind, MdElKind.blockquote);
     });
 
-    test('collapsedMarker for blockquote is empty string', () {
+    test('collapsedMarker for blockquote reserves four blank indent chars', () {
+      // The blockquote marker collapses to blank indentation (not a glyph) so
+      // the quoted content renders indented from plain paragraph text, reusing
+      // the list/checkbox marker-substitution path (ADR-33 Stage 4). Four spaces
+      // approximate GitHub's ~1em content indent on a real device.
       final el = MdParser.parse('> hi').first;
-      expect(el.collapsedMarker, '');
+      expect(el.collapsedMarker, '    ');
+      expect(el.collapsedMarker.trim(), isEmpty,
+          reason: 'blank characters only — no visible glyph');
     });
   });
 

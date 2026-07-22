@@ -184,6 +184,9 @@ class MdElement {
   /// tight gap — so five characters is a deliberately generous reservation
   /// to keep the box clear of the following content text.
   ///
+  /// For [MdElKind.blockquote]: returns four blank characters that reserve
+  /// horizontal indentation for the quoted content (see the switch below).
+  ///
   /// For [MdElKind.image]: returns `''` — the image is not a text substitution;
   /// the render object (QuikiRenderEditor) handles painting the image or
   /// placeholder rect in the paint pass.
@@ -191,6 +194,17 @@ class MdElement {
         MdElKind.ul => '• ',
         MdElKind.checkboxUnchecked || MdElKind.checkboxChecked => '     ',
         MdElKind.ol => '$seqNum. ',
+        // Blockquote: four blank characters reserve horizontal indentation so the
+        // quoted content sits visibly to the right of plain paragraph text, the
+        // way GitHub/CommonMark indent blockquote content — reusing the same
+        // marker-substitution path as list/checkbox markers rather than a bespoke
+        // mechanism. The `>`/`> ` source marker is hidden; these spaces render in
+        // its place. The count approximates GitHub's ~1em content indent: a space
+        // is roughly 0.25em wide in a typical proportional font, so four spaces
+        // ≈ 1em on a real device. (In the widget-test font every glyph — space
+        // included — is a 1em box, so goldens show a proportionally wider indent
+        // than a device does; the count is tuned for the device, not the golden.)
+        MdElKind.blockquote => '    ',
         // Heading, inline (incl. escape), image, link, and autolink elements:
         // no text substitution glyph.
         _ => '',
