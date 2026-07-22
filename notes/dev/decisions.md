@@ -12,6 +12,22 @@ Normative framing in `manifesto.md` — read that first.
 
 ---
 
+## ADR-34: Multi-run block indentation — per-indent-level TextPainter segments
+
+**Date**: 2026-07-22
+
+**Status**: locked decision, not yet implemented. Full spec: `notes/dev/block_indentation.md` — read that first; this entry is the index pointer.
+
+**What**: Replace `QuikiRenderEditor`'s single whole-document `TextPainter` with a list of `TextPainter`s, one per contiguous "run" of lines sharing the same indent level. Each run is laid out at a reduced width (indent level × indent unit subtracted) and painted at a matching X-offset; runs stack vertically. `RenderModel` additionally exposes run boundaries `(startOffset, endOffset, indentLevel)` for the flat rendered text it already produces — its existing offset-mapping and inline-formatting machinery (ADR-33) is unchanged. Every coordinate-mapping function in `QuikiRenderEditor` (caret positioning, tap hit-testing) gains one indirection step: resolve which run a rendered offset/tap position falls in, delegate to that run's `TextPainter`, translate by the run's origin.
+
+**Why**: Confirmed via direct evidence, not speculation — ADR-33 Stage 4 implemented blockquote content indentation via leading blank characters (the same trick proven for checkbox/list markers), and device testing showed it only indents a line's first visual row; wrapped continuation rows snap back to the unindented margin. Root cause: indentation that survives word-wrap is a layout-box property (same category as CSS `margin-left`), not a text-content property — every real text engine achieves it by giving the indented block its own narrower layout region, and Flutter's automatic wrap has no way to "resume" a leading-character indent after breaking a line. Issue #241 (nested lists) predicted this exact constraint at filing time; it is now proven, not theoretical, and blocks #241 identically.
+
+**Rejected alternatives**: wider leading-character reservations (doesn't survive wrap, already proven insufficient); per-block `Widget`/`RenderObject` regions instead of per-run `TextPainter`s (would fight the same WidgetSpan one-character-per-element engine limitation ADR-31 already ruled out for inline images); rebuilding `RenderModel`'s offset-mapping from scratch to be run-aware internally (unnecessary — the existing flat single-pass model is correct and load-bearing for ADR-33; only the render/paint layer needs to become run-aware, not the parse/offset-map layer).
+
+**Deferred, tracked separately**: nested blockquotes (`>>`) — the foundation supports it once blockquote indent level is computed dynamically instead of fixed at 1, but multiple stacked border stripes per line is its own follow-on; Tab/Shift+Tab indent handling (#77) — depends on list-nesting parser support (this ADR's Stage 2) landing first.
+
+---
+
 ## ADR-33: Nested inline markdown — CommonMark delimiter-run algorithm
 
 **Date**: 2026-07-21
