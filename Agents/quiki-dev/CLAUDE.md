@@ -52,33 +52,33 @@ Read in this order — do not skip:
 
 > Written and maintained by the Spec session.
 
-### Nested inline markdown — Stage 3 (single-line HTML detection)
+### Nested inline markdown — Stage 4 (blockquote content)
 
-**Branch**: `fix/nested-inline-markdown-stage3`
-**Commit type**: `fix:` — closes a gap against the already-locked "HTML — detect, don't parse" decision (ADR-33).
-**Suggested PR title** (Spec opens the PR, not you): `fix(editor): single-line HTML detection (Stage 3)`
+**Branch**: `fix/nested-inline-markdown-stage4`
+**Commit type**: `fix:` — corrects a spec-scoping mistake, not a new capability. Blockquotes were wrongly excluded from ADR-33 by carrying forward a stale pre-ADR-31 note; this closes that gap.
+**Suggested PR title** (Spec opens the PR, not you): `fix(editor): nested and combined inline markdown (Stage 4 — blockquotes)`
 
-**Read first**: `notes/dev/nested_inline_markdown.md` — specifically the "HTML — detect, don't parse" section and "Scope decision for Stage 3" paragraph, which nails down exactly what this stage does and does not attempt — and `notes/dev/decisions.md` → ADR-33. Stages 1 and 2 (PRs #276, #279, both merged) already built and proved the recursive inline engine on paragraphs, headings, and list-item content — you're not touching that engine's emphasis/link/code logic at all in this stage, only adding a new thing it should skip over.
+**Read first**: `notes/dev/nested_inline_markdown.md` — specifically the "Correction (2026-07-22)" note near the top of the "Scope" section, which explains why blockquotes were wrongly excluded and are now in scope — and `notes/dev/decisions.md` → ADR-33. Stages 1, 2, and 3 (PRs #276, #279, #281, all merged) already built and proved the recursive inline engine on paragraphs, headings, list-item/checkbox content, and single-line HTML detection. This stage is architecturally identical to Stage 2 — read that stage's diff in git history (`fix(editor): nested and combined inline markdown (Stage 2 — list items)`) before starting; you're doing the same thing to a different block kind.
 
-**The problem, in one sentence**: `MdParser` has no concept of "this line/span is HTML" — a note containing `<div style="border: 1px solid *gray*">` would have the `*gray*` inside that attribute misread as italic, because nothing tells the scanner to leave it alone.
+**The problem, in one sentence**: blockquote lines (`> `) still become one opaque `MdElement` per line with zero inline scanning of their content — `> **important**` shows literal asterisks — the exact same gap headings and list items had before Stages 1 and 2 closed it there. Blockquotes are not an unsupported construct; they already render with real styling (muted color, left border stripe) — only their content was never wired through the inline engine.
 
-**What to build** — two parts, both single-line only (see the spec doc's scope decision for why multi-line HTML blocks are explicitly not attempted here):
+**What to build**: wire blockquote content through the same inline engine, the same way heading and list-item content already do it (`MdParser.parse()`'s blockquote branch — `line.startsWith('> ') || line == '> '` — currently adds one `MdElKind.blockquote` element covering the whole line with no `_scanInline` call after it; the heading/list branches show the pattern to follow).
 
-1. **A line that is entirely HTML** (one or more complete tags/comments, nothing else on the line — `<div class="x">`, `<!-- note -->`, `</span>`) should be excluded from inline scanning for that line, shown exactly as typed. No new visual treatment is needed — it should look the same as it does today, just guaranteed not to get emphasis/link/etc. applied inside it.
-2. **An inline HTML tag appearing mid-line** (`text <span style="color:red"> more text`) should be skipped by the inline scanner — the tag span excluded from emphasis/link matching, the same way an inline code span is already skipped today (find the mechanism `_scanInline` uses for `` ` `` and follow the same shape for `<...>`).
-
-**Tag-matching heuristic**: permissive, not real HTML grammar — `<` or `</` followed by an ASCII letter or `!`, ending at the next `>`. Good enough to catch `<div>`, `<span ...>`, `<!-- comment -->`; not attempting to validate well-formed HTML.
+Constraints, not implementation:
+- Content is everything after the `> ` prefix (`openDelimLen` = 2 for blockquote, already correct).
+- Handle the empty-blockquote case (`line == '> '`, no content after the prefix) — `_scanInline` already returns an empty list when `start >= end`, so this should fall out naturally rather than needing special-casing.
+- The render side (`RenderModel.build()`) should not need new special-casing — it already combines a block's content style with covering inline elements generically (that's how heading+bold and list-item+bold already render correctly). If you find yourself adding blockquote-specific logic to the render loop, stop and reconsider.
+- The blockquote left-border-stripe painting (`BlockquoteSlot`, drawn by `QuikiRenderEditor`) is unaffected — it's driven by block detection, not content.
 
 **Explicitly out of scope for this PR — do not implement, and do not decide to defer something else instead without flagging it back to me first**:
-- Multi-line HTML blocks (a tag opened on one line, closed several lines later — e.g. a multi-line `<!-- comment -->` or `<script>...</script>`). The parser has no multi-line state-tracking today beyond the narrow ordered-list-block counter; building general span-tracking is explicitly not this stage's job. If a line looks like it opens an HTML block but doesn't close on the same line, it's fine for it to fall through to normal handling (or however you find falls out naturally) — just don't try to make it span lines.
-- Any actual HTML rendering (no DOM, no interpreting `<script>`, nothing) — detection only, to prevent misparsing.
+- Inline image parsing (Stage 5, a separate future brief — pending a UX decision that hasn't been made yet).
 - List nesting/indentation (#241), Tab/Shift+Tab indent handling (#77), tables — untouched, unrelated future work.
 
 **Tests required**:
-- A line that's entirely an HTML tag/comment renders as literal text, no markdown interpreted inside it (including a case with `*`/`_`/`` ` ``/`[` inside an attribute).
-- An inline HTML tag mid-paragraph doesn't have its attributes misparsed (the `<div style="border: 1px solid *gray*">` case from the spec doc, or equivalent).
-- A markdown-special character genuinely outside any HTML tag on the same line still parses normally — confirm this doesn't over-trigger and swallow content that isn't actually HTML.
-- A test documenting the multi-line non-goal: a tag opened on one line without a same-line close does *not* incorrectly suppress scanning on subsequent lines — pin down whatever the actual (imperfect but bounded) behavior is, so it doesn't silently change later.
-- Every existing test must keep passing unless a genuine correctness fix requires updating one — explain why if so, same discipline as Stages 1 and 2.
+- Nested/combined formatting inside a blockquote (`> **bold**`, `> *italic*`, `> ~~struck~~`, `` > `code` ``, `> [a link](url)`), including a genuinely nested case like `> **bold *italic* text**`, mirroring the list-item test coverage Stages 2/3 already established in `nested_inline_test.dart`.
+- Whole-chain reveal-on-cursor for a nested run inside a blockquote, same rule as elsewhere.
+- The empty-blockquote case (`> ` alone) still works correctly with no content to scan.
+- The left-border-stripe still paints correctly when the blockquote line has inline-formatted content.
+- Every existing single-level blockquote test must keep passing unless a genuine correctness fix requires updating one — explain why if so, same discipline as prior stages.
 
-**Checklist**: `dart format`, `flutter analyze`, package tests (`cd packages/markdown_live_editor && flutter test`) — all clean before pushing. Include in your report-back a short list of example markdown/HTML strings with what you expect each to render as.
+**Checklist**: `dart format`, `flutter analyze`, package tests (`cd packages/markdown_live_editor && flutter test`) — all clean before pushing. Include in your report-back a short list of example markdown strings (blockquotes — plain and nested) with what you expect each to render as.
