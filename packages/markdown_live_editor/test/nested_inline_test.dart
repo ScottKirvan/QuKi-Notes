@@ -565,4 +565,232 @@ void main() {
       expect(m.textSpan.toPlainText(), '*one* and two');
     });
   });
+
+  // -------------------------------------------------------------------------
+  // Inline scanning inside list items and checkboxes — previously impossible
+  // (ADR-33 Stage 2, closes #240). The list-item / checkbox / ordered-list
+  // content after the block prefix flows through the same recursive inline
+  // engine that headings and paragraphs already use.
+  // -------------------------------------------------------------------------
+  group('inline formatting in list items', () {
+    test('"- **bold**" → ul + bold at content offset', () {
+      final els = MdParser.parse('- **bold**');
+      expect(els.where((e) => e.kind == MdElKind.ul), hasLength(1));
+      final bold = els.firstWhere((e) => e.kind == MdElKind.bold);
+      // '- ' prefix is 2 chars → bold begins at offset 2.
+      expect(bold.start, 2);
+      expect(bold.end, 10);
+    });
+
+    test('"* *italic*" → ul + italic (star bullet prefix)', () {
+      final els = MdParser.parse('* *italic*');
+      expect(els.where((e) => e.kind == MdElKind.ul), hasLength(1));
+      final italic = els.firstWhere((e) => e.kind == MdElKind.italic);
+      expect(italic.start, 2);
+      expect(italic.end, 10);
+    });
+
+    test('"+ ~~struck~~" → ul + strikethrough (plus bullet prefix)', () {
+      final els = MdParser.parse('+ ~~struck~~');
+      expect(els.where((e) => e.kind == MdElKind.ul), hasLength(1));
+      final strike = els.firstWhere((e) => e.kind == MdElKind.strikethrough);
+      expect(strike.start, 2);
+      expect(strike.end, 12);
+    });
+
+    test('"- `code` item" → ul + inline code', () {
+      final els = MdParser.parse('- `code` item');
+      expect(els.where((e) => e.kind == MdElKind.ul), hasLength(1));
+      final code = els.firstWhere((e) => e.kind == MdElKind.inlineCode);
+      expect(code.start, 2); // '- ' = 2 chars
+      expect(code.end, 8);
+    });
+
+    test('"- [link](https://x.com)" → ul + link', () {
+      final els = MdParser.parse('- [link](https://x.com)');
+      expect(els.where((e) => e.kind == MdElKind.ul), hasLength(1));
+      final link = els.firstWhere((e) => e.kind == MdElKind.link);
+      expect(link.start, 2);
+      expect(link.url, 'https://x.com');
+    });
+
+    test('"- **bold *italic* text**" → ul with strong containing em (nested)',
+        () {
+      // Same nesting as the paragraph case '**bold *italic* text**'
+      // (bold[0,22], italic[7,15]), shifted by the 2-char '- ' prefix.
+      final els = MdParser.parse('- **bold *italic* text**');
+      expect(els.where((e) => e.kind == MdElKind.ul), hasLength(1));
+      final bold = els.firstWhere((e) => e.kind == MdElKind.bold);
+      final italic = els.firstWhere((e) => e.kind == MdElKind.italic);
+      expect(bold.start, 2);
+      expect(bold.end, 24);
+      expect(italic.start, 9);
+      expect(italic.end, 17);
+      expect(bold.start < italic.start && italic.end < bold.end, isTrue);
+    });
+
+    test('"1. *italic*" → ol + italic at content offset', () {
+      final els = MdParser.parse('1. *italic*');
+      expect(els.where((e) => e.kind == MdElKind.ol), hasLength(1));
+      final italic = els.firstWhere((e) => e.kind == MdElKind.italic);
+      // '1. ' prefix is 3 chars → italic begins at offset 3.
+      expect(italic.start, 3);
+      expect(italic.end, 11);
+    });
+
+    test('"12. **bold**" → ol + bold, content after 2-digit marker', () {
+      final els = MdParser.parse('12. **bold**');
+      expect(els.where((e) => e.kind == MdElKind.ol), hasLength(1));
+      final bold = els.firstWhere((e) => e.kind == MdElKind.bold);
+      // '12. ' prefix is 4 chars → bold begins at offset 4.
+      expect(bold.start, 4);
+      expect(bold.end, 12);
+    });
+
+    test('ol block-relative numbering is untouched by inline scanning', () {
+      // Adding inline scan must not disturb seqNum tracking (block detection
+      // happens before any inline scan).
+      const source = '1. **a**\n1. *b*\n1. c';
+      final els = MdParser.parse(source);
+      final ols = els.where((e) => e.kind == MdElKind.ol).toList();
+      expect(ols, hasLength(3));
+      expect(ols[0].seqNum, 1);
+      expect(ols[1].seqNum, 2);
+      expect(ols[2].seqNum, 3);
+    });
+
+    test('"- [ ] ~~struck~~" → checkboxUnchecked + strikethrough', () {
+      final els = MdParser.parse('- [ ] ~~struck~~');
+      expect(
+          els.where((e) => e.kind == MdElKind.checkboxUnchecked), hasLength(1));
+      final strike = els.firstWhere((e) => e.kind == MdElKind.strikethrough);
+      // '- [ ] ' prefix is 6 chars → strikethrough begins at offset 6.
+      expect(strike.start, 6);
+      expect(strike.end, 16);
+    });
+
+    test('"- [x] [a link](url)" → checkboxChecked + link', () {
+      final els = MdParser.parse('- [x] [a link](url)');
+      expect(
+          els.where((e) => e.kind == MdElKind.checkboxChecked), hasLength(1));
+      final link = els.firstWhere((e) => e.kind == MdElKind.link);
+      // '- [x] ' prefix is 6 chars → link begins at offset 6.
+      expect(link.start, 6);
+      expect(link.url, 'url');
+    });
+
+    test('"- [X] **bold *italic***" → checkboxChecked with nested emphasis',
+        () {
+      final els = MdParser.parse('- [X] **bold *italic***');
+      expect(
+          els.where((e) => e.kind == MdElKind.checkboxChecked), hasLength(1));
+      final bold = els.firstWhere((e) => e.kind == MdElKind.bold);
+      final italic = els.firstWhere((e) => e.kind == MdElKind.italic);
+      expect(bold.start, 6); // after '- [X] '
+      expect(bold.start < italic.start && italic.end < bold.end, isTrue);
+    });
+
+    test('list inline scan starts after the correct prefix per kind', () {
+      for (final entry in {
+        '- ': MdElKind.ul,
+        '* ': MdElKind.ul,
+        '+ ': MdElKind.ul,
+        '1. ': MdElKind.ol,
+        '- [ ] ': MdElKind.checkboxUnchecked,
+        '- [x] ': MdElKind.checkboxChecked,
+      }.entries) {
+        final prefix = entry.key;
+        final src = '$prefix**b**';
+        final els = MdParser.parse(src);
+        expect(els.where((e) => e.kind == entry.value), hasLength(1),
+            reason: 'line "$src" should be detected as ${entry.value}');
+        final bold = els.firstWhere((e) => e.kind == MdElKind.bold);
+        expect(bold.start, prefix.length,
+            reason: 'bold should start right after "$prefix"');
+      }
+    });
+
+    test('plain list content still produces no inline elements (regression)',
+        () {
+      // The four single-level baselines: prefix + plain text → block only.
+      for (final src in ['- item', '1. item', '- [ ] task', '- [x] done']) {
+        final els = MdParser.parse(src);
+        expect(els, hasLength(1), reason: '"$src" should be one block element');
+        expect(els[0].isBlock, isTrue);
+      }
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // RenderModel — list/checkbox content renders through the shared inline path
+  // with no list-specific special-casing (ADR-33 Stage 2).
+  // -------------------------------------------------------------------------
+  group('RenderModel — inline formatting in list items', () {
+    test('"- **bold**" collapsed → "• bold", content is bold', () {
+      final m = _build('- **bold**', cursorOffset: -1);
+      expect(m.textSpan.toPlainText(), '• bold');
+      // '• ' marker (2 chars) then 'bold'; the 'b' is at rendered offset 2.
+      expect(_styleAtRendered(m, 2)?.fontWeight, FontWeight.bold);
+    });
+
+    test('"1. *italic*" collapsed → "1. italic", content is italic', () {
+      final m = _build('1. *italic*', cursorOffset: -1);
+      expect(m.textSpan.toPlainText(), '1. italic');
+      // '1. ' marker (3 chars) then 'italic'; 'i' is at rendered offset 3.
+      expect(_styleAtRendered(m, 3)?.fontStyle, FontStyle.italic);
+    });
+
+    test('"- [ ] **urgent** call" collapsed: checkbox slot + bold content', () {
+      final m = _build('- [ ] **urgent** call', cursorOffset: -1);
+      // '     ' (5 blank marker chars) + 'urgent call'.
+      expect(m.textSpan.toPlainText(), '     urgent call');
+      // The checkbox glyph slot is still produced (marker unaffected by content).
+      expect(m.checkboxSlots, hasLength(1));
+      expect(m.checkboxSlots[0].renderedMarkerStart, 0);
+      expect(m.checkboxSlots[0].renderedMarkerEnd, 5);
+      expect(m.checkboxSlots[0].checked, isFalse);
+      // 'u' of 'urgent' is at rendered offset 5 and must be bold.
+      expect(_styleAtRendered(m, 5)?.fontWeight, FontWeight.bold);
+      // ' call' (past the bold run) is not bold.
+      expect(_styleAtRendered(m, 12)?.fontWeight, isNot(FontWeight.bold));
+    });
+
+    test('nested char in a list item carries BOTH bold and italic', () {
+      // '- a **b *c* d** e' collapsed → '• a b c d e'; the 'c' is inside both
+      // bold and italic.
+      final m = _build('- a **b *c* d** e', cursorOffset: -1);
+      expect(m.textSpan.toPlainText(), '• a b c d e');
+      // '• ' (2) + 'a ' (2) + 'b ' (2) → 'c' at rendered offset 6.
+      final style = _styleAtRendered(m, 6);
+      expect(style?.fontWeight, FontWeight.bold);
+      expect(style?.fontStyle, FontStyle.italic);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Whole-chain reveal inside a list item: cursor anywhere in a nested run
+  // reveals the ENTIRE line as raw source (the block is the outermost element),
+  // same rule as headings/paragraphs (ADR-33).
+  // -------------------------------------------------------------------------
+  group('RenderModel — whole-chain reveal inside a list item', () {
+    const src = '- a **b *c* d** e';
+
+    test('cursor outside collapses to bullet + rendered content', () {
+      final m = _build(src, cursorOffset: -1);
+      expect(m.textSpan.toPlainText(), '• a b c d e');
+    });
+
+    test('cursor inside the inner italic reveals the WHOLE line raw', () {
+      // 'c' is at source offset 9 (after '- a **b *').
+      final m = _build(src, cursorOffset: 9);
+      expect(m.textSpan.toPlainText(), src);
+    });
+
+    test('cursor inside the bold-but-not-italic region reveals the whole line',
+        () {
+      // 'b' at source offset 6.
+      final m = _build(src, cursorOffset: 6);
+      expect(m.textSpan.toPlainText(), src);
+    });
+  });
 }

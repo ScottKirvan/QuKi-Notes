@@ -305,6 +305,8 @@ class MdParser {
           start: lineStart,
           end: lineEnd,
         ));
+        // '- [ ] ' prefix is 6 chars — scan the remainder inline (ADR-33).
+        result.addAll(_scanInline(source, lineStart + 6, lineEnd));
       } else if (line.startsWith('- [x] ') || line.startsWith('- [X] ')) {
         olBlockStart = 0;
         olRunCount = 0;
@@ -313,6 +315,8 @@ class MdParser {
           start: lineStart,
           end: lineEnd,
         ));
+        // '- [x] ' / '- [X] ' prefix is 6 chars — scan the remainder inline.
+        result.addAll(_scanInline(source, lineStart + 6, lineEnd));
 
         // Step 2b — Horizontal rule: a line of 3+ '-', '*', or '_' (with
         // optional spaces between them, no other characters).
@@ -338,6 +342,8 @@ class MdParser {
         olRunCount = 0;
         result
             .add(MdElement(kind: MdElKind.ul, start: lineStart, end: lineEnd));
+        // '- ' / '* ' / '+ ' prefix is 2 chars — scan the remainder inline.
+        result.addAll(_scanInline(source, lineStart + 2, lineEnd));
 
         // Step 4a — Block image detection: the entire line is `![alt](path)`.
         // A line qualifies as a block image only when it starts with `![` and
@@ -376,12 +382,14 @@ class MdParser {
           seqNum: seqNum,
           srcOlDelimLen: srcDelimLen,
         ));
+        // '{digits}. ' marker is srcDelimLen chars — scan the remainder inline.
+        result.addAll(_scanInline(source, lineStart + srcDelimLen, lineEnd));
       } else {
         olBlockStart = 0;
         olRunCount = 0;
         // Step 5 — Recursive inline scan (paragraph lines). The same scanner is
-        // used for heading content above; list/checkbox/blockquote/image/hr
-        // lines stay opaque (list-content scanning is Stage 3, ADR-33).
+        // used for heading, list, and checkbox content above; blockquote / image
+        // / hr lines stay opaque (HTML detection is Stage 3, ADR-33).
         result.addAll(_scanInline(source, lineStart, lineEnd));
       }
 

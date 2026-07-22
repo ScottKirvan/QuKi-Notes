@@ -78,5 +78,17 @@ void main() {
       const source = '- [ ] one\n- [x] two';
       expect(toggleCheckbox(source, 10), '- [ ] one\n- [ ] two');
     });
+
+    test('toggle is unaffected by inline-formatted content after the marker',
+        () {
+      // ADR-33 Stage 2: content after '- [ ] ' now flows through the inline
+      // engine, but toggling only rewrites the 6-char marker prefix — the
+      // formatted remainder ('**urgent** call back') is preserved verbatim.
+      const source = '- [ ] **urgent** call back';
+      expect(toggleCheckbox(source, 0), '- [x] **urgent** call back');
+      // And back again.
+      const checked = '- [x] **urgent** call back';
+      expect(toggleCheckbox(checked, 0), '- [ ] **urgent** call back');
+    });
   });
 }
