@@ -353,33 +353,48 @@ class QuikiRenderEditor extends RenderBox {
     // Draw text.
     _textPainter.paint(canvas, textOrigin);
 
-    // Draw blockquote left border stripes for collapsed blockquote slots.
+    // Draw blockquote left border stripes.
     //
-    // For each collapsed blockquote line, look up the Y position of the first
-    // content character via TextPainter.getOffsetForCaret().  Paint a 3px-wide
-    // vertical stripe in the border color (#7a828e) at the left edge of the
-    // content area, spanning one line height.
+    // Consecutive blockquote source lines form a single quoted block with one
+    // continuous border (GFM/GitHub behavior), so adjacent slots are merged
+    // into runs and each run is painted as one stripe. The stripe spans the
+    // full vertical extent of the run's content — from the top of its first
+    // visual row to the bottom of its last visual row — so a line that wraps to
+    // several rows, or several stacked lines, all get one unbroken stripe
+    // (rather than a one-line-tall segment per source line).
+    //
+    // The stripe is painted in the left content margin with a small gap before
+    // the text (like GitHub's border-then-gap-then-text), instead of directly
+    // over the first glyph. Revealed blockquote lines carry no slot (they show
+    // raw source), so a run naturally breaks around them.
     const Color blockquoteBorderColor = Color(0xFF7A828E);
-    for (final bq in _renderModel.blockquoteSlots) {
-      final el = bq.element;
-      final cursorSrc = sel.isValid ? sel.baseOffset : -1;
-      final revealed = cursorSrc >= el.start && cursorSrc <= el.end;
-      if (revealed) continue;
-
-      final contentOffset = _textPainter.getOffsetForCaret(
-        TextPosition(offset: bq.renderedStart),
+    const double blockquoteStripeWidth = 3.0;
+    const double blockquoteTextGap = 8.0;
+    for (final run in groupBlockquoteRuns(_renderModel.blockquoteSlots)) {
+      final lineHeight = _textPainter.preferredLineHeight;
+      final topCaret = _textPainter.getOffsetForCaret(
+        TextPosition(offset: run.first.renderedStart),
         Rect.zero,
       );
-      final lineHeight = _textPainter.preferredLineHeight;
-      // Paint the stripe at the left edge of the text area, same Y as content.
-      final stripeRect = Rect.fromLTWH(
-        textOrigin.dx,
-        textOrigin.dy + contentOffset.dy,
-        3.0,
-        lineHeight,
+      // renderedEnd sits on the run's last visual row (accounts for wrapping);
+      // adding one line height gives the bottom of that row.
+      final bottomCaret = _textPainter.getOffsetForCaret(
+        TextPosition(offset: run.last.renderedEnd),
+        Rect.zero,
       );
+      final top = textOrigin.dy + topCaret.dy;
+      final bottom = textOrigin.dy + bottomCaret.dy + lineHeight;
+
+      // Sit the stripe in the left margin, gap px to the left of the text.
+      // Clamp so it never crosses the render object's left edge when the
+      // configured left padding is smaller than the stripe + gap.
+      var stripeLeft =
+          textOrigin.dx - blockquoteTextGap - blockquoteStripeWidth;
+      if (stripeLeft < offset.dx) stripeLeft = offset.dx;
+
       canvas.drawRect(
-        stripeRect,
+        Rect.fromLTRB(
+            stripeLeft, top, stripeLeft + blockquoteStripeWidth, bottom),
         Paint()
           ..color = blockquoteBorderColor
           ..style = PaintingStyle.fill,

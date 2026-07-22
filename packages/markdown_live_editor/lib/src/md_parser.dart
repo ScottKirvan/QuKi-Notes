@@ -41,10 +41,10 @@ class MdElement {
     required this.start,
     required this.end,
     this.seqNum = 0,
-    int srcOlDelimLen = 0,
+    int srcMarkerLen = 0,
     this.imagePath = '',
     this.url = '',
-  }) : _srcOlDelimLen = srcOlDelimLen;
+  }) : _srcMarkerLen = srcMarkerLen;
 
   /// Kind of markdown element.
   final MdElKind kind;
@@ -61,10 +61,18 @@ class MdElement {
   /// For all other kinds this is 0 and should not be read.
   final int seqNum;
 
-  /// For [MdElKind.ol]: the number of source characters in the marker
-  /// (e.g. '1. ' = 3, '12. ' = 4). Stored separately because the source
-  /// digits may differ from [seqNum].
-  final int _srcOlDelimLen;
+  /// The number of source characters in a variable-length block marker.
+  ///
+  /// For [MdElKind.ol]: the ordered-list marker length (e.g. '1. ' = 3,
+  /// '12. ' = 4). Stored separately because the source digits may differ from
+  /// [seqNum].
+  ///
+  /// For [MdElKind.blockquote]: the marker length, which is variable per
+  /// CommonMark — 2 for `> ` (`>` + a single space) and 1 for a bare `>`
+  /// (`>` alone, or `>content` with no space). See [openDelimLen].
+  ///
+  /// 0 (unused) for every other kind, whose marker length is fixed.
+  final int _srcMarkerLen;
 
   /// For [MdElKind.image]: the raw path string extracted from `![alt](path)`.
   /// The content between the last `(` and the final `)` on the line.
@@ -99,7 +107,7 @@ class MdElement {
         MdElKind.strikethrough => 2, // '~~'
         MdElKind.inlineCode => 1, // '`'
         MdElKind.ul => 2, // '- ' / '* ' / '+ '
-        MdElKind.ol => _srcOlDelimLen, // '{digits}. ' — variable
+        MdElKind.ol => _srcMarkerLen, // '{digits}. ' — variable
         MdElKind.checkboxUnchecked => 6, // '- [ ] '
         MdElKind.checkboxChecked => 6, // '- [x] ' or '- [X] '
         // Image: the full source line is the delimiter; no content chars emitted.
@@ -109,8 +117,9 @@ class MdElement {
         MdElKind.link => 1,
         // Autolink: URL is the content itself — no delimiter characters.
         MdElKind.autolink => 0,
-        // Blockquote: '> ' is the opening delimiter (2 chars).
-        MdElKind.blockquote => 2,
+        // Blockquote: the marker is `>` optionally followed by one space, so
+        // the delimiter length is variable — 2 for `> `, 1 for a bare `>`.
+        MdElKind.blockquote => _srcMarkerLen,
         // Hr: the entire source line is the delimiter; no content chars emitted.
         MdElKind.hr => end - start,
         // Escape: the leading backslash is the (hidden) opening delimiter.
@@ -327,16 +336,26 @@ class MdParser {
         result
             .add(MdElement(kind: MdElKind.hr, start: lineStart, end: lineEnd));
 
-        // Step 2c — Blockquote: a line starting with '> ' (greater-than + space).
-      } else if (line.startsWith('> ') || line == '> ') {
+        // Step 2c — Blockquote. Per CommonMark, the marker is `>` optionally
+        // followed by a single space, so every line beginning with `>` is a
+        // blockquote: `> content` (marker '> ', 2 chars), and `>content` or a
+        // bare `>` alone (marker '>', 1 char — no space to consume). The marker
+        // length is therefore variable and stored in srcMarkerLen so
+        // openDelimLen / isDelimiter report it correctly.
+      } else if (line.startsWith('>')) {
         olBlockStart = 0;
         olRunCount = 0;
+        final markerLen = (line.length > 1 && line[1] == ' ') ? 2 : 1;
         result.add(MdElement(
-            kind: MdElKind.blockquote, start: lineStart, end: lineEnd));
-        // '> ' prefix is 2 chars — scan the remainder inline (ADR-33 Stage 4).
-        // For the empty blockquote ('> ' alone) start == end, so _scanInline
+          kind: MdElKind.blockquote,
+          start: lineStart,
+          end: lineEnd,
+          srcMarkerLen: markerLen,
+        ));
+        // Scan the content after the marker inline (ADR-33 Stage 4). For an
+        // empty blockquote ('>' or '> ' alone) start == end, so _scanInline
         // returns an empty list and no inline elements are produced.
-        result.addAll(_scanInline(source, lineStart + 2, lineEnd));
+        result.addAll(_scanInline(source, lineStart + markerLen, lineEnd));
 
         // Step 3 — Unordered list ('- ', '* ', '+ ').
       } else if (line.startsWith('- ') ||
@@ -384,7 +403,7 @@ class MdParser {
           start: lineStart,
           end: lineEnd,
           seqNum: seqNum,
-          srcOlDelimLen: srcDelimLen,
+          srcMarkerLen: srcDelimLen,
         ));
         // '{digits}. ' marker is srcDelimLen chars — scan the remainder inline.
         result.addAll(_scanInline(source, lineStart + srcDelimLen, lineEnd));

@@ -387,7 +387,7 @@ void main() {
         start: 0,
         end: 8,
         seqNum: 3,
-        srcOlDelimLen: 3,
+        srcMarkerLen: 3,
       );
       expect(el.collapsedMarker, '3. ');
     });
@@ -1208,18 +1208,26 @@ void main() {
       expect(el.isDelimiter(2), isFalse);
     });
 
-    test('">text" (no space after ">") → NOT a blockquote (plain text)', () {
-      expect(
-        MdParser.parse('>text').where((e) => e.kind == MdElKind.blockquote),
-        isEmpty,
-      );
+    test('">text" (no space after ">") → blockquote, marker is 1 char', () {
+      // CommonMark: a bare `>` not followed by a space is still a blockquote
+      // marker; the space is only consumed when present. Marker length is 1, so
+      // 't' at offset 1 is content, not a delimiter.
+      final els = MdParser.parse('>text');
+      final bqs = els.where((e) => e.kind == MdElKind.blockquote).toList();
+      expect(bqs, hasLength(1));
+      expect(bqs[0].openDelimLen, 1);
+      expect(bqs[0].isDelimiter(0), isTrue); // '>'
+      expect(bqs[0].isDelimiter(1), isFalse); // 't' is content
     });
 
-    test('">" alone (no space) → NOT a blockquote', () {
-      expect(
-        MdParser.parse('>').where((e) => e.kind == MdElKind.blockquote),
-        isEmpty,
-      );
+    test('">" alone (no space) → blockquote with empty content, marker 1 char',
+        () {
+      final els = MdParser.parse('>');
+      final bqs = els.where((e) => e.kind == MdElKind.blockquote).toList();
+      expect(bqs, hasLength(1));
+      expect(bqs[0].openDelimLen, 1);
+      expect(bqs[0].start, 0);
+      expect(bqs[0].end, 1);
     });
 
     test('">" followed by space alone → blockquote with empty content', () {
