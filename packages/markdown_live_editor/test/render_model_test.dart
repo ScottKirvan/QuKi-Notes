@@ -382,7 +382,7 @@ void main() {
         start: 0,
         end: 7,
         seqNum: 3,
-        srcOlDelimLen: 3, // '3. ' = 3 source chars
+        srcMarkerLen: 3, // '3. ' = 3 source chars
       );
       final m = _build(source, [el], cursorOffset: -1);
 
@@ -402,7 +402,7 @@ void main() {
         start: 0,
         end: 8,
         seqNum: 12,
-        srcOlDelimLen: 4, // '12. ' = 4 source chars
+        srcMarkerLen: 4, // '12. ' = 4 source chars
       );
       final m = _build(source, [el], cursorOffset: -1);
 

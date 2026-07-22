@@ -33,18 +33,55 @@ class ImageSlot {
 /// decorate with a left border stripe.
 ///
 /// [renderedStart] is the rendered character offset of the first content
-/// character (after the '> ' delimiter).  QuikiRenderEditor uses this to
-/// look up the Y coordinate of the line via TextPainter.getOffsetForCaret().
+/// character (after the blockquote marker); [renderedEnd] is the rendered
+/// offset just past the last content character of the line (the position of
+/// the following newline, or the end sentinel for the final line).
+/// QuikiRenderEditor uses both to look up the vertical extent of the line —
+/// including any wrapped visual rows — via TextPainter.getOffsetForCaret(), so
+/// the stripe spans the full height of the (possibly wrapped) content rather
+/// than a single line. For an empty blockquote the two offsets are equal and
+/// the stripe falls back to one line height.
 class BlockquoteSlot {
   const BlockquoteSlot({
     required this.element,
     required this.renderedStart,
+    required this.renderedEnd,
   });
 
   final MdElement element;
 
   /// Rendered offset of the first content character of the blockquote.
   final int renderedStart;
+
+  /// Rendered offset just past the last content character of the blockquote
+  /// line (the following newline's rendered offset, or the end sentinel).
+  final int renderedEnd;
+}
+
+/// Groups blockquote stripe slots into runs of consecutive source lines.
+///
+/// Two slots are consecutive when the next element begins exactly one
+/// character — the line-separating `\n` — after the previous element ends
+/// (`prev.element.end + 1 == next.element.start`). Consecutive `>` lines form a
+/// single quoted block with one continuous border in GFM/GitHub, so each
+/// returned run is painted by QuikiRenderEditor as one uninterrupted stripe. A
+/// non-blockquote line, or a revealed blockquote line (which carries no slot),
+/// breaks the run.
+///
+/// [slots] must be in document order, which [RenderModel.build] guarantees.
+/// Pure and side-effect free so the merging can be unit-tested without a
+/// laid-out TextPainter.
+List<List<BlockquoteSlot>> groupBlockquoteRuns(List<BlockquoteSlot> slots) {
+  final runs = <List<BlockquoteSlot>>[];
+  for (final slot in slots) {
+    if (runs.isNotEmpty &&
+        runs.last.last.element.end + 1 == slot.element.start) {
+      runs.last.add(slot);
+    } else {
+      runs.add([slot]);
+    }
+  }
+  return runs;
 }
 
 // ---------------------------------------------------------------------------
@@ -319,12 +356,11 @@ class RenderModel {
           continue;
         }
 
-        // Collapsed blockquote: at the first content char, record the rendered
-        // position so QuikiRenderEditor can paint the left border stripe.
-        if (block.kind == MdElKind.blockquote &&
-            si == block.start + block.openDelimLen) {
-          blockquotes.add(BlockquoteSlot(element: block, renderedStart: ri));
-        }
+        // Blockquote stripe slots are recorded in a post-pass after the source
+        // → rendered map is complete (see below), not here: recording at the
+        // first content char failed for an empty blockquote, whose content
+        // position coincides with where the block is retired from this loop, so
+        // the slot was never emitted (the off-by-one this fixes).
 
         // Collapsed list/checkbox marker substitution: emit the collapsedMarker
         // glyph(s) and fast-forward past the source delimiter region.
@@ -457,6 +493,27 @@ class RenderModel {
 
     srcToRnd[source.length] = ri;
     rndToSrc.add(source.length); // end sentinel: renderedLength → source.length
+
+    // Blockquote stripe slots (post-pass). Recorded here, once srcToRnd is
+    // complete, so the rendered content span can be read for any block —
+    // including an empty blockquote, whose content position the per-character
+    // loop never reaches while the block is still current (the fixed off-by-one).
+    // renderedStart = rendered offset of the marker start (the '>'/'> ' chars
+    // are hidden, so this equals the first content char's rendered offset);
+    // renderedEnd = rendered offset just past the last content char. A revealed
+    // blockquote (cursor anywhere on its line — the block is the outermost
+    // element) shows raw source and paints no stripe, matching every other
+    // element's reveal rule.
+    for (final b in blocks) {
+      if (b.kind != MdElKind.blockquote) continue;
+      final revealed = cursorOffset >= b.start && cursorOffset <= b.end;
+      if (revealed) continue;
+      blockquotes.add(BlockquoteSlot(
+        element: b,
+        renderedStart: srcToRnd[b.start],
+        renderedEnd: srcToRnd[b.end],
+      ));
+    }
 
     return RenderModel._(
       textSpan: TextSpan(children: spans.isEmpty ? null : spans),

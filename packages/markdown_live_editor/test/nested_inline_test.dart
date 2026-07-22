@@ -893,6 +893,56 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
+  // Bare `>` blockquote marker (no space) — CommonMark allows `>` not followed
+  // by a space as a blockquote marker (1-char marker), covering both a bare `>`
+  // on an otherwise-empty line and `>content` with content immediately after.
+  // The marker length is variable (1 or 2), which must flow through
+  // openDelimLen / isDelimiter and the inline-scan start offset.
+  // -------------------------------------------------------------------------
+  group('MdParser.parse — bare ">" blockquote marker', () {
+    test('">content" (no space) → blockquote, content inline-scanned', () {
+      // Marker is the single '>' (1 char), so content starts at offset 1 and is
+      // scanned exactly as '> content' would be after its 2-char marker.
+      final els = MdParser.parse('>**bold**');
+      final bqs = els.where((e) => e.kind == MdElKind.blockquote).toList();
+      expect(bqs, hasLength(1));
+      expect(bqs[0].openDelimLen, 1);
+      final bold = els.firstWhere((e) => e.kind == MdElKind.bold);
+      expect(bold.start, 1, reason: 'bold begins right after the bare ">"');
+      expect(bold.end, 9);
+    });
+
+    test('">" alone → one blockquote element, empty content, no inline els',
+        () {
+      final els = MdParser.parse('>');
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.blockquote);
+      expect(els[0].openDelimLen, 1);
+      expect(els[0].start, 0);
+      expect(els[0].end, 1);
+    });
+
+    test('">*italic*" (no space) → italic scanned from offset 1', () {
+      final els = MdParser.parse('>*italic*');
+      expect(els.where((e) => e.kind == MdElKind.blockquote), hasLength(1));
+      final italic = els.firstWhere((e) => e.kind == MdElKind.italic);
+      expect(italic.start, 1);
+      expect(italic.end, 9);
+    });
+
+    test('bare ">" and "> " markers coexist across lines', () {
+      // Line 0 uses a 2-char '> ' marker; line 1 a 1-char '>' marker.
+      const source = '> spaced\n>tight';
+      final bqs = MdParser.parse(source)
+          .where((e) => e.kind == MdElKind.blockquote)
+          .toList();
+      expect(bqs, hasLength(2));
+      expect(bqs[0].openDelimLen, 2); // '> '
+      expect(bqs[1].openDelimLen, 1); // '>'
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // RenderModel — blockquote content renders through the shared inline path
   // with no blockquote-specific special-casing (ADR-33 Stage 4). Content keeps
   // its muted blockquote color and combines with covering inline styles.
@@ -965,6 +1015,87 @@ void main() {
     test('two formatted blockquote lines → two stripe slots', () {
       final m = _build('> **a**\n> *b*', cursorOffset: -1);
       expect(m.blockquoteSlots, hasLength(2));
+    });
+
+    test(
+        'empty blockquote "> " → still produces a stripe slot (off-by-one fix)',
+        () {
+      // Regression for bug 2: the empty blockquote content position coincides
+      // with where the block is retired from the per-character loop, so the old
+      // code never recorded the slot. It must produce exactly one slot now.
+      final m = _build('> ', cursorOffset: -1);
+      expect(m.blockquoteSlots, hasLength(1));
+      expect(m.blockquoteSlots[0].element.kind, MdElKind.blockquote);
+    });
+
+    test('bare ">" alone → empty blockquote produces a stripe slot', () {
+      final m = _build('>', cursorOffset: -1);
+      expect(m.blockquoteSlots, hasLength(1));
+      expect(m.blockquoteSlots[0].element.kind, MdElKind.blockquote);
+    });
+
+    test('empty blockquote slot: renderedStart == renderedEnd (zero content)',
+        () {
+      final m = _build('> ', cursorOffset: -1);
+      final slot = m.blockquoteSlots.single;
+      expect(slot.renderedStart, slot.renderedEnd);
+    });
+
+    test('renderedEnd spans the full rendered content of the line', () {
+      // '> hello world' collapses to 'hello world' (11 chars); the stripe must
+      // be able to cover the whole content, so renderedEnd - renderedStart
+      // equals the rendered content length (this is what lets the paint layer
+      // span a wrapped line's full height rather than just its first row).
+      final m = _build('> hello world', cursorOffset: -1);
+      final slot = m.blockquoteSlots.single;
+      expect(slot.renderedStart, 0);
+      expect(slot.renderedEnd - slot.renderedStart, 'hello world'.length);
+    });
+
+    test('consecutive blockquote slots are adjacent (mergeable into one run)',
+        () {
+      // The paint layer merges slots whose elements are one '\n' apart into a
+      // single continuous stripe; assert that relationship holds here.
+      final m = _build('> a\n> b', cursorOffset: -1);
+      expect(m.blockquoteSlots, hasLength(2));
+      final first = m.blockquoteSlots[0].element;
+      final second = m.blockquoteSlots[1].element;
+      expect(first.end + 1, second.start);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // groupBlockquoteRuns — consecutive blockquote lines merge into one run so
+  // QuikiRenderEditor paints a single continuous stripe (bug 3). A gap (a
+  // non-blockquote line, or a revealed line with no slot) breaks the run.
+  // -------------------------------------------------------------------------
+  group('groupBlockquoteRuns', () {
+    test('two consecutive "> " lines → one run of two slots', () {
+      final m = _build('> a\n> b', cursorOffset: -1);
+      final runs = groupBlockquoteRuns(m.blockquoteSlots);
+      expect(runs, hasLength(1));
+      expect(runs.single, hasLength(2));
+    });
+
+    test('three consecutive blockquote lines → one run of three slots', () {
+      final m = _build('> a\n> b\n> c', cursorOffset: -1);
+      final runs = groupBlockquoteRuns(m.blockquoteSlots);
+      expect(runs, hasLength(1));
+      expect(runs.single, hasLength(3));
+    });
+
+    test('blockquote, plain line, blockquote → two separate runs', () {
+      // The middle plain line produces no blockquote slot, so the two
+      // blockquote lines are not adjacent and must not merge.
+      final m = _build('> a\nplain\n> c', cursorOffset: -1);
+      final runs = groupBlockquoteRuns(m.blockquoteSlots);
+      expect(runs, hasLength(2));
+      expect(runs[0], hasLength(1));
+      expect(runs[1], hasLength(1));
+    });
+
+    test('empty input → no runs', () {
+      expect(groupBlockquoteRuns(const []), isEmpty);
     });
   });
 
