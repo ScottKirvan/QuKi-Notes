@@ -793,4 +793,211 @@ void main() {
       expect(m.textSpan.toPlainText(), src);
     });
   });
+
+  // -------------------------------------------------------------------------
+  // Inline scanning inside blockquotes — previously impossible (ADR-33
+  // Stage 4). Blockquote content after the '> ' prefix flows through the same
+  // recursive inline engine that headings, paragraphs, and list items already
+  // use. Blockquotes were wrongly excluded from ADR-33 by carrying forward a
+  // stale pre-ADR-31 note; this closes that gap, mirroring Stage 2.
+  // -------------------------------------------------------------------------
+  group('inline formatting in blockquotes', () {
+    test('"> **bold**" → blockquote + bold at content offset', () {
+      final els = MdParser.parse('> **bold**');
+      expect(els.where((e) => e.kind == MdElKind.blockquote), hasLength(1));
+      final bold = els.firstWhere((e) => e.kind == MdElKind.bold);
+      // '> ' prefix is 2 chars → bold begins at offset 2.
+      expect(bold.start, 2);
+      expect(bold.end, 10);
+    });
+
+    test('"> *italic*" → blockquote + italic at content offset', () {
+      final els = MdParser.parse('> *italic*');
+      expect(els.where((e) => e.kind == MdElKind.blockquote), hasLength(1));
+      final italic = els.firstWhere((e) => e.kind == MdElKind.italic);
+      expect(italic.start, 2);
+      expect(italic.end, 10);
+    });
+
+    test('"> ~~struck~~" → blockquote + strikethrough', () {
+      final els = MdParser.parse('> ~~struck~~');
+      expect(els.where((e) => e.kind == MdElKind.blockquote), hasLength(1));
+      final strike = els.firstWhere((e) => e.kind == MdElKind.strikethrough);
+      expect(strike.start, 2);
+      expect(strike.end, 12);
+    });
+
+    test('"> `code` here" → blockquote + inline code', () {
+      final els = MdParser.parse('> `code` here');
+      expect(els.where((e) => e.kind == MdElKind.blockquote), hasLength(1));
+      final code = els.firstWhere((e) => e.kind == MdElKind.inlineCode);
+      // '> ' = 2 chars.
+      expect(code.start, 2);
+      expect(code.end, 8);
+    });
+
+    test('"> [link](https://x.com)" → blockquote + link', () {
+      final els = MdParser.parse('> [link](https://x.com)');
+      expect(els.where((e) => e.kind == MdElKind.blockquote), hasLength(1));
+      final link = els.firstWhere((e) => e.kind == MdElKind.link);
+      expect(link.start, 2);
+      expect(link.url, 'https://x.com');
+    });
+
+    test('"> visit https://x.com" → blockquote + autolink', () {
+      final els = MdParser.parse('> visit https://x.com');
+      expect(els.where((e) => e.kind == MdElKind.blockquote), hasLength(1));
+      final autolink = els.firstWhere((e) => e.kind == MdElKind.autolink);
+      expect(autolink.url, 'https://x.com');
+    });
+
+    test(
+        '"> **bold *italic* text**" → blockquote with strong containing em '
+        '(nested)', () {
+      // Same nesting as the paragraph case '**bold *italic* text**'
+      // (bold[0,22], italic[7,15]), shifted by the 2-char '> ' prefix.
+      final els = MdParser.parse('> **bold *italic* text**');
+      expect(els.where((e) => e.kind == MdElKind.blockquote), hasLength(1));
+      final bold = els.firstWhere((e) => e.kind == MdElKind.bold);
+      final italic = els.firstWhere((e) => e.kind == MdElKind.italic);
+      expect(bold.start, 2);
+      expect(bold.end, 24);
+      expect(italic.start, 9);
+      expect(italic.end, 17);
+      expect(bold.start < italic.start && italic.end < bold.end, isTrue);
+    });
+
+    test('empty blockquote "> " → one blockquote element, no inline elements',
+        () {
+      // '> ' alone: content span [2, 2) is empty, so _scanInline returns [] and
+      // no inline elements are produced. The block element is still emitted.
+      final els = MdParser.parse('> ');
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.blockquote);
+    });
+
+    test(
+        'plain blockquote content still produces no inline elements '
+        '(regression)', () {
+      final els = MdParser.parse('> just plain text');
+      expect(els, hasLength(1), reason: 'should be one block element only');
+      expect(els[0].kind, MdElKind.blockquote);
+      expect(els[0].isBlock, isTrue);
+    });
+
+    test('blockquote inline scan starts after the 2-char "> " prefix', () {
+      final els = MdParser.parse('> **b**');
+      final bold = els.firstWhere((e) => e.kind == MdElKind.bold);
+      expect(bold.start, 2, reason: 'bold should start right after "> "');
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // RenderModel — blockquote content renders through the shared inline path
+  // with no blockquote-specific special-casing (ADR-33 Stage 4). Content keeps
+  // its muted blockquote color and combines with covering inline styles.
+  // -------------------------------------------------------------------------
+  group('RenderModel — inline formatting in blockquotes', () {
+    // Primer DHC muted — the blockquote content color (mirrors _muted).
+    const muted = Color(0xFF9EA7B4);
+
+    test('"> **bold**" collapsed → "bold", content is bold AND muted', () {
+      final m = _build('> **bold**', cursorOffset: -1);
+      // '> ' and '**' delimiters hidden → rendered content is just 'bold'.
+      expect(m.textSpan.toPlainText(), 'bold');
+      final style = _styleAtRendered(m, 0);
+      expect(style?.fontWeight, FontWeight.bold);
+      expect(style?.color, muted);
+    });
+
+    test('"> *italic*" collapsed → "italic", content is italic AND muted', () {
+      final m = _build('> *italic*', cursorOffset: -1);
+      expect(m.textSpan.toPlainText(), 'italic');
+      final style = _styleAtRendered(m, 0);
+      expect(style?.fontStyle, FontStyle.italic);
+      expect(style?.color, muted);
+    });
+
+    test('nested char in a blockquote carries BOTH bold and italic', () {
+      // '> a **b *c* d** e' collapsed → 'a b c d e'; the 'c' is inside both
+      // bold and italic (and still muted from the blockquote content style).
+      final m = _build('> a **b *c* d** e', cursorOffset: -1);
+      expect(m.textSpan.toPlainText(), 'a b c d e');
+      // 'a'(0) ' '(1) 'b'(2) ' '(3) 'c'(4) → 'c' at rendered offset 4.
+      final style = _styleAtRendered(m, 4);
+      expect(style?.fontWeight, FontWeight.bold);
+      expect(style?.fontStyle, FontStyle.italic);
+      expect(style?.color, muted);
+    });
+
+    test('plain "> quote" content is muted (unchanged single-level behavior)',
+        () {
+      final m = _build('> quote', cursorOffset: -1);
+      expect(m.textSpan.toPlainText(), 'quote');
+      expect(_styleAtRendered(m, 0)?.color, muted);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // RenderModel — the left border stripe (BlockquoteSlot) still paints when the
+  // blockquote line has inline-formatted content. The stripe is driven by block
+  // detection, not content, so a formatted blockquote produces exactly the same
+  // single slot at the same rendered start as a plain one (ADR-33 Stage 4).
+  // -------------------------------------------------------------------------
+  group('RenderModel — blockquote border stripe with formatted content', () {
+    test('plain blockquote: one slot, renderedStart 0', () {
+      final m = _build('> quote', cursorOffset: -1);
+      expect(m.blockquoteSlots, hasLength(1));
+      expect(m.blockquoteSlots[0].renderedStart, 0);
+      expect(m.blockquoteSlots[0].element.kind, MdElKind.blockquote);
+    });
+
+    test('formatted blockquote: still one slot at renderedStart 0', () {
+      // '> ' and '**' are all hidden delimiters, so the first rendered content
+      // char ('b' of bold) is at rendered offset 0 — same stripe position as a
+      // plain blockquote. Inline formatting does not disturb the stripe.
+      final m = _build('> **bold**', cursorOffset: -1);
+      expect(m.blockquoteSlots, hasLength(1));
+      expect(m.blockquoteSlots[0].renderedStart, 0);
+      expect(m.blockquoteSlots[0].element.kind, MdElKind.blockquote);
+    });
+
+    test('two formatted blockquote lines → two stripe slots', () {
+      final m = _build('> **a**\n> *b*', cursorOffset: -1);
+      expect(m.blockquoteSlots, hasLength(2));
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Whole-chain reveal inside a blockquote: cursor anywhere in a nested run
+  // reveals the ENTIRE line as raw source (the block is the outermost element),
+  // same rule as headings/paragraphs/list items (ADR-33).
+  // -------------------------------------------------------------------------
+  group('RenderModel — whole-chain reveal inside a blockquote', () {
+    const src = '> a **b *c* d** e';
+
+    test('cursor outside collapses to rendered content (no raw markers)', () {
+      final m = _build(src, cursorOffset: -1);
+      expect(m.textSpan.toPlainText(), 'a b c d e');
+    });
+
+    test('cursor inside the inner italic reveals the WHOLE line raw', () {
+      // 'c' is at source offset 9 (after '> a **b *').
+      final m = _build(src, cursorOffset: 9);
+      expect(m.textSpan.toPlainText(), src);
+    });
+
+    test('cursor inside the bold-but-not-italic region reveals the whole line',
+        () {
+      // 'b' at source offset 6.
+      final m = _build(src, cursorOffset: 6);
+      expect(m.textSpan.toPlainText(), src);
+    });
+
+    test('revealed blockquote emits no border-stripe slot (whole line raw)',
+        () {
+      final m = _build(src, cursorOffset: 9);
+      expect(m.blockquoteSlots, isEmpty);
+    });
+  });
 }
