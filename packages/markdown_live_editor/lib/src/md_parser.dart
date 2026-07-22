@@ -384,12 +384,25 @@ class MdParser {
         ));
         // '{digits}. ' marker is srcDelimLen chars — scan the remainder inline.
         result.addAll(_scanInline(source, lineStart + srcDelimLen, lineEnd));
+
+        // Step 4b — HTML-only line (ADR-33 Stage 3). A line consisting entirely
+        // of one or more complete HTML tags/comments (plus optional surrounding
+        // whitespace) is excluded from inline scanning and passed through raw —
+        // markdown-special characters inside a tag/attribute are not misparsed.
+        // No element is emitted; the render layer shows the line as typed. A
+        // tag that does not close on the same line disqualifies the line, which
+        // then falls through to normal paragraph handling (multi-line HTML
+        // blocks are not attempted this stage).
+      } else if (_isHtmlOnlyLine(line)) {
+        olBlockStart = 0;
+        olRunCount = 0;
       } else {
         olBlockStart = 0;
         olRunCount = 0;
         // Step 5 — Recursive inline scan (paragraph lines). The same scanner is
-        // used for heading, list, and checkbox content above; blockquote / image
-        // / hr lines stay opaque (HTML detection is Stage 3, ADR-33).
+        // used for heading, list, and checkbox content above; an inline HTML
+        // tag mid-paragraph is skipped inside the scanner (ADR-33 Stage 3);
+        // blockquote / image / hr lines stay opaque.
         result.addAll(_scanInline(source, lineStart, lineEnd));
       }
 
@@ -475,6 +488,69 @@ class MdParser {
     return count >= 3;
   }
 
+  /// Permissive single-line HTML tag/comment detector (ADR-33 Stage 3).
+  ///
+  /// If a tag/comment begins at [i] — `source[i]` is `<`, optionally followed
+  /// by `/`, then an ASCII letter or `!`, with a closing `>` on the same line
+  /// (within [end]) — returns the exclusive offset just past that `>`.
+  /// Otherwise returns -1.
+  ///
+  /// This is deliberately not real HTML grammar validation: it is only good
+  /// enough to catch `<div>`, `<span ...>`, `</span>`, `<!-- comment -->`, and
+  /// `<!DOCTYPE ...>` so their interiors are excluded from markdown scanning.
+  /// A tag whose `>` is not on this line is not matched (multi-line HTML blocks
+  /// are not attempted).
+  static int _htmlTagEnd(String source, int i, int end) {
+    if (i >= end || source[i] != '<') return -1;
+    var j = i + 1;
+    if (j < end && source[j] == '/') j++; // optional closing-tag slash
+    if (j >= end) return -1;
+    final ch = source[j];
+    if (!(_isAsciiLetter(ch) || ch == '!')) return -1;
+    final close = source.indexOf('>', j);
+    if (close == -1 || close >= end) return -1;
+    return close + 1;
+  }
+
+  /// Returns true if [line] consists entirely of one or more complete HTML
+  /// tags/comments, separated or surrounded only by ASCII whitespace, using the
+  /// same permissive heuristic as [_htmlTagEnd]. Such a line is excluded from
+  /// inline markdown scanning (ADR-33 Stage 3). A `<` that does not begin a
+  /// complete same-line tag, or any non-whitespace content between/outside the
+  /// tags, disqualifies the line — it then falls through to normal paragraph
+  /// handling.
+  static bool _isHtmlOnlyLine(String line) {
+    final n = line.length;
+    var i = 0;
+    while (i < n && (line[i] == ' ' || line[i] == '\t')) {
+      i++;
+    }
+    if (i >= n || line[i] != '<') return false; // must start with a tag
+    var sawTag = false;
+    while (i < n) {
+      final ch = line[i];
+      if (ch == '<') {
+        final tagEnd = _htmlTagEnd(line, i, n);
+        if (tagEnd == -1) return false; // not a complete same-line tag
+        sawTag = true;
+        i = tagEnd;
+      } else if (ch == ' ' || ch == '\t') {
+        i++;
+      } else {
+        return false; // non-tag, non-whitespace content → not HTML-only
+      }
+    }
+    return sawTag;
+  }
+
+  /// True for a single ASCII letter (A–Z or a–z). Used by the HTML tag
+  /// heuristic to decide whether a `<`/`</` begins a tag name.
+  static bool _isAsciiLetter(String ch) {
+    if (ch.length != 1) return false;
+    final code = ch.codeUnitAt(0);
+    return (code >= 0x41 && code <= 0x5A) || (code >= 0x61 && code <= 0x7A);
+  }
+
   // ---------------------------------------------------------------------------
   // Recursive inline scanner (ADR-33).
   //
@@ -519,6 +595,25 @@ class MdParser {
         }
         i += 1;
         continue;
+      }
+
+      // Inline HTML tag/comment (ADR-33 Stage 3). A permissive single-line
+      // heuristic — `<` or `</` followed by an ASCII letter or `!`, ending at
+      // the next same-line `>` — marks an HTML span. The whole span is skipped,
+      // exactly as an inline code span is: no element is emitted and no
+      // delimiters are recorded inside it, so markdown-special characters that
+      // appear in a tag/attribute (e.g. the `*gray*` in
+      // `<div style="border: 1px solid *gray*">`) stay literal rather than
+      // being misread as emphasis. Detection only — nothing HTML is rendered.
+      // A `<` that is not a complete same-line tag falls through to ordinary
+      // handling (multi-line HTML blocks are explicitly not attempted).
+      if (c == '<') {
+        final tagEnd = _htmlTagEnd(source, i, end);
+        if (tagEnd != -1) {
+          i = tagEnd;
+          continue;
+        }
+        // Not a tag — fall through to ordinary-character handling below.
       }
 
       // Inline code span (single backtick). Content is fully literal — no
