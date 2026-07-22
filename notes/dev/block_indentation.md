@@ -32,12 +32,23 @@ This keeps `RenderModel`'s existing, already-correct offset-mapping and inline-f
 
 ## What indent level actually comes from
 
-- **Blockquotes** (already shipped, ADR-33 Stage 4): a fixed, single indent level today (no nested `>>` support yet — see "Explicitly deferred" below). This is the natural first proof point for the new mechanism, since it needs zero new parser work — the indent level for a blockquote line is already implicit (1), it's the *rendering* of it that's broken.
+- **Blockquotes, including nested (`>>`, `>>>`)** — in scope for this spec, not deferred. Depth is computed by peeling `>` prefixes off the start of the line: each `>` (optionally followed by one space before the next `>` or the content) consumes one level. `> text` = depth 1, `>> text` / `> > text` = depth 2, and so on — a permissive, greedy-consume heuristic in the same spirit as this codebase's existing HTML-tag detection (ADR-33 Stage 3), not full CommonMark grammar validation. `MdElement`'s marker length (`_srcMarkerLen`, already shared with `ol`) becomes "however many characters the depth-counting loop consumed," generalizing the single-level `1` or `2` it holds today.
 - **Nested list items** (#241's original ask): indent level needs to be *detected* per line from leading whitespace (2- or 4-space, or tab), which today the parser doesn't do at all — every list-line check in `MdParser.parse()` is anchored at column 0 (`line.startsWith('- ')`), so an indented line matches nothing and falls through to plain-paragraph handling. This is genuinely new parser work, separate from and layered on top of the rendering fix.
+
+## Nested blockquotes need more than depth — they need per-level stripe continuity
+
+Once blockquote depth is dynamic, the render side needs to paint **one stripe per level**, not one stripe per line. And the levels don't all span the same lines — matching real GFM/GitHub nested-blockquote rendering (nested `<blockquote>` elements: an outer quote's border spans its entire range *including* any deeper-nested content inside it; an inner level's border only spans where that deeper nesting actually continues). Concretely:
+
+```
+> level 1 line
+>> level 2 line
+> level 1 again
+```
+
+renders with stripe-level-1 spanning all three lines continuously, and stripe-level-2 spanning only the middle line. This means run/stripe continuity (already needed for the plain multi-line-blockquote case shipped in ADR-33 Stage 4 — `groupBlockquoteRuns`) generalizes from "is this line a blockquote, yes/no" to **per-level**: a level-K stripe continues across consecutive lines whose depth is `>= K`, independent of whether depth exactly matches from one line to the next. Each level's stripe sits at its own X position in the indent gutter (level 1 outermost/leftmost, deeper levels progressively further right, content starting after the deepest active level).
 
 ## Explicitly deferred (not part of this spec)
 
-- **Nested blockquotes** (`>>`, multiple levels) — the rendering foundation this spec describes would support it once blockquote indent level is computed dynamically instead of fixed at 1, but detecting and painting multiple stacked border stripes per line is its own follow-on, not required to fix the wrapped-line bug that's actually blocking things today.
 - **Tab/Shift+Tab keyboard handling** (#77) — creating/adjusting list nesting depth interactively. Depends on list-nesting parser support existing first; its own brief once that lands.
 - **Mixed ordered/unordered nesting, block-relative numbering at depth > 0** — real behavior questions once list nesting exists, not blocking the rendering foundation.
 
@@ -51,11 +62,10 @@ Each stage independently shippable, per project convention.
 
 | Stage | What ships | Key milestone | Proves |
 |---|---|---|---|
-| 1 | Multi-run rendering foundation in `QuikiRenderEditor` + `RenderModel` run-boundary exposure, applied to blockquotes (already at a fixed indent level, zero new parser work needed) | Blockquote wrapped continuation lines indent correctly — the exact bug that's been open across three prior rounds | The core mechanism works, using the simplest possible case |
+| 1 | Multi-run rendering foundation in `QuikiRenderEditor` + `RenderModel` run-boundary exposure, applied to blockquotes **including nested depth** (`>`, `>>`, `>>>`) — parser depth-counting, multi-stripe painting with per-level continuity | Blockquote wrapped continuation lines indent correctly (the exact bug open across three prior rounds), *and* nested blockquotes render with the correct number of stripes spanning the correct ranges | The mechanism proven on its hardest in-scope case, not just the easy one — deliberately not deferring the nested case to avoid re-discovering it doesn't work later |
 | 2 | List-item indent-level detection in `MdParser` (leading whitespace → nesting depth, parent-child tracking) | `- item` / `  - sub-item` parse as two nesting levels | Parser side of #241 |
 | 3 | Wire Stage 2's parsed indent levels through Stage 1's rendering foundation | Nested lists render with real, wrap-correct visual indentation | #241's core ask, fully working |
 | 4 | Tab/Shift+Tab indent handling (#77) | Users can create/adjust list nesting interactively | #77 |
-| — | Nested blockquotes (`>>`) | Separate future spec | Deferred |
 
 ---
 
