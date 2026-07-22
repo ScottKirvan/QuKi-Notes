@@ -52,37 +52,33 @@ Read in this order — do not skip:
 
 > Written and maintained by the Spec session.
 
-### Nested inline markdown — Stage 1 (paragraphs & headings only)
+### Nested inline markdown — Stage 2 (list-item & checkbox content)
 
-**Branch**: `fix/nested-inline-markdown-stage1`
-**Commit type**: `fix:` — closing a gap against the already-locked GFM markdown flavor decision, not a new capability.
-**Suggested PR title** (Spec opens the PR, not you): `fix(editor): nested and combined inline markdown (Stage 1 — paragraphs & headings)`
+**Branch**: `fix/nested-inline-markdown-stage2`
+**Commit type**: `fix:` — closes #240 as originally filed.
+**Suggested PR title** (Spec opens the PR, not you): `fix(editor): nested and combined inline markdown (Stage 2 — list items)`
 
-**Read first**: `notes/dev/nested_inline_markdown.md` (full spec) and `notes/dev/decisions.md` → ADR-33 (locked decision record). Both are normative for this task — the brief below is a summary and file pointer, not a replacement for reading them.
+**Read first**: `notes/dev/nested_inline_markdown.md` (full spec, staged plan) and `notes/dev/decisions.md` → ADR-33. Stage 1 (PR #276, merged) already built the recursive CommonMark inline engine and proved it on paragraphs and headings — read `packages/markdown_live_editor/lib/src/md_parser.dart` and `render_model.dart` as they stand now before starting; you're extending existing, working machinery, not building new machinery.
 
-**The problem, in one sentence**: `MdParser`'s inline scanner (`md_parser.dart`) finds the nearest matching delimiter pair and never re-scans what's between them, so `**bold *italic* text**` renders as one flat bold run with literal, un-hidden asterisks inside it — and headings get *zero* inline scanning at all today (a heading line becomes one opaque element, full stop).
+**The problem, in one sentence**: unordered lists (`- `/`* `/`+ `), ordered lists (`1. `), and checkboxes (`- [ ] `/`- [x] `) still become one opaque `MdElement` per line with zero inline scanning of their content — `- **important item**` shows literal asterisks — exactly the gap headings had before Stage 1 closed it there.
 
-**What to build**: replace the flat inline scanner with one that implements CommonMark's delimiter-run + flanking-rule algorithm (see the spec doc for the exact rule — intraword `_` vs `*` behave differently, code spans resolve before emphasis and suppress everything inside them, link/image text can itself contain nested emphasis but not a nested link). It must:
+**What to build**: wire list-item and checkbox content through the same inline engine Stage 1 already built, the same way heading content already does it (`MdParser.parse()`'s heading branches call `_scanInline(source, contentStart, lineEnd)` after computing where the prefix ends — the ul/ol/checkbox branches currently don't). Do this for all four list-line kinds: `ul`, `ol`, `checkboxUnchecked`, `checkboxChecked`.
 
-- Support arbitrary nesting and combination of bold, italic, strikethrough, inline code, links, images, and bare-URL autolinks — `~~**_text_**~~` must resolve as strikethrough containing strong containing emphasis, not fail to parse or flatten.
-- Apply identically to **paragraph lines and heading lines** — headings currently get no inline scan at all; that gap closes in this stage.
-- Support backslash escapes: any ASCII punctuation character preceded by `\` renders literally, not as markdown syntax (`\*not italic\*` → literal asterisks). Non-punctuation escapes (`\A`) are literal too — nothing is silently dropped. Backslash-newline hard-break is explicitly **not** part of this — this engine already treats every source newline as a real line break.
-- Reveal-on-cursor for a nested/combined run shows the **entire outermost element** as raw source when the cursor is anywhere inside it — not just the innermost piece. See the spec doc's "Reveal-on-cursor semantics" section; this is a locked product decision, not something to redesign.
-- Preserve the existing bidirectional source↔rendered offset-mapping guarantee (every source offset maps to exactly one rendered offset) — this is load-bearing for cursor placement, tap-to-source, and the boundary-reveal arrow-key behavior from ADR-31. If nesting requires changing how that mapping is built, the invariant itself (not the specific data structure that provides it) must still hold.
+Constraints, not implementation:
+- Content is everything after the block prefix (`openDelimLen` already computes this correctly per kind — 2 chars for `ul`, variable for `ol`, 6 for both checkbox kinds).
+- The render side (`RenderModel.build()`) should not need new special-casing for this — it already treats "a block's content, combined with whatever inline elements cover it" generically (that's how heading+bold already renders correctly since Stage 1). If you find yourself adding list-specific logic to the render loop, stop and reconsider — that's a signal the block/inline split isn't being reused correctly.
+- Ordered-list block-relative numbering (`olBlockStart`/`olRunCount` tracking) is unrelated and must be untouched — it operates purely on block detection, before any inline scanning happens.
+- Checkbox glyph painting (the Canvas-drawn box, `CheckboxSlot`) is unaffected — it's driven by marker substitution, not content. Verify tapping a checkbox to toggle it still works with formatted content after it (`- [ ] **urgent** call back`).
 
-**Correctness invariants to test against, not implementation to follow**: `MdElement` currently assumes a flat, non-overlapping partition of the source — that assumption must go, since a nested run needs overlapping ranges (e.g. bold containing italic). Rendered style at any character must be the *combination* of every currently-open ancestor's style. How you represent that (a tree, parent/child links on the existing flat list, something else) is your call — the spec deliberately does not prescribe it.
-
-**Also required, not optional — delete dead code before/while doing this work**: `packages/markdown_live_editor/lib/src/span_parser.dart` (`MarkdownSpanParser`) and its test file `test/span_parser_test.dart` are unreachable — `QuikiEditor`/`QuikiRenderEditor` never call `TextEditingController.buildTextSpan()`, so this ~430-line file and its `_MarkdownTextController.buildTextSpan()` caller in `markdown_editor.dart` never execute. Confirmed via full code review 2026-07-21 — do not treat this as "maybe still used somewhere," it isn't. Delete `span_parser.dart`, delete `span_parser_test.dart`, remove the `export 'src/span_parser.dart';` line from `markdown_live_editor.dart`, and simplify `_MarkdownTextController` accordingly (the `buildTextSpan()` override and the `styled` flag it reads have no live caller).
-
-**Explicitly out of scope for this PR — do not implement, and do not decide to defer something else instead without flagging it back to me first** (see the "implementation session does not decide scope" rule above):
-- List-item content inline scanning — list/checkbox lines still become one opaque element, exactly as today. That's Stage 3, a separate future brief.
-- HTML detection (block or inline) — that's Stage 2, a separate future brief. Don't add it here even though it's tempting to bundle.
+**Explicitly out of scope for this PR — do not implement, and do not decide to defer something else instead without flagging it back to me first**:
+- HTML detection (Stage 3, a separate future brief).
 - List nesting/indentation (#241), Tab/Shift+Tab indent handling (#77), tables — untouched, unrelated future work.
+- Blockquote content inline scanning — blockquotes stay raw-passthrough, unchanged; not part of this stage or the spec's scope at all.
 
 **Tests required**:
-- Port relevant cases from CommonMark's official spec test suite (commonmark.org `spec.json`) for the in-scope subset: emphasis/strong delimiter resolution, intraword rules, code-span precedence over emphasis, nested combinations, backslash escapes. Cite the spec example each test is drawn from in a comment.
-- Pull GFM-specific cases (strikethrough, autolinks) from `github/cmark-gfm`'s own test suite, since those aren't in base CommonMark.
-- New QuKi-Notes-specific cases: nested/combined formatting in a heading (currently impossible — must work now), the whole-chain reveal rule (cursor anywhere in a nested run reveals the full outer range), backslash escapes for each in-scope punctuation character.
-- Every existing single-level test in `md_parser_test.dart` / `render_model_test.dart` (bold, italic, strikethrough, code, links, autolinks) must keep passing — rendered visual output for single-level cases must not change, even if the underlying element representation does.
+- Nested/combined formatting inside each of the four list-line kinds (`- **bold**`, `1. *italic*`, `- [ ] ~~struck~~`, `- [x] [a link](url)`), including genuinely nested cases like `- **bold *italic* text**`, mirroring the heading test coverage Stage 1 already has in `nested_inline_test.dart`.
+- Whole-chain reveal-on-cursor for a nested run inside a list item, same rule as elsewhere.
+- Checkbox tap-to-toggle still works correctly when the line has inline-formatted content after the marker.
+- Every existing single-level list/checkbox/ordered-list test must keep passing unless a genuine correctness fix requires updating one (as happened twice in Stage 1) — if so, explain why in the same way Stage 1's PR did, don't just change the assertion silently.
 
-**Checklist**: `dart format`, `flutter analyze`, package tests (`cd packages/markdown_live_editor && flutter test`) — all clean before pushing. Since this is a highly visual change, include in your report-back a short list of example markdown strings (plain, nested, escaped) with what you expect each to render as, so device-testing instructions are easy for Spec to write once the PR opens.
+**Checklist**: `dart format`, `flutter analyze`, package tests (`cd packages/markdown_live_editor && flutter test`) — all clean before pushing. Include in your report-back a short list of example markdown strings (list items, checkboxes, ordered lists — plain and nested) with what you expect each to render as.

@@ -80,15 +80,15 @@ Adapt relevant cases from CommonMark's official spec test suite (commonmark.org'
 
 ## Build stages
 
-Each stage independently shippable, per project convention (see ADR-31's staged rollout):
+Each stage independently shippable, per project convention (see ADR-31's staged rollout). Stage 2 and Stage 3 are independent of each other — neither depends on the other, only on Stage 1's engine — so the order between them is a priority call, not a dependency. Originally sequenced HTML detection before list-item scanning; reordered 2026-07-21 once list-item scanning turned out to be the immediately felt gap in actual use (the original #240 report), while HTML detection guards a rarer edge case.
 
-| Stage | What ships | Key milestone |
-|---|---|---|
-| 1 | Recursive/nested inline engine, paragraphs and headings only (no list integration yet) | Nested and combined formatting works and matches CommonMark subset test cases; zero regression on existing single-level bold/italic/strikethrough/code/link/autolink behavior; whole-chain reveal implemented |
-| 2 | HTML block + inline detection — markdown scanning suppressed inside detected HTML, passed through raw | Closes the `*gray*`-inside-an-attribute misparse risk |
-| 3 | List-item and checkbox content flows through the same Stage 1 engine (closes #240 as originally filed) | Bold/italic/links/etc. render correctly inside list items; headings already fixed by Stage 1 |
-| — | List nesting/indentation (#241), Tab/Shift+Tab indent handling (#77) | Separate spec/brief, after this lands |
-| — | Tables | Separate spec/brief, wanted before v1 |
+| Stage | What ships | Key milestone | Status |
+|---|---|---|---|
+| 1 | Recursive/nested inline engine, paragraphs and headings only (no list integration yet) | Nested and combined formatting works and matches CommonMark subset test cases; zero regression on existing single-level bold/italic/strikethrough/code/link/autolink behavior; whole-chain reveal implemented; link text also recursively scanned | **Complete** (PR #276, merged 2026-07-21) |
+| 2 | List-item and checkbox content flows through the same Stage 1 engine (closes #240 as originally filed) | Bold/italic/links/etc. render correctly inside list items; headings already fixed by Stage 1 | Next up |
+| 3 | HTML block + inline detection — markdown scanning suppressed inside detected HTML, passed through raw | Closes the `*gray*`-inside-an-attribute misparse risk | Not started |
+| — | List nesting/indentation (#241), Tab/Shift+Tab indent handling (#77) | Separate spec/brief, after this lands | Not started |
+| — | Tables | Separate spec/brief, wanted before v1 | Not started |
 
 ---
 

@@ -134,12 +134,15 @@ Once CI is green: summarize what changed, confirm no attribution anywhere, and r
 
 See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phase table.
 
-**Current version**: v0.18.2 (released 2026-07-12) is still the latest *tagged* release — but `main` has moved well past it. A power outage interrupted the previous spec session before this sync happened, and implementation/docs/devops work continued on another machine in the meantime, so this file had drifted from actual repo state. Re-synced 2026-07-21; see below for what actually landed.
+**Current version**: v0.19.0 (released 2026-07-21, PR #262) is the latest tagged release. `main` has moved past it again already (PRs #270, #276) — release-please will bundle those into the next release PR when it opens.
 
-**PRs open:**
-- **PR #262** (`release-please--branches--main--components--quki_notes`): auto-generated release PR, CI green. Bundles #257–#260 into **v0.19.0**. Merge when ready to cut the release — not gated on anything else in this list.
+**PRs open:** none.
 
 **Merged since last sync (were "open, CI green" in the stale version of this file — all confirmed merged via `gh pr list`):**
+- **PR #262** (`release-please--branches--main--components--quki_notes`, merged 2026-07-21): release-please cut **v0.19.0**, bundling #257–#260.
+- **PR #274** (`docs/spec-sync-pr270-merged`, merged 2026-07-21): docs-only sync after PR #270.
+- **PR #275** (`docs/nested-inline-markdown-spec`, merged 2026-07-21): added `notes/dev/nested_inline_markdown.md` (feature spec for #240) + ADR-33, trimmed several stale/misleading ADRs in `decisions.md` down to one-line pointers, added the "implementer doesn't decide scope/deferral" brief-writing rule, and wrote the Stage 1 dev brief.
+- **PR #276** (`fix/nested-inline-markdown-stage1`, merged 2026-07-21) — Phase 3.45: ADR-33 Stage 1 — CommonMark delimiter-run inline engine for paragraphs and headings, including a same-day follow-up commit for nested emphasis inside link text (`[**bold link**](url)`) that the first pass had left atomic. Reviewed and independently hand-verified (traced `***text***` and `~~ ~~ok~~` through the algorithm by hand) before merge — see root `CLAUDE.md` implementation notes for full detail. **#240 stays open** — its own repro (`- **important item**`) is list-item content, which is Stage 2, not yet built.
 - **PR #270** (`fix/checkbox-text-presentation`, merged 2026-07-21) — Phase 3.44: checkbox rendering fix (#267), closes #267. Opened directly on GitHub during the outage gap (not through the usual dev-session → spec-review handoff). Spec review caught a regression in the branch's last pre-merge commit before merging: it sized the checkbox tap-target box off the measured reserved-marker width instead of a fixed line-height fraction, shrinking it to roughly half size at typical font sizes — combined with a hardcoded 3px corner radius, the box rendered as a circle instead of a square, and was a harder target to tap. Fixed directly in this session (single-file, well-scoped) rather than briefed to quiki-dev: box size reverted to a fixed `lineHeight * 0.8`, corner radius scaled proportionally (`boxSize * 0.2`), and the actual overlap problem addressed at the source by widening the collapsed checkbox marker from 3 to 5 blank characters. See root `CLAUDE.md` implementation notes for full detail.
 - **PR #233** (`docs/spec-sync-v0.18.2`, merged 2026-07-16): this file + root CLAUDE.md synced to v0.18.2.
 - **PR #257** (`fix/editor-ux-polish`, merged 2026-07-16) — Phase 3.40: reading mode + toolbar gating (#235), wrapSelection cursor fix (#236), scroll padding (#234), T-button icon states + markdown mark icon (#239).
