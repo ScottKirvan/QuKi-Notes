@@ -51,7 +51,11 @@ This is a deliberate simplification, not just a product preference: it means the
 
 ## Scope
 
-**In scope** — the inline markup subset QuKi-Notes already targets, made to nest and combine correctly, and made to work inside list items and headings (not just paragraphs): bold (`**`/`__`), italic (`*`/`_`), strikethrough (`~~`), inline code (`` ` ``), links (`[text](url)`), images (`![alt](url)`), bare URL autolinks.
+**Correction (2026-07-22)**: this doc originally listed images as in-scope, then — when Stage 1's implementer flagged that mid-line images were left unparsed and asked for a decision — the spec session resolved that question itself instead of surfacing it to the project owner. Separately, blockquotes were placed in "Explicitly excluded" below by carrying forward a stale note from the pre-ADR-31 architecture (`decisions.md`'s old "blockquotes render as raw markdown text" line) without checking whether it still applied — it doesn't: blockquotes already render with real styling (muted color, left border stripe) and have the exact same unscanned-content bug headings and list items had before Stages 1 and 2 fixed it there, not a different construct that's out of GFM scope. Both corrected below; the "Build stages" table has the actual stage assignments.
+
+**In scope** — the inline markup subset QuKi-Notes already targets, made to nest and combine correctly, and made to work inside list items, headings, and blockquotes (not just paragraphs): bold (`**`/`__`), italic (`*`/`_`), strikethrough (`~~`), inline code (`` ` ``), links (`[text](url)`), bare URL autolinks.
+
+**Images — split into two separable pieces.** *Recognizing* `![alt](url)` mid-line as a parsed element — architecturally similar to links (bracket-matched), small — is in scope (Stage 5, see below). *Actually rendering* an embedded picture inline (a real image appearing mid-paragraph, not just alt text) is a materially bigger, separate problem: the single-`TextPainter` model can't reflow text around an embedded image the way it can for a link's text label — this needs its own multi-segment-layout architectural design, flagged as a blocker before any of this nested-markdown work started (see root `CLAUDE.md`'s prior "Next up" notes). Not part of this spec's staged plan — track as its own future spec, same treatment as tables.
 
 **Backslash escapes — in scope (decided 2026-07-21).** Any ASCII punctuation character preceded by `\` renders as a literal character rather than being interpreted as markdown syntax — `\*not italic\*` shows literal asterisks, `\[not a link\]` shows literal brackets. A backslash before a non-punctuation character (a letter, digit, whitespace) is literal too — both the backslash and the character show as typed; it is not an error and not silently dropped. Escaping only suppresses *inline* markup interpretation — it does not, for example, stop a line from being detected as a list item or heading (block-prefix detection happens before inline scanning; escaping is an inline-scan concern). Not adopted: CommonMark's backslash-before-newline "hard line break" convention — that exists to force a line break during HTML paragraph reflow, and QuKi-Notes' engine never reflows paragraphs (every source newline is already a real visual line break in the plain-text buffer), so there is nothing for that convention to do here.
 
@@ -65,8 +69,9 @@ This is a deliberate simplification, not just a product preference: it means the
 
 **Explicitly excluded from this spec:**
 - **Tables** — genuinely wanted before v1 (not a "someday" item), but scoped out of this effort. Tables are a block-level, multi-line construct with their own alignment/column-parsing rules and deserve their own spec once this inline-engine work is proven. Track as a follow-up.
+- **Actually rendering inline images** (the embedded-picture part, not the alt-text-parsing part) — see "Images" above. Its own future spec, same treatment as tables.
 - **List-block nesting/indentation** (#241) and **Tab/Shift+Tab indent handling** (#77) — both depend on this work (list content needs to flow through the same recursive inline engine once list nesting exists) but are their own architectural surface (indent-level tracking, visual indentation rendering, keyboard input handling) and get their own brief once this lands.
-- Footnotes, reference-style links (`[text][ref]` + `[ref]: url` definitions), HTML entity references (`&amp;`), fenced code blocks, blockquotes beyond today's raw-passthrough behavior — not part of QuKi-Notes' targeted GFM subset; no change from current behavior.
+- Footnotes, reference-style links (`[text][ref]` + `[ref]: url` definitions), HTML entity references (`&amp;`), fenced code blocks — not part of QuKi-Notes' targeted GFM subset; no change from current behavior.
 
 ## What this changes architecturally
 
@@ -76,7 +81,7 @@ Stated as correctness requirements, not implementation prescription — the impl
 - Rendered style at any character must be the **combination** of every currently-open ancestor's style (bold + italic + strikethrough simultaneously where they're nested), not a single element's style.
 - Reveal resolution must find the **outermost** ancestor whose range contains the cursor (see "Reveal-on-cursor semantics" above) — not the innermost, and not every level independently.
 - The existing bidirectional source ↔ rendered offset mapping guarantee (every source offset maps to exactly one rendered offset; collapsed delimiters map to their content's rendered boundary) must continue to hold with nesting.
-- One inline-scanning implementation must serve paragraphs, headings, and list-item content after prefix stripping — not three separate code paths. (Today there are, confusingly, effectively three: the live paragraph-only scanner in `md_parser.dart`, and a second, *unreachable* implementation in `span_parser.dart` — dead code left over from the pre-ADR-31 architecture that already does some of this inline scanning, unreachable because `QuikiRenderEditor` never calls `TextEditingController.buildTextSpan()`. That dead code should be deleted as part of or before this work, not built around.)
+- One inline-scanning implementation must serve paragraphs, headings, list-item, and blockquote content after prefix stripping — not separate code paths per block kind. (At the start of this effort there were, confusingly, effectively three: the live paragraph-only scanner in `md_parser.dart`, and a second, *unreachable* implementation in `span_parser.dart` — dead code left over from the pre-ADR-31 architecture, deleted in Stage 1.)
 
 ## Test strategy
 
@@ -91,10 +96,15 @@ Each stage independently shippable, per project convention (see ADR-31's staged 
 | Stage | What ships | Key milestone | Status |
 |---|---|---|---|
 | 1 | Recursive/nested inline engine, paragraphs and headings only (no list integration yet) | Nested and combined formatting works and matches CommonMark subset test cases; zero regression on existing single-level bold/italic/strikethrough/code/link/autolink behavior; whole-chain reveal implemented; link text also recursively scanned | **Complete** (PR #276, merged 2026-07-21) |
-| 2 | List-item and checkbox content flows through the same Stage 1 engine (closes #240 as originally filed) | Bold/italic/links/etc. render correctly inside list items; headings already fixed by Stage 1 | **In review** (PR #279) |
-| 3 | Single-line HTML detection (block + inline) — markdown scanning suppressed on a line/span that's entirely an HTML tag/comment, passed through raw. Multi-line HTML blocks explicitly not attempted (see "HTML — detect, don't parse" above) | Closes the `*gray*`-inside-an-attribute misparse risk for the common single-line case | Not started |
+| 2 | List-item and checkbox content flows through the same Stage 1 engine (closes #240 as originally filed) | Bold/italic/links/etc. render correctly inside list items; headings already fixed by Stage 1 | **Complete** (PR #279, merged 2026-07-22) |
+| 3 | Single-line HTML detection (block + inline) — markdown scanning suppressed on a line/span that's entirely an HTML tag/comment, passed through raw. Multi-line HTML blocks explicitly not attempted (see "HTML — detect, don't parse" above) | Closes the `*gray*`-inside-an-attribute misparse risk for the common single-line case | **In review** (PR #281) |
+| 4 | Blockquote content flows through the same engine, same pattern as Stage 2 (mirrors list-item integration) | `> **important**` renders bold instead of literal asterisks; corrects the original spec's wrong "blockquotes are out of scope" exclusion | Next up |
+| 5 | Inline `![alt](url)` recognized mid-line as a parsed element (alt text shown, syntax hidden) — not the same as rendering an embedded picture, see "Images" scope note above | Mid-line images stop showing raw `![alt](url)` syntax and stop having their alt text misparsed for emphasis, without requiring the multi-segment layout redesign | Not started — needs a quick UX decision first (see note below the table) |
 | — | List nesting/indentation (#241), Tab/Shift+Tab indent handling (#77) | Separate spec/brief, after this lands | Not started |
 | — | Tables | Separate spec/brief, wanted before v1 | Not started |
+| — | Actually rendering inline images (embedded picture, not just alt text) | Separate future spec — needs multi-segment text layout design, same category of problem as blockquote/hr custom-paint work but larger | Not started |
+
+**Open question for Stage 5, before its brief gets written**: when a mid-line `![alt](url)` collapses, should it show the alt text as a plain label (read-only, tap reveals raw source — mirroring how block-level images already behave: "always reveal source on tap, no navigate action" per ADR-31), or something else? This is a real UX call, not an implementation detail — needs a decision, not a default.
 
 ---
 
