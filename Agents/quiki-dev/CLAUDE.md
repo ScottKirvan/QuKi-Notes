@@ -52,33 +52,33 @@ Read in this order — do not skip:
 
 > Written and maintained by the Spec session.
 
-### Nested inline markdown — Stage 2 (list-item & checkbox content)
+### Nested inline markdown — Stage 3 (single-line HTML detection)
 
-**Branch**: `fix/nested-inline-markdown-stage2`
-**Commit type**: `fix:` — closes #240 as originally filed.
-**Suggested PR title** (Spec opens the PR, not you): `fix(editor): nested and combined inline markdown (Stage 2 — list items)`
+**Branch**: `fix/nested-inline-markdown-stage3`
+**Commit type**: `fix:` — closes a gap against the already-locked "HTML — detect, don't parse" decision (ADR-33).
+**Suggested PR title** (Spec opens the PR, not you): `fix(editor): single-line HTML detection (Stage 3)`
 
-**Read first**: `notes/dev/nested_inline_markdown.md` (full spec, staged plan) and `notes/dev/decisions.md` → ADR-33. Stage 1 (PR #276, merged) already built the recursive CommonMark inline engine and proved it on paragraphs and headings — read `packages/markdown_live_editor/lib/src/md_parser.dart` and `render_model.dart` as they stand now before starting; you're extending existing, working machinery, not building new machinery.
+**Read first**: `notes/dev/nested_inline_markdown.md` — specifically the "HTML — detect, don't parse" section and "Scope decision for Stage 3" paragraph, which nails down exactly what this stage does and does not attempt — and `notes/dev/decisions.md` → ADR-33. Stages 1 and 2 (PRs #276, #279, both merged) already built and proved the recursive inline engine on paragraphs, headings, and list-item content — you're not touching that engine's emphasis/link/code logic at all in this stage, only adding a new thing it should skip over.
 
-**The problem, in one sentence**: unordered lists (`- `/`* `/`+ `), ordered lists (`1. `), and checkboxes (`- [ ] `/`- [x] `) still become one opaque `MdElement` per line with zero inline scanning of their content — `- **important item**` shows literal asterisks — exactly the gap headings had before Stage 1 closed it there.
+**The problem, in one sentence**: `MdParser` has no concept of "this line/span is HTML" — a note containing `<div style="border: 1px solid *gray*">` would have the `*gray*` inside that attribute misread as italic, because nothing tells the scanner to leave it alone.
 
-**What to build**: wire list-item and checkbox content through the same inline engine Stage 1 already built, the same way heading content already does it (`MdParser.parse()`'s heading branches call `_scanInline(source, contentStart, lineEnd)` after computing where the prefix ends — the ul/ol/checkbox branches currently don't). Do this for all four list-line kinds: `ul`, `ol`, `checkboxUnchecked`, `checkboxChecked`.
+**What to build** — two parts, both single-line only (see the spec doc's scope decision for why multi-line HTML blocks are explicitly not attempted here):
 
-Constraints, not implementation:
-- Content is everything after the block prefix (`openDelimLen` already computes this correctly per kind — 2 chars for `ul`, variable for `ol`, 6 for both checkbox kinds).
-- The render side (`RenderModel.build()`) should not need new special-casing for this — it already treats "a block's content, combined with whatever inline elements cover it" generically (that's how heading+bold already renders correctly since Stage 1). If you find yourself adding list-specific logic to the render loop, stop and reconsider — that's a signal the block/inline split isn't being reused correctly.
-- Ordered-list block-relative numbering (`olBlockStart`/`olRunCount` tracking) is unrelated and must be untouched — it operates purely on block detection, before any inline scanning happens.
-- Checkbox glyph painting (the Canvas-drawn box, `CheckboxSlot`) is unaffected — it's driven by marker substitution, not content. Verify tapping a checkbox to toggle it still works with formatted content after it (`- [ ] **urgent** call back`).
+1. **A line that is entirely HTML** (one or more complete tags/comments, nothing else on the line — `<div class="x">`, `<!-- note -->`, `</span>`) should be excluded from inline scanning for that line, shown exactly as typed. No new visual treatment is needed — it should look the same as it does today, just guaranteed not to get emphasis/link/etc. applied inside it.
+2. **An inline HTML tag appearing mid-line** (`text <span style="color:red"> more text`) should be skipped by the inline scanner — the tag span excluded from emphasis/link matching, the same way an inline code span is already skipped today (find the mechanism `_scanInline` uses for `` ` `` and follow the same shape for `<...>`).
+
+**Tag-matching heuristic**: permissive, not real HTML grammar — `<` or `</` followed by an ASCII letter or `!`, ending at the next `>`. Good enough to catch `<div>`, `<span ...>`, `<!-- comment -->`; not attempting to validate well-formed HTML.
 
 **Explicitly out of scope for this PR — do not implement, and do not decide to defer something else instead without flagging it back to me first**:
-- HTML detection (Stage 3, a separate future brief).
+- Multi-line HTML blocks (a tag opened on one line, closed several lines later — e.g. a multi-line `<!-- comment -->` or `<script>...</script>`). The parser has no multi-line state-tracking today beyond the narrow ordered-list-block counter; building general span-tracking is explicitly not this stage's job. If a line looks like it opens an HTML block but doesn't close on the same line, it's fine for it to fall through to normal handling (or however you find falls out naturally) — just don't try to make it span lines.
+- Any actual HTML rendering (no DOM, no interpreting `<script>`, nothing) — detection only, to prevent misparsing.
 - List nesting/indentation (#241), Tab/Shift+Tab indent handling (#77), tables — untouched, unrelated future work.
-- Blockquote content inline scanning — blockquotes stay raw-passthrough, unchanged; not part of this stage or the spec's scope at all.
 
 **Tests required**:
-- Nested/combined formatting inside each of the four list-line kinds (`- **bold**`, `1. *italic*`, `- [ ] ~~struck~~`, `- [x] [a link](url)`), including genuinely nested cases like `- **bold *italic* text**`, mirroring the heading test coverage Stage 1 already has in `nested_inline_test.dart`.
-- Whole-chain reveal-on-cursor for a nested run inside a list item, same rule as elsewhere.
-- Checkbox tap-to-toggle still works correctly when the line has inline-formatted content after the marker.
-- Every existing single-level list/checkbox/ordered-list test must keep passing unless a genuine correctness fix requires updating one (as happened twice in Stage 1) — if so, explain why in the same way Stage 1's PR did, don't just change the assertion silently.
+- A line that's entirely an HTML tag/comment renders as literal text, no markdown interpreted inside it (including a case with `*`/`_`/`` ` ``/`[` inside an attribute).
+- An inline HTML tag mid-paragraph doesn't have its attributes misparsed (the `<div style="border: 1px solid *gray*">` case from the spec doc, or equivalent).
+- A markdown-special character genuinely outside any HTML tag on the same line still parses normally — confirm this doesn't over-trigger and swallow content that isn't actually HTML.
+- A test documenting the multi-line non-goal: a tag opened on one line without a same-line close does *not* incorrectly suppress scanning on subsequent lines — pin down whatever the actual (imperfect but bounded) behavior is, so it doesn't silently change later.
+- Every existing test must keep passing unless a genuine correctness fix requires updating one — explain why if so, same discipline as Stages 1 and 2.
 
-**Checklist**: `dart format`, `flutter analyze`, package tests (`cd packages/markdown_live_editor && flutter test`) — all clean before pushing. Include in your report-back a short list of example markdown strings (list items, checkboxes, ordered lists — plain and nested) with what you expect each to render as.
+**Checklist**: `dart format`, `flutter analyze`, package tests (`cd packages/markdown_live_editor && flutter test`) — all clean before pushing. Include in your report-back a short list of example markdown/HTML strings with what you expect each to render as.
