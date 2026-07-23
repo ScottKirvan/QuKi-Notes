@@ -64,16 +64,26 @@ class MdElement {
 
   /// The number of source characters in a variable-length block marker.
   ///
-  /// For [MdElKind.ol]: the ordered-list marker length (e.g. '1. ' = 3,
-  /// '12. ' = 4). Stored separately because the source digits may differ from
-  /// [seqNum].
+  /// For [MdElKind.ol]: the ordered-list marker length, including any
+  /// leading-whitespace indentation (ADR-34 Stage 2) — e.g. '1. ' = 3,
+  /// '12. ' = 4, '  1. ' (one indent level) = 5. Stored separately from
+  /// [seqNum] because the source digits may differ from the rendered
+  /// sequence number.
   ///
   /// For [MdElKind.blockquote]: the marker length, which is variable per
-  /// CommonMark and now also depth-dependent — however many source
-  /// characters the depth-counting loop consumed peeling off `>` prefixes
-  /// (each `>`, optionally followed by one space, consumes one level). 2 for
-  /// a single-level `> `, 1 for a single bare `>`, and more for deeper
-  /// nesting (`>>`, `> > `, etc. — see [indentLevel]). See [openDelimLen].
+  /// CommonMark and depth-dependent — however many source characters the
+  /// depth-counting loop consumed peeling off `>` prefixes (each `>`,
+  /// optionally followed by one space, consumes one level). 2 for a
+  /// single-level `> `, 1 for a single bare `>`, and more for deeper nesting
+  /// (`>>`, `> > `, etc. — see [indentLevel]). See [openDelimLen].
+  ///
+  /// For [MdElKind.ul], [MdElKind.checkboxUnchecked], and
+  /// [MdElKind.checkboxChecked] (ADR-34 Stage 2): the fixed marker length
+  /// (2 or 6) plus any leading-whitespace indentation consumed. A value of
+  /// 0 is a sentinel meaning "not set" — [openDelimLen] falls back to the
+  /// historical fixed length (2 / 6) for elements constructed directly
+  /// without going through [MdParser.parse], which never produces a
+  /// genuinely zero-length marker for these kinds.
   ///
   /// 0 (unused) for every other kind, whose marker length is fixed.
   final int _srcMarkerLen;
@@ -91,11 +101,13 @@ class MdElement {
   /// Block indent depth (ADR-34 / block_indentation.md), 0 for a top-level
   /// block. General mechanism, not blockquote-specific: any block kind whose
   /// content should be laid out in its own narrower, offset region can set
-  /// this. Currently only [MdElKind.blockquote] sets a non-zero value — the
-  /// nesting depth computed by peeling `>` prefixes (a bare `>` or `> `
-  /// consumes one level each). [RenderModel] groups consecutive rendered
-  /// lines sharing the same [indentLevel] into layout runs; list-item
-  /// indentation (a later stage) reuses this same field.
+  /// this. [MdElKind.blockquote] sets it from the nesting depth computed by
+  /// peeling `>` prefixes (a bare `>` or `> ` consumes one level each).
+  /// [MdElKind.ul], [MdElKind.ol], [MdElKind.checkboxUnchecked], and
+  /// [MdElKind.checkboxChecked] (ADR-34 Stage 2+3) set it from the line's
+  /// leading-whitespace depth — see [MdParser._listIndent]. [RenderModel]
+  /// groups consecutive rendered lines sharing the same [indentLevel] into
+  /// layout runs.
   final int indentLevel;
 
   /// True if [offset] falls within this element's source range.
@@ -120,10 +132,14 @@ class MdElement {
         MdElKind.italic => 1, // '*' or '_'
         MdElKind.strikethrough => 2, // '~~'
         MdElKind.inlineCode => 1, // '`'
-        MdElKind.ul => 2, // '- ' / '* ' / '+ '
-        MdElKind.ol => _srcMarkerLen, // '{digits}. ' — variable
-        MdElKind.checkboxUnchecked => 6, // '- [ ] '
-        MdElKind.checkboxChecked => 6, // '- [x] ' or '- [X] '
+        // '- ' / '* ' / '+ ', optionally preceded by indentation (ADR-34
+        // Stage 2) — see the _srcMarkerLen field doc for the 0-sentinel.
+        MdElKind.ul => _srcMarkerLen == 0 ? 2 : _srcMarkerLen,
+        MdElKind.ol => _srcMarkerLen, // '{indent}{digits}. ' — variable
+        // '- [ ] ' / '- [x] ', optionally preceded by indentation.
+        MdElKind.checkboxUnchecked ||
+        MdElKind.checkboxChecked =>
+          _srcMarkerLen == 0 ? 6 : _srcMarkerLen,
         // Image: the full source line is the delimiter; no content chars emitted.
         MdElKind.image => end - start,
         // Link: opening '[' is the only opening delimiter (1 char).
@@ -286,59 +302,138 @@ class MdParser {
     final lines = source.split('\n');
     var lineStart = 0;
 
-    // Ordered-list block tracking (GFM-compatible):
-    // - olBlockStart: source digit of the first line in the current ol block (0 = no active block)
-    // - olRunCount:   how many consecutive ol lines seen so far in this block (0 = no active block)
-    // Each subsequent ol line in a block increments by 1 regardless of its source digit.
-    // Any non-ol line resets both counters, starting a new block on the next ol line.
-    var olBlockStart = 0;
-    var olRunCount = 0;
+    // Ordered-list block tracking (GFM-compatible), keyed by nesting depth
+    // (ADR-34 Stage 2) so each level's consecutive-numbering sequence is
+    // independent: `depth -> (blockStart, runCount)`, where blockStart is the
+    // source digit of the first line in that depth's current ol block and
+    // runCount is how many consecutive ol lines have been seen at that depth
+    // so far. Each subsequent same-depth ol line increments runCount by 1
+    // regardless of its own source digit — matching the pre-existing
+    // flat-counter behavior (GFM: '1. 1. 1.' renders as '1. 2. 3.'), just
+    // generalized per depth. Any line — ol at a *different* depth, or a
+    // non-ol line at any depth — clears every depth's state, so a depth's
+    // block never silently resumes after being interrupted; a later ol line
+    // at that depth restarts from its own source digit (ADR-34 Stage 2+3
+    // brief, point 2: independent-per-level restart, not parent-count
+    // continuation across a depth change).
+    final olState = <int, (int blockStart, int runCount)>{};
+    int nextOlSeqNum(int depth, int srcDigit) {
+      final prev = olState[depth];
+      final blockStart = prev == null ? srcDigit : prev.$1;
+      final runCount = (prev?.$2 ?? 0) + 1;
+      olState
+        ..clear()
+        ..[depth] = (blockStart, runCount);
+      return blockStart + (runCount - 1);
+    }
 
     for (final line in lines) {
       final lineEnd = lineStart + line.length; // exclusive, excluding '\n'
+      final (indentDepth, wsLen) = _listIndent(line);
+      final remainder = wsLen > 0 ? line.substring(wsLen) : line;
 
-      // Step 1 — Heading check (longest prefix first to avoid prefix collisions).
-      if (line.startsWith('###### ')) {
-        olBlockStart = 0;
-        olRunCount = 0;
+      // Step 0 — Indented list-item detection (ADR-34 Stage 2+3): a list/
+      // checkbox/ol marker preceded by leading whitespace is a nested item
+      // at the depth _listIndent computes. Gated on wsLen > 0 so a column-0
+      // line (wsLen == 0) never enters this branch and always falls through
+      // to the pre-existing chain below, byte-identical to before this
+      // stage. An indented line whose remainder does NOT match one of these
+      // patterns (plain text, an indented heading, etc.) also falls through
+      // unchanged — the existing column-0-anchored checks below all fail on
+      // it (their line.startsWith(...) calls see the untouched leading
+      // whitespace), landing in ordinary paragraph handling exactly as it
+      // does today.
+      if (wsLen > 0 && remainder.startsWith('- [ ] ')) {
+        olState.clear();
+        result.add(MdElement(
+          kind: MdElKind.checkboxUnchecked,
+          start: lineStart,
+          end: lineEnd,
+          srcMarkerLen: wsLen + 6,
+          indentLevel: indentDepth,
+        ));
+        result.addAll(_scanInline(source, lineStart + wsLen + 6, lineEnd));
+      } else if (wsLen > 0 &&
+          (remainder.startsWith('- [x] ') || remainder.startsWith('- [X] '))) {
+        olState.clear();
+        result.add(MdElement(
+          kind: MdElKind.checkboxChecked,
+          start: lineStart,
+          end: lineEnd,
+          srcMarkerLen: wsLen + 6,
+          indentLevel: indentDepth,
+        ));
+        result.addAll(_scanInline(source, lineStart + wsLen + 6, lineEnd));
+      } else if (wsLen > 0 &&
+          !_isHrLine(remainder) &&
+          (remainder.startsWith('- ') ||
+              remainder.startsWith('* ') ||
+              remainder.startsWith('+ '))) {
+        // The hr guard mirrors the column-0 precedence below (hr is checked
+        // before ul there too, since '- - -' also starts with '- '), so an
+        // indented hr-shaped line ('  - - -') is not misclassified as a
+        // nested list item. It falls through unchanged to the existing
+        // chain, which does not recognize indented hr either — that stays
+        // out of scope for this stage, exactly as it is today.
+        olState.clear();
+        result.add(MdElement(
+          kind: MdElKind.ul,
+          start: lineStart,
+          end: lineEnd,
+          srcMarkerLen: wsLen + 2,
+          indentLevel: indentDepth,
+        ));
+        result.addAll(_scanInline(source, lineStart + wsLen + 2, lineEnd));
+      } else if (wsLen > 0 && _isOlLine(remainder)) {
+        final dotIdx = remainder.indexOf('. ');
+        final markerLen = wsLen + dotIdx + 2; // indentation + digits + '. '
+        final srcDigit = int.parse(remainder.substring(0, dotIdx));
+        final seqNum = nextOlSeqNum(indentDepth, srcDigit);
+        result.add(MdElement(
+          kind: MdElKind.ol,
+          start: lineStart,
+          end: lineEnd,
+          seqNum: seqNum,
+          srcMarkerLen: markerLen,
+          indentLevel: indentDepth,
+        ));
+        result.addAll(_scanInline(source, lineStart + markerLen, lineEnd));
+
+        // Step 1 — Heading check (longest prefix first to avoid prefix collisions).
+      } else if (line.startsWith('###### ')) {
+        olState.clear();
         result
             .add(MdElement(kind: MdElKind.h6, start: lineStart, end: lineEnd));
         result.addAll(_scanInline(source, lineStart + 7, lineEnd));
       } else if (line.startsWith('##### ')) {
-        olBlockStart = 0;
-        olRunCount = 0;
+        olState.clear();
         result
             .add(MdElement(kind: MdElKind.h5, start: lineStart, end: lineEnd));
         result.addAll(_scanInline(source, lineStart + 6, lineEnd));
       } else if (line.startsWith('#### ')) {
-        olBlockStart = 0;
-        olRunCount = 0;
+        olState.clear();
         result
             .add(MdElement(kind: MdElKind.h4, start: lineStart, end: lineEnd));
         result.addAll(_scanInline(source, lineStart + 5, lineEnd));
       } else if (line.startsWith('### ')) {
-        olBlockStart = 0;
-        olRunCount = 0;
+        olState.clear();
         result
             .add(MdElement(kind: MdElKind.h3, start: lineStart, end: lineEnd));
         result.addAll(_scanInline(source, lineStart + 4, lineEnd));
       } else if (line.startsWith('## ')) {
-        olBlockStart = 0;
-        olRunCount = 0;
+        olState.clear();
         result
             .add(MdElement(kind: MdElKind.h2, start: lineStart, end: lineEnd));
         result.addAll(_scanInline(source, lineStart + 3, lineEnd));
       } else if (line.startsWith('# ')) {
-        olBlockStart = 0;
-        olRunCount = 0;
+        olState.clear();
         result
             .add(MdElement(kind: MdElKind.h1, start: lineStart, end: lineEnd));
         result.addAll(_scanInline(source, lineStart + 2, lineEnd));
 
         // Step 2 — Checkbox detection (must run before ul, both start with '- ').
       } else if (line.startsWith('- [ ] ')) {
-        olBlockStart = 0;
-        olRunCount = 0;
+        olState.clear();
         result.add(MdElement(
           kind: MdElKind.checkboxUnchecked,
           start: lineStart,
@@ -347,8 +442,7 @@ class MdParser {
         // '- [ ] ' prefix is 6 chars — scan the remainder inline (ADR-33).
         result.addAll(_scanInline(source, lineStart + 6, lineEnd));
       } else if (line.startsWith('- [x] ') || line.startsWith('- [X] ')) {
-        olBlockStart = 0;
-        olRunCount = 0;
+        olState.clear();
         result.add(MdElement(
           kind: MdElKind.checkboxChecked,
           start: lineStart,
@@ -361,8 +455,7 @@ class MdParser {
         // optional spaces between them, no other characters).
         // Must be checked BEFORE the ul step because '- - -' starts with '- '.
       } else if (_isHrLine(line)) {
-        olBlockStart = 0;
-        olRunCount = 0;
+        olState.clear();
         result
             .add(MdElement(kind: MdElKind.hr, start: lineStart, end: lineEnd));
 
@@ -377,8 +470,7 @@ class MdParser {
         // consumed, stored in srcMarkerLen so openDelimLen / isDelimiter report
         // it correctly; the depth itself is stored in indentLevel.
       } else if (line.startsWith('>')) {
-        olBlockStart = 0;
-        olRunCount = 0;
+        olState.clear();
         final (depth, markerLen) = _blockquoteDepth(line);
         result.add(MdElement(
           kind: MdElKind.blockquote,
@@ -396,8 +488,7 @@ class MdParser {
       } else if (line.startsWith('- ') ||
           line.startsWith('* ') ||
           line.startsWith('+ ')) {
-        olBlockStart = 0;
-        olRunCount = 0;
+        olState.clear();
         result
             .add(MdElement(kind: MdElKind.ul, start: lineStart, end: lineEnd));
         // '- ' / '* ' / '+ ' prefix is 2 chars — scan the remainder inline.
@@ -408,8 +499,7 @@ class MdParser {
         // ends with `)`.  Inline images within mixed-content lines are deferred.
         // The path is the substring between the last `(` and the final `)`.
       } else if (_isBlockImageLine(line)) {
-        olBlockStart = 0;
-        olRunCount = 0;
+        olState.clear();
         final path = _extractImagePath(line);
         result.add(MdElement(
           kind: MdElKind.image,
@@ -419,20 +509,16 @@ class MdParser {
         ));
 
         // Step 4 — Ordered list ('{digits}. ').
-        // seqNum is block-relative: the first line in a consecutive ol block sets
-        // olBlockStart from its source digit; each subsequent line increments by 1.
-        // This matches GFM: '1. 1. 1.' renders as '1. 2. 3.' and
-        // '5. 1. 1.' renders as '5. 6. 7.'.
+        // seqNum is block-relative (per nesting depth — see nextOlSeqNum /
+        // olState above): the first line in a consecutive same-depth ol
+        // block anchors to its own source digit; each subsequent same-depth
+        // line increments by 1. This matches GFM: '1. 1. 1.' renders as
+        // '1. 2. 3.' and '5. 1. 1.' renders as '5. 6. 7.'.
       } else if (_isOlLine(line)) {
         final dotIdx = line.indexOf('. ');
         final srcDelimLen = dotIdx + 2; // digits + '. '
         final srcDigit = int.parse(line.substring(0, dotIdx));
-        if (olRunCount == 0) {
-          // Start of a new block: anchor to this line's source digit.
-          olBlockStart = srcDigit;
-        }
-        olRunCount++;
-        final seqNum = olBlockStart + (olRunCount - 1);
+        final seqNum = nextOlSeqNum(0, srcDigit);
         result.add(MdElement(
           kind: MdElKind.ol,
           start: lineStart,
@@ -452,11 +538,9 @@ class MdParser {
         // then falls through to normal paragraph handling (multi-line HTML
         // blocks are not attempted this stage).
       } else if (_isHtmlOnlyLine(line)) {
-        olBlockStart = 0;
-        olRunCount = 0;
+        olState.clear();
       } else {
-        olBlockStart = 0;
-        olRunCount = 0;
+        olState.clear();
         // Step 5 — Recursive inline scan (paragraph lines). The same scanner is
         // used for heading, list, checkbox, and blockquote content above; an
         // inline HTML tag mid-paragraph is skipped inside the scanner (ADR-33
@@ -518,6 +602,40 @@ class MdParser {
   static bool _isDigit(String ch) {
     final code = ch.codeUnitAt(0);
     return code >= 0x30 && code <= 0x39;
+  }
+
+  /// Computes list-item nesting depth (ADR-34 Stage 2+3) from [line]'s
+  /// leading whitespace, and how many raw whitespace characters were
+  /// consumed computing it.
+  ///
+  /// Indent unit is a 2-column width: a literal space contributes 1 column,
+  /// a tab contributes 2 columns — so one tab is equivalent to one full
+  /// level, the same as a pair of spaces. This is deliberately simpler than
+  /// emulating a variable-width tab stop: there is no other indentation-
+  /// sensitive construct in this codebase a real tab stop would need to
+  /// agree with, so a fixed per-character contribution keeps the arithmetic
+  /// (and its tests) simple. Depth is the total column width integer-divided
+  /// by 2 (floor) — a permissive heuristic in the same spirit as
+  /// [_blockquoteDepth]'s greedy-consume rule: irregular indentation (e.g. 3
+  /// spaces) resolves to the nearest lower whole level (depth 1) rather than
+  /// being rejected outright.
+  ///
+  /// Returns `(depth, wsLen)` where `wsLen` is the number of raw leading
+  /// whitespace characters consumed — the caller skips past them to check
+  /// the marker pattern and, if it matches, folds them into the element's
+  /// total marker length so they are hidden the same way the marker itself
+  /// is.
+  ///
+  /// Examples: `'- x'` → (0, 0); `'  - x'` → (1, 2); `'\t- x'` → (1, 1);
+  /// `'    - x'` → (2, 4); `'   - x'` (3 spaces) → (1, 3).
+  static (int, int) _listIndent(String line) {
+    var width = 0;
+    var i = 0;
+    while (i < line.length && (line[i] == ' ' || line[i] == '\t')) {
+      width += line[i] == '\t' ? 2 : 1;
+      i++;
+    }
+    return (width ~/ 2, i);
   }
 
   /// Computes blockquote nesting depth and total marker length for [line]

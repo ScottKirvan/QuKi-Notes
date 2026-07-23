@@ -624,4 +624,253 @@ void main() {
       expect(resolved, slot.element.start);
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // ADR-34 Stage 2+3 — nested list indentation wired into the Stage 1
+  // rendering foundation. Layers tested mirror Stage 1's blockquote coverage
+  // above: RenderModel.runs (pure), then widget-level geometry and hit-
+  // testing through a real laid-out render object.
+  // ---------------------------------------------------------------------------
+
+  group('RenderModel.runs — list kinds (ADR-34 Stage 2+3)', () {
+    test(
+        'an indented ul line contributes a run at its indentLevel, exactly '
+        'like a blockquote line does', () {
+      const source = 'plain\n  - item';
+      final m = _model(source);
+      expect(m.runs, hasLength(2));
+      expect(m.runs[0].indentLevel, 0);
+      expect(m.runs[1].indentLevel, 1);
+      expect(m.runs[0].end, m.runs[1].start);
+      expect(m.runs[1].end, m.renderedLength);
+    });
+
+    test('two-level-deep nested ul lines produce two runs at depths 1 and 2',
+        () {
+      const source = '  - one\n    - two';
+      final m = _model(source);
+      expect(m.runs, hasLength(2));
+      expect(m.runs[0].indentLevel, 1);
+      expect(m.runs[1].indentLevel, 2);
+    });
+
+    test('ol indentation contributes runs the same way as ul', () {
+      const source = '1. top\n  1. sub';
+      final m = _model(source);
+      expect(m.runs, hasLength(2));
+      expect(m.runs[0].indentLevel, 0);
+      expect(m.runs[1].indentLevel, 1);
+    });
+
+    test('checkbox indentation contributes runs the same way as ul', () {
+      const source = '- [ ] top\n  - [ ] sub';
+      final m = _model(source);
+      expect(m.runs, hasLength(2));
+      expect(m.runs[0].indentLevel, 0);
+      expect(m.runs[1].indentLevel, 1);
+    });
+
+    test(
+        'a revealed indented list line (cursor inside) contributes a '
+        'level-0 run, mirroring the revealed-blockquote-line behavior', () {
+      const source = 'plain\n  - item';
+      final m = _model(source, cursorOffset: source.indexOf('item'));
+      // Both lines collapse to level 0 while the list line is revealed, so
+      // RenderModel.runs merges back to a single run — same mechanism as the
+      // analogous blockquote test above.
+      expect(m.runs, hasLength(1));
+      expect(m.runs.single.indentLevel, 0);
+    });
+
+    test(
+        'a document mixing a nested list and a nested blockquote does not '
+        'corrupt either kind\'s layout runs or slot lists — both now feed '
+        'the same _computeRuns mechanism', () {
+      const source = '- top item\n> quoted text\n  - nested item';
+      final m = _model(source);
+
+      // Line 0 (ul, depth 0) is its own run; lines 1-2 (blockquote depth 1,
+      // then ul depth 1) share the same indent level and merge into one run
+      // — runs are keyed purely by indent level, not by which block kind
+      // produced it, which is the intended generalization.
+      expect(m.runs, hasLength(2));
+      expect(m.runs[0].indentLevel, 0);
+      expect(m.runs[1].indentLevel, 1);
+      expect(m.runs[0].end, m.runs[1].start);
+      expect(m.runs[1].end, m.renderedLength);
+
+      // Neither kind's own bookkeeping was disturbed by the other's presence.
+      expect(m.blockquoteSlots, hasLength(1));
+      final uls =
+          MdParser.parse(source).where((e) => e.kind == MdElKind.ul).toList();
+      expect(uls, hasLength(2));
+      expect(uls[0].indentLevel, 0);
+      expect(uls[1].indentLevel, 1);
+    });
+  });
+
+  group(
+      'QuikiRenderEditor — nested list indentation geometry (ADR-34 Stage '
+      '2+3)', () {
+    testWidgets(
+        'nested list-item content is indented relative to a plain line '
+        'above it', (tester) async {
+      const source = 'plain\n  - item';
+      await tester.pumpWidget(buildEditor(initialValue: source));
+      await tester.pump();
+
+      final ro = renderEditorOf(tester);
+      final plainDx = ro.getOffsetForCaret(const TextPosition(offset: 0)).dx;
+      final itemContentOffset = source.indexOf('item');
+      final itemDx =
+          ro.getOffsetForCaret(TextPosition(offset: itemContentOffset)).dx;
+
+      expect(plainDx, closeTo(0.0, 1.0),
+          reason: 'plain paragraph content is not indented');
+      expect(itemDx, greaterThan(plainDx + 8.0),
+          reason: 'nested list content must be pushed meaningfully to the '
+              'right via its own narrower/offset layout run');
+    });
+
+    testWidgets(
+        'a depth-2 nested list line is indented further than a depth-1 '
+        'line', (tester) async {
+      const source = '  - one\n    - two';
+      await tester.pumpWidget(buildEditor(initialValue: source));
+      await tester.pump();
+
+      final ro = renderEditorOf(tester);
+      final oneDx =
+          ro.getOffsetForCaret(TextPosition(offset: source.indexOf('one'))).dx;
+      final twoDx =
+          ro.getOffsetForCaret(TextPosition(offset: source.indexOf('two'))).dx;
+
+      expect(twoDx, greaterThan(oneDx),
+          reason: 'a deeper nesting level must be indented further right');
+    });
+
+    testWidgets(
+        'a wrapped nested-list line has every wrapped visual row indented — '
+        'the same regression class Stage 1 fixed for blockquotes, now '
+        'verified for lists', (tester) async {
+      const prefix = '  - '; // 2-space indent + unordered marker
+      final longItem =
+          '$prefix${'this is a deliberately long list item that must wrap ' * 4}';
+      await tester.pumpWidget(buildEditor(initialValue: longItem));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+
+      final ro = renderEditorOf(tester);
+      const contentStart = prefix.length;
+
+      final rowStartDx = <double>[];
+      double? lastDy;
+      for (var srcOff = contentStart; srcOff < longItem.length; srcOff++) {
+        final o = ro.getOffsetForCaret(TextPosition(offset: srcOff));
+        if (lastDy == null || (o.dy - lastDy).abs() > 1.0) {
+          rowStartDx.add(o.dx);
+          lastDy = o.dy;
+        }
+      }
+
+      expect(rowStartDx.length, greaterThan(2),
+          reason: 'need at least one wrapped continuation row beyond the '
+              'first for this test to be meaningful — increase the source '
+              'length if this fails');
+
+      // The FIRST visual row legitimately sits further right than every
+      // continuation row: the collapsed bullet glyph ("• ") is rendered
+      // text that only occupies width on that first row — a pre-existing
+      // characteristic of how the list marker has always rendered (present
+      // identically at indentLevel 0, confirmed by inspection before this
+      // test was finalized), unaffected by this stage in either direction.
+      // What THIS stage owns, and what this test actually verifies, is that
+      // every WRAPPED CONTINUATION row stays at the run's own non-zero
+      // depth-1 indent instead of snapping back to the left margin — that
+      // snap-back is the historical bug class (block_indentation.md).
+      final continuationDx = rowStartDx.sublist(1).toSet();
+      expect(continuationDx, hasLength(1),
+          reason: 'every wrapped CONTINUATION row must start at the SAME x '
+              "(the run's indent) — a mix of values means at least one "
+              'wrapped row snapped back to the un-indented margin');
+      expect(continuationDx.single, greaterThan(0.0),
+          reason: 'the shared continuation-row x must be a real depth-1 '
+              'indent, not trivially 0 (i.e. not lost back to the margin)');
+      expect(rowStartDx.first, greaterThan(continuationDx.single),
+          reason: 'the first row is expected to sit further right than the '
+              'continuation rows, for the bullet-glyph reason documented '
+              'above — not itself a regression');
+    });
+
+    testWidgets(
+        'a mixed document (nested list + nested blockquote) paints without '
+        'error', (tester) async {
+      const source = '- top\n> quoted\n  - nested\n>> deeper';
+      await tester.pumpWidget(buildEditor(initialValue: source));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group(
+      'QuikiRenderEditor — hit-testing inside a nested list run (ADR-34 '
+      'Stage 2+3)', () {
+    testWidgets(
+        'tap-to-source round-trips correctly for a character inside nested '
+        'list-item content', (tester) async {
+      const source = 'plain\n  - item text';
+      await tester.pumpWidget(buildEditor(initialValue: source));
+      await tester.pump();
+      final ro = renderEditorOf(tester);
+
+      final targetOffset = source.indexOf('text');
+      final caret = ro.getOffsetForCaret(TextPosition(offset: targetOffset));
+      final caretLocal =
+          Offset(caret.dx, caret.dy + 2.0) + ro.localPadding.topLeft;
+      final resolved = ro.positionForOffset(caretLocal);
+
+      expect(resolved.offset, targetOffset,
+          reason: 'a tap at (approximately) where a character is painted '
+              'must resolve back to that same source offset, even inside a '
+              'nested list run');
+    });
+
+    testWidgets(
+        'checkboxSourceOffsetForTap still resolves correctly for a nested '
+        '(indented) checkbox item', (tester) async {
+      const source = '  - [ ] task';
+      await tester.pumpWidget(buildEditor(initialValue: source));
+      await tester.pump();
+      final ro = renderEditorOf(tester);
+
+      final slot = ro.renderModel.checkboxSlots.single;
+      final caret =
+          ro.getOffsetForCaret(TextPosition(offset: slot.element.start));
+      final tapLocal =
+          Offset(caret.dx, caret.dy + 2.0) + ro.localPadding.topLeft;
+      final resolved = ro.checkboxSourceOffsetForTap(tapLocal);
+
+      expect(resolved, slot.element.start);
+    });
+
+    testWidgets(
+        'linkUrlForOffset resolves a link nested inside a nested list '
+        'item\'s content (indented run)', (tester) async {
+      const source = '  - see [docs](https://example.com) for more';
+      await tester.pumpWidget(buildEditor(initialValue: source));
+      await tester.pump();
+      final ro = renderEditorOf(tester);
+
+      expect(ro.renderModel.linkSlots, hasLength(1));
+      final slot = ro.renderModel.linkSlots.single;
+      expect(slot.element.url, 'https://example.com');
+
+      final midRendered = (slot.renderedStart + slot.renderedEnd) ~/ 2;
+      final midSource = ro.renderModel.sourceForRendered(midRendered);
+      final tapLocal = ro.getOffsetForCaret(TextPosition(offset: midSource)) +
+          ro.localPadding.topLeft;
+
+      expect(ro.linkUrlForOffset(tapLocal), 'https://example.com');
+    });
+  });
 }

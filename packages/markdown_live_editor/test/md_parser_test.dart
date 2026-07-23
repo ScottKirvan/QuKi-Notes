@@ -1422,4 +1422,199 @@ void main() {
       expect(els[0].kind, MdElKind.hr);
     });
   });
+
+  // ---------------------------------------------------------------------------
+  // Nested list indentation (ADR-34 Stage 2+3, #241)
+  // ---------------------------------------------------------------------------
+
+  group('MdParser.parse — nested list indentation (ADR-34 Stage 2+3)', () {
+    test('top-level "- item" (no indentation) → ul, indentLevel 0', () {
+      final el = MdParser.parse('- item').single;
+      expect(el.kind, MdElKind.ul);
+      expect(el.indentLevel, 0);
+      expect(el.openDelimLen, 2);
+    });
+
+    test('"  - item" (2-space indent) → ul, indentLevel 1, openDelimLen 4', () {
+      final el = MdParser.parse('  - item').single;
+      expect(el.kind, MdElKind.ul);
+      expect(el.indentLevel, 1);
+      expect(el.openDelimLen, 4); // 2 ws + '- '
+      expect(el.isDelimiter(0), isTrue); // ' '
+      expect(el.isDelimiter(3), isTrue); // ' ' after '-'
+      expect(el.isDelimiter(4), isFalse); // 'i' — content
+    });
+
+    test('"    - item" (4-space indent) → ul, indentLevel 2, openDelimLen 6',
+        () {
+      final el = MdParser.parse('    - item').single;
+      expect(el.kind, MdElKind.ul);
+      expect(el.indentLevel, 2);
+      expect(el.openDelimLen, 6); // 4 ws + '- '
+    });
+
+    test('a single tab indent counts as one full level ("\\t- item")', () {
+      final el = MdParser.parse('\t- item').single;
+      expect(el.kind, MdElKind.ul);
+      expect(el.indentLevel, 1);
+      expect(el.openDelimLen, 3); // 1 ws char (tab) + '- '
+    });
+
+    test('irregular 3-space indent floors to depth 1 (permissive heuristic)',
+        () {
+      final el = MdParser.parse('   - item').single;
+      expect(el.kind, MdElKind.ul);
+      expect(el.indentLevel, 1);
+      expect(el.openDelimLen, 5); // 3 ws + '- '
+    });
+
+    test('"  * item" and "  + item" also recognized as indented ul', () {
+      final star = MdParser.parse('  * item').single;
+      expect(star.kind, MdElKind.ul);
+      expect(star.indentLevel, 1);
+      final plus = MdParser.parse('  + item').single;
+      expect(plus.kind, MdElKind.ul);
+      expect(plus.indentLevel, 1);
+    });
+
+    test('"  - [ ] task" → checkboxUnchecked at indentLevel 1, not ul', () {
+      final el = MdParser.parse('  - [ ] task').single;
+      expect(el.kind, MdElKind.checkboxUnchecked);
+      expect(el.indentLevel, 1);
+      expect(el.openDelimLen, 8); // 2 ws + '- [ ] ' (6)
+    });
+
+    test('"  - [x] task" and "  - [X] task" → checkboxChecked, indentLevel 1',
+        () {
+      final lower = MdParser.parse('  - [x] task').single;
+      expect(lower.kind, MdElKind.checkboxChecked);
+      expect(lower.indentLevel, 1);
+      final upper = MdParser.parse('  - [X] task').single;
+      expect(upper.kind, MdElKind.checkboxChecked);
+      expect(upper.indentLevel, 1);
+    });
+
+    test('"  1. item" → ol at indentLevel 1, srcMarkerLen includes indent', () {
+      final el = MdParser.parse('  1. item').single;
+      expect(el.kind, MdElKind.ol);
+      expect(el.indentLevel, 1);
+      expect(el.seqNum, 1);
+      expect(el.openDelimLen, 5); // 2 ws + '1. ' (3)
+    });
+
+    test('two-level-deep nested list: depths 0, 1, 2 all recognized', () {
+      const source = '- top\n  - mid\n    - deep';
+      final els =
+          MdParser.parse(source).where((e) => e.kind == MdElKind.ul).toList();
+      expect(els, hasLength(3));
+      expect(els[0].indentLevel, 0);
+      expect(els[1].indentLevel, 1);
+      expect(els[2].indentLevel, 2);
+    });
+
+    test(
+        'indentation-inline content is still recursively scanned (ADR-33 '
+        'still applies to indented items)', () {
+      const source = '  - **bold** item';
+      final els = MdParser.parse(source);
+      final ul = els.firstWhere((e) => e.kind == MdElKind.ul);
+      final bold = els.firstWhere((e) => e.kind == MdElKind.bold);
+      expect(ul.indentLevel, 1);
+      // Bold content starts right after the indented marker.
+      expect(bold.start, source.indexOf('**'));
+    });
+
+    test(
+        'an indented hr-shaped line ("  - - -") is NOT misclassified as a '
+        'nested list item — falls through unrecognized, same as today\'s '
+        'unindented-hr-guard precedence', () {
+      // Mirrors the column-0 precedence (hr checked before ul there too,
+      // since '- - -' also starts with '- '): the indented variant must not
+      // become a spurious ul element. Indented hr detection itself remains
+      // out of scope, so the line stays unrecognized, exactly as it is
+      // today.
+      final els = MdParser.parse('  - - -');
+      expect(els, isEmpty);
+    });
+
+    test('an indented line that is not list syntax stays unrecognized', () {
+      // Plain indented text — not a list marker after the whitespace — must
+      // fall through to ordinary (unrecognized, no-markdown) handling.
+      expect(MdParser.parse('  plain text'), isEmpty);
+    });
+
+    test(
+        'MdElement constructed directly without srcMarkerLen still reports '
+        'the historical fixed openDelimLen (back-compat sentinel)', () {
+      final ul = MdElement(kind: MdElKind.ul, start: 0, end: 6);
+      expect(ul.openDelimLen, 2);
+      final cb = MdElement(kind: MdElKind.checkboxUnchecked, start: 0, end: 10);
+      expect(cb.openDelimLen, 6);
+    });
+
+    // -------------------------------------------------------------------
+    // Ordered-list numbering: independent restart per nesting level.
+    // -------------------------------------------------------------------
+
+    test(
+        "brief's worked example: '1.' at depth 0 then two '1.'s indented one "
+        'level deeper restart their own sequence (1, then 1, 2) rather than '
+        "continuing the parent's count", () {
+      const source = '1. top\n  1. sub\n  1. sub2';
+      final els =
+          MdParser.parse(source).where((e) => e.kind == MdElKind.ol).toList();
+      expect(els, hasLength(3));
+      expect(els[0].indentLevel, 0);
+      expect(els[0].seqNum, 1);
+      expect(els[1].indentLevel, 1);
+      expect(els[1].seqNum, 1); // restarts, does not continue as "2"
+      expect(els[2].indentLevel, 1);
+      expect(els[2].seqNum, 2); // continues its OWN level's count
+    });
+
+    test(
+        'a depth-0 ol block resuming after a depth-1 interruption restarts '
+        'from its own source digit rather than continuing the earlier count '
+        '(documented design choice — not full CommonMark list continuation)',
+        () {
+      // Top writes '1.' again (not '2.') after the nested interruption. Full
+      // CommonMark would treat this as the same list continuing (rendering
+      // '2.'); this codebase's simpler per-depth-adjacency model treats any
+      // intervening line at a different depth as breaking continuity for
+      // every other depth, so depth 0 restarts from its own written digit.
+      const source = '1. top\n  1. sub\n1. top2';
+      final els =
+          MdParser.parse(source).where((e) => e.kind == MdElKind.ol).toList();
+      expect(els, hasLength(3));
+      expect(els[0].seqNum, 1); // top
+      expect(els[1].seqNum, 1); // sub (own level, own start)
+      expect(els[2].seqNum, 1); // top2 — restarts from its own digit '1'
+    });
+
+    test('three-level-deep ol nesting each restart independently', () {
+      const source = '1. a\n  1. b\n    1. c\n    1. c2';
+      final els =
+          MdParser.parse(source).where((e) => e.kind == MdElKind.ol).toList();
+      expect(els, hasLength(4));
+      expect(els[0].indentLevel, 0);
+      expect(els[0].seqNum, 1);
+      expect(els[1].indentLevel, 1);
+      expect(els[1].seqNum, 1);
+      expect(els[2].indentLevel, 2);
+      expect(els[2].seqNum, 1);
+      expect(els[3].indentLevel, 2);
+      expect(els[3].seqNum, 2); // continues depth 2's own run
+    });
+
+    test(
+        'existing top-level ol block-relative numbering is unaffected '
+        '(regression guard): "1. 1. 1." → 1, 2, 3', () {
+      const source = '1. first\n1. second\n1. third';
+      final els = MdParser.parse(source);
+      expect(els, hasLength(3));
+      expect(els[0].seqNum, 1);
+      expect(els[1].seqNum, 2);
+      expect(els[2].seqNum, 3);
+    });
+  });
 }

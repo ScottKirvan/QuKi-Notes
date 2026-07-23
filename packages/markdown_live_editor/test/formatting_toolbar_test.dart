@@ -269,6 +269,130 @@ void main() {
 
       expect(controller.currentValue, '- item\n\n');
     });
+
+    // -------------------------------------------------------------------
+    // Indentation-preserving continuation (ADR-34 Stage 2+3): pressing
+    // Enter after an indented list item must continue at the SAME
+    // indentation, not reset to column 0.
+    // -------------------------------------------------------------------
+
+    testWidgets(
+        'Enter after an indented "  - item" preserves the 2-space indent '
+        'on the continuation line', (tester) async {
+      final controller = await pumpEditor(tester, initialValue: '');
+
+      controller.requestFocus();
+      await tester.pump();
+
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: '  - item',
+          selection: TextSelection.collapsed(offset: 8),
+        ),
+      );
+      await tester.pump();
+
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: '  - item\n',
+          selection: TextSelection.collapsed(offset: 9),
+        ),
+      );
+      await tester.pump();
+
+      expect(controller.currentValue, '  - item\n  - ');
+    });
+
+    testWidgets(
+        'Enter after an indented checkbox item preserves indentation and '
+        'resets to unchecked', (tester) async {
+      final controller = await pumpEditor(tester, initialValue: '');
+
+      controller.requestFocus();
+      await tester.pump();
+
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: '  - [x] item',
+          selection: TextSelection.collapsed(offset: 12),
+        ),
+      );
+      await tester.pump();
+
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: '  - [x] item\n',
+          selection: TextSelection.collapsed(offset: 13),
+        ),
+      );
+      await tester.pump();
+
+      expect(controller.currentValue, '  - [x] item\n  - [ ] ');
+    });
+
+    testWidgets(
+        'Enter after an indented ordered item preserves indentation and '
+        'increments the number', (tester) async {
+      final controller = await pumpEditor(tester, initialValue: '');
+
+      controller.requestFocus();
+      await tester.pump();
+
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: '  1. item',
+          selection: TextSelection.collapsed(offset: 9),
+        ),
+      );
+      await tester.pump();
+
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: '  1. item\n',
+          selection: TextSelection.collapsed(offset: 10),
+        ),
+      );
+      await tester.pump();
+
+      expect(controller.currentValue, '  1. item\n  2. ');
+    });
+
+    testWidgets(
+        'Enter on an empty indented list item exits the list, dropping the '
+        "line's indentation too", (tester) async {
+      final controller = await pumpEditor(tester, initialValue: '');
+
+      controller.requestFocus();
+      await tester.pump();
+
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: '  - item',
+          selection: TextSelection.collapsed(offset: 8),
+        ),
+      );
+      await tester.pump();
+
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: '  - item\n',
+          selection: TextSelection.collapsed(offset: 9),
+        ),
+      );
+      await tester.pump();
+      expect(controller.currentValue, '  - item\n  - ');
+
+      // Enter again on the now-empty, still-indented continuation line.
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: '  - item\n  - \n',
+          selection: TextSelection.collapsed(offset: 14),
+        ),
+      );
+      await tester.pump();
+
+      expect(controller.currentValue, '  - item\n\n');
+    });
   });
 
   group('toggleUnorderedList', () {
