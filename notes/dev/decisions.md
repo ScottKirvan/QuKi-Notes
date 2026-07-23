@@ -16,7 +16,7 @@ Normative framing in `manifesto.md` — read that first.
 
 **Date**: 2026-07-22
 
-**Status**: locked decision, not yet implemented. Full spec: `notes/dev/block_indentation.md` — read that first; this entry is the index pointer.
+**Status**: Stage 1 (multi-run rendering foundation + nested blockquotes) complete — PR #292, merged 2026-07-23, closed #242 and #237. Stages 2-4 (list-item indent detection, wiring into lists, Tab/Shift+Tab) not yet briefed. Full spec: `notes/dev/block_indentation.md` — read that first; this entry is the index pointer.
 
 **What**: Replace `QuikiRenderEditor`'s single whole-document `TextPainter` with a list of `TextPainter`s, one per contiguous "run" of lines sharing the same indent level. Each run is laid out at a reduced width (indent level × indent unit subtracted) and painted at a matching X-offset; runs stack vertically. `RenderModel` additionally exposes run boundaries `(startOffset, endOffset, indentLevel)` for the flat rendered text it already produces — its existing offset-mapping and inline-formatting machinery (ADR-33) is unchanged. Every coordinate-mapping function in `QuikiRenderEditor` (caret positioning, tap hit-testing) gains one indirection step: resolve which run a rendered offset/tap position falls in, delegate to that run's `TextPainter`, translate by the run's origin. Scope includes **nested blockquotes** (`>`, `>>`, `>>>` — depth-counting in the parser, one stripe painted per level with per-level continuity, not deferred to a follow-on) as the mechanism's proving ground, since it's a harder test of the design than the single-level case already shipped.
 

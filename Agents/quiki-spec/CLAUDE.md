@@ -134,11 +134,18 @@ Once CI is green: summarize what changed, confirm no attribution anywhere, and r
 
 See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phase table.
 
-**Current version**: v0.19.0 (released 2026-07-21, PR #262) is the latest tagged release. `main` has moved well past it (PRs #270, #276, #279, #281, #283) — release-please will bundle those into the next release PR when it opens.
+**Current version**: v0.19.0 (released 2026-07-21, PR #262) is the latest tagged release. `main` has moved well past it (PRs #270, #276, #279, #281, #283, #290) — release-please has opened the bundling PR (#277, below).
 
-**PRs open:** none.
+**PRs open:**
+- #277 (`release-please--branches--main--components--quki_notes`) — auto-generated, will cut v0.19.1. Auto-managed by release-please; the project owner merges when ready, no spec action needed.
+
+**Merged since last sync**:
+- **PR #292** (`feat/block-indentation-stage1`, merged 2026-07-23) — ADR-34 Stage 1: multi-run block indentation + nested blockquotes, closes #242 and #237. CI green (`flutter analyze`, `dart format`, package tests 470/470, root tests 115/115 — all run independently, not just agent-reported). Reviewed in full before opening: `quiki_editor.dart` needed zero changes (verified by reading the diff, not just the report), per-level nested-blockquote stripe continuity matches the spec's worked example, wrapped-blockquote-line regression has a real geometry test against the live render object rather than a golden image. One deliberate design call worth remembering: the old ADR-33 Stage 4 blank-character blockquote indent reservation was removed entirely (not kept alongside the new layout-based indent) — keeping both would have double-indented a blockquote's first row relative to its own wrapped rows.
+- PR #290 (`chore/switch-funding-to-kofi`, merged 2026-07-22) — removed per-repo `FUNDING.yml`, defers to central `.github` org file. Also a docs-only commit direct to `main` (Sabelhawk sponsor block on the docs home page).
 
 **ADR-33 (nested inline markdown) status**: Stages 1-4 all complete and merged (#276, #279, #281, #283) — see `notes/dev/nested_inline_markdown.md` for the full staged breakdown and the one known limitation shipped with Stage 4 (blockquote wrapped-line indent, documented on #241 rather than fixed standalone, since it's the same root constraint as list nesting). Stage 5 (inline image *syntax* parsing) remains on hold, pending the project owner's own GitHub/Obsidian comparison testing — do not start it without an explicit go-ahead. Filed #285 (GitHub-strict paragraph reflow as an opt-in reading-mode toggle) as a recorded idea, not a commitment, during Stage 4 device testing.
+
+**ADR-34 (real block indentation) status**: root-cause fix for #241 (nested lists) and the ADR-33 Stage 4 wrapped-line blockquote-indent limitation — see `notes/dev/block_indentation.md` for the full spec. **Stage 1 (multi-run rendering foundation + nested blockquotes) merged 2026-07-23 (PR #292)** — closed #242 and #237. Device test still pending (project owner's normal post-merge step); the PR flagged the exact pixel indent (16px/level) and stripe gap (4px) as unverified design approximations worth a look. Stage 2 (list-item indent-level detection) and Stage 3 (wiring Stage 2 into Stage 1's rendering foundation — #241's core ask) not yet briefed; do not start either until Stage 1 is device-confirmed, since Stage 3 builds directly on Stage 1's run mechanism.
 
 **Merged since last sync (were "open, CI green" in the stale version of this file — all confirmed merged via `gh pr list`):**
 - **PR #262** (`release-please--branches--main--components--quki_notes`, merged 2026-07-21): release-please cut **v0.19.0**, bundling #257–#260.
@@ -159,6 +166,8 @@ See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phas
 - **PR #271** (`chore/docs-scale-down`, merged 2026-07-17): docs session — VitePress site scaled down with global zoom. Docs-only.
 
 **Issue-closure discrepancy found during this sync**: #249 (sticky plaintext mode) and #253 (help modal) are still **open** on GitHub even though PR #258 and PR #260 respectively fully implement them — the PR bodies referenced the issues but didn't use a `Closes #N` keyword, so GitHub never auto-closed them. #251 (nav bar redesign) is correctly still open — PR #258 only did the Send/Settings half; the issue's Help button request was explicitly deferred until #253 landed, and now that #260 has shipped a help button, #251 may be fully satisfied too. Flagged to the project owner rather than closed unilaterally — see chat.
+
+**Local git state cleaned up 2026-07-23**: after a session crash while briefing ADR-34, verified the working tree was clean and no half-finished work was stranded (it wasn't — `git status` clean, no orphaned WIP branch). Local `main` fast-forwarded (was 2 commits behind on docs-only changes: Ko-fi funding switch, Sabelhawk sponsor block). Deleted 3 stale local branches, all confirmed merged: `fix/checkbox-text-presentation` (PR #270), `chore/switch-funding-to-kofi` (PR #290), `temp/checkbox-editor-work` (no unique commits, a leftover pointer at `main`).
 
 **Local git state cleaned up 2026-07-21**: 9 stale local branches (`feat/discord-emoji`, `feat/windows-msi-installer`, `fix/add-shared-release-workflows`, `fix/add-workflow-dispatch-to-release`, `fix/build-artifacts-remaining-platforms`, `fix/changelog-cleanup`, `fix/ci-markdown-live-editor`, `fix/discord-notify-after-builds`, `fix/notify-tag-lookup`) were left over from pre-outage devops sessions on this machine. All were confirmed merged (via `gh pr list --head <branch>`) and already deleted on the remote (GitHub's merge-then-delete-branch), so `git fetch --prune` had only local stale refs to clean up. Deleted locally with `git branch -D`; no content was lost since every one was already on `main` under a different (rebase-and-merge) commit hash.
 
