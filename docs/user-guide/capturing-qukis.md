@@ -49,7 +49,11 @@ A toolbar appears at the bottom of the editor with these buttons:
 
 ### List auto-continue
 
-Press Enter at the end of a list item and the next line starts with the same list prefix. Press Enter on an empty list item to exit the list.
+Press Enter at the end of a list item and the next line starts with the same list prefix. Press Enter on an empty list item to exit the list. If the current item is nested, the new line keeps that indentation, so continuing a nested item stays nested.
+
+### Indenting list items
+
+Press Tab to insert a tab character at the cursor. Inside a list, a tab counts as one level of nesting — the simplest way to start a sub-item while typing. Tab only inserts a character at the cursor; it does not indent or outdent an existing line, and Shift+Tab does not do anything yet.
 
 ## Supported markdown
 
@@ -69,6 +73,8 @@ The following elements render in the editor:
 | `> text` | Blockquote |
 | `---` | Horizontal rule |
 | `http://...` bare URL | Autolink |
+
+Lists, task checkboxes, and blockquotes nest. Indent a list item under a parent item — with extra leading spaces or the Tab key — to create a sub-item, shown indented to the right, and the indentation survives even when the item's text wraps onto more than one line. Nested ordered lists number independently from their parent list. Blockquotes nest with multiple `>`: `>> text` is one level deeper than `> text`, each level with its own left border. Lists and blockquotes nest on their own — a list nested inside a blockquote, or a blockquote nested inside a list, is not supported.
 
 Fenced code blocks (` ``` `) and tables are not rendered — they display as raw text so pasted code is never altered.
 
