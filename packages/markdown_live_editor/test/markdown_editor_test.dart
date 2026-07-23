@@ -1,6 +1,5 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:markdown_live_editor/markdown_live_editor.dart';
 import 'package:markdown_live_editor/src/quiki_render_editor.dart';
@@ -989,6 +988,103 @@ void main() {
       ));
       await tester.pump();
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Tab key (ADR-34 Fix 2 / block_indentation.md). Before this fix,
+  // QuikiEditor's _handleKeyEvent had no case for LogicalKeyboardKey.tab, so
+  // it fell through to KeyEventResult.ignored — which let Flutter's default
+  // focus-traversal system consume the keystroke before it ever reached the
+  // text buffer. This is scoped strictly to "let the raw keystroke through
+  // as a literal '\t' character" — NOT Tab/Shift+Tab interactive
+  // indent/dedent, which remains #77, a separate future feature. Uses a real
+  // tester.sendKeyEvent through the actual Focus tree (rather than a
+  // ForTesting wrapper that calls the handler method directly), since the
+  // bug under test — traversal swallowing the key before it reaches the
+  // handler — can only be exercised through the real dispatch path.
+  // -------------------------------------------------------------------------
+  group('QuikiEditor — Tab key (ADR-34 Fix 2)', () {
+    testWidgets(
+        'pressing Tab with a collapsed cursor inserts a literal tab '
+        'character at the cursor and does not move focus away from the '
+        'editor', (tester) async {
+      final controller = MarkdownEditorController();
+
+      await tester.pumpWidget(_buildEditor(
+        initialValue: 'ab',
+        controller: controller,
+      ));
+
+      controller.setSelectionForTesting(const TextSelection.collapsed(
+        offset: 1,
+      ));
+      controller.requestFocus();
+      await tester.pump();
+      expect(controller.hasActiveBlock, isTrue,
+          reason: 'editor must be focused before the key press for this '
+              'test to be meaningful');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+
+      expect(controller.currentValue, 'a\tb',
+          reason: 'Tab must insert a literal tab character at the cursor, '
+              'not be silently swallowed by focus traversal');
+      expect(controller.hasActiveBlock, isTrue,
+          reason: 'the editor must still hold focus after Tab — if '
+              'traversal had consumed the key, focus would have moved '
+              'away');
+    });
+
+    testWidgets(
+        'pressing Tab with an active (non-collapsed) selection replaces '
+        'the selection with a tab character', (tester) async {
+      final controller = MarkdownEditorController();
+
+      await tester.pumpWidget(_buildEditor(
+        initialValue: 'hello world',
+        controller: controller,
+      ));
+
+      controller.setSelectionForTesting(
+        const TextSelection(baseOffset: 0, extentOffset: 5),
+      );
+      controller.requestFocus();
+      await tester.pump();
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.pump();
+
+      expect(controller.currentValue, '\t world',
+          reason: 'Tab must replace the active selection with a tab '
+              'character — the same selection-replace semantics ordinary '
+              'inserted text uses (see _pasteFromClipboard)');
+    });
+
+    testWidgets('Shift+Tab is left unhandled (out of scope for this fix)',
+        (tester) async {
+      final controller = MarkdownEditorController();
+
+      await tester.pumpWidget(_buildEditor(
+        initialValue: 'ab',
+        controller: controller,
+      ));
+
+      controller
+          .setSelectionForTesting(const TextSelection.collapsed(offset: 1));
+      controller.requestFocus();
+      await tester.pump();
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pump();
+
+      expect(controller.currentValue, 'ab',
+          reason: 'Shift+Tab must not insert a tab character — it is left '
+              'to default (reverse) focus-traversal behavior, out of scope '
+              'for this fix');
     });
   });
 }

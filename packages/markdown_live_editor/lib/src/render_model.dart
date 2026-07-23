@@ -307,23 +307,31 @@ class RenderRun {
   /// Indent depth shared by every source line in this run. 0 = no indent.
   final int indentLevel;
 
-  /// True if any source line covered by this run carries a collapsed ul/ol/
-  /// checkbox marker (ADR-34 Fix 2 / block_indentation.md). QuikiRenderEditor
-  /// reserves extra gutter width for such a run — on top of the
-  /// [indentLevel]-driven width reduction — so the marker (bullet dot,
-  /// ordered-list number, or checkbox box) has somewhere to be painted
+  /// True if every source line covered by this run carries a collapsed
+  /// ul/ol/checkbox marker (ADR-34 Fix 2 / block_indentation.md).
+  /// QuikiRenderEditor reserves extra gutter width for such a run — on top
+  /// of the [indentLevel]-driven width reduction — so the marker (bullet
+  /// dot, ordered-list number, or checkbox box) has somewhere to be painted
   /// without consuming any of the run's own content-start x, which must stay
   /// identical to a run with no marker at the same [indentLevel] (that x is
   /// what keeps every visual row — including the first — aligned; see
-  /// block_indentation.md). Unlike [indentLevel], this does NOT gate run
-  /// merging in [RenderModel._computeRuns] — a run that merges a marker line
-  /// with a non-marker line at the same [indentLevel] (e.g. an indented list
-  /// item immediately adjacent to a same-depth blockquote line) reports
-  /// `true`, and every line in that run receives the gutter, including the
-  /// non-marker one. That narrow mixed-adjacency case is not visually
-  /// perfect, but it is unchanged from — and no worse than — this branch's
-  /// pre-existing run-merging behavior, which already merges across block
-  /// kinds whenever [indentLevel] matches.
+  /// block_indentation.md).
+  ///
+  /// Alongside [indentLevel], this DOES gate run merging in
+  /// [RenderModel._computeRuns] (ADR-34 Fix 3): two adjacent lines only
+  /// combine into one run when both their [indentLevel] AND their
+  /// marker-bearing status agree. Earlier this was OR-merged onto a run
+  /// after the fact instead — a marker-bearing line (ul/ol/checkbox) and a
+  /// non-marker line (plain paragraph, blockquote, heading) sharing an
+  /// [indentLevel] would merge into one run purely because the level
+  /// matched, and the whole run — including the non-marker content, no
+  /// matter how far from the actual list item — would incorrectly reserve
+  /// the marker gutter and shift right. Gating the merge on this field too
+  /// confines the gutter to lines that actually carry a marker (list items
+  /// at the same [indentLevel] still merge into one run exactly as before,
+  /// since they all report `true`; a blockquote line adjacent to a
+  /// same-depth list item no longer merges with it, since one reports
+  /// `false` and the other `true`).
   final bool listMarker;
 }
 
@@ -826,17 +834,19 @@ class RenderModel {
       final rStart = srcToRnd[thisLineStart];
       final rEnd = srcToRnd[nextLineSrcOffset];
 
-      if (result.isNotEmpty && result.last.indentLevel == level) {
-        // listMarker is OR-merged rather than gating the merge itself: a run
-        // that happens to combine a marker line with a non-marker line at the
-        // same indentLevel (e.g. a nested list item immediately adjacent to a
-        // same-depth blockquote line) still needs its gutter reserved for the
-        // marker line — see the field doc on [RenderRun.listMarker].
+      if (result.isNotEmpty &&
+          result.last.indentLevel == level &&
+          result.last.listMarker == listMarker) {
+        // Both indentLevel AND listMarker must agree to merge (ADR-34 Fix 3)
+        // — see the field doc on [RenderRun.listMarker] for why a
+        // level-only match isn't sufficient: it let a marker-bearing line's
+        // gutter reservation leak into adjacent same-level content that
+        // carries no marker of its own.
         result[result.length - 1] = RenderRun(
           start: result.last.start,
           end: rEnd,
           indentLevel: level,
-          listMarker: result.last.listMarker || listMarker,
+          listMarker: listMarker,
         );
       } else {
         result.add(RenderRun(

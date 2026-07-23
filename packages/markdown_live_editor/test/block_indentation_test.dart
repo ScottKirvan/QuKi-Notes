@@ -712,15 +712,25 @@ void main() {
       const source = '- top item\n> quoted text\n  - nested item';
       final m = _model(source);
 
-      // Line 0 (ul, depth 0) is its own run; lines 1-2 (blockquote depth 1,
-      // then ul depth 1) share the same indent level and merge into one run
-      // — runs are keyed purely by indent level, not by which block kind
-      // produced it, which is the intended generalization.
-      expect(m.runs, hasLength(2));
+      // Line 0 (ul, depth 0) is its own run. Lines 1-2 (blockquote depth 1,
+      // then ul depth 1) share the same indentLevel but do NOT merge into one
+      // run any more (ADR-34 Fix 1/Fix 3): the blockquote line carries no
+      // list marker while the nested ul line does, and a listMarker mismatch
+      // now forces a run boundary even when indentLevel matches — otherwise
+      // the blockquote line would incorrectly inherit the list's marker
+      // gutter. So three runs result, not two.
+      expect(m.runs, hasLength(3));
       expect(m.runs[0].indentLevel, 0);
+      expect(m.runs[0].listMarker, isTrue);
       expect(m.runs[1].indentLevel, 1);
+      expect(m.runs[1].listMarker, isFalse,
+          reason: 'the blockquote line carries no marker of its own');
+      expect(m.runs[2].indentLevel, 1);
+      expect(m.runs[2].listMarker, isTrue,
+          reason: 'the nested ul line carries a marker');
       expect(m.runs[0].end, m.runs[1].start);
-      expect(m.runs[1].end, m.renderedLength);
+      expect(m.runs[1].end, m.runs[2].start);
+      expect(m.runs[2].end, m.renderedLength);
 
       // Neither kind's own bookkeeping was disturbed by the other's presence.
       expect(m.blockquoteSlots, hasLength(1));
@@ -729,6 +739,118 @@ void main() {
       expect(uls, hasLength(2));
       expect(uls[0].indentLevel, 0);
       expect(uls[1].indentLevel, 1);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // ADR-34 Fix 1/Fix 3 — a marker-bearing run's gutter must not leak into
+  // unrelated same-level content. Confirmed via direct testing (spec review,
+  // getOffsetForCaret measurements): RenderModel._computeRuns previously
+  // merged consecutive lines purely on indentLevel equality, so a plain
+  // paragraph sharing level 0 with a list item anywhere else in the same
+  // contiguous same-level run got the list's 24px marker gutter reserved and
+  // visibly shifted right — even when the paragraph appeared long before the
+  // list item with several other same-level lines in between. See
+  // block_indentation.md and the task brief for the full repro.
+  // ---------------------------------------------------------------------------
+  group('RenderModel.runs — marker-gating (ADR-34 Fix 1)', () {
+    test(
+        'plain text separated from a same-level list item by blank lines and '
+        'other plain text does not merge into the list\'s run', () {
+      // Reduced repro preserving the essential shape of the confirmed bug:
+      // level-0 plain text ("Text After"), then (several lines later, with
+      // nothing else changing indent level in between) a level-0 list item.
+      const source = 'Text After\n\ntext before\n- 1\n- 3\ntext after';
+      final m = _model(source);
+
+      // Lines 0-2 ('Text After', '', 'text before') are all level 0, no
+      // marker — they merge into one run. Lines 3-4 ('- 1', '- 3') are level
+      // 0, marker — a separate run (a listMarker mismatch forces the
+      // boundary even though indentLevel is unchanged). Line 5 ('text
+      // after') is level 0, no marker — a third, separate run.
+      expect(m.runs, hasLength(3));
+      expect(m.runs[0].listMarker, isFalse);
+      expect(m.runs[1].listMarker, isTrue);
+      expect(m.runs[2].listMarker, isFalse);
+      expect(m.runs.map((r) => r.indentLevel).toSet(), {0},
+          reason: 'every line in this repro is nominally level 0 — only the '
+              'marker mismatch should force the boundaries');
+    });
+
+    test(
+        'consecutive same-level list items still merge into a single run '
+        '(regression guard — must not over-correct into one run per item)', () {
+      const source = '- 1\n- 2\n- 3';
+      final m = _model(source);
+      expect(m.runs, hasLength(1));
+      expect(m.runs.single.indentLevel, 0);
+      expect(m.runs.single.listMarker, isTrue);
+      expect(m.runs.single.end, m.renderedLength);
+    });
+
+    test(
+        'a blockquote line immediately adjacent to a same-depth list item '
+        'does not merge with it (blockquote has no marker of its own)', () {
+      const source = '  - nested item\n> quoted at the same depth';
+      final m = _model(source);
+      // Both lines are indentLevel 1 (2-space nested list; single-level
+      // blockquote), but only the list line carries a marker.
+      expect(m.runs, hasLength(2));
+      expect(m.runs[0].indentLevel, 1);
+      expect(m.runs[0].listMarker, isTrue);
+      expect(m.runs[1].indentLevel, 1);
+      expect(m.runs[1].listMarker, isFalse);
+      expect(m.runs[0].end, m.runs[1].start,
+          reason: 'runs must still be contiguous even though they no '
+              'longer merge');
+    });
+  });
+
+  group(
+      'QuikiRenderEditor — marker gutter does not leak into unrelated '
+      'content (ADR-34 Fix 1)', () {
+    testWidgets(
+        'plain text before a same-level list elsewhere in the document is '
+        'rendered at the same x as if the list were not present at all',
+        (tester) async {
+      const withList = 'Text After\n\ntext before\n- 1\n- 3\ntext after';
+      const withoutList = 'Text After\n\ntext before\ntext after';
+
+      await tester.pumpWidget(buildEditor(initialValue: withList));
+      await tester.pump();
+      final roWith = renderEditorOf(tester);
+      final dxWith = roWith.getOffsetForCaret(const TextPosition(offset: 0)).dx;
+
+      await tester.pumpWidget(buildEditor(initialValue: withoutList));
+      await tester.pump();
+      final roWithout = renderEditorOf(tester);
+      final dxWithout =
+          roWithout.getOffsetForCaret(const TextPosition(offset: 0)).dx;
+
+      expect(dxWith, closeTo(dxWithout, 0.5),
+          reason: '"Text After" must render at the same x whether or not a '
+              'same-level list appears later in the document — before this '
+              'fix it picked up the list\'s 24px marker gutter and shifted '
+              'right (confirmed dx=24.125 vs dx=0.125 in the original repro)');
+      expect(dxWith, closeTo(0.0, 1.0),
+          reason: 'plain paragraph content is never indented');
+    });
+
+    testWidgets(
+        'plain text after a same-level list is also not shifted by the '
+        'list\'s marker gutter', (tester) async {
+      const source = 'Text After\n\ntext before\n- 1\n- 3\ntext after';
+      await tester.pumpWidget(buildEditor(initialValue: source));
+      await tester.pump();
+      final ro = renderEditorOf(tester);
+
+      final afterOffset = source.indexOf('text after');
+      final dx = ro.getOffsetForCaret(TextPosition(offset: afterOffset)).dx;
+
+      expect(dx, closeTo(0.0, 1.0),
+          reason: '"text after" sits in its own run once the listMarker '
+              'mismatch forces a boundary above it, so it must not inherit '
+              'the list run\'s gutter either');
     });
   });
 
@@ -1008,6 +1130,68 @@ void main() {
       final resolved =
           ro.checkboxSourceOffsetForTap(checkboxTapPoint(ro, slot));
       expect(resolved, slot.element.start);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // ADR-34 Fix 3 — list/ol marker vertical alignment. Before this fix,
+  // _listMarkerLabelOffset plain-centered the bullet/ol-number label
+  // (`(lineHeight - labelHeight) / 2`), missing the same
+  // `+ lineHeight / 3` downward nudge _checkboxLocalRect already applied
+  // (empirically tuned in #267) — so the dot/number rendered visibly higher
+  // than body text and higher than a checkbox box on an adjacent line. Both
+  // formulas now share QuikiRenderEditor.markerVerticalOffset.
+  // ---------------------------------------------------------------------------
+  group('QuikiRenderEditor.markerVerticalOffset (ADR-34 Fix 3)', () {
+    test(
+        'matches the checkbox formula shape for a known line height/box '
+        'size', () {
+      const lineHeight = 20.0;
+      const boxSize = 16.0; // lineHeight * 0.8
+      final offset = QuikiRenderEditor.markerVerticalOffset(
+        lineHeight,
+        boxSize,
+      );
+      // Hand-computed from the pre-existing, #267-tuned checkbox formula:
+      // (lineHeight - boxSize) / 2 + lineHeight / 3.
+      const expected = (lineHeight - boxSize) / 2 + lineHeight / 3;
+      expect(offset, expected);
+    });
+
+    test(
+        'applies the same downward nudge for a bullet/ol-number label as it '
+        'does for a checkbox box, given each their own content height', () {
+      const lineHeight = 22.0;
+      const boxSize = 17.6; // lineHeight * 0.8, as _checkboxLocalRect uses
+      const labelHeight = 15.0; // a plausible laid-out label height
+
+      final boxOffset =
+          QuikiRenderEditor.markerVerticalOffset(lineHeight, boxSize);
+      final labelOffset =
+          QuikiRenderEditor.markerVerticalOffset(lineHeight, labelHeight);
+
+      // Both formulas share the same lineHeight/3 downward term, so their
+      // vertical CENTERS (offset + contentHeight/2) coincide even though the
+      // two contents have different heights — this is the concrete
+      // "vertically consistent with the checkbox box" invariant the fix is
+      // meant to establish.
+      final boxCenter = boxOffset + boxSize / 2;
+      final labelCenter = labelOffset + labelHeight / 2;
+      expect(labelCenter, closeTo(boxCenter, 0.0001));
+    });
+
+    test(
+        'plain centering alone (the pre-fix formula) would NOT match the '
+        'nudged formula — guards against silently reverting the fix', () {
+      const lineHeight = 20.0;
+      const labelHeight = 14.0;
+      final nudged =
+          QuikiRenderEditor.markerVerticalOffset(lineHeight, labelHeight);
+      final plainCentered = (lineHeight - labelHeight) / 2;
+      expect(nudged, isNot(closeTo(plainCentered, 0.001)));
+      expect(nudged, greaterThan(plainCentered),
+          reason: 'the nudge moves the marker DOWN relative to plain '
+              'centering');
     });
   });
 }

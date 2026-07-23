@@ -495,6 +495,28 @@ class QuikiRenderEditor extends RenderBox {
     return null;
   }
 
+  /// The vertical (row-top-relative) Y offset at which to position a
+  /// gutter-decoration marker (checkbox box, or bullet/ol-number label) of
+  /// [contentHeight] within a row whose text painter reports
+  /// [lineHeight] — shared by [_checkboxLocalRect] and
+  /// [_listMarkerLabelOffset] so every marker kind aligns to the same
+  /// baseline (ADR-34 Fix 3).
+  ///
+  /// Plain centering (`(lineHeight - contentHeight) / 2`) sits noticeably
+  /// higher than the visible glyph ink on an adjacent line of body text,
+  /// because this editor renders at `height: 1.4` — `preferredLineHeight`
+  /// reports the full multiplied line-box height, most of which sits below
+  /// the actual glyphs, not evenly split above and below them. The
+  /// `+ lineHeight / 3` term is the empirically-tuned downward nudge #267
+  /// already established for the checkbox box; applying the exact same
+  /// nudge here (previously the bullet/ol-number label used plain centering
+  /// with no nudge at all) is what makes a bullet dot or ol number line up
+  /// with body text and with a checkbox box on an adjacent line, instead of
+  /// rendering visibly higher than both.
+  @visibleForTesting
+  static double markerVerticalOffset(double lineHeight, double contentHeight) =>
+      (lineHeight - contentHeight) / 2 + lineHeight / 3;
+
   /// The checkbox box's [Rect] for [slot], in text-origin-relative local
   /// coordinates (no padding, no canvas offset) — shared by [paint] and
   /// [checkboxSourceOffsetForTap] so the tap target always matches exactly
@@ -517,7 +539,7 @@ class QuikiRenderEditor extends RenderBox {
     final gutterRight = r.x;
     return Rect.fromLTWH(
       gutterRight - _listMarkerContentGap - boxSize,
-      caretOffset.dy + (lineHeight - boxSize) / 2 + lineHeight / 3,
+      caretOffset.dy + markerVerticalOffset(lineHeight, boxSize),
       boxSize,
       boxSize,
     );
@@ -526,8 +548,9 @@ class QuikiRenderEditor extends RenderBox {
   /// The top-left [Offset] to paint a [ListMarkerSlot]'s [label] at, in
   /// text-origin-relative local coordinates (no padding, no canvas offset) —
   /// right-aligned within the run's list-marker gutter, [_listMarkerContentGap]
-  /// pixels before its content-start x, and vertically centered on the row
-  /// (ADR-34 Fix 2). [labelPainter] must already be laid out.
+  /// pixels before its content-start x, and vertically aligned with body text
+  /// and the checkbox box via [markerVerticalOffset] (ADR-34 Fix 3).
+  /// [labelPainter] must already be laid out.
   Offset _listMarkerLabelOffset(ListMarkerSlot slot, TextPainter labelPainter) {
     final r = _runForRendered(slot.renderedStart);
     // _caretOffsetForRendered already returns a GLOBAL (whole-render-object,
@@ -538,7 +561,7 @@ class QuikiRenderEditor extends RenderBox {
     final labelRight = r.x - _listMarkerContentGap;
     return Offset(
       labelRight - labelPainter.width,
-      caretOffset.dy + (lineHeight - labelPainter.height) / 2,
+      caretOffset.dy + markerVerticalOffset(lineHeight, labelPainter.height),
     );
   }
 
