@@ -194,53 +194,30 @@ class MdElement {
 
   /// The string that replaces the source marker in collapsed (rendered) mode.
   ///
-  /// For inline elements (bold, italic) and headings, the marker is simply
-  /// hidden (delimiter chars omitted), so [collapsedMarker] returns the empty
-  /// string — the render model handles those by skipping delimiter source
-  /// characters rather than emitting a substitution glyph.
+  /// Always the empty string. For inline elements (bold, italic) and
+  /// headings, the marker is simply hidden (delimiter chars omitted) — the
+  /// render model handles those by skipping delimiter source characters
+  /// rather than emitting a substitution glyph.
   ///
-  /// For block list elements, this returns the visual glyph + space.
+  /// [MdElKind.ul], [MdElKind.ol], [MdElKind.checkboxUnchecked], and
+  /// [MdElKind.checkboxChecked] used to return a substitution glyph here too
+  /// — '• ' for ul, '$seqNum. ' for ol, five blank reservation characters for
+  /// a checkbox (ADR-31 Stage 4 / #267) — but ADR-34 Fix 2 (block_indentation
+  /// .md) removes that, for the same reason [MdElKind.blockquote]'s own
+  /// blank-character reservation was removed in ADR-34 Stage 1: inline
+  /// rendered characters only occupy horizontal width on a line's FIRST
+  /// visual row, so a wrapped list item's continuation rows snapped back to
+  /// the un-indented margin. The bullet dot, ordered-list number, and
+  /// checkbox box are now painted by QuikiRenderEditor as a gutter decoration
+  /// positioned by [RenderModel] slot metadata (`ListMarkerSlot` /
+  /// `CheckboxSlot`) — independent of inline text flow, so it survives
+  /// word-wrap on every visual row — the same mechanism the blockquote left
+  /// border stripe has used since Stage 1.
   ///
-  /// For checkbox elements, this returns five blank characters reserving the
-  /// horizontal space for a glyph plus a gap before the content — the render
-  /// object (QuikiRenderEditor) paints the actual box/checkmark itself via
-  /// Canvas rather than relying on a Unicode glyph, because Android's
-  /// font-fallback shaping picks between a monochrome symbol font and Noto
-  /// Color Emoji per text run (not per character), causing checked-box
-  /// glyphs to inconsistently render as large colour emoji depending on
-  /// document order. See #267. The box is painted at a fixed size (a
-  /// fraction of line height) rather than shrunk to fit whatever width is
-  /// reserved here — a fixed, comfortable tap target matters more than a
-  /// tight gap — so five characters is a deliberately generous reservation
-  /// to keep the box clear of the following content text.
-  ///
-  /// For [MdElKind.blockquote]: returns `''` (no substitution glyph) — see the
-  /// switch below and [indentLevel].
-  ///
-  /// For [MdElKind.image]: returns `''` — the image is not a text substitution;
-  /// the render object (QuikiRenderEditor) handles painting the image or
-  /// placeholder rect in the paint pass.
-  String get collapsedMarker => switch (kind) {
-        MdElKind.ul => '• ',
-        MdElKind.checkboxUnchecked || MdElKind.checkboxChecked => '     ',
-        MdElKind.ol => '$seqNum. ',
-        // Heading, blockquote, inline (incl. escape), image, link, and autolink
-        // elements: no text substitution glyph.
-        //
-        // Blockquote content used to reserve horizontal indentation here as
-        // blank characters (ADR-33 Stage 4) — the same trick proven for list/
-        // checkbox markers. Device testing showed that trick only indents a
-        // line's first visual row: Flutter's word-wrap has no way to re-apply a
-        // leading-character indent after breaking a line, so wrapped
-        // continuation rows snapped back to the margin. ADR-34 replaces it with
-        // real layout indentation — QuikiRenderEditor lays out each run of
-        // lines sharing an [indentLevel] as its own narrower, offset region,
-        // which survives wrapping. Reserving blank characters here too would
-        // double-indent a blockquote's first row relative to its own wrapped
-        // continuation rows, so the reservation is removed rather than kept
-        // alongside the fix.
-        _ => '',
-      };
+  /// For [MdElKind.image]: the image is not a text substitution either; the
+  /// render object handles painting the image or placeholder rect in the
+  /// paint pass.
+  String get collapsedMarker => '';
 
   /// True for block-level element kinds (one per line, non-overlapping):
   /// headings, list markers, checkboxes, blockquote, block image, and hr.
@@ -310,20 +287,39 @@ class MdParser {
     // so far. Each subsequent same-depth ol line increments runCount by 1
     // regardless of its own source digit — matching the pre-existing
     // flat-counter behavior (GFM: '1. 1. 1.' renders as '1. 2. 3.'), just
-    // generalized per depth. Any line — ol at a *different* depth, or a
-    // non-ol line at any depth — clears every depth's state, so a depth's
-    // block never silently resumes after being interrupted; a later ol line
-    // at that depth restarts from its own source digit (ADR-34 Stage 2+3
-    // brief, point 2: independent-per-level restart, not parent-count
-    // continuation across a depth change).
+    // generalized per depth.
+    //
+    // Invalidation is depth-scoped, matching real list-continuation
+    // semantics: a line at depth D that does not continue depth D's own ol
+    // sequence invalidates depth D and every depth deeper than D (a deeper
+    // sub-list's state can never outlive the item it was nested inside), but
+    // must NOT touch any depth shallower than D — a nested interruption
+    // (of any kind: ol at a different depth, ul, checkbox, blockquote, or
+    // plain content) does not end a still-open shallower list; resuming at
+    // that shallower depth continues its count exactly as if the deeper
+    // content had not appeared. This matches GFM/CommonMark list
+    // continuation (`1. top` / `  1. sub` / `1. top2` renders `1. / 1. / 2.`,
+    // not a restart), not the earlier "any interruption clears everything"
+    // model this replaces.
     final olState = <int, (int blockStart, int runCount)>{};
+
+    // Invalidates depth [depth] and every depth deeper than it — called for
+    // any line at [depth] that is not itself extending depth [depth]'s ol
+    // sequence (a different block kind, or an ol line at a different depth).
+    void invalidateOlFrom(int depth) {
+      olState.removeWhere((d, _) => d >= depth);
+    }
+
     int nextOlSeqNum(int depth, int srcDigit) {
       final prev = olState[depth];
       final blockStart = prev == null ? srcDigit : prev.$1;
       final runCount = (prev?.$2 ?? 0) + 1;
-      olState
-        ..clear()
-        ..[depth] = (blockStart, runCount);
+      // A line continuing depth's own sequence still invalidates anything
+      // nested strictly deeper than it (that sub-list's item just ended) —
+      // but must preserve depth's own entry (read above as `prev`) and
+      // every shallower depth untouched.
+      olState.removeWhere((d, _) => d > depth);
+      olState[depth] = (blockStart, runCount);
       return blockStart + (runCount - 1);
     }
 
@@ -344,7 +340,7 @@ class MdParser {
       // whitespace), landing in ordinary paragraph handling exactly as it
       // does today.
       if (wsLen > 0 && remainder.startsWith('- [ ] ')) {
-        olState.clear();
+        invalidateOlFrom(indentDepth);
         result.add(MdElement(
           kind: MdElKind.checkboxUnchecked,
           start: lineStart,
@@ -355,7 +351,7 @@ class MdParser {
         result.addAll(_scanInline(source, lineStart + wsLen + 6, lineEnd));
       } else if (wsLen > 0 &&
           (remainder.startsWith('- [x] ') || remainder.startsWith('- [X] '))) {
-        olState.clear();
+        invalidateOlFrom(indentDepth);
         result.add(MdElement(
           kind: MdElKind.checkboxChecked,
           start: lineStart,
@@ -375,7 +371,7 @@ class MdParser {
         // nested list item. It falls through unchanged to the existing
         // chain, which does not recognize indented hr either — that stays
         // out of scope for this stage, exactly as it is today.
-        olState.clear();
+        invalidateOlFrom(indentDepth);
         result.add(MdElement(
           kind: MdElKind.ul,
           start: lineStart,
@@ -401,39 +397,39 @@ class MdParser {
 
         // Step 1 — Heading check (longest prefix first to avoid prefix collisions).
       } else if (line.startsWith('###### ')) {
-        olState.clear();
+        invalidateOlFrom(indentDepth);
         result
             .add(MdElement(kind: MdElKind.h6, start: lineStart, end: lineEnd));
         result.addAll(_scanInline(source, lineStart + 7, lineEnd));
       } else if (line.startsWith('##### ')) {
-        olState.clear();
+        invalidateOlFrom(indentDepth);
         result
             .add(MdElement(kind: MdElKind.h5, start: lineStart, end: lineEnd));
         result.addAll(_scanInline(source, lineStart + 6, lineEnd));
       } else if (line.startsWith('#### ')) {
-        olState.clear();
+        invalidateOlFrom(indentDepth);
         result
             .add(MdElement(kind: MdElKind.h4, start: lineStart, end: lineEnd));
         result.addAll(_scanInline(source, lineStart + 5, lineEnd));
       } else if (line.startsWith('### ')) {
-        olState.clear();
+        invalidateOlFrom(indentDepth);
         result
             .add(MdElement(kind: MdElKind.h3, start: lineStart, end: lineEnd));
         result.addAll(_scanInline(source, lineStart + 4, lineEnd));
       } else if (line.startsWith('## ')) {
-        olState.clear();
+        invalidateOlFrom(indentDepth);
         result
             .add(MdElement(kind: MdElKind.h2, start: lineStart, end: lineEnd));
         result.addAll(_scanInline(source, lineStart + 3, lineEnd));
       } else if (line.startsWith('# ')) {
-        olState.clear();
+        invalidateOlFrom(indentDepth);
         result
             .add(MdElement(kind: MdElKind.h1, start: lineStart, end: lineEnd));
         result.addAll(_scanInline(source, lineStart + 2, lineEnd));
 
         // Step 2 — Checkbox detection (must run before ul, both start with '- ').
       } else if (line.startsWith('- [ ] ')) {
-        olState.clear();
+        invalidateOlFrom(indentDepth);
         result.add(MdElement(
           kind: MdElKind.checkboxUnchecked,
           start: lineStart,
@@ -442,7 +438,7 @@ class MdParser {
         // '- [ ] ' prefix is 6 chars — scan the remainder inline (ADR-33).
         result.addAll(_scanInline(source, lineStart + 6, lineEnd));
       } else if (line.startsWith('- [x] ') || line.startsWith('- [X] ')) {
-        olState.clear();
+        invalidateOlFrom(indentDepth);
         result.add(MdElement(
           kind: MdElKind.checkboxChecked,
           start: lineStart,
@@ -455,7 +451,7 @@ class MdParser {
         // optional spaces between them, no other characters).
         // Must be checked BEFORE the ul step because '- - -' starts with '- '.
       } else if (_isHrLine(line)) {
-        olState.clear();
+        invalidateOlFrom(indentDepth);
         result
             .add(MdElement(kind: MdElKind.hr, start: lineStart, end: lineEnd));
 
@@ -470,7 +466,7 @@ class MdParser {
         // consumed, stored in srcMarkerLen so openDelimLen / isDelimiter report
         // it correctly; the depth itself is stored in indentLevel.
       } else if (line.startsWith('>')) {
-        olState.clear();
+        invalidateOlFrom(indentDepth);
         final (depth, markerLen) = _blockquoteDepth(line);
         result.add(MdElement(
           kind: MdElKind.blockquote,
@@ -488,7 +484,7 @@ class MdParser {
       } else if (line.startsWith('- ') ||
           line.startsWith('* ') ||
           line.startsWith('+ ')) {
-        olState.clear();
+        invalidateOlFrom(indentDepth);
         result
             .add(MdElement(kind: MdElKind.ul, start: lineStart, end: lineEnd));
         // '- ' / '* ' / '+ ' prefix is 2 chars — scan the remainder inline.
@@ -499,7 +495,7 @@ class MdParser {
         // ends with `)`.  Inline images within mixed-content lines are deferred.
         // The path is the substring between the last `(` and the final `)`.
       } else if (_isBlockImageLine(line)) {
-        olState.clear();
+        invalidateOlFrom(indentDepth);
         final path = _extractImagePath(line);
         result.add(MdElement(
           kind: MdElKind.image,
@@ -538,9 +534,9 @@ class MdParser {
         // then falls through to normal paragraph handling (multi-line HTML
         // blocks are not attempted this stage).
       } else if (_isHtmlOnlyLine(line)) {
-        olState.clear();
+        invalidateOlFrom(indentDepth);
       } else {
-        olState.clear();
+        invalidateOlFrom(indentDepth);
         // Step 5 — Recursive inline scan (paragraph lines). The same scanner is
         // used for heading, list, checkbox, and blockquote content above; an
         // inline HTML tag mid-paragraph is skipped inside the scanner (ADR-33
