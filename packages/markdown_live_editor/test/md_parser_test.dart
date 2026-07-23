@@ -1260,15 +1260,76 @@ void main() {
       expect(els[0].kind, MdElKind.blockquote);
     });
 
-    test('collapsedMarker for blockquote reserves four blank indent chars', () {
-      // The blockquote marker collapses to blank indentation (not a glyph) so
-      // the quoted content renders indented from plain paragraph text, reusing
-      // the list/checkbox marker-substitution path (ADR-33 Stage 4). Four spaces
-      // approximate GitHub's ~1em content indent on a real device.
+    test('collapsedMarker for blockquote is empty (ADR-34)', () {
+      // ADR-33 Stage 4 reserved four blank characters here so the quoted
+      // content rendered indented from plain paragraph text. ADR-34 replaces
+      // that trick with real layout indentation (QuikiRenderEditor lays a
+      // blockquote's line out as its own narrower, offset run) because the
+      // blank-character reservation only affected a line's first visual row —
+      // wrapped continuation rows snapped back to the margin. Keeping the
+      // reservation alongside the new layout-based indent would double-indent
+      // a blockquote's first row relative to its own wrapped rows, so it is
+      // removed: collapsedMarker for blockquote is now '', same as headings.
       final el = MdParser.parse('> hi').first;
-      expect(el.collapsedMarker, '    ');
-      expect(el.collapsedMarker.trim(), isEmpty,
-          reason: 'blank characters only — no visible glyph');
+      expect(el.collapsedMarker, isEmpty);
+    });
+
+    test('nested blockquote depth: ">" is depth 1, marker length 1', () {
+      final els = MdParser.parse('>');
+      final bq = els.single;
+      expect(bq.indentLevel, 1);
+      expect(bq.openDelimLen, 1);
+    });
+
+    test('nested blockquote depth: "> text" is depth 1, marker length 2', () {
+      final bq = MdParser.parse('> text').first;
+      expect(bq.indentLevel, 1);
+      expect(bq.openDelimLen, 2);
+    });
+
+    test('nested blockquote depth: ">> text" is depth 2, marker length 3', () {
+      final bq = MdParser.parse('>> text').first;
+      expect(bq.indentLevel, 2);
+      expect(bq.openDelimLen, 3);
+      expect(bq.isDelimiter(0), isTrue); // '>'
+      expect(bq.isDelimiter(1), isTrue); // '>'
+      expect(bq.isDelimiter(2), isTrue); // ' '
+      expect(bq.isDelimiter(3), isFalse); // 't' — content
+    });
+
+    test('nested blockquote depth: ">>text" (no spaces) is depth 2, marker 2',
+        () {
+      final bq = MdParser.parse('>>text').first;
+      expect(bq.indentLevel, 2);
+      expect(bq.openDelimLen, 2);
+    });
+
+    test(
+        'nested blockquote depth: "> > text" (mixed spacing) is depth 2, '
+        'marker length 4', () {
+      final bq = MdParser.parse('> > text').first;
+      expect(bq.indentLevel, 2);
+      expect(bq.openDelimLen, 4);
+    });
+
+    test('nested blockquote depth: ">>> text" is depth 3, marker length 4', () {
+      final bq = MdParser.parse('>>> text').first;
+      expect(bq.indentLevel, 3);
+      expect(bq.openDelimLen, 4);
+    });
+
+    test('nested blockquote depth: ">>>text" (no spaces) is depth 3, marker 3',
+        () {
+      final bq = MdParser.parse('>>>text').first;
+      expect(bq.indentLevel, 3);
+      expect(bq.openDelimLen, 3);
+    });
+
+    test(
+        'non-nested blockquote ("> text") keeps indentLevel 1 (unchanged '
+        'single-level behavior)', () {
+      final bq = MdParser.parse('> plain quote').first;
+      expect(bq.indentLevel, 1);
     });
   });
 

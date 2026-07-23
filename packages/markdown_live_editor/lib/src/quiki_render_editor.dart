@@ -64,10 +64,50 @@ class QuikiRenderWidget extends LeafRenderObjectWidget {
 }
 
 // ---------------------------------------------------------------------------
+// _RunLayout — one laid-out TextPainter for one RenderRun, plus its origin
+// within this render object's own text-origin-relative coordinate space
+// (ADR-34 / block_indentation.md). File-private to QuikiRenderEditor.
+// ---------------------------------------------------------------------------
+
+class _RunLayout {
+  _RunLayout({
+    required this.run,
+    required this.painter,
+    required this.x,
+    required this.y,
+  });
+
+  final RenderRun run;
+  final TextPainter painter;
+
+  /// Horizontal origin — [run.indentLevel] * [QuikiRenderEditor._indentUnit].
+  final double x;
+
+  /// Vertical origin — the summed painter heights of every preceding run.
+  final double y;
+}
+
+// ---------------------------------------------------------------------------
 // QuikiRenderEditor — RenderBox
 //
-// Owns a TextPainter. Paints selection highlight, text, caret, and images.
-// No state, no TextInputConnection, no keyboard handling.
+// Owns one TextPainter per layout run (ADR-34) instead of a single
+// whole-document TextPainter. Paints selection highlight, text, caret, and
+// images. No state, no TextInputConnection, no keyboard handling.
+//
+// Multi-run layout, in brief: RenderModel.build() already produces one flat
+// rendered TextSpan plus RenderRun boundaries (maximal spans sharing one
+// indent level). This render object slices that TextSpan per run
+// (sliceTextSpan), lays each slice out at a width reduced by, and an X-offset
+// derived from, that run's indent level, and stacks the runs vertically. A
+// document with no indented content (indentLevel 0 throughout) always
+// produces exactly one run spanning the whole document — identical, byte for
+// byte, to the pre-ADR-34 single-TextPainter layout.
+//
+// Every public coordinate-mapping method keeps its exact pre-ADR-34 signature
+// and coordinate semantics — one local space spanning the whole render
+// object. Internally each gains one indirection step: resolve which run a
+// rendered offset (or a tap/caret Y) falls into, delegate to that run's own
+// TextPainter, then translate the result by the run's (x, y) origin.
 // ---------------------------------------------------------------------------
 
 /// Fixed height (in logical pixels) reserved for a collapsed image line when
@@ -91,12 +131,7 @@ class QuikiRenderEditor extends RenderBox {
         _focused = focused,
         _cursorColor = cursorColor,
         _selectionColor = selectionColor,
-        _imageCache = imageCache {
-    _textPainter = TextPainter(
-      text: renderModel.textSpan,
-      textDirection: ui.TextDirection.ltr,
-    );
-  }
+        _imageCache = imageCache;
 
   RenderModel _renderModel;
   TextSelection _selection;
@@ -104,7 +139,15 @@ class QuikiRenderEditor extends RenderBox {
   bool _focused;
   Color _cursorColor;
   Color _selectionColor;
-  late TextPainter _textPainter;
+
+  /// One laid-out TextPainter per [RenderModel.runs] entry, populated by
+  /// [performLayout]. Always non-empty after the first layout pass —
+  /// [RenderModel.build] guarantees at least one run, even for empty source.
+  List<_RunLayout> _runLayouts = const [];
+
+  /// Sum of every run painter's height — the real, wrap-correct total content
+  /// height (excludes reserved image extra height; see [_totalImageExtraHeight]).
+  double _totalTextHeight = 0.0;
 
   /// Read-only snapshot of the image cache from [QuikiEditorState].
   Map<String, ui.Image?> _imageCache;
@@ -118,7 +161,6 @@ class QuikiRenderEditor extends RenderBox {
   set renderModel(RenderModel m) {
     if (_renderModel == m) return;
     _renderModel = m;
-    _textPainter.text = m.textSpan;
     markNeedsLayout();
   }
 
@@ -179,7 +221,11 @@ class QuikiRenderEditor extends RenderBox {
   }
 
   /// Computes the total extra height added by collapsed image slots (i.e. the
-  /// space the TextPainter cannot account for since image lines emit no chars).
+  /// space no run's TextPainter can account for since image lines emit no
+  /// chars). Images are always indentLevel 0 (Stage 1 does not nest them
+  /// inside blockquotes — the parser doesn't support that combination), so
+  /// this stays a flat document-wide total exactly as before ADR-34; it is
+  /// not distributed per-run.
   double _totalImageExtraHeight(double paintWidth) {
     double extra = 0.0;
     for (final slot in _renderModel.imageSlots) {
@@ -192,20 +238,113 @@ class QuikiRenderEditor extends RenderBox {
   // Layout
   // -------------------------------------------------------------------------
 
+  /// Horizontal space, in logical pixels, added per nesting level for an
+  /// indented run and subtracted from that run's own available width. Chosen
+  /// to approximate the ~1em content indent the (now-removed) blockquote
+  /// blank-character reservation trick targeted — see ADR-34 /
+  /// block_indentation.md. Exact pixel indent is a design choice, not a
+  /// correctness invariant; device verification is still needed (see the
+  /// spec's honest test-strategy note).
+  static const double _indentUnit = 16.0;
+
   @override
   void performLayout() {
     final maxWidth = constraints.maxWidth - _padding.horizontal;
     final paintWidth = maxWidth < 0 ? 0.0 : maxWidth;
-    _textPainter.layout(maxWidth: paintWidth);
-    final textHeight = _textPainter.height;
-    // Height = text content + reserved space for all collapsed image slots.
-    // The TextPainter gives image lines zero height (they emit no chars), so
-    // we add back the reserved height for each slot here.
+
+    final runs = _renderModel.runs;
+    final layouts = <_RunLayout>[];
+    var y = 0.0;
+    for (var i = 0; i < runs.length; i++) {
+      final run = runs[i];
+      final indentWidth = run.indentLevel * _indentUnit;
+      final runWidth = (paintWidth - indentWidth).clamp(0.0, paintWidth);
+      // Every run except the last ends exactly at the trailing newline that
+      // separates it from the next (differently-indented) run — see
+      // RenderModel._computeRuns, which assigns each line's newline to the
+      // line it terminates. That trailing '\n' must NOT be handed to this
+      // run's own TextPainter: a string ending in '\n' lays out as if it had
+      // one additional, empty trailing line, inflating this run's height by
+      // a whole phantom row and pushing every following run's Y-origin down
+      // by the same amount. The vertical separation between runs is already
+      // achieved explicitly by this stacking loop (`y += painter.height`), so
+      // the run doesn't need its own trailing newline to produce one — it is
+      // sliced out here. sourceToRendered / renderedToSource are untouched;
+      // the one rendered offset this trims (the newline itself) still
+      // resolves correctly via _runForRendered's ordinary half-open-range
+      // lookup, landing at this run's own local "end of text" position.
+      final sliceEnd = i < runs.length - 1 ? run.end - 1 : run.end;
+      final painter = TextPainter(
+        text: sliceTextSpan(_renderModel.textSpan, run.start, sliceEnd),
+        textDirection: ui.TextDirection.ltr,
+      )..layout(maxWidth: runWidth);
+      layouts.add(_RunLayout(run: run, painter: painter, x: indentWidth, y: y));
+      y += painter.height;
+    }
+    _runLayouts = layouts;
+    _totalTextHeight = y;
+
+    // Height = run content + reserved space for all collapsed image slots.
+    // Image lines emit zero rendered chars in their own run, so we add back
+    // the reserved height for each slot here (see _totalImageExtraHeight).
     final imageExtra = _totalImageExtraHeight(paintWidth);
     size = Size(
       constraints.maxWidth,
-      textHeight + imageExtra + _padding.vertical,
+      _totalTextHeight + imageExtra + _padding.vertical,
     );
+  }
+
+  // -------------------------------------------------------------------------
+  // Run resolution — the one indirection every coordinate-mapping method
+  // gains under ADR-34. _runLayouts is always non-empty post-layout.
+  // -------------------------------------------------------------------------
+
+  /// The run containing rendered offset [ri]. Runs are sorted, non-overlapping
+  /// half-open ranges covering `[0, renderedLength]` (the end sentinel,
+  /// `ri == renderedLength`, resolves into the last run — there is no run
+  /// whose own range starts there).
+  _RunLayout _runForRendered(int ri) {
+    for (final r in _runLayouts) {
+      if (ri >= r.run.start && ri < r.run.end) return r;
+    }
+    return _runLayouts.last;
+  }
+
+  /// The run whose vertical band `[r.y, r.y + r.painter.height)` contains
+  /// text-origin-relative Y coordinate [y]. Clamps to the first/last run when
+  /// [y] falls outside the laid-out content (e.g. a tap below the last line).
+  _RunLayout _runForLocalY(double y) {
+    for (final r in _runLayouts) {
+      if (y >= r.y && y < r.y + r.painter.height) return r;
+    }
+    if (_runLayouts.isNotEmpty && y < _runLayouts.first.y) {
+      return _runLayouts.first;
+    }
+    return _runLayouts.last;
+  }
+
+  /// Local caret offset (relative to this render object's text origin, no
+  /// padding) for rendered offset [ri] — resolves the containing run, asks
+  /// that run's own TextPainter, then translates by the run's origin. Shared
+  /// by the public [getOffsetForCaret] and by internal image/hr/checkbox
+  /// paint-position lookups.
+  Offset _caretOffsetForRendered(int ri) {
+    final r = _runForRendered(ri);
+    final localOff = ri - r.run.start;
+    final o =
+        r.painter.getOffsetForCaret(TextPosition(offset: localOff), Rect.zero);
+    return Offset(r.x + o.dx, r.y + o.dy);
+  }
+
+  /// Rendered offset for a text-origin-relative tap/position [textOffset] —
+  /// resolves which run's vertical band the position falls in, then
+  /// delegates to that run's own TextPainter (translating both the query and
+  /// the result by the run's origin).
+  int _renderedOffsetForTextOffset(Offset textOffset) {
+    final r = _runForLocalY(textOffset.dy);
+    final localPos = r.painter
+        .getPositionForOffset(Offset(textOffset.dx - r.x, textOffset.dy - r.y));
+    return r.run.start + localPos.offset;
   }
 
   // -------------------------------------------------------------------------
@@ -217,6 +356,10 @@ class QuikiRenderEditor extends RenderBox {
 
   // -------------------------------------------------------------------------
   // Public helpers — used by QuikiEditorState for input handling.
+  //
+  // Every method below keeps its pre-ADR-34 signature and coordinate
+  // semantics exactly (a single local coordinate space spanning the whole
+  // render object) — quiki_editor.dart's calling code is unchanged.
   // -------------------------------------------------------------------------
 
   /// Maps a local tap offset (relative to this render object's top-left) to a
@@ -230,16 +373,13 @@ class QuikiRenderEditor extends RenderBox {
     final textOffset = localPosition - _padding.topLeft;
     final paintWidth = constraints.maxWidth - _padding.horizontal;
 
-    // Check whether the tap hits a collapsed image rect.
+    // Check whether the tap hits a collapsed image rect. Images are always
+    // indentLevel 0, so their rect spans the full paint width from x = 0.
     double imageYOffset = 0.0;
     for (final slot in _renderModel.imageSlots) {
       final el = slot.element;
       final imgHeight = _imageHeight(slot, paintWidth);
-      final renderedOff = slot.renderedCharOffset;
-      final textCaretOff = _textPainter.getOffsetForCaret(
-        TextPosition(offset: renderedOff),
-        Rect.zero,
-      );
+      final textCaretOff = _caretOffsetForRendered(slot.renderedCharOffset);
       final imageTop = textCaretOff.dy + imageYOffset;
       final imageRect = Rect.fromLTWH(0, imageTop, paintWidth, imgHeight);
 
@@ -254,8 +394,8 @@ class QuikiRenderEditor extends RenderBox {
     }
 
     // Normal text-position mapping.
-    final renderedPos = _textPainter.getPositionForOffset(textOffset);
-    final sourceOffset = _renderModel.sourceForRendered(renderedPos.offset);
+    final ri = _renderedOffsetForTextOffset(textOffset);
+    final sourceOffset = _renderModel.sourceForRendered(ri);
     return TextPosition(offset: sourceOffset);
   }
 
@@ -263,25 +403,34 @@ class QuikiRenderEditor extends RenderBox {
   /// (does NOT include padding — callers add padding.topLeft as needed).
   Offset getOffsetForCaret(TextPosition position) {
     final rOff = _renderModel.renderedForSource(position.offset);
-    return _textPainter.getOffsetForCaret(
-      TextPosition(offset: rOff),
-      Rect.zero,
-    );
+    return _caretOffsetForRendered(rOff);
   }
 
   /// Maps a canvas offset (relative to text origin, no padding) to a
   /// source TextPosition.
   TextPosition getPositionForOffset(Offset textOffset) {
-    final renderedPos = _textPainter.getPositionForOffset(textOffset);
-    final sourceOffset = _renderModel.sourceForRendered(renderedPos.offset);
+    final ri = _renderedOffsetForTextOffset(textOffset);
+    final sourceOffset = _renderModel.sourceForRendered(ri);
     return TextPosition(offset: sourceOffset);
   }
 
-  /// The preferred line height from the TextPainter.
-  double get preferredLineHeight => _textPainter.preferredLineHeight;
+  /// The preferred line height, from the first run's TextPainter.
+  ///
+  /// A pre-existing simplification (unchanged by ADR-34): callers (arrow-key
+  /// line-to-line movement) already treat the whole document as having one
+  /// uniform line height, regardless of cursor position — e.g. a heading line
+  /// and a paragraph line already used the same single value pre-ADR-34, from
+  /// the one whole-document TextPainter. For an indentLevel-0-only document
+  /// there is exactly one run (identical to the pre-ADR-34 single painter),
+  /// so this is byte-identical to before in the common case.
+  double get preferredLineHeight => _runLayouts.isNotEmpty
+      ? _runLayouts.first.painter.preferredLineHeight
+      : 0.0;
 
-  /// The total painted text height (without padding).
-  double get textHeight => _textPainter.height;
+  /// The total painted text height across all runs (without padding, without
+  /// reserved image extra height) — the real, wrap-correct sum of every run's
+  /// height.
+  double get textHeight => _totalTextHeight;
 
   /// The padding insets configured for this editor.
   EdgeInsets get localPadding => _padding;
@@ -294,8 +443,7 @@ class QuikiRenderEditor extends RenderBox {
   /// collapsed [LinkSlot].
   String? linkUrlForOffset(Offset localPosition) {
     final textOffset = localPosition - _padding.topLeft;
-    final renderedPos = _textPainter.getPositionForOffset(textOffset);
-    final ri = renderedPos.offset;
+    final ri = _renderedOffsetForTextOffset(textOffset);
     for (final slot in _renderModel.linkSlots) {
       if (ri >= slot.renderedStart && ri < slot.renderedEnd) {
         return slot.element.url;
@@ -314,14 +462,55 @@ class QuikiRenderEditor extends RenderBox {
   /// matching slot so the caller can locate the 6-char marker in the source.
   int? checkboxSourceOffsetForTap(Offset localPosition) {
     final textOffset = localPosition - _padding.topLeft;
-    final renderedPos = _textPainter.getPositionForOffset(textOffset);
-    final ri = renderedPos.offset;
+    final ri = _renderedOffsetForTextOffset(textOffset);
     for (final slot in _renderModel.checkboxSlots) {
       if (ri >= slot.renderedMarkerStart && ri < slot.renderedMarkerEnd) {
         return slot.element.start;
       }
     }
     return null;
+  }
+
+  // -------------------------------------------------------------------------
+  // Blockquote stripe vertical-extent helper.
+  // -------------------------------------------------------------------------
+
+  /// Vertical extent (top, bottom), in text-origin-relative Y (no padding, no
+  /// canvas offset), of a single blockquote slot's rendered content.
+  ///
+  /// A slot's rendered range always lies entirely within one run (a slot
+  /// corresponds to exactly one source line, and layout runs are grouped by
+  /// exact per-line indent level match — see [RenderModel._computeRuns]), so
+  /// this resolves the slot's containing run once via [slot.renderedStart]
+  /// and asks only that run's own TextPainter.
+  ///
+  /// Uses glyph bounding boxes (BoxHeightStyle.tight) rather than a caret's
+  /// line-box position — getOffsetForCaret returns the top of the *line box*,
+  /// which sits above the visible glyph ink when line height > 1.0 (this
+  /// editor uses 1.4), so a caret-derived stripe would read as too high. Falls
+  /// back to a caret + one line height when the selection is degenerate
+  /// (empty blockquote content), matching the pre-ADR-34 fallback.
+  ({double top, double bottom}) _slotVerticalExtent(BlockquoteSlot slot) {
+    final r = _runForRendered(slot.renderedStart);
+    final localStart = slot.renderedStart - r.run.start;
+    final localEnd = slot.renderedEnd - r.run.start;
+    final boxes = r.painter.getBoxesForSelection(
+      TextSelection(baseOffset: localStart, extentOffset: localEnd),
+      boxHeightStyle: ui.BoxHeightStyle.tight,
+    );
+    if (boxes.isNotEmpty) {
+      var minTop = boxes.first.top;
+      var maxBottom = boxes.first.bottom;
+      for (final b in boxes) {
+        if (b.top < minTop) minTop = b.top;
+        if (b.bottom > maxBottom) maxBottom = b.bottom;
+      }
+      return (top: r.y + minTop, bottom: r.y + maxBottom);
+    }
+    final caret = r.painter
+        .getOffsetForCaret(TextPosition(offset: localStart), Rect.zero);
+    final top = r.y + caret.dy;
+    return (top: top, bottom: top + r.painter.preferredLineHeight);
   }
 
   // -------------------------------------------------------------------------
@@ -334,103 +523,88 @@ class QuikiRenderEditor extends RenderBox {
     final textOrigin = offset + _padding.topLeft;
     final paintWidth = constraints.maxWidth - _padding.horizontal;
 
-    // Draw selection highlight boxes.
+    // Draw selection highlight boxes. A selection may span multiple runs
+    // (e.g. from inside a blockquote to a plain line below it), so it is
+    // clipped and painted per-run rather than in one getBoxesForSelection
+    // call.
     final sel = _selection;
     if (sel.isValid && !sel.isCollapsed) {
       final rStart = _renderModel.renderedForSource(sel.start);
       final rEnd = _renderModel.renderedForSource(sel.end);
-      final boxes = _textPainter.getBoxesForSelection(
-        TextSelection(baseOffset: rStart, extentOffset: rEnd),
-      );
       final highlightPaint = Paint()
         ..color = _selectionColor
         ..style = PaintingStyle.fill;
-      for (final box in boxes) {
-        canvas.drawRect(box.toRect().shift(textOrigin), highlightPaint);
+      for (final r in _runLayouts) {
+        final segStart = rStart > r.run.start ? rStart : r.run.start;
+        final segEnd = rEnd < r.run.end ? rEnd : r.run.end;
+        if (segStart >= segEnd) continue;
+        final boxes = r.painter.getBoxesForSelection(
+          TextSelection(
+            baseOffset: segStart - r.run.start,
+            extentOffset: segEnd - r.run.start,
+          ),
+        );
+        final runOrigin = textOrigin + Offset(r.x, r.y);
+        for (final box in boxes) {
+          canvas.drawRect(box.toRect().shift(runOrigin), highlightPaint);
+        }
       }
     }
 
-    // Draw text.
-    _textPainter.paint(canvas, textOrigin);
+    // Draw text — one run at a time, each at its own (x, y) origin.
+    for (final r in _runLayouts) {
+      r.painter.paint(canvas, textOrigin + Offset(r.x, r.y));
+    }
 
-    // Draw blockquote left border stripes.
+    // Draw blockquote left border stripes — one stripe per active nesting
+    // level, with per-level continuity (ADR-34): a level-K stripe spans every
+    // consecutive line whose depth is >= K, not just lines with exactly
+    // matching depth. Level 1 sits leftmost in the indent gutter; deeper
+    // levels sit progressively further right; content starts just past the
+    // deepest active level for that line (that line's own run X-offset).
     //
-    // Consecutive blockquote source lines form a single quoted block with one
-    // continuous border (GFM/GitHub behavior), so adjacent slots are merged
-    // into runs and each run is painted as one stripe. The stripe spans the
-    // full vertical extent of the run's content — from the top of its first
-    // visual row to the bottom of its last visual row — so a line that wraps to
-    // several rows, or several stacked lines, all get one unbroken stripe
-    // (rather than a one-line-tall segment per source line).
-    //
-    // The stripe is painted in the left content margin with a small gap before
-    // the text (like GitHub's border-then-gap-then-text), instead of directly
-    // over the first glyph. Revealed blockquote lines carry no slot (they show
-    // raw source), so a run naturally breaks around them.
+    // The stripe is painted in the content's own indent gutter, gapPx to the
+    // left of that level's own column, instead of directly over the first
+    // glyph — like GitHub's border-then-gap-then-text. Revealed blockquote
+    // lines carry no slot (they show raw source at indentLevel 0), so a run
+    // naturally breaks around them, same as the pre-ADR-34 single-level case.
     const Color blockquoteBorderColor = Color(0xFF7A828E);
     const double blockquoteStripeWidth = 3.0;
-    const double blockquoteTextGap = 8.0;
-    for (final run in groupBlockquoteRuns(_renderModel.blockquoteSlots)) {
-      // Vertical extent: use the glyph bounding boxes for the run's rendered
-      // content span rather than a caret's line-box position. getOffsetForCaret
-      // returns the top of the *line box*, which — with a line height > 1.0 (the
-      // editor uses height: 1.4) — sits noticeably above the visible text ink, so
-      // a caret-derived stripe reads as too high / belonging to the line above.
-      // getBoxesForSelection with BoxHeightStyle.tight returns boxes that hug the
-      // text's ascent/descent, so the stripe tracks where the glyphs actually
-      // are. A multi-row run (wrapped content, or several merged lines) yields
-      // several boxes; span from the highest top to the lowest bottom.
-      double top;
-      double bottom;
-      final boxes = _textPainter.getBoxesForSelection(
-        TextSelection(
-          baseOffset: run.first.renderedStart,
-          extentOffset: run.last.renderedEnd,
-        ),
-        boxHeightStyle: ui.BoxHeightStyle.tight,
-      );
-      if (boxes.isNotEmpty) {
-        var minTop = boxes.first.top;
-        var maxBottom = boxes.first.bottom;
-        for (final b in boxes) {
-          if (b.top < minTop) minTop = b.top;
-          if (b.bottom > maxBottom) maxBottom = b.bottom;
+    const double blockquoteLevelGap = 4.0;
+    final grouped = groupBlockquoteRunsByLevel(_renderModel.blockquoteSlots);
+    final levels = grouped.keys.toList()..sort();
+    for (final level in levels) {
+      for (final stripeRun in grouped[level]!) {
+        double? top;
+        double? bottom;
+        for (final slot in stripeRun) {
+          final ext = _slotVerticalExtent(slot);
+          top = (top == null || ext.top < top) ? ext.top : top;
+          bottom =
+              (bottom == null || ext.bottom > bottom) ? ext.bottom : bottom;
         }
-        top = textOrigin.dy + minTop;
-        bottom = textOrigin.dy + maxBottom;
-      } else {
-        // Fallback (e.g. a degenerate empty selection returns no boxes): use the
-        // caret-based line box so the stripe is never dropped entirely.
-        final caret = _textPainter.getOffsetForCaret(
-          TextPosition(offset: run.first.renderedStart),
-          Rect.zero,
+        if (top == null || bottom == null) continue; // unreachable (>=1 slot)
+
+        final stripeX =
+            textOrigin.dx + (level - 1) * _indentUnit + blockquoteLevelGap;
+        canvas.drawRect(
+          Rect.fromLTRB(
+            stripeX,
+            textOrigin.dy + top,
+            stripeX + blockquoteStripeWidth,
+            textOrigin.dy + bottom,
+          ),
+          Paint()
+            ..color = blockquoteBorderColor
+            ..style = PaintingStyle.fill,
         );
-        top = textOrigin.dy + caret.dy;
-        bottom = top + _textPainter.preferredLineHeight;
       }
-
-      // Sit the stripe in the left margin, gap px to the left of the text.
-      // Clamp so it never crosses the render object's left edge when the
-      // configured left padding is smaller than the stripe + gap.
-      var stripeLeft =
-          textOrigin.dx - blockquoteTextGap - blockquoteStripeWidth;
-      if (stripeLeft < offset.dx) stripeLeft = offset.dx;
-
-      canvas.drawRect(
-        Rect.fromLTRB(
-            stripeLeft, top, stripeLeft + blockquoteStripeWidth, bottom),
-        Paint()
-          ..color = blockquoteBorderColor
-          ..style = PaintingStyle.fill,
-      );
     }
 
-    // Draw horizontal rules for collapsed hr slots.
-    //
-    // For each collapsed hr line, look up the Y position via
-    // TextPainter.getOffsetForCaret() at the hr's renderedCharOffset.  Paint
-    // a 1px-wide horizontal line in muted color (#9ea7b4) at the vertical
-    // midpoint of where that line of text would sit.
+    // Draw horizontal rules for collapsed hr slots. Always indentLevel 0
+    // (hr detection isn't reachable inside a blockquote — the parser treats
+    // any '>'-prefixed line as blockquote content first), so the line spans
+    // the full paint width exactly as before ADR-34.
     const Color hrColor = Color(0xFF9EA7B4);
     for (final hr in _renderModel.hrSlots) {
       final el = hr.element;
@@ -438,11 +612,9 @@ class QuikiRenderEditor extends RenderBox {
       final revealed = cursorSrc >= el.start && cursorSrc <= el.end;
       if (revealed) continue;
 
-      final caretOffset = _textPainter.getOffsetForCaret(
-        TextPosition(offset: hr.renderedCharOffset),
-        Rect.zero,
-      );
-      final lineHeight = _textPainter.preferredLineHeight;
+      final caretOffset = _caretOffsetForRendered(hr.renderedCharOffset);
+      final lineHeight =
+          _runForRendered(hr.renderedCharOffset).painter.preferredLineHeight;
       // Horizontal line at vertical midpoint of the line.
       final midY = textOrigin.dy + caretOffset.dy + lineHeight / 2;
       canvas.drawLine(
@@ -462,17 +634,17 @@ class QuikiRenderEditor extends RenderBox {
     // or a small monochrome symbol depending on what precedes it in the same
     // document — see #267. Drawing the box/checkmark ourselves sidesteps
     // font fallback entirely and guarantees consistent, theme-aware output.
+    // Checkboxes are always indentLevel 0 (not nestable inside a blockquote
+    // in Stage 1's parser), so this is unaffected by run indentation.
     for (final cb in _renderModel.checkboxSlots) {
       final el = cb.element;
       final cursorSrc = sel.isValid ? sel.baseOffset : -1;
       final revealed = cursorSrc >= el.start && cursorSrc <= el.end;
       if (revealed) continue;
 
-      final caretOffset = _textPainter.getOffsetForCaret(
-        TextPosition(offset: cb.renderedMarkerStart),
-        Rect.zero,
-      );
-      final lineHeight = _textPainter.preferredLineHeight;
+      final caretOffset = _caretOffsetForRendered(cb.renderedMarkerStart);
+      final lineHeight =
+          _runForRendered(cb.renderedMarkerStart).painter.preferredLineHeight;
       // Fixed fraction of line height, independent of the reserved marker
       // width: the box is a tap target, so it must stay a comfortable,
       // predictable size rather than shrinking to whatever gap happens to
@@ -520,39 +692,37 @@ class QuikiRenderEditor extends RenderBox {
     // Draw images (or placeholders) for collapsed image slots.
     //
     // Each image slot corresponds to a line that emits no rendered characters.
-    // The TextPainter gives such a line zero height.  We look up the rendered
-    // char offset of each slot, ask the TextPainter for the Y coordinate of
-    // that position, then paint the image or placeholder rect at that Y.
+    // Its own run's TextPainter gives such a line zero height. We look up the
+    // rendered char offset of each slot via the run-resolved caret position,
+    // then paint the image or placeholder rect at that Y.
     //
     // We track a cumulative vertical offset [imageYOffset] to account for the
-    // extra height we added for previously-painted slots (since the TextPainter
-    // is unaware of image heights, all subsequent slots are shifted down by the
-    // sum of heights of all image slots above them).
+    // extra height we added for previously-painted slots (since no run's
+    // TextPainter is aware of image heights, all subsequent slots are shifted
+    // down by the sum of heights of all image slots above them). This is the
+    // exact pre-ADR-34 approach, carried over unchanged — images stay out of
+    // scope for this stage (always indentLevel 0), so their interaction with
+    // surrounding content is neither improved nor regressed here.
     double imageYOffset = 0.0;
     for (final slot in _renderModel.imageSlots) {
       // Skip revealed elements: the raw source text is already visible via
-      // the TextPainter and no separate image painting is needed.
+      // the containing run's TextPainter and no separate image painting is
+      // needed.
       final el = slot.element;
       final cursorSrc = sel.isValid ? sel.baseOffset : -1;
       final revealed = cursorSrc >= el.start && cursorSrc <= el.end;
       if (revealed) {
         // Even though we skip painting, we still account for the height of
         // revealed image lines.  In practice a revealed image line IS painted
-        // by the TextPainter (raw source chars are visible), and the layout
-        // step reserved placeholder height for it.  We skip both painting and
-        // the offset accumulation here because the TextPainter already placed
-        // those characters at the correct Y position.
+        // by its run's TextPainter (raw source chars are visible), and the
+        // layout step reserved placeholder height for it.  We skip both
+        // painting and the offset accumulation here because the TextPainter
+        // already placed those characters at the correct Y position.
         continue;
       }
 
       final imgHeight = _imageHeight(slot, paintWidth);
-      final renderedOff = slot.renderedCharOffset;
-
-      // Look up the Y position in TextPainter space for this slot.
-      final textCaretOff = _textPainter.getOffsetForCaret(
-        TextPosition(offset: renderedOff),
-        Rect.zero,
-      );
+      final textCaretOff = _caretOffsetForRendered(slot.renderedCharOffset);
 
       // The actual top-left of the image rect in canvas space.
       final imageTop = textOrigin.dy + textCaretOff.dy + imageYOffset;
@@ -588,17 +758,15 @@ class QuikiRenderEditor extends RenderBox {
     // Draw caret when focused and selection is collapsed.
     if (_focused && sel.isValid && sel.isCollapsed) {
       final rOff = _renderModel.renderedForSource(sel.baseOffset);
-      final caretOffset = _textPainter.getOffsetForCaret(
-        TextPosition(offset: rOff),
-        Rect.zero,
-      );
-      final caretHeight = _textPainter.getFullHeightForCaret(
-        TextPosition(offset: rOff),
-        Rect.zero,
-      );
+      final r = _runForRendered(rOff);
+      final localOff = rOff - r.run.start;
+      final caretOffset = r.painter
+          .getOffsetForCaret(TextPosition(offset: localOff), Rect.zero);
+      final caretHeight = r.painter
+          .getFullHeightForCaret(TextPosition(offset: localOff), Rect.zero);
       final caretRect = Rect.fromLTWH(
-        textOrigin.dx + caretOffset.dx,
-        textOrigin.dy + caretOffset.dy,
+        textOrigin.dx + r.x + caretOffset.dx,
+        textOrigin.dy + r.y + caretOffset.dy,
         2.0,
         caretHeight,
       );

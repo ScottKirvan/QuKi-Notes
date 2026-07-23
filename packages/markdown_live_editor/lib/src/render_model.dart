@@ -84,6 +84,58 @@ List<List<BlockquoteSlot>> groupBlockquoteRuns(List<BlockquoteSlot> slots) {
   return runs;
 }
 
+/// Groups blockquote stripe slots into one run-list **per nesting level**
+/// (ADR-34), generalizing [groupBlockquoteRuns] to nested blockquotes.
+///
+/// For a given level K (1-indexed), a level-K stripe must span every
+/// consecutive line whose depth is `>= K` — not just lines whose depth
+/// exactly equals K — matching GFM/GitHub nested-blockquote rendering: an
+/// outer quote's border spans its entire range *including* any deeper-nested
+/// content inside it, while an inner level's border only spans where that
+/// deeper nesting actually continues. For example:
+///
+/// ```
+/// > level 1 line
+/// >> level 2 line
+/// > level 1 again
+/// ```
+///
+/// stripe-level-1 spans all three lines continuously, and stripe-level-2
+/// spans only the middle line. Implemented as: for each level K from 1 to the
+/// deepest depth present, filter to slots whose `element.indentLevel >= K`,
+/// then merge consecutively-adjacent survivors exactly as [groupBlockquoteRuns]
+/// does — adjacency is defined purely by source-line adjacency (one `\n`
+/// apart), independent of the exact depth at each line, which is what gives
+/// the correct per-level continuity without any special-casing.
+///
+/// The returned map's keys are the 1-indexed levels present among [slots].
+/// Iterate them in ascending order to paint outermost stripes first (level 1
+/// sits leftmost in the indent gutter).
+Map<int, List<List<BlockquoteSlot>>> groupBlockquoteRunsByLevel(
+  List<BlockquoteSlot> slots,
+) {
+  if (slots.isEmpty) return const {};
+  var maxLevel = 0;
+  for (final s in slots) {
+    if (s.element.indentLevel > maxLevel) maxLevel = s.element.indentLevel;
+  }
+  final result = <int, List<List<BlockquoteSlot>>>{};
+  for (var level = 1; level <= maxLevel; level++) {
+    final runs = <List<BlockquoteSlot>>[];
+    for (final slot in slots) {
+      if (slot.element.indentLevel < level) continue;
+      if (runs.isNotEmpty &&
+          runs.last.last.element.end + 1 == slot.element.start) {
+        runs.last.add(slot);
+      } else {
+        runs.add([slot]);
+      }
+    }
+    if (runs.isNotEmpty) result[level] = runs;
+  }
+  return result;
+}
+
 // ---------------------------------------------------------------------------
 // HrSlot — carries one hr element and its rendered position, so
 // QuikiRenderEditor can paint the horizontal rule line.
@@ -177,6 +229,96 @@ class LinkSlot {
 }
 
 // ---------------------------------------------------------------------------
+// RenderRun — a maximal span of the flat rendered text sharing one indent
+// level (ADR-34 / block_indentation.md).
+// ---------------------------------------------------------------------------
+
+/// Describes one layout run: a maximal, contiguous range of the rendered
+/// text (in rendered-offset space, matching [RenderModel.sourceToRendered] /
+/// [RenderModel.renderedToSource]) whose source lines all share the same
+/// [indentLevel].
+///
+/// General mechanism, not blockquote-specific — any block kind that sets
+/// [MdElement.indentLevel] contributes to run boundaries the same way. A
+/// document with no indented content produces exactly one run spanning
+/// `[0, renderedLength)` at [indentLevel] 0, matching the pre-ADR-34
+/// single-`TextPainter` behavior exactly.
+///
+/// [start] and [end] include each covered line's trailing newline character
+/// (the rendered '\n', when one exists) — i.e. a run's range extends up to
+/// (but not including) the next run's [start]. This keeps every rendered
+/// offset in `[0, renderedLength]` covered by exactly one run (with the
+/// renderedLength end-sentinel resolving into the last run), which is what
+/// lets consumers do a single linear/binary search rather than special-case
+/// the newline between two differently-indented lines.
+class RenderRun {
+  const RenderRun({
+    required this.start,
+    required this.end,
+    required this.indentLevel,
+  });
+
+  /// Rendered offset of the first character covered by this run.
+  final int start;
+
+  /// Rendered offset just past the last character covered by this run
+  /// (exclusive).
+  final int end;
+
+  /// Indent depth shared by every source line in this run. 0 = no indent.
+  final int indentLevel;
+}
+
+// ---------------------------------------------------------------------------
+// sliceTextSpan — extracts the rendered characters in [start, end) from a
+// TextSpan produced by RenderModel.build(), preserving per-leaf styling.
+// ---------------------------------------------------------------------------
+
+/// Returns a new [TextSpan] containing only the rendered characters in
+/// `[start, end)` of [span], preserving each leaf's style.
+///
+/// [span] must have the shape [RenderModel.build] always produces: either a
+/// single flat span (`text` non-null, no children) or a flat list of leaf
+/// `TextSpan` children (each with non-null `text` and no further nesting).
+/// Any other shape is not supported.
+///
+/// Used by the render layer to build one narrower [TextPainter] per
+/// [RenderRun] from slices of the single flat rendered TextSpan that
+/// [RenderModel.build] already produces — the offset-mapping/inline-styling
+/// machinery in [RenderModel] does not need to change for multi-run layout
+/// (ADR-34); only this slicing step is new.
+TextSpan sliceTextSpan(TextSpan span, int start, int end) {
+  if (start >= end) return const TextSpan(text: '');
+  final children = span.children;
+  if (children == null || children.isEmpty) {
+    final text = span.text ?? '';
+    final s = start.clamp(0, text.length);
+    final e = end.clamp(0, text.length);
+    if (s >= e) return const TextSpan(text: '');
+    return TextSpan(text: text.substring(s, e), style: span.style);
+  }
+  final out = <TextSpan>[];
+  var leafStart = 0;
+  for (final child in children) {
+    final leaf = child as TextSpan;
+    final text = leaf.text ?? '';
+    final leafEnd = leafStart + text.length;
+    if (leafEnd > start && leafStart < end) {
+      final sliceStart = (start - leafStart).clamp(0, text.length);
+      final sliceEnd = (end - leafStart).clamp(0, text.length);
+      if (sliceStart < sliceEnd) {
+        out.add(TextSpan(
+          text: text.substring(sliceStart, sliceEnd),
+          style: leaf.style,
+        ));
+      }
+    }
+    leafStart = leafEnd;
+  }
+  return TextSpan(children: out.isEmpty ? null : out);
+}
+
+// ---------------------------------------------------------------------------
 // RenderModel — builds a rendered TextSpan tree and bidirectional offset
 // mappings from a parsed element list and a cursor position.
 // ---------------------------------------------------------------------------
@@ -192,6 +334,7 @@ class RenderModel {
     this.checkboxSlots = const [],
     this.blockquoteSlots = const [],
     this.hrSlots = const [],
+    this.runs = const [],
   });
 
   /// The rendered TextSpan to pass to TextPainter.  Contains only visible
@@ -236,6 +379,13 @@ class RenderModel {
   /// paint a thin horizontal line in place of the source text.
   final List<HrSlot> hrSlots;
 
+  /// Layout run boundaries (ADR-34 / block_indentation.md), in ascending,
+  /// non-overlapping, contiguous order — together they cover
+  /// `[0, renderedLength]` (the end sentinel resolves into the last run).
+  /// QuikiRenderEditor lays out one `TextPainter` per run, at a width reduced
+  /// by and an X-offset derived from that run's [RenderRun.indentLevel].
+  final List<RenderRun> runs;
+
   int renderedForSource(int srcOff) =>
       sourceToRendered[srcOff.clamp(0, sourceToRendered.length - 1)];
 
@@ -252,6 +402,10 @@ class RenderModel {
     checkboxSlots: const [],
     blockquoteSlots: const [],
     hrSlots: const [],
+    // A single degenerate level-0 run so QuikiRenderEditor's run-resolution
+    // logic never needs a special case for empty source — it always has at
+    // least one run to lay out and place the caret in.
+    runs: const [RenderRun(start: 0, end: 0, indentLevel: 0)],
   );
 
   /// Build a [RenderModel] from [source], parsed [elements], and the current
@@ -519,6 +673,22 @@ class RenderModel {
       ));
     }
 
+    // Layout runs (post-pass, ADR-34). One indent level per source line,
+    // looked up via the now-complete srcToRnd map and merged into maximal
+    // consecutive-same-level runs in rendered-offset space. A revealed
+    // blockquote line (cursor inside — raw source visible, '>' markers and
+    // all) is treated as indentLevel 0: the marker itself already shows the
+    // nesting as literal text, so no additional layout indent applies, and
+    // this also means a still-collapsed run above/below a revealed line
+    // correctly breaks there (matching how it also gets no blockquoteSlot).
+    final runs = _computeRuns(
+      source: source,
+      blocks: blocks,
+      cursorOffset: cursorOffset,
+      srcToRnd: srcToRnd,
+      renderedLength: ri,
+    );
+
     return RenderModel._(
       textSpan: TextSpan(children: spans.isEmpty ? null : spans),
       renderedLength: ri,
@@ -529,7 +699,66 @@ class RenderModel {
       checkboxSlots: checkboxes,
       blockquoteSlots: blockquotes,
       hrSlots: hrs,
+      runs: runs,
     );
+  }
+
+  /// Computes [RenderRun] boundaries — see the field doc on [runs].
+  ///
+  /// Walks source lines independently of the main per-character loop (which
+  /// has already finished and fully populated [srcToRnd] by the time this
+  /// runs), determines each line's indent level, and merges consecutive
+  /// lines sharing a level into one run. A run's rendered range includes each
+  /// covered line's trailing newline (assigned to the *preceding* line, not
+  /// the next), so runs are contiguous and non-overlapping.
+  static List<RenderRun> _computeRuns({
+    required String source,
+    required List<MdElement> blocks,
+    required int cursorOffset,
+    required List<int> srcToRnd,
+    required int renderedLength,
+  }) {
+    final lines = source.split('\n');
+    final result = <RenderRun>[];
+    var lineStart = 0;
+    var bi = 0;
+    for (var li = 0; li < lines.length; li++) {
+      final line = lines[li];
+      final thisLineStart = lineStart;
+      final thisLineEnd = thisLineStart + line.length; // excludes trailing \n
+      final isLast = li == lines.length - 1;
+      // Rendered lookup boundary for "one past this line's content and its
+      // trailing newline" — the next line's start, or the end sentinel for
+      // the last line (which has no trailing '\n' to skip past).
+      final nextLineSrcOffset = isLast ? source.length : thisLineEnd + 1;
+
+      while (bi < blocks.length && blocks[bi].end < thisLineStart) {
+        bi++;
+      }
+      final block = (bi < blocks.length && blocks[bi].start == thisLineStart)
+          ? blocks[bi]
+          : null;
+
+      var level = 0;
+      if (block != null && block.kind == MdElKind.blockquote) {
+        final revealed =
+            cursorOffset >= block.start && cursorOffset <= block.end;
+        if (!revealed) level = block.indentLevel;
+      }
+
+      final rStart = srcToRnd[thisLineStart];
+      final rEnd = srcToRnd[nextLineSrcOffset];
+
+      if (result.isNotEmpty && result.last.indentLevel == level) {
+        result[result.length - 1] =
+            RenderRun(start: result.last.start, end: rEnd, indentLevel: level);
+      } else {
+        result.add(RenderRun(start: rStart, end: rEnd, indentLevel: level));
+      }
+
+      lineStart = thisLineEnd + 1; // start of the next line; unused after last
+    }
+    return result;
   }
 }
 
