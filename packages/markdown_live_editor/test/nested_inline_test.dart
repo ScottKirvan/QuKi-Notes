@@ -23,12 +23,17 @@ MdElement? _first(String src, MdElKind kind) {
 
 const _base = TextStyle(fontSize: 16.0, color: Color(0xFFFFFFFF));
 
-/// The blank-character indent a collapsed blockquote reserves in front of its
-/// content (ADR-33 Stage 4, blockquote-indent round). Mirrors
-/// [MdElement.collapsedMarker] for [MdElKind.blockquote] — kept as a named
-/// constant so the rendered-offset expectations below read intentionally rather
-/// than as magic numbers, and stay correct if the reserved width is retuned.
-const _bqIndent = '    '; // four spaces
+/// Prefix a collapsed blockquote's rendered content carries at the
+/// RenderModel/TextSpan level. ADR-33 Stage 4 reserved four blank characters
+/// here so the quoted content sat visibly indented; ADR-34 removed that
+/// reservation — visual indentation now comes entirely from QuikiRenderEditor
+/// laying the blockquote's line out as its own narrower, offset layout run
+/// (see block_indentation_test.dart), which — unlike the blank-character
+/// trick — survives word-wrap. RenderModel's own rendered text for a
+/// collapsed blockquote is therefore just its content, with no reserved
+/// prefix; this constant stays (now empty) so the expressions below that use
+/// it read the same as they did pre-ADR-34.
+const _bqIndent = '';
 
 RenderModel _build(String source, {int cursorOffset = -1}) {
   return RenderModel.build(
@@ -1000,62 +1005,16 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
-  // RenderModel — blockquote content is horizontally indented from plain
-  // paragraph text (ADR-33 Stage 4, blockquote-indent round). The bug this
-  // guards: blockquote content and plain paragraph content used to start at the
-  // exact same x, because the '>'/'> ' marker was a zero-width hidden delimiter.
-  // The collapsedMarker now reserves real blank width, so the quoted content
-  // renders visibly to the right — the way GitHub/CommonMark indent it.
-  //
-  // The assertion is on actual laid-out glyph x-positions (not a golden image),
-  // so it is geometry, not an eyeball check. Placeholder-box test fonts and real
-  // device fonts differ in absolute space width, so the test pins the indent to
-  // the reserved marker's own measured width rather than to a fixed pixel count.
+  // Blockquote horizontal indentation moved to QuikiRenderEditor (ADR-34):
+  // RenderModel's own rendered TextSpan no longer carries any indent-related
+  // content (see _bqIndent above), so there is nothing left to assert on
+  // dx-within-a-single-unwrapped-TextPainter here — that was the pre-ADR-34
+  // mechanism this stage replaced (it never survived word-wrap, which is the
+  // bug ADR-34 exists to fix). The equivalent, now wrap-correct, geometry
+  // assertions live in block_indentation_test.dart against the real
+  // QuikiRenderEditor render object (its public getOffsetForCaret), including
+  // the wrapped-line case this file's old version couldn't express at all.
   // -------------------------------------------------------------------------
-  group('RenderModel — blockquote content horizontal indent', () {
-    // Rendered-x of the caret at [renderedOffset] in a laid-out (unwrapped) span.
-    double dxAt(RenderModel m, int renderedOffset) {
-      final tp = TextPainter(
-        text: m.textSpan,
-        textDirection: TextDirection.ltr,
-      )..layout();
-      return tp
-          .getOffsetForCaret(TextPosition(offset: renderedOffset), Rect.zero)
-          .dx;
-    }
-
-    double spaceWidth() {
-      final tp = TextPainter(
-        text: const TextSpan(text: ' ', style: _base),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      return tp.width;
-    }
-
-    test('blockquote content starts strictly right of paragraph content', () {
-      // Line 0: a plain paragraph. Line 1: a blockquote. Both content runs start
-      // on their own visual row at x measured from the same left origin.
-      final m = _build('plain\n> quote', cursorOffset: -1);
-      final rendered = m.textSpan.toPlainText(); // 'plain\n    quote'
-      final pDx = dxAt(m, rendered.indexOf('plain'));
-      final qDx = dxAt(m, rendered.indexOf('quote'));
-      expect(pDx, closeTo(0.0, 0.01),
-          reason: 'plain paragraph content is not indented');
-      expect(qDx, greaterThan(pDx),
-          reason: 'blockquote content must be pushed to the right');
-    });
-
-    test('indent equals exactly the reserved marker width', () {
-      // The horizontal offset between the two content runs is precisely the
-      // reserved blank indent (four spaces), independent of the font's absolute
-      // space width — this ties the visual indent to collapsedMarker.
-      final m = _build('plain\n> quote', cursorOffset: -1);
-      final rendered = m.textSpan.toPlainText();
-      final pDx = dxAt(m, rendered.indexOf('plain'));
-      final qDx = dxAt(m, rendered.indexOf('quote'));
-      expect(qDx - pDx, closeTo(_bqIndent.length * spaceWidth(), 0.5));
-    });
-  });
 
   // -------------------------------------------------------------------------
   // RenderModel — the left border stripe (BlockquoteSlot) still paints when the

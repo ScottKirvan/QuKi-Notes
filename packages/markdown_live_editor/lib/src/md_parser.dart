@@ -44,6 +44,7 @@ class MdElement {
     int srcMarkerLen = 0,
     this.imagePath = '',
     this.url = '',
+    this.indentLevel = 0,
   }) : _srcMarkerLen = srcMarkerLen;
 
   /// Kind of markdown element.
@@ -68,8 +69,11 @@ class MdElement {
   /// [seqNum].
   ///
   /// For [MdElKind.blockquote]: the marker length, which is variable per
-  /// CommonMark — 2 for `> ` (`>` + a single space) and 1 for a bare `>`
-  /// (`>` alone, or `>content` with no space). See [openDelimLen].
+  /// CommonMark and now also depth-dependent — however many source
+  /// characters the depth-counting loop consumed peeling off `>` prefixes
+  /// (each `>`, optionally followed by one space, consumes one level). 2 for
+  /// a single-level `> `, 1 for a single bare `>`, and more for deeper
+  /// nesting (`>>`, `> > `, etc. — see [indentLevel]). See [openDelimLen].
   ///
   /// 0 (unused) for every other kind, whose marker length is fixed.
   final int _srcMarkerLen;
@@ -83,6 +87,16 @@ class MdElement {
   /// The content between `](` and the final `)`.
   /// Empty string for all non-link kinds.
   final String url;
+
+  /// Block indent depth (ADR-34 / block_indentation.md), 0 for a top-level
+  /// block. General mechanism, not blockquote-specific: any block kind whose
+  /// content should be laid out in its own narrower, offset region can set
+  /// this. Currently only [MdElKind.blockquote] sets a non-zero value — the
+  /// nesting depth computed by peeling `>` prefixes (a bare `>` or `> `
+  /// consumes one level each). [RenderModel] groups consecutive rendered
+  /// lines sharing the same [indentLevel] into layout runs; list-item
+  /// indentation (a later stage) reuses this same field.
+  final int indentLevel;
 
   /// True if [offset] falls within this element's source range.
   bool containsOffset(int offset) => offset >= start && offset < end;
@@ -184,8 +198,8 @@ class MdElement {
   /// tight gap — so five characters is a deliberately generous reservation
   /// to keep the box clear of the following content text.
   ///
-  /// For [MdElKind.blockquote]: returns four blank characters that reserve
-  /// horizontal indentation for the quoted content (see the switch below).
+  /// For [MdElKind.blockquote]: returns `''` (no substitution glyph) — see the
+  /// switch below and [indentLevel].
   ///
   /// For [MdElKind.image]: returns `''` — the image is not a text substitution;
   /// the render object (QuikiRenderEditor) handles painting the image or
@@ -194,19 +208,21 @@ class MdElement {
         MdElKind.ul => '• ',
         MdElKind.checkboxUnchecked || MdElKind.checkboxChecked => '     ',
         MdElKind.ol => '$seqNum. ',
-        // Blockquote: four blank characters reserve horizontal indentation so the
-        // quoted content sits visibly to the right of plain paragraph text, the
-        // way GitHub/CommonMark indent blockquote content — reusing the same
-        // marker-substitution path as list/checkbox markers rather than a bespoke
-        // mechanism. The `>`/`> ` source marker is hidden; these spaces render in
-        // its place. The count approximates GitHub's ~1em content indent: a space
-        // is roughly 0.25em wide in a typical proportional font, so four spaces
-        // ≈ 1em on a real device. (In the widget-test font every glyph — space
-        // included — is a 1em box, so goldens show a proportionally wider indent
-        // than a device does; the count is tuned for the device, not the golden.)
-        MdElKind.blockquote => '    ',
-        // Heading, inline (incl. escape), image, link, and autolink elements:
-        // no text substitution glyph.
+        // Heading, blockquote, inline (incl. escape), image, link, and autolink
+        // elements: no text substitution glyph.
+        //
+        // Blockquote content used to reserve horizontal indentation here as
+        // blank characters (ADR-33 Stage 4) — the same trick proven for list/
+        // checkbox markers. Device testing showed that trick only indents a
+        // line's first visual row: Flutter's word-wrap has no way to re-apply a
+        // leading-character indent after breaking a line, so wrapped
+        // continuation rows snapped back to the margin. ADR-34 replaces it with
+        // real layout indentation — QuikiRenderEditor lays out each run of
+        // lines sharing an [indentLevel] as its own narrower, offset region,
+        // which survives wrapping. Reserving blank characters here too would
+        // double-indent a blockquote's first row relative to its own wrapped
+        // continuation rows, so the reservation is removed rather than kept
+        // alongside the fix.
         _ => '',
       };
 
@@ -353,18 +369,23 @@ class MdParser {
         // Step 2c — Blockquote. Per CommonMark, the marker is `>` optionally
         // followed by a single space, so every line beginning with `>` is a
         // blockquote: `> content` (marker '> ', 2 chars), and `>content` or a
-        // bare `>` alone (marker '>', 1 char — no space to consume). The marker
-        // length is therefore variable and stored in srcMarkerLen so
-        // openDelimLen / isDelimiter report it correctly.
+        // bare `>` alone (marker '>', 1 char — no space to consume). Nesting
+        // (ADR-34) generalizes this: the marker is peeled recursively — each
+        // `>`, optionally followed by one space, consumes one level, so
+        // `>> text` / `> > text` are depth 2, `>>> text` is depth 3, and so on.
+        // The marker length is however many characters the depth-counting loop
+        // consumed, stored in srcMarkerLen so openDelimLen / isDelimiter report
+        // it correctly; the depth itself is stored in indentLevel.
       } else if (line.startsWith('>')) {
         olBlockStart = 0;
         olRunCount = 0;
-        final markerLen = (line.length > 1 && line[1] == ' ') ? 2 : 1;
+        final (depth, markerLen) = _blockquoteDepth(line);
         result.add(MdElement(
           kind: MdElKind.blockquote,
           start: lineStart,
           end: lineEnd,
           srcMarkerLen: markerLen,
+          indentLevel: depth,
         ));
         // Scan the content after the marker inline (ADR-33 Stage 4). For an
         // empty blockquote ('>' or '> ' alone) start == end, so _scanInline
@@ -497,6 +518,29 @@ class MdParser {
   static bool _isDigit(String ch) {
     final code = ch.codeUnitAt(0);
     return code >= 0x30 && code <= 0x39;
+  }
+
+  /// Computes blockquote nesting depth and total marker length for [line]
+  /// (ADR-34), which must start with `>`.
+  ///
+  /// Peels `>` prefixes left to right: each `>`, optionally followed by
+  /// exactly one space (before the next `>` or the content), consumes one
+  /// level. Returns `(depth, markerLen)` where `markerLen` is the number of
+  /// source characters consumed — i.e. where the quoted content begins.
+  ///
+  /// Examples: `'> x'` → (1, 2); `'>x'` → (1, 1); `'>> x'` → (2, 3);
+  /// `'> > x'` → (2, 4); `'>>>x'` → (3, 3).
+  static (int, int) _blockquoteDepth(String line) {
+    var depth = 0;
+    var i = 0;
+    while (i < line.length && line[i] == '>') {
+      depth++;
+      i++;
+      if (i < line.length && line[i] == ' ') {
+        i++;
+      }
+    }
+    return (depth, i);
   }
 
   /// Returns true if [line] is a GFM horizontal rule.
