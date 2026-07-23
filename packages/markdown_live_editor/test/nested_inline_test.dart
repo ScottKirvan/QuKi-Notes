@@ -738,44 +738,57 @@ void main() {
   // with no list-specific special-casing (ADR-33 Stage 2).
   // -------------------------------------------------------------------------
   group('RenderModel — inline formatting in list items', () {
-    test('"- **bold**" collapsed → "• bold", content is bold', () {
+    // ADR-34 Fix 2 (block_indentation.md) removed the inline collapsedMarker
+    // substitution for ul/ol/checkbox — the bullet dot, ol number, and
+    // checkbox box are now painted by QuikiRenderEditor as a gutter
+    // decoration via ListMarkerSlot/CheckboxSlot, not emitted into the
+    // rendered TextSpan. So a list line's rendered text is now content-only,
+    // same as it already was for a blockquote line.
+    test('"- **bold**" collapsed → "bold", content is bold', () {
       final m = _build('- **bold**', cursorOffset: -1);
-      expect(m.textSpan.toPlainText(), '• bold');
-      // '• ' marker (2 chars) then 'bold'; the 'b' is at rendered offset 2.
-      expect(_styleAtRendered(m, 2)?.fontWeight, FontWeight.bold);
+      expect(m.textSpan.toPlainText(), 'bold');
+      // No marker consumes rendered width; 'b' is at rendered offset 0.
+      expect(_styleAtRendered(m, 0)?.fontWeight, FontWeight.bold);
     });
 
-    test('"1. *italic*" collapsed → "1. italic", content is italic', () {
+    test('"1. *italic*" collapsed → "italic", content is italic', () {
       final m = _build('1. *italic*', cursorOffset: -1);
-      expect(m.textSpan.toPlainText(), '1. italic');
-      // '1. ' marker (3 chars) then 'italic'; 'i' is at rendered offset 3.
-      expect(_styleAtRendered(m, 3)?.fontStyle, FontStyle.italic);
+      expect(m.textSpan.toPlainText(), 'italic');
+      // No marker consumes rendered width; 'i' is at rendered offset 0.
+      expect(_styleAtRendered(m, 0)?.fontStyle, FontStyle.italic);
     });
 
     test('"- [ ] **urgent** call" collapsed: checkbox slot + bold content', () {
       final m = _build('- [ ] **urgent** call', cursorOffset: -1);
-      // '     ' (5 blank marker chars) + 'urgent call'.
-      expect(m.textSpan.toPlainText(), '     urgent call');
+      expect(m.textSpan.toPlainText(), 'urgent call');
       // The checkbox glyph slot is still produced (marker unaffected by content).
       expect(m.checkboxSlots, hasLength(1));
-      expect(m.checkboxSlots[0].renderedMarkerStart, 0);
-      expect(m.checkboxSlots[0].renderedMarkerEnd, 5);
+      expect(m.checkboxSlots[0].renderedStart, 0);
       expect(m.checkboxSlots[0].checked, isFalse);
-      // 'u' of 'urgent' is at rendered offset 5 and must be bold.
-      expect(_styleAtRendered(m, 5)?.fontWeight, FontWeight.bold);
+      // 'u' of 'urgent' is at rendered offset 0 and must be bold (no marker
+      // consumes rendered width any more).
+      expect(_styleAtRendered(m, 0)?.fontWeight, FontWeight.bold);
       // ' call' (past the bold run) is not bold.
-      expect(_styleAtRendered(m, 12)?.fontWeight, isNot(FontWeight.bold));
+      expect(_styleAtRendered(m, 7)?.fontWeight, isNot(FontWeight.bold));
     });
 
     test('nested char in a list item carries BOTH bold and italic', () {
-      // '- a **b *c* d** e' collapsed → '• a b c d e'; the 'c' is inside both
-      // bold and italic.
+      // '- a **b *c* d** e' collapsed → 'a b c d e' (no bullet glyph
+      // inline); the 'c' is inside both bold and italic.
       final m = _build('- a **b *c* d** e', cursorOffset: -1);
-      expect(m.textSpan.toPlainText(), '• a b c d e');
-      // '• ' (2) + 'a ' (2) + 'b ' (2) → 'c' at rendered offset 6.
-      final style = _styleAtRendered(m, 6);
+      expect(m.textSpan.toPlainText(), 'a b c d e');
+      // 'a ' (2) + 'b ' (2) → 'c' at rendered offset 4.
+      final style = _styleAtRendered(m, 4);
       expect(style?.fontWeight, FontWeight.bold);
       expect(style?.fontStyle, FontStyle.italic);
+    });
+
+    test('"- **bold**" collapsed: listMarkerSlots carries the bullet label',
+        () {
+      final m = _build('- **bold**', cursorOffset: -1);
+      expect(m.listMarkerSlots, hasLength(1));
+      expect(m.listMarkerSlots.single.label, '•');
+      expect(m.listMarkerSlots.single.renderedStart, 0);
     });
   });
 
@@ -787,9 +800,11 @@ void main() {
   group('RenderModel — whole-chain reveal inside a list item', () {
     const src = '- a **b *c* d** e';
 
-    test('cursor outside collapses to bullet + rendered content', () {
+    test(
+        'cursor outside collapses to rendered content (bullet painted '
+        'separately — ADR-34 Fix 2)', () {
       final m = _build(src, cursorOffset: -1);
-      expect(m.textSpan.toPlainText(), '• a b c d e');
+      expect(m.textSpan.toPlainText(), 'a b c d e');
     });
 
     test('cursor inside the inner italic reveals the WHOLE line raw', () {

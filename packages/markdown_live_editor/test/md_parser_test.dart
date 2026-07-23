@@ -290,7 +290,9 @@ void main() {
       expect(els, hasLength(1));
       expect(els[0].kind, MdElKind.ol);
       expect(els[0].seqNum, 5);
-      expect(els[0].collapsedMarker, '5. ');
+      // ADR-34 Fix 2: no substitution glyph — QuikiRenderEditor paints the
+      // ol number as a gutter decoration, not inline rendered characters.
+      expect(els[0].collapsedMarker, isEmpty);
     });
 
     test(
@@ -362,26 +364,32 @@ void main() {
       expect(el.isDelimiter(6), isFalse);
     });
 
-    test('collapsedMarker for ul = "• "', () {
+    test(
+        'collapsedMarker for ul is empty (ADR-34 Fix 2 — bullet painted as a '
+        'gutter decoration, not inline rendered characters)', () {
       final el = MdElement(kind: MdElKind.ul, start: 0, end: 6);
-      expect(el.collapsedMarker, '• ');
+      expect(el.collapsedMarker, isEmpty);
     });
 
     test(
-        'collapsedMarker for checkboxUnchecked = "     " (five blank chars; box painted via Canvas)',
-        () {
+        'collapsedMarker for checkboxUnchecked is empty (ADR-34 Fix 2 — box '
+        'position now comes from the run\'s content-start x, not an inline '
+        'blank-character reservation)', () {
       final el = MdElement(kind: MdElKind.checkboxUnchecked, start: 0, end: 10);
-      expect(el.collapsedMarker, '     ');
+      expect(el.collapsedMarker, isEmpty);
     });
 
     test(
-        'collapsedMarker for checkboxChecked = "     " (five blank chars; box painted via Canvas)',
-        () {
+        'collapsedMarker for checkboxChecked is empty (ADR-34 Fix 2, same as '
+        'checkboxUnchecked)', () {
       final el = MdElement(kind: MdElKind.checkboxChecked, start: 0, end: 10);
-      expect(el.collapsedMarker, '     ');
+      expect(el.collapsedMarker, isEmpty);
     });
 
-    test('collapsedMarker for ol with seqNum=3 = "3. "', () {
+    test(
+        'collapsedMarker for ol is empty (ADR-34 Fix 2 — the seqNum text is '
+        'painted as a gutter decoration via ListMarkerSlot, not inline '
+        'rendered characters)', () {
       final el = MdElement(
         kind: MdElKind.ol,
         start: 0,
@@ -389,7 +397,7 @@ void main() {
         seqNum: 3,
         srcMarkerLen: 3,
       );
-      expect(el.collapsedMarker, '3. ');
+      expect(el.collapsedMarker, isEmpty);
     });
   });
 
@@ -1573,22 +1581,91 @@ void main() {
     });
 
     test(
-        'a depth-0 ol block resuming after a depth-1 interruption restarts '
-        'from its own source digit rather than continuing the earlier count '
-        '(documented design choice — not full CommonMark list continuation)',
-        () {
-      // Top writes '1.' again (not '2.') after the nested interruption. Full
-      // CommonMark would treat this as the same list continuing (rendering
-      // '2.'); this codebase's simpler per-depth-adjacency model treats any
-      // intervening line at a different depth as breaking continuity for
-      // every other depth, so depth 0 restarts from its own written digit.
+        'a depth-0 ol block resuming after a depth-1 interruption CONTINUES '
+        'its count, matching real Markdown/GitHub list continuation — a '
+        'nested sub-list does not end the parent item\'s list', () {
+      // Top writes '1.' again in the source but renders as '2.': a sub-list
+      // nested inside an item does not end that item's parent list, so
+      // resuming at the original depth continues it. Depth 1's own state
+      // (its own '1.' sequence, not exercised further here) is independent
+      // and unaffected by depth 0 resuming.
       const source = '1. top\n  1. sub\n1. top2';
       final els =
           MdParser.parse(source).where((e) => e.kind == MdElKind.ol).toList();
       expect(els, hasLength(3));
       expect(els[0].seqNum, 1); // top
-      expect(els[1].seqNum, 1); // sub (own level, own start)
-      expect(els[2].seqNum, 1); // top2 — restarts from its own digit '1'
+      expect(els[1].seqNum, 1); // sub (own, independent level)
+      expect(els[2].seqNum, 2); // top2 — continues depth 0's count
+    });
+
+    test(
+        'a depth-0 ol block resuming after a deeper interruption of a '
+        'DIFFERENT kind (nested checkbox, not ol) still continues correctly',
+        () {
+      const source = '1. top\n  - [ ] nested task\n1. top2';
+      final els =
+          MdParser.parse(source).where((e) => e.kind == MdElKind.ol).toList();
+      expect(els, hasLength(2));
+      expect(els[0].seqNum, 1); // top
+      expect(els[1].seqNum, 2); // top2 — continues despite the nested task
+      final checkbox = MdParser.parse(source)
+          .firstWhere((e) => e.kind == MdElKind.checkboxUnchecked);
+      expect(checkbox.indentLevel, 1);
+    });
+
+    test(
+        'a depth-0 ol block resuming after a deeper interruption from an '
+        'indented (non-list) paragraph line still continues correctly', () {
+      // Indented plain text is not itself a recognized list/checkbox/
+      // blockquote element, but it still sits at nesting depth 1 for
+      // ol-invalidation purposes — depth 0's state must survive it exactly
+      // as it survives a recognized deeper kind.
+      const source = '1. top\n  plain indented text\n1. top2';
+      final els =
+          MdParser.parse(source).where((e) => e.kind == MdElKind.ol).toList();
+      expect(els, hasLength(2));
+      expect(els[0].seqNum, 1);
+      expect(els[1].seqNum, 2);
+    });
+
+    test(
+        'multi-level chain: depth 0 interrupted by depth 1, interrupted by '
+        'depth 2 — all three resume correctly on their own dedent', () {
+      const source = '1. a\n'
+          '  1. b\n'
+          '    1. c\n'
+          '    1. c2\n' // depth 2 continues: 1, 2
+          '  1. b2\n' // depth 1 resumes despite depth-2 interruption: 1, 2
+          '1. a2'; // depth 0 resumes despite depth-1/2 interruption: 1, 2
+      final els =
+          MdParser.parse(source).where((e) => e.kind == MdElKind.ol).toList();
+      expect(els, hasLength(6));
+      expect(els[0].indentLevel, 0);
+      expect(els[0].seqNum, 1); // a
+      expect(els[1].indentLevel, 1);
+      expect(els[1].seqNum, 1); // b
+      expect(els[2].indentLevel, 2);
+      expect(els[2].seqNum, 1); // c
+      expect(els[3].indentLevel, 2);
+      expect(els[3].seqNum, 2); // c2 — continues depth 2
+      expect(els[4].indentLevel, 1);
+      expect(els[4].seqNum, 2); // b2 — continues depth 1, unaffected by c/c2
+      expect(els[5].indentLevel, 0);
+      expect(els[5].seqNum, 2); // a2 — continues depth 0, unaffected by all
+    });
+
+    test(
+        'same-depth interruption still genuinely restarts the sequence '
+        '(unchanged behavior — regression guard)', () {
+      // A non-continuing line AT THE SAME DEPTH as the ol block it
+      // interrupts still resets that depth's numbering — only a STRICTLY
+      // DEEPER interruption is preserved across.
+      const source = '1. top\n- bullet\n1. top2';
+      final els =
+          MdParser.parse(source).where((e) => e.kind == MdElKind.ol).toList();
+      expect(els, hasLength(2));
+      expect(els[0].seqNum, 1);
+      expect(els[1].seqNum, 1); // restarts — same-depth interruption
     });
 
     test('three-level-deep ol nesting each restart independently', () {

@@ -247,6 +247,26 @@ class QuikiRenderEditor extends RenderBox {
   /// spec's honest test-strategy note).
   static const double _indentUnit = 16.0;
 
+  /// Extra horizontal space, in logical pixels, reserved for a list-kind
+  /// marker (bullet dot, ordered-list number, or checkbox box) — on top of
+  /// any [_indentUnit]-driven nesting-depth reduction — for a run whose
+  /// [RenderRun.listMarker] is true (ADR-34 Fix 2 / block_indentation.md).
+  /// The marker is painted in this gutter band, immediately to the left of
+  /// the run's own content-start x, rather than as inline rendered
+  /// characters — inline characters only reserve width on a line's first
+  /// visual row, so a wrapped item's continuation rows snapped back to the
+  /// un-indented margin (the same defect ADR-34 Stage 1 fixed for
+  /// blockquotes). Sized generously enough for a two-digit ordered-list
+  /// marker ("12.") or the checkbox box at typical body-text font sizes; an
+  /// exact pixel value is a design choice, not a correctness invariant, and
+  /// still needs device verification (see the spec's honest test-strategy
+  /// note).
+  static const double _listMarkerGutterWidth = 24.0;
+
+  /// Gap, in logical pixels, between a painted marker (bullet, ol number, or
+  /// checkbox box) and the content-start x it sits just to the left of.
+  static const double _listMarkerContentGap = 4.0;
+
   @override
   void performLayout() {
     final maxWidth = constraints.maxWidth - _padding.horizontal;
@@ -257,7 +277,8 @@ class QuikiRenderEditor extends RenderBox {
     var y = 0.0;
     for (var i = 0; i < runs.length; i++) {
       final run = runs[i];
-      final indentWidth = run.indentLevel * _indentUnit;
+      final listGutter = run.listMarker ? _listMarkerGutterWidth : 0.0;
+      final indentWidth = run.indentLevel * _indentUnit + listGutter;
       final runWidth = (paintWidth - indentWidth).clamp(0.0, paintWidth);
       // Every run except the last ends exactly at the trailing newline that
       // separates it from the next (differently-indented) run — see
@@ -452,23 +473,73 @@ class QuikiRenderEditor extends RenderBox {
     return null;
   }
 
-  /// Returns the source offset of the collapsed checkbox element whose glyph
-  /// (☐ or ☑) was tapped at [localPosition], or null if the tap does not hit
-  /// any collapsed checkbox glyph.
+  /// Returns the source offset of the collapsed checkbox element whose box
+  /// was tapped at [localPosition], or null if the tap does not hit any
+  /// collapsed checkbox box.
   ///
-  /// Hit-tests by mapping the tap to a rendered offset and checking whether
-  /// that offset falls within the [renderedMarkerStart, renderedMarkerEnd)
-  /// range of any collapsed [CheckboxSlot].  Returns [element.start] of the
-  /// matching slot so the caller can locate the 6-char marker in the source.
+  /// Hit-tests against the box's actual painted [Rect] — via
+  /// [_checkboxLocalRect], the same helper [paint] uses — rather than a
+  /// rendered-offset range: ADR-34 Fix 2 removed the inline blank-character
+  /// marker reservation the box's position used to be derived from, so there
+  /// is no rendered-offset range to test against any more; the box's real
+  /// on-screen position/size is the only source of truth for both painting
+  /// and hit-testing now. Returns [element.start] of the matching slot so the
+  /// caller can locate the marker in the source.
   int? checkboxSourceOffsetForTap(Offset localPosition) {
     final textOffset = localPosition - _padding.topLeft;
-    final ri = _renderedOffsetForTextOffset(textOffset);
     for (final slot in _renderModel.checkboxSlots) {
-      if (ri >= slot.renderedMarkerStart && ri < slot.renderedMarkerEnd) {
+      if (_checkboxLocalRect(slot).contains(textOffset)) {
         return slot.element.start;
       }
     }
     return null;
+  }
+
+  /// The checkbox box's [Rect] for [slot], in text-origin-relative local
+  /// coordinates (no padding, no canvas offset) — shared by [paint] and
+  /// [checkboxSourceOffsetForTap] so the tap target always matches exactly
+  /// where the box is painted (ADR-34 Fix 2).
+  ///
+  /// The box sits in [slot]'s containing run's list-marker gutter,
+  /// immediately to the left of that run's own content-start x
+  /// ([_RunLayout.x]) — the same position [_listMarkerLabelOffset] anchors a
+  /// bullet/ol-number label against. Vertical position and [boxSize] mirror
+  /// the pre-Fix-2 formula exactly (only the horizontal anchor changed, from
+  /// the removed inline marker reservation to the run's content-start x).
+  Rect _checkboxLocalRect(CheckboxSlot slot) {
+    final r = _runForRendered(slot.renderedStart);
+    // _caretOffsetForRendered already returns a GLOBAL (whole-render-object,
+    // text-origin-relative) offset — it has already added r.y internally —
+    // so it must NOT be added to r.y again here.
+    final caretOffset = _caretOffsetForRendered(slot.renderedStart);
+    final lineHeight = r.painter.preferredLineHeight;
+    final boxSize = lineHeight * 0.8;
+    final gutterRight = r.x;
+    return Rect.fromLTWH(
+      gutterRight - _listMarkerContentGap - boxSize,
+      caretOffset.dy + (lineHeight - boxSize) / 2 + lineHeight / 3,
+      boxSize,
+      boxSize,
+    );
+  }
+
+  /// The top-left [Offset] to paint a [ListMarkerSlot]'s [label] at, in
+  /// text-origin-relative local coordinates (no padding, no canvas offset) —
+  /// right-aligned within the run's list-marker gutter, [_listMarkerContentGap]
+  /// pixels before its content-start x, and vertically centered on the row
+  /// (ADR-34 Fix 2). [labelPainter] must already be laid out.
+  Offset _listMarkerLabelOffset(ListMarkerSlot slot, TextPainter labelPainter) {
+    final r = _runForRendered(slot.renderedStart);
+    // _caretOffsetForRendered already returns a GLOBAL (whole-render-object,
+    // text-origin-relative) offset — see the matching note in
+    // [_checkboxLocalRect] — so it must NOT be added to r.y again here.
+    final caretOffset = _caretOffsetForRendered(slot.renderedStart);
+    final lineHeight = r.painter.preferredLineHeight;
+    final labelRight = r.x - _listMarkerContentGap;
+    return Offset(
+      labelRight - labelPainter.width,
+      caretOffset.dy + (lineHeight - labelPainter.height) / 2,
+    );
   }
 
   // -------------------------------------------------------------------------
@@ -634,34 +705,21 @@ class QuikiRenderEditor extends RenderBox {
     // or a small monochrome symbol depending on what precedes it in the same
     // document — see #267. Drawing the box/checkmark ourselves sidesteps
     // font fallback entirely and guarantees consistent, theme-aware output.
-    // Checkboxes are always indentLevel 0 (not nestable inside a blockquote
-    // in Stage 1's parser), so this is unaffected by run indentation.
+    //
+    // The box is positioned via [_checkboxLocalRect] — the run's own
+    // content-start x, shifted left into the list-marker gutter — rather than
+    // the removed inline blank-character marker reservation (ADR-34 Fix 2),
+    // so it now correctly tracks a nested (indented) checkbox's run just like
+    // the bullet/ol-number labels below.
     for (final cb in _renderModel.checkboxSlots) {
       final el = cb.element;
       final cursorSrc = sel.isValid ? sel.baseOffset : -1;
       final revealed = cursorSrc >= el.start && cursorSrc <= el.end;
       if (revealed) continue;
 
-      final caretOffset = _caretOffsetForRendered(cb.renderedMarkerStart);
-      final lineHeight =
-          _runForRendered(cb.renderedMarkerStart).painter.preferredLineHeight;
-      // Fixed fraction of line height, independent of the reserved marker
-      // width: the box is a tap target, so it must stay a comfortable,
-      // predictable size rather than shrinking to whatever gap happens to
-      // be available. The collapsed marker (md_parser.dart) reserves enough
-      // blank characters to keep this box clear of the content text.
-      final boxSize = lineHeight * 0.8;
-      final boxRect = Rect.fromLTWH(
-        textOrigin.dx + caretOffset.dx,
-        textOrigin.dy +
-            caretOffset.dy +
-            (lineHeight - boxSize) / 2 +
-            lineHeight / 3,
-        boxSize,
-        boxSize,
-      );
-      final rrect =
-          RRect.fromRectAndRadius(boxRect, Radius.circular(boxSize * 0.2));
+      final boxRect = _checkboxLocalRect(cb).shift(textOrigin);
+      final rrect = RRect.fromRectAndRadius(
+          boxRect, Radius.circular(boxRect.width * 0.2));
       canvas.drawRRect(
         rrect,
         Paint()
@@ -687,6 +745,29 @@ class QuikiRenderEditor extends RenderBox {
             ..strokeJoin = StrokeJoin.round,
         );
       }
+    }
+
+    // Draw bullet dots / ordered-list numbers for collapsed ul/ol markers.
+    //
+    // Painted as a gutter decoration via a one-off TextPainter per label,
+    // right-aligned against the run's own content-start x (the same anchor
+    // the checkbox box above uses) — not as inline rendered characters
+    // (ADR-34 Fix 2): inline characters only reserve width on a line's first
+    // visual row, so a wrapped item's continuation rows snapped back to the
+    // un-indented margin.
+    for (final marker in _renderModel.listMarkerSlots) {
+      final el = marker.element;
+      final cursorSrc = sel.isValid ? sel.baseOffset : -1;
+      final revealed = cursorSrc >= el.start && cursorSrc <= el.end;
+      if (revealed) continue;
+
+      final labelPainter = TextPainter(
+        text: TextSpan(text: marker.label, style: marker.style),
+        textDirection: ui.TextDirection.ltr,
+      )..layout();
+      final labelOffset =
+          _listMarkerLabelOffset(marker, labelPainter) + textOrigin;
+      labelPainter.paint(canvas, labelOffset);
     }
 
     // Draw images (or placeholders) for collapsed image slots.

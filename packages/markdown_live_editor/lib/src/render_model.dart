@@ -155,7 +155,7 @@ class HrSlot {
 }
 
 // ---------------------------------------------------------------------------
-// CheckboxSlot — carries one collapsed checkbox element for tap-to-toggle.
+// CheckboxSlot — carries one collapsed checkbox element for paint + tap.
 // ---------------------------------------------------------------------------
 
 /// Describes a collapsed checkbox element (unchecked or checked).
@@ -168,31 +168,30 @@ class HrSlot {
 /// small monochrome symbol depending on what precedes it in the document.
 /// See #267.
 ///
-/// [renderedMarkerStart] is the rendered character offset of the first of the
-/// two blank characters reserved for the glyph.
-/// [renderedMarkerEnd] is the exclusive end of the marker — always
-/// [renderedMarkerStart] + 2.
-///
-/// QuikiRenderEditor uses these to hit-test a tap: if the tap maps to a
-/// rendered offset in [renderedMarkerStart, renderedMarkerEnd), the checkbox
-/// was tapped and [element.start] is returned as the source offset to toggle.
+/// [renderedStart] is the rendered offset of the first content character
+/// following the checkbox marker — the same "content-start" position
+/// [ListMarkerSlot] and [BlockquoteSlot] use. QuikiRenderEditor derives both
+/// the box's vertical position (via a caret lookup on this offset) and its
+/// horizontal position (the containing run's own content-start x, with the
+/// box painted in the gutter immediately to its left) from this single
+/// offset — there is no separate marker range to hit-test against (ADR-34
+/// Fix 2): the box is no longer reserved as inline rendered characters, so
+/// tap-to-toggle hit-tests the box's actual painted [Rect] instead. See
+/// QuikiRenderEditor's shared box-rect helper, used by both paint and
+/// `checkboxSourceOffsetForTap`.
 class CheckboxSlot {
   const CheckboxSlot({
     required this.element,
-    required this.renderedMarkerStart,
-    required this.renderedMarkerEnd,
+    required this.renderedStart,
     required this.checked,
     required this.color,
   });
 
   final MdElement element;
 
-  /// Rendered offset of the first of the two blank marker characters.
-  final int renderedMarkerStart;
-
-  /// Rendered offset just past the last blank marker character
-  /// (= renderedMarkerStart + 2).
-  final int renderedMarkerEnd;
+  /// Rendered offset of the first content character following the checkbox
+  /// marker (used only for vertical/run position lookup — see class doc).
+  final int renderedStart;
 
   /// Whether this is a checked (vs unchecked) checkbox.
   final bool checked;
@@ -200,6 +199,45 @@ class CheckboxSlot {
   /// The color to paint the box outline / checkmark in — matches the
   /// surrounding text color so it adapts to the active theme.
   final Color color;
+}
+
+// ---------------------------------------------------------------------------
+// ListMarkerSlot — carries one collapsed ul/ol marker for paint (ADR-34
+// Fix 2 / block_indentation.md).
+// ---------------------------------------------------------------------------
+
+/// Describes a collapsed unordered- or ordered-list marker that
+/// QuikiRenderEditor must paint as a gutter decoration — not as inline
+/// rendered characters, which only reserve width on a line's first visual
+/// row and so cannot survive word-wrap (the same defect this fix's
+/// [CheckboxSlot] redesign and Stage 1's [BlockquoteSlot] both address).
+///
+/// [element] is the parsed [MdElement] with kind [MdElKind.ul] or
+/// [MdElKind.ol].
+/// [renderedStart] is the rendered offset of the first content character
+/// following the marker — see [CheckboxSlot.renderedStart] for how
+/// QuikiRenderEditor uses it.
+/// [label] is the literal text to paint: `'•'` for a ul bullet, or
+/// `'$seqNum.'` for an ol marker (the GFM-compatible rendered sequence
+/// number — see [MdElement.seqNum]).
+class ListMarkerSlot {
+  const ListMarkerSlot({
+    required this.element,
+    required this.renderedStart,
+    required this.label,
+    required this.style,
+  });
+
+  final MdElement element;
+
+  /// Rendered offset of the first content character following the marker.
+  final int renderedStart;
+
+  /// The literal marker text to paint (`'•'` or `'$seqNum.'`).
+  final String label;
+
+  /// The text style to paint [label] in.
+  final TextStyle style;
 }
 
 // ---------------------------------------------------------------------------
@@ -256,6 +294,7 @@ class RenderRun {
     required this.start,
     required this.end,
     required this.indentLevel,
+    this.listMarker = false,
   });
 
   /// Rendered offset of the first character covered by this run.
@@ -267,6 +306,25 @@ class RenderRun {
 
   /// Indent depth shared by every source line in this run. 0 = no indent.
   final int indentLevel;
+
+  /// True if any source line covered by this run carries a collapsed ul/ol/
+  /// checkbox marker (ADR-34 Fix 2 / block_indentation.md). QuikiRenderEditor
+  /// reserves extra gutter width for such a run — on top of the
+  /// [indentLevel]-driven width reduction — so the marker (bullet dot,
+  /// ordered-list number, or checkbox box) has somewhere to be painted
+  /// without consuming any of the run's own content-start x, which must stay
+  /// identical to a run with no marker at the same [indentLevel] (that x is
+  /// what keeps every visual row — including the first — aligned; see
+  /// block_indentation.md). Unlike [indentLevel], this does NOT gate run
+  /// merging in [RenderModel._computeRuns] — a run that merges a marker line
+  /// with a non-marker line at the same [indentLevel] (e.g. an indented list
+  /// item immediately adjacent to a same-depth blockquote line) reports
+  /// `true`, and every line in that run receives the gutter, including the
+  /// non-marker one. That narrow mixed-adjacency case is not visually
+  /// perfect, but it is unchanged from — and no worse than — this branch's
+  /// pre-existing run-merging behavior, which already merges across block
+  /// kinds whenever [indentLevel] matches.
+  final bool listMarker;
 }
 
 // ---------------------------------------------------------------------------
@@ -332,6 +390,7 @@ class RenderModel {
     this.imageSlots = const [],
     this.linkSlots = const [],
     this.checkboxSlots = const [],
+    this.listMarkerSlots = const [],
     this.blockquoteSlots = const [],
     this.hrSlots = const [],
     this.runs = const [],
@@ -371,6 +430,12 @@ class RenderModel {
   /// checkboxes (cursor inside) behave as plain text for tap purposes.
   final List<CheckboxSlot> checkboxSlots;
 
+  /// Collapsed ul/ol marker elements (ADR-34 Fix 2 / block_indentation.md).
+  /// QuikiRenderEditor uses this list to paint each item's bullet dot or
+  /// ordered-list number as a gutter decoration, positioned independently of
+  /// inline text flow so it survives word-wrap on every visual row.
+  final List<ListMarkerSlot> listMarkerSlots;
+
   /// Collapsed blockquote elements.  QuikiRenderEditor uses this list to paint
   /// the left border stripe for each blockquote line.
   final List<BlockquoteSlot> blockquoteSlots;
@@ -400,6 +465,7 @@ class RenderModel {
     imageSlots: const [],
     linkSlots: const [],
     checkboxSlots: const [],
+    listMarkerSlots: const [],
     blockquoteSlots: const [],
     hrSlots: const [],
     // A single degenerate level-0 run so QuikiRenderEditor's run-resolution
@@ -427,13 +493,19 @@ class RenderModel {
     final slots = <ImageSlot>[];
     final links = <LinkSlot>[];
     final checkboxes = <CheckboxSlot>[];
+    final listMarkers = <ListMarkerSlot>[];
     final blockquotes = <BlockquoteSlot>[];
     final hrs = <HrSlot>[];
 
     // Block elements (one per line, non-overlapping) and inline elements
-    // (nested/overlapping) are handled separately. Blocks drive marker
-    // substitution / image / hr / blockquote handling and supply the per-line
-    // content base style; inline elements nest and combine on top (ADR-33).
+    // (nested/overlapping) are handled separately. Blocks drive image / hr
+    // handling and supply the per-line content base style; inline elements
+    // nest and combine on top (ADR-33). List/checkbox/blockquote marker
+    // decoration slots (bullet, ol number, checkbox box, stripe) are all
+    // recorded in one post-pass below, once srcToRnd is complete — ADR-34
+    // Fix 2 removed the inline collapsedMarker substitution these used to go
+    // through here, since inline rendered characters only reserve width on a
+    // line's first visual row (see block_indentation.md).
     final blocks = <MdElement>[];
     final inlines = <MdElement>[];
     for (final e in elements) {
@@ -510,53 +582,18 @@ class RenderModel {
           continue;
         }
 
-        // Blockquote stripe slots are recorded in a post-pass after the source
-        // → rendered map is complete (see below), not here: recording at the
-        // first content char failed for an empty blockquote, whose content
-        // position coincides with where the block is retired from this loop, so
-        // the slot was never emitted (the off-by-one this fixes).
-
-        // Collapsed list/checkbox/blockquote marker substitution: emit the
-        // collapsedMarker glyph(s) and fast-forward past the source delimiter
-        // region. For a blockquote the marker is blank indentation characters
-        // (no glyph), reserving horizontal width so the quoted content renders
-        // indented from plain paragraph text; the stripe is still positioned via
-        // the blockquote post-pass below and painted by QuikiRenderEditor.
-        if (block.collapsedMarker.isNotEmpty && si == block.start) {
-          final marker = block.collapsedMarker;
-          final delimEnd = block.start + block.openDelimLen;
-          final markerStyle = _contentStyle(block.kind, baseStyle);
-
-          flushBuf();
-          if (markerStyle != bufStyle) {
-            bufStyle = markerStyle;
-          }
-          for (final markerChar in marker.split('')) {
-            bufText.write(markerChar);
-            rndToSrc.add(si);
-            ri++;
-          }
-          flushBuf();
-
-          final markerRenderedStart = ri - marker.length;
-          for (var d = si; d < delimEnd; d++) {
-            srcToRnd[d] = markerRenderedStart;
-          }
-
-          if (block.kind == MdElKind.checkboxUnchecked ||
-              block.kind == MdElKind.checkboxChecked) {
-            checkboxes.add(CheckboxSlot(
-              element: block,
-              renderedMarkerStart: markerRenderedStart,
-              renderedMarkerEnd: markerRenderedStart + marker.length,
-              checked: block.kind == MdElKind.checkboxChecked,
-              color: markerStyle.color ?? _foreground,
-            ));
-          }
-
-          si = delimEnd - 1;
-          continue;
-        }
+        // List/checkbox/blockquote marker decoration slots (bullet, ol
+        // number, checkbox box, blockquote stripe) are all recorded in one
+        // post-pass after the source → rendered map is complete (see below),
+        // not here — recording at the first content char failed for an empty
+        // blockquote, whose content position coincides with where the block
+        // is retired from this loop (the off-by-one Stage 4 fixed), and the
+        // same reasoning now applies uniformly to every marker kind (ADR-34
+        // Fix 2). The marker's source delimiter characters are hidden by the
+        // ordinary per-character delimiter-hiding path below (block
+        // .isDelimiter), exactly like a heading's `#` prefix — no special
+        // fast-forward is needed since no rendered characters are emitted
+        // for the marker at all.
       }
 
       // -----------------------------------------------------------------------
@@ -652,25 +689,52 @@ class RenderModel {
     srcToRnd[source.length] = ri;
     rndToSrc.add(source.length); // end sentinel: renderedLength → source.length
 
-    // Blockquote stripe slots (post-pass). Recorded here, once srcToRnd is
-    // complete, so the rendered content span can be read for any block —
-    // including an empty blockquote, whose content position the per-character
-    // loop never reaches while the block is still current (the fixed off-by-one).
-    // renderedStart = rendered offset of the marker start (the '>'/'> ' chars
-    // are hidden, so this equals the first content char's rendered offset);
-    // renderedEnd = rendered offset just past the last content char. A revealed
-    // blockquote (cursor anywhere on its line — the block is the outermost
-    // element) shows raw source and paints no stripe, matching every other
+    // Marker/decoration slots (post-pass, ADR-34). Recorded here, once
+    // srcToRnd is complete, so the rendered content position can be read for
+    // any block — including an empty blockquote or list item, whose content
+    // position the per-character loop never reaches while the block is still
+    // current (the off-by-one Stage 4 fixed for blockquote; the same
+    // reasoning now covers every marker kind uniformly). renderedStart is the
+    // rendered offset of the marker's own start — since the marker's source
+    // characters are always hidden, this equals the first content
+    // character's rendered offset. A revealed block (cursor anywhere on its
+    // line) shows raw source and gets no slot, matching every other
     // element's reveal rule.
     for (final b in blocks) {
-      if (b.kind != MdElKind.blockquote) continue;
       final revealed = cursorOffset >= b.start && cursorOffset <= b.end;
       if (revealed) continue;
-      blockquotes.add(BlockquoteSlot(
-        element: b,
-        renderedStart: srcToRnd[b.start],
-        renderedEnd: srcToRnd[b.end],
-      ));
+      switch (b.kind) {
+        case MdElKind.blockquote:
+          blockquotes.add(BlockquoteSlot(
+            element: b,
+            renderedStart: srcToRnd[b.start],
+            renderedEnd: srcToRnd[b.end],
+          ));
+        case MdElKind.ul:
+          listMarkers.add(ListMarkerSlot(
+            element: b,
+            renderedStart: srcToRnd[b.start],
+            label: '•',
+            style: baseStyle,
+          ));
+        case MdElKind.ol:
+          listMarkers.add(ListMarkerSlot(
+            element: b,
+            renderedStart: srcToRnd[b.start],
+            label: '${b.seqNum}.',
+            style: baseStyle,
+          ));
+        case MdElKind.checkboxUnchecked:
+        case MdElKind.checkboxChecked:
+          checkboxes.add(CheckboxSlot(
+            element: b,
+            renderedStart: srcToRnd[b.start],
+            checked: b.kind == MdElKind.checkboxChecked,
+            color: baseStyle.color ?? _foreground,
+          ));
+        default:
+          break;
+      }
     }
 
     // Layout runs (post-pass, ADR-34). One indent level per source line,
@@ -702,6 +766,7 @@ class RenderModel {
       imageSlots: slots,
       linkSlots: links,
       checkboxSlots: checkboxes,
+      listMarkerSlots: listMarkers,
       blockquoteSlots: blockquotes,
       hrSlots: hrs,
       runs: runs,
@@ -745,20 +810,41 @@ class RenderModel {
           : null;
 
       var level = 0;
+      var listMarker = false;
       if (block != null) {
         final revealed =
             cursorOffset >= block.start && cursorOffset <= block.end;
-        if (!revealed) level = block.indentLevel;
+        if (!revealed) {
+          level = block.indentLevel;
+          listMarker = block.kind == MdElKind.ul ||
+              block.kind == MdElKind.ol ||
+              block.kind == MdElKind.checkboxUnchecked ||
+              block.kind == MdElKind.checkboxChecked;
+        }
       }
 
       final rStart = srcToRnd[thisLineStart];
       final rEnd = srcToRnd[nextLineSrcOffset];
 
       if (result.isNotEmpty && result.last.indentLevel == level) {
-        result[result.length - 1] =
-            RenderRun(start: result.last.start, end: rEnd, indentLevel: level);
+        // listMarker is OR-merged rather than gating the merge itself: a run
+        // that happens to combine a marker line with a non-marker line at the
+        // same indentLevel (e.g. a nested list item immediately adjacent to a
+        // same-depth blockquote line) still needs its gutter reserved for the
+        // marker line — see the field doc on [RenderRun.listMarker].
+        result[result.length - 1] = RenderRun(
+          start: result.last.start,
+          end: rEnd,
+          indentLevel: level,
+          listMarker: result.last.listMarker || listMarker,
+        );
       } else {
-        result.add(RenderRun(start: rStart, end: rEnd, indentLevel: level));
+        result.add(RenderRun(
+          start: rStart,
+          end: rEnd,
+          indentLevel: level,
+          listMarker: listMarker,
+        ));
       }
 
       lineStart = thisLineEnd + 1; // start of the next line; unused after last

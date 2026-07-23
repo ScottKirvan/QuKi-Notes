@@ -326,6 +326,34 @@ void main() {
   QuikiRenderEditor renderEditorOf(WidgetTester tester) =>
       tester.renderObject<QuikiRenderEditor>(find.byType(QuikiRenderWidget));
 
+  /// A local-coordinate tap point that lands inside [slot]'s painted checkbox
+  /// box (ADR-34 Fix 2): the box now sits in the list-marker gutter, to the
+  /// LEFT of the item's content-start x (not at that x itself — why tapping
+  /// at `getOffsetForCaret(slot.element.start)` no longer hits it), AND its
+  /// vertical extent is a sub-range of the row's full height rather than the
+  /// whole row (why a small, row-top-relative Y nudge no longer hits it
+  /// either — that only worked pre-Fix-2 because hit-testing was a rendered-
+  /// offset-range check tolerant of any Y within the row, not a real pixel
+  /// [Rect] containment test). Mirrors QuikiRenderEditor's own box-rect
+  /// formula (content-start x minus a content gap minus the box, vertically
+  /// centered via the same `(lineHeight - boxSize) / 2 + lineHeight / 3`
+  /// offset) using only its public API ([preferredLineHeight],
+  /// [getOffsetForCaret]), so this stays a black-box geometry test rather
+  /// than reaching into the render object's private layout constants.
+  Offset checkboxTapPoint(QuikiRenderEditor ro, CheckboxSlot slot) {
+    final caret =
+        ro.getOffsetForCaret(TextPosition(offset: slot.element.start));
+    final lineHeight = ro.preferredLineHeight;
+    final boxSize = lineHeight * 0.8;
+    // 4.0 mirrors QuikiRenderEditor's own gutter-content gap; aiming at the
+    // box's center (rather than an edge, in either axis) keeps this tolerant
+    // of small formula differences between this helper and the real one.
+    final tapX = caret.dx - 4.0 - boxSize / 2;
+    final boxTop = caret.dy + (lineHeight - boxSize) / 2 + lineHeight / 3;
+    final tapY = boxTop + boxSize / 2;
+    return Offset(tapX, tapY) + ro.localPadding.topLeft;
+  }
+
   group('QuikiRenderEditor — indentation geometry (public API only)', () {
     testWidgets(
         'blockquote content is indented relative to a plain line above it',
@@ -610,16 +638,11 @@ void main() {
       expect(ro.renderModel.runs, hasLength(2));
       final slot = ro.renderModel.checkboxSlots.single;
 
-      // +2px nudge into the row: the checkbox line is the very first
-      // character of its run, so its unnudged caret Y sits exactly on the
-      // run-to-run boundary — see the tap-to-source test above for why that
-      // exact boundary is ambiguous when independently-laid-out runs are
-      // stacked.
-      final caret =
-          ro.getOffsetForCaret(TextPosition(offset: slot.element.start));
-      final tapLocal =
-          Offset(caret.dx, caret.dy + 2.0) + ro.localPadding.topLeft;
-      final resolved = ro.checkboxSourceOffsetForTap(tapLocal);
+      // Taps the checkbox's actual painted box (ADR-34 Fix 2) — see
+      // checkboxTapPoint's doc for why this is no longer the same position
+      // as getOffsetForCaret(slot.element.start).
+      final resolved =
+          ro.checkboxSourceOffsetForTap(checkboxTapPoint(ro, slot));
 
       expect(resolved, slot.element.start);
     });
@@ -778,28 +801,26 @@ void main() {
               'first for this test to be meaningful — increase the source '
               'length if this fails');
 
-      // The FIRST visual row legitimately sits further right than every
-      // continuation row: the collapsed bullet glyph ("• ") is rendered
-      // text that only occupies width on that first row — a pre-existing
-      // characteristic of how the list marker has always rendered (present
-      // identically at indentLevel 0, confirmed by inspection before this
-      // test was finalized), unaffected by this stage in either direction.
-      // What THIS stage owns, and what this test actually verifies, is that
-      // every WRAPPED CONTINUATION row stays at the run's own non-zero
-      // depth-1 indent instead of snapping back to the left margin — that
-      // snap-back is the historical bug class (block_indentation.md).
-      final continuationDx = rowStartDx.sublist(1).toSet();
-      expect(continuationDx, hasLength(1),
-          reason: 'every wrapped CONTINUATION row must start at the SAME x '
-              "(the run's indent) — a mix of values means at least one "
-              'wrapped row snapped back to the un-indented margin');
-      expect(continuationDx.single, greaterThan(0.0),
-          reason: 'the shared continuation-row x must be a real depth-1 '
-              'indent, not trivially 0 (i.e. not lost back to the margin)');
-      expect(rowStartDx.first, greaterThan(continuationDx.single),
-          reason: 'the first row is expected to sit further right than the '
-              'continuation rows, for the bullet-glyph reason documented '
-              'above — not itself a regression');
+      // EVERY visual row — including the first — must start at the same x
+      // (ADR-34 Fix 2). Before this fix, the collapsed bullet glyph ("• ")
+      // was inline rendered text that only occupied width on the first
+      // visual row, so the first row legitimately sat further right than
+      // every wrapped continuation row — itself a symptom of the same root
+      // bug class this fix addresses, not an acceptable exception to it: the
+      // bullet is now painted as a gutter decoration, positioned to the LEFT
+      // of the run's own content-start x rather than consuming inline flow
+      // width, so it no longer shifts the first row's content at all.
+      final allRowDx = rowStartDx.toSet();
+      expect(allRowDx, hasLength(1),
+          reason: 'every visual row — including the first — must start at '
+              "the SAME x (the run's content-start x) — a mix of values "
+              'means either a wrapped row snapped back to the un-indented '
+              'margin, or the bullet glyph is still consuming inline flow '
+              'width on the first row instead of being painted in the '
+              'gutter');
+      expect(allRowDx.single, greaterThan(0.0),
+          reason: 'the shared row-start x must be a real depth-1 indent, '
+              'not trivially 0 (i.e. not lost back to the margin)');
     });
 
     testWidgets(
@@ -844,11 +865,8 @@ void main() {
       final ro = renderEditorOf(tester);
 
       final slot = ro.renderModel.checkboxSlots.single;
-      final caret =
-          ro.getOffsetForCaret(TextPosition(offset: slot.element.start));
-      final tapLocal =
-          Offset(caret.dx, caret.dy + 2.0) + ro.localPadding.topLeft;
-      final resolved = ro.checkboxSourceOffsetForTap(tapLocal);
+      final resolved =
+          ro.checkboxSourceOffsetForTap(checkboxTapPoint(ro, slot));
 
       expect(resolved, slot.element.start);
     });
@@ -871,6 +889,125 @@ void main() {
           ro.localPadding.topLeft;
 
       expect(ro.linkUrlForOffset(tapLocal), 'https://example.com');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // ADR-34 Fix 2 — list/ol/checkbox marker painted as a gutter decoration,
+  // not inline rendered characters (block_indentation.md). The invariant:
+  // EVERY visual row of a list-kind item's content — including the first —
+  // starts at the same x. Exercised here at indentLevel 0 (the common,
+  // non-nested case) since that's where the bug was worst: at indentLevel 0
+  // there was previously no gutter reservation at all for a nested run to
+  // fall back on, so a top-level item's first row (with its inline "• "/
+  // "1. "/5-blank-char marker) and its wrapped continuation rows (with none)
+  // used to differ by the full marker width, not just a sub-pixel amount.
+  // ---------------------------------------------------------------------------
+
+  group('QuikiRenderEditor — list marker gutter (ADR-34 Fix 2)', () {
+    /// Records the dx at the start of every visual row (a row boundary is
+    /// detected by a dy change) by walking every source offset across
+    /// [content] in [longSource]. Shared by the wrapped ul/ol/checkbox tests
+    /// below — see the equivalent inline walk in the Stage 1/2+3 wrapped-
+    /// blockquote/list tests above for the original, non-shared version.
+    List<double> rowStartDxs(
+      QuikiRenderEditor ro,
+      String longSource,
+      int contentStart,
+    ) {
+      final rowStartDx = <double>[];
+      double? lastDy;
+      for (var srcOff = contentStart; srcOff < longSource.length; srcOff++) {
+        final o = ro.getOffsetForCaret(TextPosition(offset: srcOff));
+        if (lastDy == null || (o.dy - lastDy).abs() > 1.0) {
+          rowStartDx.add(o.dx);
+          lastDy = o.dy;
+        }
+      }
+      return rowStartDx;
+    }
+
+    testWidgets(
+        'a wrapped TOP-LEVEL (indentLevel 0) ul item has every visual row — '
+        'including the first — start at the same x', (tester) async {
+      const prefix = '- '; // no indentation — the common case
+      final longItem =
+          '$prefix${'this is a deliberately long list item that must wrap ' * 4}';
+      await tester.pumpWidget(buildEditor(initialValue: longItem));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+
+      final ro = renderEditorOf(tester);
+      final rowStartDx = rowStartDxs(ro, longItem, prefix.length);
+
+      expect(rowStartDx.length, greaterThan(2),
+          reason: 'need at least one wrapped continuation row beyond the '
+              'first for this test to be meaningful');
+      final allRowDx = rowStartDx.toSet();
+      expect(allRowDx, hasLength(1),
+          reason: 'every visual row — including the first — must start at '
+              'the same x, even at indentLevel 0 where there is no nesting-'
+              'driven gutter to fall back on');
+      expect(allRowDx.single, greaterThan(0.0),
+          reason: 'a real gutter must be reserved for the bullet even at '
+              'indentLevel 0 — content must not sit flush at x=0');
+    });
+
+    testWidgets(
+        'a wrapped TOP-LEVEL (indentLevel 0) ol item has every visual row — '
+        'including the first — start at the same x, regardless of marker '
+        'digit width', (tester) async {
+      const prefix = '1. ';
+      final longItem =
+          '$prefix${'this is a deliberately long list item that must wrap ' * 4}';
+      await tester.pumpWidget(buildEditor(initialValue: longItem));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+
+      final ro = renderEditorOf(tester);
+      final rowStartDx = rowStartDxs(ro, longItem, prefix.length);
+
+      expect(rowStartDx.length, greaterThan(2),
+          reason: 'need at least one wrapped continuation row beyond the '
+              'first for this test to be meaningful');
+      final allRowDx = rowStartDx.toSet();
+      expect(allRowDx, hasLength(1),
+          reason: 'every visual row — including the first — must start at '
+              'the same x');
+      expect(allRowDx.single, greaterThan(0.0));
+    });
+
+    testWidgets(
+        'a wrapped TOP-LEVEL (indentLevel 0) checkbox item has every visual '
+        'row — including the first — start at the same x, AND tap-to-toggle '
+        'still resolves correctly', (tester) async {
+      const prefix = '- [ ] ';
+      final longItem =
+          '$prefix${'this is a deliberately long task that must wrap across '
+              'several visual rows ' * 3}';
+      await tester.pumpWidget(buildEditor(initialValue: longItem));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+
+      final ro = renderEditorOf(tester);
+      final rowStartDx = rowStartDxs(ro, longItem, prefix.length);
+
+      expect(rowStartDx.length, greaterThan(2),
+          reason: 'need at least one wrapped continuation row beyond the '
+              'first for this test to be meaningful');
+      final allRowDx = rowStartDx.toSet();
+      expect(allRowDx, hasLength(1),
+          reason: 'every visual row — including the first — must start at '
+              'the same x');
+      expect(allRowDx.single, greaterThan(0.0));
+
+      // Tap-to-toggle must still resolve correctly now that the box's
+      // position comes from the run's content-start x rather than the
+      // removed inline blank-character marker reservation.
+      final slot = ro.renderModel.checkboxSlots.single;
+      final resolved =
+          ro.checkboxSourceOffsetForTap(checkboxTapPoint(ro, slot));
+      expect(resolved, slot.element.start);
     });
   });
 }
