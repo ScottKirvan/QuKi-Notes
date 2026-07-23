@@ -536,6 +536,17 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
       }
     }
 
+    // Tab inserts a literal tab character (ADR-34 Fix 2 / #77 remains a
+    // separate, not-yet-built feature for interactive indent/dedent — this
+    // is only about letting the raw keystroke reach the text buffer instead
+    // of being silently consumed by Flutter's default focus-traversal
+    // system, which is what happens to any key with no case here). Shift+Tab
+    // is deliberately left unhandled so it keeps its default (reverse)
+    // focus-traversal behavior.
+    if (key == LogicalKeyboardKey.tab && !shift) {
+      _insertTab();
+      return KeyEventResult.handled;
+    }
     if (key == LogicalKeyboardKey.backspace) {
       _handleBackspace();
       return KeyEventResult.handled;
@@ -589,6 +600,28 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     if (_sel.isCollapsed) return;
     Clipboard.setData(ClipboardData(text: _sel.textInside(_text)));
     _deleteSelection();
+  }
+
+  /// Inserts a literal tab character at the cursor, replacing the current
+  /// selection if one is active — the same selection-replace semantics
+  /// [_pasteFromClipboard] uses for ordinary inserted text (there is no
+  /// existing "insert typed character" code path to mirror instead, since
+  /// ordinary typed characters arrive already-merged into a full
+  /// [TextEditingValue] from the platform IME via [updateEditingValue];
+  /// Tab is a raw hardware key event with no IME involvement, so this method
+  /// has to perform the replace-selection-and-advance-cursor step itself).
+  void _insertTab() {
+    if (!_sel.isValid) return;
+    final newText = _text.replaceRange(_sel.start, _sel.end, '\t');
+    final newOffset = _sel.start + 1;
+    _updateValue(
+      TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: newOffset),
+      ),
+      notify: true,
+    );
+    _connection?.setEditingState(_value);
   }
 
   void _pasteFromClipboard() {
