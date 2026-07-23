@@ -339,29 +339,44 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     _suppressListener = false;
   }
 
+  static final _leadingWsRe = RegExp(r'^([ \t]*)');
   static final _taskPrefixRe = RegExp(r'^(- \[[ x]\] )');
   static final _unorderedPrefixRe = RegExp(r'^([-*] )');
   static final _orderedRe = RegExp(r'^(\d+)\. ');
 
+  /// The literal leading-whitespace prefix of [line] (spaces/tabs only).
+  ///
+  /// Used so list auto-continue preserves a nested item's own indentation
+  /// (ADR-34 Stage 2+3) — the marker-matching regexes below run against the
+  /// remainder *after* this prefix, and the prefix is then re-prepended to
+  /// whatever continuation marker they produce, so continuing a `  - ` item
+  /// inserts `  - ` again, not `- ` reset to the left margin.
+  static String _leadingWs(String line) =>
+      _leadingWsRe.firstMatch(line)!.group(1)!;
+
   static String? _listContinuation(String line) {
-    if (_taskPrefixRe.hasMatch(line)) return '- [ ] ';
-    final unordered = _unorderedPrefixRe.firstMatch(line);
-    if (unordered != null) return unordered.group(1)!;
-    final ordered = _orderedRe.firstMatch(line);
+    final ws = _leadingWs(line);
+    final rest = line.substring(ws.length);
+    if (_taskPrefixRe.hasMatch(rest)) return '$ws- [ ] ';
+    final unordered = _unorderedPrefixRe.firstMatch(rest);
+    if (unordered != null) return '$ws${unordered.group(1)!}';
+    final ordered = _orderedRe.firstMatch(rest);
     if (ordered != null) {
       final n = int.parse(ordered.group(1)!);
-      return '${n + 1}. ';
+      return '$ws${n + 1}. ';
     }
     return null;
   }
 
   static int _listPrefixLength(String line) {
-    final task = _taskPrefixRe.firstMatch(line);
-    if (task != null) return task.group(1)!.length;
-    final unordered = _unorderedPrefixRe.firstMatch(line);
-    if (unordered != null) return unordered.group(1)!.length;
-    final ordered = RegExp(r'^(\d+\. )').firstMatch(line);
-    if (ordered != null) return ordered.group(1)!.length;
+    final ws = _leadingWs(line);
+    final rest = line.substring(ws.length);
+    final task = _taskPrefixRe.firstMatch(rest);
+    if (task != null) return ws.length + task.group(1)!.length;
+    final unordered = _unorderedPrefixRe.firstMatch(rest);
+    if (unordered != null) return ws.length + unordered.group(1)!.length;
+    final ordered = RegExp(r'^(\d+\. )').firstMatch(rest);
+    if (ordered != null) return ws.length + ordered.group(1)!.length;
     return 0;
   }
 

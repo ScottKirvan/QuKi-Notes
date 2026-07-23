@@ -675,12 +675,17 @@ class RenderModel {
 
     // Layout runs (post-pass, ADR-34). One indent level per source line,
     // looked up via the now-complete srcToRnd map and merged into maximal
-    // consecutive-same-level runs in rendered-offset space. A revealed
-    // blockquote line (cursor inside — raw source visible, '>' markers and
-    // all) is treated as indentLevel 0: the marker itself already shows the
-    // nesting as literal text, so no additional layout indent applies, and
-    // this also means a still-collapsed run above/below a revealed line
-    // correctly breaks there (matching how it also gets no blockquoteSlot).
+    // consecutive-same-level runs in rendered-offset space. A revealed block
+    // (cursor inside — raw source visible, markers and leading whitespace
+    // all shown as literal text) is treated as indentLevel 0: the source
+    // itself already shows the nesting, so no additional layout indent
+    // applies, and this also means a still-collapsed run above/below a
+    // revealed line correctly breaks there (matching how it also gets no
+    // blockquoteSlot / marker substitution while revealed). Applies uniformly
+    // to every block kind that can set [MdElement.indentLevel] — blockquote
+    // (Stage 1) and now ul/ol/checkbox (Stage 2+3, ADR-34) — since only those
+    // kinds ever produce a non-zero value; headings/image/hr always report 0
+    // regardless of reveal state, so no kind-specific branch is needed here.
     final runs = _computeRuns(
       source: source,
       blocks: blocks,
@@ -740,7 +745,7 @@ class RenderModel {
           : null;
 
       var level = 0;
-      if (block != null && block.kind == MdElKind.blockquote) {
+      if (block != null) {
         final revealed =
             cursorOffset >= block.start && cursorOffset <= block.end;
         if (!revealed) level = block.indentLevel;
