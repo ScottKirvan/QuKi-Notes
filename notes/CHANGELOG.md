@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.20.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.19.0...v0.20.0) (2026-07-24)
+
+
+### Features
+
+* **editor:** multi-run block indentation, nested blockquotes (ADR-34 Stage 1) ([86d56d5](https://github.com/ScottKirvan/QuKi-Notes/commit/86d56d595896bb5af2de92441e5a63b53045a7d4))
+* **editor:** nested list indentation, wired into multi-run rendering (ADR-34 Stage 2+3) ([aa3c0d5](https://github.com/ScottKirvan/QuKi-Notes/commit/aa3c0d5de119a2d52cddac9dfccd3f2691fc822b))
+
+
+### Bug Fixes
+
+* **editor:** blockquote content indent + stripe vertical alignment ([423ea52](https://github.com/ScottKirvan/QuKi-Notes/commit/423ea5288aed3b3d21047c5f8ac33bdaf2cf1a01))
+* **editor:** blockquote rendering bugs (Stage 4 addendum) ([0f5ff75](https://github.com/ScottKirvan/QuKi-Notes/commit/0f5ff752d8d0f50fd13813065baa4d7d7d02bd83))
+* **editor:** marker gutter leak, Tab keystroke swallowed, list marker vertical alignment ([02ee02e](https://github.com/ScottKirvan/QuKi-Notes/commit/02ee02ecbdc1e2c5296266f789530397c391e463))
+* **editor:** nested and combined inline markdown (Stage 1 — paragraphs & headings) ([a52fd6c](https://github.com/ScottKirvan/QuKi-Notes/commit/a52fd6cff768da39a4fcf58d1b6988f4b9b6cd96))
+* **editor:** nested and combined inline markdown (Stage 2 — list items) ([5c150f7](https://github.com/ScottKirvan/QuKi-Notes/commit/5c150f754e6b70be2fd3204769fd9923979b0099))
+* **editor:** nested and combined inline markdown (Stage 4 — blockquotes) ([c042bae](https://github.com/ScottKirvan/QuKi-Notes/commit/c042baeca457820c9d003ca89832ff79985a306f))
+* **editor:** ol numbering across deeper interruption + list marker gutter alignment ([8ec5a7d](https://github.com/ScottKirvan/QuKi-Notes/commit/8ec5a7ddadedfa688028c3a92947a8da18e2bd4a))
+* **editor:** scan nested emphasis inside link text ([bb20ea2](https://github.com/ScottKirvan/QuKi-Notes/commit/bb20ea28676b2d8fccaf608e966571dced5e3ff9))
+* **editor:** single-line HTML detection (Stage 3) ([b07c7eb](https://github.com/ScottKirvan/QuKi-Notes/commit/b07c7eb06dd31e9ee6f0f7e53c5f9bd3e746cec6))
+
 ## [0.19.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.18.2...v0.19.0) (2026-07-21)
 
 
