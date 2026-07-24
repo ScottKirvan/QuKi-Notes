@@ -64,8 +64,8 @@ See `notes/dev/design_spec.md` → Vocabulary for the full table.
 
 ## Current state of docs
 
-- **`README.md`** — updated to v0.13.0 (PR #141). Currently accurate.
-- **`docs/`** — VitePress source updated to v0.13.0 (PR #141); user guide covers block-flip WYSIWYG, formatting toolbar, task checkboxes. The build pipeline exists (`docs.yml`). Write content freely — build/deploy config is DevOps.
+- **`README.md`** — updated to v0.13.0 (PR #141). Still accurate at the level of detail it operates at (single high-level row per feature) — ADR-34's nested-list/blockquote work (below) didn't need a README change, since nesting is an enhancement to an already-listed feature, not a new one.
+- **`docs/`** — VitePress source. User guide (`capturing-qukis.md`) updated 2026-07-24 (PR #295) for ADR-34: nested list/blockquote indentation, indentation-preserving auto-continue, and the Tab key (inserts a tab character, counts as one nesting level — explicitly NOT yet interactive indent/dedent, Shift+Tab does nothing). Otherwise still at v0.13.0 content (block-flip WYSIWYG, formatting toolbar, task checkboxes). The build pipeline exists (`docs.yml`). Write content freely — build/deploy config is DevOps.
 - **`CONTRIBUTING.md`** — may not exist yet; create if tasked.
 
 ---
@@ -76,6 +76,7 @@ See `notes/dev/design_spec.md` → Vocabulary for the full table.
 - README and VitePress user guide updated to v0.9.2 / v0.9.3.
 - README and user guide updated to v0.9.6. Merged (`a2e1212`).
 - README and user guide updated to v0.13.0 (post-ADR-26: block-flip editor, formatting toolbar, task checkboxes, app icon). Merged as PR #141.
+- User guide (`capturing-qukis.md`) updated for ADR-34 nested list/blockquote indentation and the Tab key. Merged as PR #295 (2026-07-24).
 
 ---
 
@@ -83,27 +84,7 @@ See `notes/dev/design_spec.md` → Vocabulary for the full table.
 
 > Written and maintained by the Spec session. If this says "no task", check with the Spec session for the next task.
 
-### Document nested list/blockquote indentation + Tab key (ADR-34)
-
-**Status: PR #295 open, CI green, awaiting merge.** Once merged, clear this brief and update "Current state of docs" below.
-
-**Branch**: `docs/adr-34-indentation`
-**Commit type**: `docs:`
-**File to update**: `docs/user-guide/capturing-qukis.md` only. Do not touch `README.md` for this pass — its feature-summary table is a single high-level row per feature ("blockquote", "list") with no syntax depth shown for anything, so nesting doesn't need its own mention there; it's an enhancement to an existing named feature, not a new one. Do not touch `keyboard-shortcuts.md` — that file is scoped to app-level shortcuts (Ctrl+N, Ctrl+T), not in-editor text-editing keys, so it's the wrong home for Tab.
-
-**Do NOT open a PR.** Push the branch and report back to the Spec session with a summary of changes. Spec reviews and creates the PR (same protocol as the implementation session).
-
-**What shipped, that the current docs don't reflect** (PR #294, merging ADR-34 Stages 2+3 — read `notes/dev/block_indentation.md` for full technical context if useful, but the doc changes below are user-facing, not technical):
-
-1. **Lists and blockquotes now nest, with real indentation that survives word-wrap.** A list item can be indented under a parent item (e.g. typing extra leading spaces, or pressing Tab — see point 3) to create a sub-item, rendered visibly indented to the right. Blockquotes nest the same way using multiple `>` — `>> quoted` is a second level, indented further than a single `>`, with its own left border. This includes ordered lists: a nested numbered list has its own independent numbering, separate from its parent list's numbers.
-2. **List auto-continue (Enter key) now preserves indentation.** The existing doc already says Enter continues a list item's prefix on the next line — that's unchanged, but it now also carries over whatever indentation the current item has, so continuing a nested item keeps it nested rather than snapping back to the left margin.
-3. **The Tab key now works in the editor.** Pressing Tab inserts a tab character at the cursor, which the editor's indentation logic treats as one full nesting level for lists — this is the simplest way to create a nested list item while typing. (Note for accuracy: this is Tab-as-a-typed-character, not yet an interactive "press Tab to indent/outdent the current line" behavior — don't imply Shift+Tab does anything, it doesn't yet.)
-
-**Specific edits needed in `capturing-qukis.md`**:
-
-- **"Supported markdown" table** (currently lines ~58-71): the `- item` / `1. item` / `> text` rows should reflect that these nest. Use your own judgment on the clearest way to show this in a table row (an extra row, an extra sentence in the existing row, or a short paragraph above/below the table) — whatever reads most naturally in this doc's existing style. Whatever you choose, it must be factually precise: nesting works for unordered lists, ordered lists (with independent numbering per level), checkboxes, and blockquotes (multiple `>`); it does NOT work for headings, code, or any other block type; there is currently no support for combining a list nested inside a blockquote or vice versa (each nests independently, but the two kinds don't combine).
-- **"List auto-continue" section** (currently line ~52): add that indentation is preserved when Enter continues a nested item.
-- **New content for Tab**: add wherever it reads best — likely near "List auto-continue" since it's part of the same "working with lists" context, or as its own short subsection. State plainly what it does (inserts a tab / creates one nesting level) without overclaiming interactive indent/outdent behavior it doesn't have.
+No task currently in progress.
 
 **Tone and vocabulary**: follow this file's existing Tone and Vocabulary sections above. Match `capturing-qukis.md`'s existing voice exactly — short declarative sentences, present tense, no marketing language. Look at how the existing "Supported markdown" table and "List auto-continue" section are already phrased and write in that same register.
 
