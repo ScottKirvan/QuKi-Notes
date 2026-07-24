@@ -21,6 +21,8 @@
 * **editor:** scan nested emphasis inside link text ([bb20ea2](https://github.com/ScottKirvan/QuKi-Notes/commit/bb20ea28676b2d8fccaf608e966571dced5e3ff9))
 * **editor:** single-line HTML detection (Stage 3) ([b07c7eb](https://github.com/ScottKirvan/QuKi-Notes/commit/b07c7eb06dd31e9ee6f0f7e53c5f9bd3e746cec6))
 
+Includes PRs: [#275](https://github.com/ScottKirvan/QuKi-Notes/pull/275), [#276](https://github.com/ScottKirvan/QuKi-Notes/pull/276), [#277](https://github.com/ScottKirvan/QuKi-Notes/pull/277), [#278](https://github.com/ScottKirvan/QuKi-Notes/pull/278), [#279](https://github.com/ScottKirvan/QuKi-Notes/pull/279), [#280](https://github.com/ScottKirvan/QuKi-Notes/pull/280), [#281](https://github.com/ScottKirvan/QuKi-Notes/pull/281), [#282](https://github.com/ScottKirvan/QuKi-Notes/pull/282), [#283](https://github.com/ScottKirvan/QuKi-Notes/pull/283), [#284](https://github.com/ScottKirvan/QuKi-Notes/pull/284), [#286](https://github.com/ScottKirvan/QuKi-Notes/pull/286), [#287](https://github.com/ScottKirvan/QuKi-Notes/pull/287), [#288](https://github.com/ScottKirvan/QuKi-Notes/pull/288), [#289](https://github.com/ScottKirvan/QuKi-Notes/pull/289), [#290](https://github.com/ScottKirvan/QuKi-Notes/pull/290), [#291](https://github.com/ScottKirvan/QuKi-Notes/pull/291), [#292](https://github.com/ScottKirvan/QuKi-Notes/pull/292), [#293](https://github.com/ScottKirvan/QuKi-Notes/pull/293), [#294](https://github.com/ScottKirvan/QuKi-Notes/pull/294), [#295](https://github.com/ScottKirvan/QuKi-Notes/pull/295), [#296](https://github.com/ScottKirvan/QuKi-Notes/pull/296)
+
 ## [0.19.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.18.2...v0.19.0) (2026-07-21)
 
 
