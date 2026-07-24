@@ -1,0 +1,31 @@
+name: Manual — Rewrite Release Notes
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: Release tag to rewrite notes for (e.g. v0.20.0)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  models: read
+
+jobs:
+  improve-release-notes:
+    uses: ScottKirvan/.github/.github/workflows/reusable-release-notes.yml@main
+    with:
+      tag_name: ${{ inputs.tag_name }}
+      project_name: "QuKi Notes"
+      project_context: "QuKi Notes is a cross-platform ephemeral notes app for Android, Windows, and Linux, built with Flutter. It lets you jot down quick thoughts, send them somewhere useful, and move on."
+      header: |
+        ## QuKi Notes
+
+        > Jot it down, send it somewhere, and let it go.
+
+        ---
+      footer: |
+        ---
+        📖 [User Guide](https://www.scottkirvan.com/QuKi-Notes/) · 💬 [Discord](https://discord.gg/TN6XJSNK5Y) · 🐛 [Report a Bug](https://github.com/ScottKirvan/QuKi-Notes/issues/new?template=bug_report.md) · ✨ [Request Feature](https://github.com/ScottKirvan/QuKi-Notes/issues/new?template=feature_request.md)
+    secrets: inherit
