@@ -47,12 +47,50 @@ jobs:
           echo "all_done=true" >> "$GITHUB_OUTPUT"
           echo "tag_name=$TAG" >> "$GITHUB_OUTPUT"
 
-  notify:
+  get-blurb:
     needs: check
+    if: needs.check.outputs.all_done == 'true'
+    runs-on: ubuntu-latest
+    outputs:
+      discord_blurb: ${{ steps.read.outputs.discord_blurb }}
+    steps:
+      - name: Find blurb artifact run
+        id: find
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ needs.check.outputs.tag_name }}
+        run: |
+          RUN_ID=$(gh api "repos/$REPO/actions/artifacts?name=discord-blurb-$TAG&per_page=5" \
+            --jq '.artifacts | sort_by(.created_at) | reverse | .[0].workflow_run.id // ""')
+          echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Download blurb artifact
+        if: steps.find.outputs.run_id != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: discord-blurb-${{ needs.check.outputs.tag_name }}
+          run-id: ${{ steps.find.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: /tmp/blurb/
+
+      - name: Read blurb
+        id: read
+        run: |
+          BLURB=$(cat /tmp/blurb/discord_blurb.txt 2>/dev/null || echo "")
+          {
+            echo 'discord_blurb<<BLURB_EOF'
+            printf '%s\n' "$BLURB"
+            echo 'BLURB_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+  notify:
+    needs: [check, get-blurb]
     if: needs.check.outputs.all_done == 'true'
     uses: ScottKirvan/.github/.github/workflows/reusable-discord-notify.yml@main
     with:
       tag_name: ${{ needs.check.outputs.tag_name }}
       project_name: "QuKi Notes"
       emoji: "🪽"
+      discord_blurb: ${{ needs.get-blurb.outputs.discord_blurb }}
     secrets: inherit
