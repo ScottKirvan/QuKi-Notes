@@ -31,7 +31,7 @@ jobs:
     with:
       tag_name: ${{ needs.release-please.outputs.tag_name }}
       project_name: "QuKi Notes"
-      project_context: "QuKi Notes is a cross-platform ephemeral notes app for Android, Windows, and Linux, built with Flutter. It lets you jot down quick thoughts, send them somewhere useful, and move on."
+      project_context: "QuKi Notes is a lightweight note-taking app for Android, Windows, and Linux. It's for people who need to capture a quick thought before it slips away and send it somewhere useful — then move on. Notes are ephemeral by design: write it, send it, let it go. When a change improves performance, UI, or platform behavior, write in terms of what the user can now do or what annoyance is gone."
       header: |
         ## QuKi Notes
 
@@ -42,6 +42,22 @@ jobs:
         ---
         📖 [User Guide](https://www.scottkirvan.com/QuKi-Notes/) · 💬 [Discord](https://discord.gg/TN6XJSNK5Y) · 🐛 [Report a Bug](https://github.com/ScottKirvan/QuKi-Notes/issues/new?template=bug_report.md) · ✨ [Request Feature](https://github.com/ScottKirvan/QuKi-Notes/issues/new?template=feature_request.md)
     secrets: inherit
+
+  store-discord-blurb:
+    needs: [release-please, improve-release-notes]
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write blurb to file
+        env:
+          DISCORD_BLURB: ${{ needs.improve-release-notes.outputs.discord_blurb }}
+        run: printf '%s' "$DISCORD_BLURB" > discord_blurb.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: discord-blurb-${{ needs.release-please.outputs.tag_name }}
+          path: discord_blurb.txt
+          retention-days: 7
 
   update-changelog-prs:
     needs: release-please
