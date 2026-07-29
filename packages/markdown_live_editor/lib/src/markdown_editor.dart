@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 
 import 'editor_config.dart';
+import 'indent_dedent.dart';
 import 'quiki_editor.dart';
 
 // ---------------------------------------------------------------------------
@@ -185,6 +186,31 @@ class MarkdownEditorController {
     );
     _state?._focusNode.requestFocus();
     _state?.widget.onChanged?.call(newText);
+  }
+
+  /// Increases indentation for the line(s) touched by the current selection
+  /// (ADR-34 Stage 4 / #77). See indent_dedent.dart for the full per-line-
+  /// kind rule set. Shares its implementation with the Tab key
+  /// (QuikiEditorState._applyIndent) via [applyIndent] so the toolbar button
+  /// and the keystroke are guaranteed to produce identical results.
+  void indent() {
+    final tc = _state?._textController;
+    if (tc == null) return;
+    final result = applyIndent(tc.text, _effectiveSelection);
+    tc.value = TextEditingValue(text: result.text, selection: result.selection);
+    _state?._focusNode.requestFocus();
+    _state?.widget.onChanged?.call(result.text);
+  }
+
+  /// Decreases indentation for the line(s) touched by the current selection
+  /// (ADR-34 Stage 4 / #77). See [indent] and indent_dedent.dart.
+  void dedent() {
+    final tc = _state?._textController;
+    if (tc == null) return;
+    final result = applyDedent(tc.text, _effectiveSelection);
+    tc.value = TextEditingValue(text: result.text, selection: result.selection);
+    _state?._focusNode.requestFocus();
+    _state?.widget.onChanged?.call(result.text);
   }
 }
 

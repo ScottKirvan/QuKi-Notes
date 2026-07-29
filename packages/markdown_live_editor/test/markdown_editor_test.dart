@@ -992,23 +992,26 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
-  // Tab key (ADR-34 Fix 2 / block_indentation.md). Before this fix,
-  // QuikiEditor's _handleKeyEvent had no case for LogicalKeyboardKey.tab, so
-  // it fell through to KeyEventResult.ignored — which let Flutter's default
-  // focus-traversal system consume the keystroke before it ever reached the
-  // text buffer. This is scoped strictly to "let the raw keystroke through
-  // as a literal '\t' character" — NOT Tab/Shift+Tab interactive
-  // indent/dedent, which remains #77, a separate future feature. Uses a real
-  // tester.sendKeyEvent through the actual Focus tree (rather than a
-  // ForTesting wrapper that calls the handler method directly), since the
-  // bug under test — traversal swallowing the key before it reaches the
-  // handler — can only be exercised through the real dispatch path.
+  // Tab / Shift+Tab keys (ADR-34 Stage 4 / #77 — see indent_dedent_test.dart
+  // for the exhaustive pure-function coverage of applyIndent/applyDedent).
+  // This group exists to prove the real IME/keyboard dispatch path — Focus,
+  // _handleKeyEvent, KeyEventResult — reaches the same behaviour, using a
+  // real tester.sendKeyEvent rather than a ForTesting wrapper.
+  //
+  // Before ADR-34 Fix 2, QuikiEditor's _handleKeyEvent had no case for
+  // LogicalKeyboardKey.tab at all, so it fell through to
+  // KeyEventResult.ignored and Flutter's default focus-traversal system
+  // silently consumed the keystroke. Fix 2 made Tab insert a literal '\t' at
+  // the cursor (or replace the selection) unconditionally; this stage
+  // supersedes that with the real per-line-kind Indent/Dedent behaviour
+  // below — see the updated expectations on the plain-paragraph cases,
+  // which are a deliberate behaviour change from Fix 2, not a regression.
   // -------------------------------------------------------------------------
-  group('QuikiEditor — Tab key (ADR-34 Fix 2)', () {
+  group('QuikiEditor — Tab / Shift+Tab keys (ADR-34 Stage 4)', () {
     testWidgets(
-        'pressing Tab with a collapsed cursor inserts a literal tab '
-        'character at the cursor and does not move focus away from the '
-        'editor', (tester) async {
+        'Tab with a collapsed cursor on a plain paragraph line inserts a '
+        "tab at the line's start (not at the cursor) and does not move "
+        'focus away from the editor', (tester) async {
       final controller = MarkdownEditorController();
 
       await tester.pumpWidget(_buildEditor(
@@ -1028,9 +1031,14 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.tab);
       await tester.pump();
 
-      expect(controller.currentValue, 'a\tb',
-          reason: 'Tab must insert a literal tab character at the cursor, '
-              'not be silently swallowed by focus traversal');
+      expect(controller.currentValue, '\tab',
+          reason: 'Stage 4: a plain paragraph line is indented at its '
+              'absolute start, not at the cursor — deliberate behaviour '
+              'change from the previous at-cursor insert');
+      expect(controller.selectionForTesting,
+          const TextSelection.collapsed(offset: 2),
+          reason: "cursor position relative to the line's own content "
+              '(originally between "a" and "b") must be preserved');
       expect(controller.hasActiveBlock, isTrue,
           reason: 'the editor must still hold focus after Tab — if '
               'traversal had consumed the key, focus would have moved '
@@ -1038,17 +1046,18 @@ void main() {
     });
 
     testWidgets(
-        'pressing Tab with an active (non-collapsed) selection replaces '
-        'the selection with a tab character', (tester) async {
+        'Tab with an active selection entirely inside a heading falls back '
+        'to replacing the selection with a tab character', (tester) async {
       final controller = MarkdownEditorController();
 
       await tester.pumpWidget(_buildEditor(
-        initialValue: 'hello world',
+        initialValue: '# hello world',
         controller: controller,
       ));
 
+      // Select "hello" inside the heading content (offsets 2-7).
       controller.setSelectionForTesting(
-        const TextSelection(baseOffset: 0, extentOffset: 5),
+        const TextSelection(baseOffset: 2, extentOffset: 7),
       );
       controller.requestFocus();
       await tester.pump();
@@ -1056,23 +1065,23 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.tab);
       await tester.pump();
 
-      expect(controller.currentValue, '\t world',
-          reason: 'Tab must replace the active selection with a tab '
-              'character — the same selection-replace semantics ordinary '
-              'inserted text uses (see _pasteFromClipboard)');
+      expect(controller.currentValue, '# \t world',
+          reason: 'a selection touching only an excluded (heading) line '
+              'falls back to the pre-existing selection-replace-with-tab '
+              'behaviour, unchanged');
     });
 
-    testWidgets('Shift+Tab is left unhandled (out of scope for this fix)',
+    testWidgets('Shift+Tab dedents a list item (ADR-34 Stage 4)',
         (tester) async {
       final controller = MarkdownEditorController();
 
       await tester.pumpWidget(_buildEditor(
-        initialValue: 'ab',
+        initialValue: '  - item',
         controller: controller,
       ));
 
       controller
-          .setSelectionForTesting(const TextSelection.collapsed(offset: 1));
+          .setSelectionForTesting(const TextSelection.collapsed(offset: 8));
       controller.requestFocus();
       await tester.pump();
 
@@ -1081,10 +1090,36 @@ void main() {
       await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
       await tester.pump();
 
-      expect(controller.currentValue, 'ab',
-          reason: 'Shift+Tab must not insert a tab character — it is left '
-              'to default (reverse) focus-traversal behavior, out of scope '
-              'for this fix');
+      expect(controller.currentValue, '- item',
+          reason: 'Shift+Tab now dedents the list item by one level '
+              '(ADR-34 Stage 4) instead of being left to default '
+              'focus-traversal');
+    });
+
+    testWidgets('Shift+Tab on a level-0 list item is a no-op — nothing changes',
+        (tester) async {
+      final controller = MarkdownEditorController();
+
+      await tester.pumpWidget(_buildEditor(
+        initialValue: '- item',
+        controller: controller,
+      ));
+
+      controller
+          .setSelectionForTesting(const TextSelection.collapsed(offset: 6));
+      controller.requestFocus();
+      await tester.pump();
+
+      await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+      await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+      await tester.pump();
+
+      expect(controller.currentValue, '- item',
+          reason: 'Dedent is clamped at level 0 — never negative');
+      expect(controller.hasActiveBlock, isTrue,
+          reason: 'the key must still be handled (not left to focus '
+              'traversal) even when the action is a no-op');
     });
   });
 }
