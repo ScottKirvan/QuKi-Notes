@@ -56,6 +56,16 @@ class FormattingToolbar extends StatelessWidget {
               tooltip: 'Task list',
               onPressed: () => controller.toggleLinePrefix('- [ ] '),
             ),
+            IconButton(
+              icon: const Icon(LucideIcons.indentIncrease),
+              tooltip: 'Indent',
+              onPressed: controller.indent,
+            ),
+            IconButton(
+              icon: const Icon(LucideIcons.indentDecrease),
+              tooltip: 'Dedent',
+              onPressed: controller.dedent,
+            ),
           ],
         ),
       ),

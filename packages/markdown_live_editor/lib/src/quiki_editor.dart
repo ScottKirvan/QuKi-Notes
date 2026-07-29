@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'editor_config.dart';
+import 'indent_dedent.dart';
 import 'md_parser.dart';
 import 'quiki_render_editor.dart';
 import 'render_model.dart';
@@ -536,15 +537,18 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
       }
     }
 
-    // Tab inserts a literal tab character (ADR-34 Fix 2 / #77 remains a
-    // separate, not-yet-built feature for interactive indent/dedent — this
-    // is only about letting the raw keystroke reach the text buffer instead
-    // of being silently consumed by Flutter's default focus-traversal
-    // system, which is what happens to any key with no case here). Shift+Tab
-    // is deliberately left unhandled so it keeps its default (reverse)
-    // focus-traversal behavior.
-    if (key == LogicalKeyboardKey.tab && !shift) {
-      _insertTab();
+    // Tab / Shift+Tab trigger the same Indent/Dedent action as the
+    // FormattingToolbar buttons (ADR-34 Stage 4 / #77) — see
+    // indent_dedent.dart for the full per-line-kind rule set. Both this key
+    // handler and MarkdownEditorController.indent()/dedent() call the same
+    // applyIndent/applyDedent functions so button and keystroke are
+    // guaranteed to produce identical results for identical starting state.
+    if (key == LogicalKeyboardKey.tab) {
+      if (shift) {
+        _applyDedent();
+      } else {
+        _applyIndent();
+      }
       return KeyEventResult.handled;
     }
     if (key == LogicalKeyboardKey.backspace) {
@@ -602,23 +606,27 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     _deleteSelection();
   }
 
-  /// Inserts a literal tab character at the cursor, replacing the current
-  /// selection if one is active — the same selection-replace semantics
-  /// [_pasteFromClipboard] uses for ordinary inserted text (there is no
-  /// existing "insert typed character" code path to mirror instead, since
-  /// ordinary typed characters arrive already-merged into a full
-  /// [TextEditingValue] from the platform IME via [updateEditingValue];
-  /// Tab is a raw hardware key event with no IME involvement, so this method
-  /// has to perform the replace-selection-and-advance-cursor step itself).
-  void _insertTab() {
+  /// Applies [applyIndent] to the current text/selection and commits the
+  /// result. Shared with [MarkdownEditorController.indent] via the pure
+  /// function in indent_dedent.dart — see that file for the full behaviour.
+  void _applyIndent() {
     if (!_sel.isValid) return;
-    final newText = _text.replaceRange(_sel.start, _sel.end, '\t');
-    final newOffset = _sel.start + 1;
+    final result = applyIndent(_text, _sel);
     _updateValue(
-      TextEditingValue(
-        text: newText,
-        selection: TextSelection.collapsed(offset: newOffset),
-      ),
+      TextEditingValue(text: result.text, selection: result.selection),
+      notify: true,
+    );
+    _connection?.setEditingState(_value);
+  }
+
+  /// Applies [applyDedent] to the current text/selection and commits the
+  /// result. Shared with [MarkdownEditorController.dedent] via the pure
+  /// function in indent_dedent.dart — see that file for the full behaviour.
+  void _applyDedent() {
+    if (!_sel.isValid) return;
+    final result = applyDedent(_text, _sel);
+    _updateValue(
+      TextEditingValue(text: result.text, selection: result.selection),
       notify: true,
     );
     _connection?.setEditingState(_value);
