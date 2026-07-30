@@ -52,29 +52,6 @@ Read in this order — do not skip:
 
 > Written and maintained by the Spec session.
 
-### Interactive Indent/Dedent — toolbar buttons + Tab/Shift+Tab — ADR-34 Stage 4 (#77)
+No task currently in progress.
 
-**Branch**: `feat/indent-dedent`
-**Commit type**: `feat:` — genuinely new interactive capability.
-**Suggested PR title** (Spec opens the PR, not you): `feat(editor): interactive Indent/Dedent — toolbar buttons + Tab/Shift+Tab (ADR-34 Stage 4, #77)`
-
-**Read first, in this order**: `notes/dev/block_indentation.md` → the "Stage 4" section (the full, authoritative behavior spec — read it in full, this brief is a pointer to it, not a substitute) and `notes/dev/decisions.md` → ADR-34. Then read: the existing Tab-key handling in `packages/markdown_live_editor/lib/src/quiki_editor.dart` (added in a previous round — Tab currently always inserts a literal tab character at the cursor; this stage changes that for list items and plain paragraphs, but must preserve it exactly for headings/blockquotes); `packages/markdown_live_editor/lib/src/formatting_toolbar.dart` (the existing button pattern — List/Ordered-list/Checklist buttons are the closest precedent for the new Indent/Dedent buttons); the list auto-continue logic in `markdown_editor.dart` (how this codebase already manipulates the buffer around list-item lines on Enter); and `md_parser.dart`'s list/checkbox/ol/heading/blockquote detection plus `_listIndent()` (how "is this line a list item, and at what depth" is determined today — you are not building depth-detection, it already exists and already drives correct rendering/numbering once a line's leading whitespace is correct).
-
-**What to build**: implement the Stage 4 behavior spec in `block_indentation.md` exactly — it fully describes the required behavior per line kind (list item, plain paragraph, heading/blockquote exclusion), multi-line selection handling, and the two entry points (toolbar buttons, Tab/Shift+Tab) that must trigger identical behavior. Do not re-derive that behavior here; go read it. The mechanism — how you detect each line's kind, how you rewrite the line(s) and reposition the cursor/selection, how the toolbar buttons and the key handler share the underlying action — is your design choice.
-
-**Explicitly out of scope** (see the spec's own "Explicitly out of scope" subsection for full reasoning): "indent with children" (recursively moving a list item's nested sub-items along with it); any change to blockquote nesting depth (`>`/`>>`); wrap-correct paragraph indentation (tracked separately as #305 — ship the literal-tab-insert behavior for paragraphs as specified, do not attempt to fix its wrap-correctness); any new UI affordance beyond the button/keystroke behavior itself.
-
-**Tests required** (the spec document is the source of truth for behavior; this list is what must be verified, not new requirements):
-- Indent (button or Tab) on a collapsed cursor at the start, middle, and end of a list item's content all produce the same result: the whole line's depth increases by one, cursor's position relative to its own content is preserved. Cover `ul`, `ol`, and both checkbox states.
-- Dedent (button or Shift+Tab) decreases depth by one; at level 0 it is a no-op — assert nothing changes, not just "doesn't crash."
-- The full "type `-`, press Enter, press Indent" workflow end to end — the auto-continued (still empty) new line becomes nested.
-- Indent on a plain paragraph line inserts a literal tab character at the start of that line (not at the cursor) — verify this explicitly, it's a deliberate behavior change from the currently-shipped at-cursor insert.
-- Indent/Dedent on a heading or blockquote line leaves that line's recognition intact — i.e., confirm it does NOT get corrupted into plain text — and falls back to the pre-existing at-cursor Tab-insert behavior (Indent) / no-op (Dedent), byte-identical to what's currently shipped. This is the most important regression category — get this wrong and headings/blockquotes silently break.
-- A multi-line selection spanning list items at different existing depths shifts each by one level, preserving their relative nesting to each other; paragraph lines within that same selection get the line-start insert; heading/blockquote lines within it are left alone.
-- A multi-line selection that touches nothing eligible for a real line-start operation falls back to the existing selection-replace-with-tab-character behavior — a regression guard, this must not have changed.
-- The toolbar Indent/Dedent buttons and the Tab/Shift+Tab keys produce identical results for the same starting state — assert this equivalence directly, don't just test each path separately and assume they match.
-- Ordered-list numbering recomputes correctly after an Indent/Dedent changes a line's depth — assert actual sequence numbers, don't just trust the existing parser silently does the right thing.
-- Multiple consecutive Indents on the same list item nest it multiple levels deep with no upper-bound issue.
-- Checkbox checked/unchecked state survives being indented or dedented.
-
-**Checklist**: `dart format`, `flutter analyze`, package tests (`cd packages/markdown_live_editor && flutter test`) — all clean before pushing, run frequently during development. Include in your report-back: confirmation that `QuikiRenderEditor`'s public coordinate API needed zero changes (this should be a pure text-buffer/cursor operation, not a rendering change — flag clearly if that assumption turned out to be wrong and why), example markdown before/after for a few representative Indent/Dedent operations (list item, paragraph, heading/blockquote exclusion, multi-line selection), and anything the spec didn't cover that required you to make an independent judgment call (flag it, don't silently decide and bury it).
+ADR-34 is now fully shipped (Stages 1-4, PRs #292/#294/#307, closing #242/#237/#241/#77), plus two immediate device-test follow-ups (PR #308 toolbar scroll, PR #309 tab render width) and a test-suite-health fix found during #309's review (PR #310 docs, PR #311 fix — a `pumpWidget()`-reuse gotcha, see `notes/dev/testing.md`). See `notes/dev/block_indentation.md` and `notes/dev/decisions.md` → ADR-34 for full context.
