@@ -670,14 +670,42 @@ class RenderModel {
       srcToRnd[si] = ri;
 
       if (visible) {
+        // A literal tab character has no real tab-stop concept under
+        // Flutter's TextPainter — it renders at whatever narrow width the
+        // font's tab glyph happens to report, in practice roughly one
+        // space-width, which reads as too narrow to see as an indent
+        // (surfaced by ADR-34 Stage 4's Indent/Dedent, which can insert a
+        // literal '\t' into visible text — see indent_dedent.dart). Substitute
+        // any VISIBLE tab with [_tabSubstitute] (4 literal space characters)
+        // of the same style: a 1-source-char -> N-rendered-char expansion, the
+        // same "one source position needs special rendered treatment" shape
+        // as the historical list/checkbox marker substitutions (see
+        // MdElement.collapsedMarker) — every one of the N rendered positions
+        // maps back to this tab's own source offset, so tap/caret lookups
+        // anywhere inside the widened region resolve to the tab character
+        // itself. Real (actual glyph) space characters guarantee the visual
+        // width is exactly N times a single space glyph, regardless of font.
+        //
+        // This runs unconditionally in the shared visible-character path —
+        // not gated on any MdElement — so it applies identically whether or
+        // not markdown parsing ran at all: plain-text mode (whose elements
+        // list is always empty; see QuikiEditorState.build) never populates
+        // any element for a tab to be gated on, and a hidden (delimiter) tab,
+        // e.g. a list item's leading indentation tab, never reaches this
+        // branch in the first place (isDelimiter routes it to the invisible
+        // path above), so list-item indentation is unaffected.
+        final substitute = char == '\t' ? _tabSubstitute : char;
+
         // Group into a style run.
         if (charStyle != bufStyle) {
           flushBuf();
           bufStyle = charStyle;
         }
-        bufText.write(char);
-        rndToSrc.add(si);
-        ri++;
+        bufText.write(substitute);
+        for (var k = 0; k < substitute.length; k++) {
+          rndToSrc.add(si);
+        }
+        ri += substitute.length;
       }
     }
 
@@ -880,6 +908,16 @@ class _PendingLink {
   final int renderedStart;
   final int contentEnd;
 }
+
+// ---------------------------------------------------------------------------
+// Tab rendering — file-private.
+// ---------------------------------------------------------------------------
+
+/// The literal replacement text for one visible source tab character — 4
+/// literal space characters, so its rendered visual width is exactly 4x a
+/// single space glyph at the active font size. See the substitution site in
+/// [RenderModel.build] for the full rationale.
+const String _tabSubstitute = '    ';
 
 // ---------------------------------------------------------------------------
 // Content style helper — file-private.
