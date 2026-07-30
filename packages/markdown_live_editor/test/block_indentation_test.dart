@@ -303,6 +303,17 @@ void main() {
   // Widget-level: geometry and hit-testing through the real render object.
   // ---------------------------------------------------------------------------
 
+  // A fresh Key per call is required: WidgetTester.pumpWidget() on a tree
+  // that Widget.canUpdate() considers compatible with the previous one
+  // (same runtimeType, same key — both null count as equal) performs an
+  // in-place UPDATE, not a fresh mount — _MarkdownEditorState has no
+  // didUpdateWidget override to resync its TextEditingController from a
+  // changed widget.initialValue, so a second same-test pumpWidget call with
+  // a different initialValue but no distinguishing key would silently keep
+  // rendering the FIRST call's content (see notes/dev/testing.md's
+  // "pumpWidget() reuse" gotcha — this is the file that surfaced it). A
+  // UniqueKey per call forces a real unmount + remount every time, which is
+  // what every geometry comparison in this file actually needs.
   Widget buildEditor({
     required String initialValue,
     MarkdownEditorController? controller,
@@ -311,6 +322,7 @@ void main() {
     void Function(int sourceOffset)? onCheckboxToggle,
   }) {
     return MaterialApp(
+      key: UniqueKey(),
       home: Scaffold(
         body: MarkdownEditor(
           initialValue: initialValue,
