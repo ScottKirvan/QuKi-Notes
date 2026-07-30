@@ -30,13 +30,18 @@ import 'package:flutter/services.dart';
 //    unchanged: Indent inserts a literal tab AT THE CURSOR (or replaces an
 //    active selection, same semantics the old Tab-only implementation had);
 //    Dedent is a no-op.
-//  - Horizontal rules and block images are, by the same reasoning, also
-//    excluded (recognized only via a column-0, whole-line pattern that a
-//    leading tab would break) — the brief only named headings/blockquotes
-//    explicitly; this is an independent judgement call applying the same
-//    stated invariant ("don't break recognition") to the only other
-//    column-0-anchored, whole-line-pattern block kinds MdParser has. Flagged
-//    to spec for confirmation rather than silently narrowed.
+//  - Block images: same reasoning as headings/blockquotes above (recognized
+//    via a line prefix `![` and suffix `)`, not the whole line) — a tab
+//    inserted elsewhere in the line is harmless, so Indent keeps the
+//    at-cursor fallback; Dedent is a no-op.
+//  - Horizontal rules: also column-0-anchored, but MdParser's _isHrLine
+//    requires the ENTIRE line to be only the hr character or plain spaces,
+//    so a tab inserted ANYWHERE (start, middle, or end) always breaks
+//    recognition — there is no safe at-cursor insertion point the way there
+//    is for headings/blockquotes/images. Confirmed by test:
+//    MdParser.parse('-\t--') returns zero elements. So Indent is also a
+//    no-op here, matching Dedent, rather than attempting the at-cursor
+//    fallback used for the other excluded kinds. See _LineKind.excludedHr.
 // ---------------------------------------------------------------------------
 
 /// Result of an [applyIndent] / [applyDedent] call: the new full source text
@@ -74,6 +79,12 @@ IndentResult _indentCollapsed(String text, TextSelection selection) {
   final line = text.substring(lineStart, lineEnd);
   final kind = _classifyLine(line);
 
+  if (kind == _LineKind.excludedHr) {
+    // No cursor position preserves hr recognition (the whole line must be
+    // only the hr character or spaces) — no-op, matching Dedent.
+    return IndentResult(text, selection);
+  }
+
   if (kind == _LineKind.excluded) {
     // Fallback: pre-existing at-cursor tab insert (no selection to replace
     // since this is the collapsed case).
@@ -97,7 +108,7 @@ IndentResult _dedentCollapsed(String text, TextSelection selection) {
   final line = text.substring(lineStart, lineEnd);
   final kind = _classifyLine(line);
 
-  if (kind == _LineKind.excluded) {
+  if (kind == _LineKind.excluded || kind == _LineKind.excludedHr) {
     return IndentResult(text, selection); // no-op
   }
 
@@ -142,7 +153,10 @@ IndentResult _indentOrDedentSelection(
   for (final ls in lineStarts) {
     final lineEnd = _lineBoundsAt(text, ls).$2;
     final line = text.substring(ls, lineEnd);
-    if (_classifyLine(line) != _LineKind.excluded) eligibleLines.add(ls);
+    final lineKind = _classifyLine(line);
+    if (lineKind != _LineKind.excluded && lineKind != _LineKind.excludedHr) {
+      eligibleLines.add(ls);
+    }
   }
 
   if (eligibleLines.isEmpty) {
@@ -224,11 +238,22 @@ enum _LineKind {
   /// at the absolute line start.
   paragraph,
 
-  /// Heading, blockquote, horizontal rule, or block image — a column-0,
-  /// whole-line-pattern marker that leading whitespace would break.
-  /// Indent/Dedent fall back to the pre-existing at-cursor / no-op
-  /// behaviour.
+  /// Heading, blockquote, or block image — a column-0-anchored marker
+  /// recognized via a line prefix/suffix, not the whole line. Indent falls
+  /// back to the pre-existing at-cursor tab insert (safe: a tab elsewhere in
+  /// the line doesn't touch the prefix/suffix MdParser actually checks).
+  /// Dedent is a no-op.
   excluded,
+
+  /// Horizontal rule. Also column-0-anchored, but unlike [excluded] above,
+  /// MdParser's _isHrLine requires the ENTIRE line to consist of only the hr
+  /// character or plain spaces — a tab inserted anywhere (start, middle, or
+  /// end) always breaks recognition; there is no safe at-cursor insertion
+  /// point the way there is for headings/blockquotes/images. Confirmed by
+  /// test: `MdParser.parse('-\t--')` returns zero elements. So Indent is
+  /// also a no-op here, matching Dedent, rather than attempting the
+  /// at-cursor fallback used for the other excluded kinds.
+  excludedHr,
 }
 
 _LineKind _classifyLine(String line) {
@@ -263,7 +288,7 @@ _LineKind _classifyLine(String line) {
       line.startsWith('- [X] ')) {
     return _LineKind.list;
   }
-  if (_isHrLine(line)) return _LineKind.excluded;
+  if (_isHrLine(line)) return _LineKind.excludedHr;
   if (line.startsWith('>')) return _LineKind.excluded;
   if (line.startsWith('- ') || line.startsWith('* ') || line.startsWith('+ ')) {
     return _LineKind.list;
@@ -286,6 +311,7 @@ int _removedLenForDedent(String line, _LineKind kind) {
     case _LineKind.paragraph:
       return line.startsWith('\t') ? 1 : 0;
     case _LineKind.excluded:
+    case _LineKind.excludedHr:
       return 0;
   }
 }

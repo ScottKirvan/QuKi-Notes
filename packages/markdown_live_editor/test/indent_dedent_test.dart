@@ -272,6 +272,68 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
+  // Block images — excluded for the same reason as headings/blockquotes
+  // above: recognized only via a line prefix (`![`) / suffix (`)`), not the
+  // whole line, so a tab inserted elsewhere is harmless. Falls back to the
+  // pre-existing at-cursor-insert (Indent) / no-op (Dedent) behaviour, and
+  // MdParser must still recognize the line afterward (recognition is not
+  // broken).
+  // -------------------------------------------------------------------------
+  group('applyIndent / applyDedent — block images (excluded)', () {
+    test(
+        'Indent on a block-image line inserts a tab AT THE CURSOR, matching '
+        'the pre-existing Tab behaviour byte-for-byte', () {
+      final result = applyIndent(
+          '![alt](path.png)', const TextSelection.collapsed(offset: 5));
+      expect(result.text, '![alt\t](path.png)');
+      expect(result.selection, const TextSelection.collapsed(offset: 6));
+      // Recognition must survive: still a single image element, not
+      // corrupted into plain text.
+      final els = MdParser.parse(result.text);
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.image);
+    });
+
+    test('Dedent on a block-image line is a no-op', () {
+      const text = '![alt](path.png)';
+      const sel = TextSelection.collapsed(offset: 5);
+      final result = applyDedent(text, sel);
+      expect(result.text, same(text));
+      expect(result.selection, sel);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Horizontal rules — unlike headings/blockquotes/images, MdParser's
+  // _isHrLine requires the ENTIRE line to consist of only the hr character
+  // or plain spaces, so a tab inserted anywhere (start, middle, or end)
+  // always breaks recognition. There is no cursor position where an
+  // at-cursor tab insert is safe, so Indent is a no-op here too — text and
+  // selection unchanged, same as Dedent.
+  // -------------------------------------------------------------------------
+  group('applyIndent / applyDedent — horizontal rules (excluded, no-op)', () {
+    test('Indent on an hr line is a no-op', () {
+      const text = '---';
+      const sel = TextSelection.collapsed(offset: 1);
+      final result = applyIndent(text, sel);
+      expect(result.text, same(text));
+      expect(result.selection, sel);
+      // Still recognized as hr — untouched, not corrupted.
+      final els = MdParser.parse(result.text);
+      expect(els, hasLength(1));
+      expect(els[0].kind, MdElKind.hr);
+    });
+
+    test('Dedent on an hr line is a no-op', () {
+      const text = '---';
+      const sel = TextSelection.collapsed(offset: 1);
+      final result = applyDedent(text, sel);
+      expect(result.text, same(text));
+      expect(result.selection, sel);
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // Multi-line selections.
   // -------------------------------------------------------------------------
   group('applyIndent / applyDedent — multi-line selections', () {
@@ -328,6 +390,20 @@ void main() {
       final result = applyDedent(source, sel);
       expect(result.text, same(source));
       expect(result.selection, sel);
+    });
+
+    test(
+        'selection touching zero eligible lines (hr + block image only) '
+        'falls back to the pre-existing selection-replace-with-tab '
+        'behaviour — confirms hr/image are ineligible too, not just '
+        'headings/blockquotes', () {
+      const source = '---\n![alt](path.png)';
+      final result = applyIndent(
+        source,
+        const TextSelection(baseOffset: 0, extentOffset: source.length),
+      );
+      expect(result.text, '\t');
+      expect(result.selection, const TextSelection.collapsed(offset: 1));
     });
 
     test(
