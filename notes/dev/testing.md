@@ -152,3 +152,17 @@ flutter test integration_test/
 | 6 (MCP, v2.0+) | MCP server handler tests, JSON-RPC envelope round-trip, capability negotiation |
 
 Tests come with code from Phase 1 onward — no "tests come later" phase.
+
+---
+
+## Known widget-test gotcha: `pumpWidget()` reuse silently keeps stale content
+
+Found 2026-07-30 (during ADR-34 follow-up work) and empirically confirmed, not theoretical: calling `tester.pumpWidget()` more than once within a single `testWidgets` block, to compare two different `initialValue`s on `MarkdownEditor`/`QuikiEditor`, does **not** force a fresh mount if the two widget trees are structurally identical (same types, no distinguishing `Key`). `MarkdownEditorController`'s underlying `State` has no `didUpdateWidget` override, so Flutter treats the second `pumpWidget` call as an in-place update and the widget silently keeps rendering the **first** call's content — the test still runs and can still pass, but it's comparing the first document to itself, not genuinely exercising the second input.
+
+**How to avoid it** (either is fine, both are already used correctly elsewhere in this suite):
+- Give each `pumpWidget` call a distinguishing `Key` (e.g. `UniqueKey()` on the top-level `MaterialApp`) — forces a real unmount + remount every time. See `tab_render_width_test.dart` for the pattern.
+- Force a teardown between calls by pumping an unrelated widget type in between (e.g. `await tester.pumpWidget(const SizedBox())`) — breaks `Widget.canUpdate()`'s compatibility check. See the toolbar/keystroke-equivalence tests in `indent_dedent_test.dart` for the pattern.
+
+**Caught one real instance** of the un-mitigated version: a test in `block_indentation_test.dart` (ADR-34 marker-gutter-leak fix) compared two documents via two same-tree `pumpWidget` calls with no key — its "without list" half was vacuously comparing the first document to itself. The underlying fix was still correct (independently verified by code review and by a sibling single-pump test in the same group), but the test itself wasn't proving what it claimed. Fixed as a standalone follow-up once found — see git history for that PR.
+
+If you're writing or reviewing a widget test that calls `pumpWidget` more than once to compare states, check for this specifically — it won't show up as a failure, only as a test that's weaker than it looks.
