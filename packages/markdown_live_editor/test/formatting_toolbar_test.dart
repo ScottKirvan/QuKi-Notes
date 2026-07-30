@@ -28,6 +28,38 @@ Future<MarkdownEditorController> pumpEditor(
   return controller;
 }
 
+// Helper: pump the editor with a FormattingToolbar constrained to
+// [toolbarWidth], narrower than the combined width of its 10 buttons, so
+// tests can exercise the horizontal-scroll behavior.
+Future<MarkdownEditorController> pumpNarrowToolbar(
+  WidgetTester tester, {
+  String initialValue = '',
+  double toolbarWidth = 250,
+}) async {
+  final controller = MarkdownEditorController();
+  await tester.pumpWidget(MaterialApp(
+    home: Scaffold(
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: MarkdownEditor(
+              initialValue: initialValue,
+              controller: controller,
+            ),
+          ),
+          SizedBox(
+            width: toolbarWidth,
+            child: FormattingToolbar(controller: controller),
+          ),
+        ],
+      ),
+    ),
+  ));
+  await tester.pump();
+  return controller;
+}
+
 void main() {
   group('wrapSelection', () {
     testWidgets('wraps selected text with bold markers', (tester) async {
@@ -503,10 +535,13 @@ void main() {
       expect(find.byIcon(LucideIcons.bold), findsOneWidget);
       expect(find.byIcon(LucideIcons.italic), findsOneWidget);
       expect(find.byIcon(LucideIcons.strikethrough), findsOneWidget);
+      expect(find.byIcon(LucideIcons.code), findsOneWidget);
       expect(find.byIcon(LucideIcons.list), findsOneWidget);
       expect(find.byIcon(LucideIcons.listOrdered), findsOneWidget);
       expect(find.byIcon(LucideIcons.heading1), findsOneWidget);
       expect(find.byIcon(LucideIcons.listChecks), findsOneWidget);
+      expect(find.byIcon(LucideIcons.indentIncrease), findsOneWidget);
+      expect(find.byIcon(LucideIcons.indentDecrease), findsOneWidget);
     });
 
     testWidgets('tapping bold button wraps cursor text with **',
@@ -584,6 +619,153 @@ void main() {
       await tester.pump();
 
       expect(controller.currentValue, '1. an item');
+    });
+
+    testWidgets('tapping italic button wraps cursor text with _',
+        (tester) async {
+      final controller = await pumpEditor(tester, initialValue: 'word');
+
+      controller.setSelectionForTesting(
+          const TextSelection(baseOffset: 0, extentOffset: 4));
+      await tester.pump();
+
+      await tester.tap(find.byIcon(LucideIcons.italic));
+      await tester.pump();
+
+      expect(controller.currentValue, '_word_');
+    });
+
+    testWidgets('tapping strikethrough button wraps cursor text with ~~',
+        (tester) async {
+      final controller = await pumpEditor(tester, initialValue: 'word');
+
+      controller.setSelectionForTesting(
+          const TextSelection(baseOffset: 0, extentOffset: 4));
+      await tester.pump();
+
+      await tester.tap(find.byIcon(LucideIcons.strikethrough));
+      await tester.pump();
+
+      expect(controller.currentValue, '~~word~~');
+    });
+
+    testWidgets('tapping code button wraps cursor text with `', (tester) async {
+      final controller = await pumpEditor(tester, initialValue: 'word');
+
+      controller.setSelectionForTesting(
+          const TextSelection(baseOffset: 0, extentOffset: 4));
+      await tester.pump();
+
+      await tester.tap(find.byIcon(LucideIcons.code));
+      await tester.pump();
+
+      expect(controller.currentValue, '`word`');
+    });
+
+    testWidgets('tapping indentIncrease button indents the current line',
+        (tester) async {
+      final controller = await pumpEditor(tester, initialValue: 'hello world');
+
+      controller
+          .setSelectionForTesting(const TextSelection.collapsed(offset: 5));
+      await tester.pump();
+
+      await tester.tap(find.byIcon(LucideIcons.indentIncrease));
+      await tester.pump();
+
+      expect(controller.currentValue, '\thello world');
+    });
+
+    testWidgets('tapping indentDecrease button dedents the current line',
+        (tester) async {
+      final controller =
+          await pumpEditor(tester, initialValue: '\thello world');
+
+      controller
+          .setSelectionForTesting(const TextSelection.collapsed(offset: 6));
+      await tester.pump();
+
+      await tester.tap(find.byIcon(LucideIcons.indentDecrease));
+      await tester.pump();
+
+      expect(controller.currentValue, 'hello world');
+    });
+  });
+
+  group('FormattingToolbar horizontal scroll', () {
+    testWidgets(
+        'on a viewport wide enough for all buttons, the toolbar does not '
+        'scroll and buttons start flush at the left edge', (tester) async {
+      await pumpEditor(tester); // default test viewport is 800x600.
+
+      final scrollable = tester.state<ScrollableState>(
+        find.descendant(
+          of: find.byType(FormattingToolbar),
+          matching: find.byType(Scrollable),
+        ),
+      );
+
+      // Nothing to scroll: all 10 buttons already fit in 800 logical px.
+      expect(scrollable.position.maxScrollExtent, 0);
+      expect(scrollable.position.pixels, 0);
+
+      // Flush left, same as the pre-fix bare Row — no leading padding
+      // introduced by the new scroll container. Compared against the
+      // *button's* own position, not the icon glyph's — IconButton has an
+      // inherent ~12px inset between its tap-target box and the glyph
+      // inside it, unrelated to this fix, so comparing the glyph directly
+      // to the toolbar's edge would fail even with zero added padding.
+      final firstButton = find.ancestor(
+        of: find.byIcon(LucideIcons.bold),
+        matching: find.byType(IconButton),
+      );
+      final firstButtonLeft = tester.getTopLeft(firstButton);
+      final toolbarLeft = tester.getTopLeft(find.byType(FormattingToolbar));
+      expect(firstButtonLeft.dx, toolbarLeft.dx);
+
+      // The toolbar box itself is still exactly 44 logical px tall.
+      final toolbarSize = tester.getSize(find.byType(FormattingToolbar));
+      expect(toolbarSize.height, 44);
+    });
+
+    testWidgets(
+        'on a narrow viewport, a button that overflows becomes reachable '
+        'and tappable after a horizontal drag', (tester) async {
+      const toolbarWidth = 250.0;
+      final controller = await pumpNarrowToolbar(
+        tester,
+        initialValue: '\thello world',
+        toolbarWidth: toolbarWidth,
+      );
+
+      final scrollable = tester.state<ScrollableState>(
+        find.descendant(
+          of: find.byType(FormattingToolbar),
+          matching: find.byType(Scrollable),
+        ),
+      );
+
+      // The 10th button (Dedent) does not fit in 250 logical px alongside
+      // the other 9, so there is real overflow to scroll through.
+      expect(scrollable.position.maxScrollExtent, greaterThan(0));
+
+      final dedentFinder = find.byIcon(LucideIcons.indentDecrease);
+      final beforeDrag = tester.getTopLeft(dedentFinder);
+      expect(beforeDrag.dx, greaterThan(toolbarWidth));
+
+      // Drag the toolbar content leftward to reveal the overflowed button.
+      await tester.drag(find.byType(FormattingToolbar), const Offset(-400, 0));
+      await tester.pumpAndSettle();
+
+      final afterDrag = tester.getTopLeft(dedentFinder);
+      expect(afterDrag.dx, lessThan(toolbarWidth));
+      expect(afterDrag.dx, greaterThanOrEqualTo(0));
+
+      // Now reachable: tapping it produces its existing, correct behavior.
+      await tester.tap(dedentFinder);
+      await tester.pump();
+
+      expect(controller.currentValue, 'hello world');
     });
   });
 }
