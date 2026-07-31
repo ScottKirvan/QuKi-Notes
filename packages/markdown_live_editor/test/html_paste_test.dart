@@ -58,7 +58,7 @@ QuikiEditorState _editorState(WidgetTester tester) =>
 
 /// Installs a fake HTML clipboard reader for the duration of a test.
 /// [html] null means "no HTML representation available" — the same signal
-/// super_clipboard's real reader sends when Formats.htmlText can't be
+/// quill_native_bridge's real reader sends when no HTML representation can be
 /// provided.
 void _setClipboardHtml(String? html) {
   QuikiEditorState.debugClipboardHtmlReader = () async => html;
@@ -82,7 +82,7 @@ void main() {
   tearDown(() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(SystemChannels.platform, null);
-    // Restore the real super_clipboard-backed reader so no test leaks state.
+    // Restore the real quill_native_bridge-backed reader so no test leaks state.
     QuikiEditorState.debugClipboardHtmlReader = null;
   });
 
