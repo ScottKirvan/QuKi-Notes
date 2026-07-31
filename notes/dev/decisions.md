@@ -12,6 +12,31 @@ Normative framing in `manifesto.md` — read that first.
 
 ---
 
+## ADR-35: Rich-text (HTML) clipboard paste → GFM markdown conversion
+
+**Date**: 2026-07-30
+
+**Status**: locked decision, not yet implemented. Briefed to the implementation session; this entry is the index pointer, full rationale below.
+
+**What**: Add `super_clipboard` (cross-platform HTML clipboard reading — macOS, iOS, Android, Windows, Linux, Web) and `html2md` (pure-Dart HTML→Markdown conversion) as new dependencies. `_pasteFromClipboard()` in `quiki_editor.dart` reads the clipboard's HTML representation (`Formats.htmlText`) when present, converts it to GFM markdown via `html2md`, and inserts the resulting markdown text through the exact same buffer-update path plain-text paste already uses today (same single edit, same undo behavior, same reparse-on-next-build). When no HTML representation is present on the clipboard — pasting from another QuKi, a plain-text source, or anything without a rich-text clipboard entry — behavior is completely unchanged from today: read `Clipboard.kTextPlain`, insert as-is.
+
+Conversion emits full, faithful GFM markdown for whatever structure the source HTML has — tables, code blocks, image references (as `![alt](url)` with the source's original URL) — regardless of whether QuKi-Notes currently renders that syntax with special visual treatment. Nothing is deliberately simplified, stripped, or degraded to plain prose just because the renderer doesn't support it yet (tables: #245; fenced code: #244; external image URLs: #246 — all filed, none built). The raw markdown stays legible and portable as plain text either way, and future rendering support can pick it up later without anyone needing to re-paste.
+
+**Why**: Real, recurring user friction, not a hypothetical — pasting any content from a webpage into QuKi-Notes currently loses all formatting, because `Clipboard.getData(Clipboard.kTextPlain)` only ever reads the clipboard's plain-text representation. When you copy something with visual formatting from a browser (or Word, Gmail, Google Docs, Slack, etc.), the system clipboard holds multiple representations simultaneously — typically HTML (which carries the bold/headers/links/tables) and a plain-text fallback (which carries none of that, by definition). QuKi-Notes has only ever read the latter. This isn't a bug in the existing paste code — the buffer-update and reparse mechanism is correct and unaffected — it's a capability gap: the app has never looked at the richer clipboard format at all.
+
+Directly serves the manifesto's velocity principle (capture should be frictionless, and "paste from a webpage" is a common capture path this app currently punishes) and open-data principle (the fix itself — converting to plain, legible markdown text rather than any richer/proprietary format — is exactly the kind of "stays a portable, human-readable file" approach the manifesto already commits to elsewhere).
+
+**Rejected alternatives**:
+- Degrading HTML structure this app doesn't yet render (tables, code blocks) to plain unstructured prose instead of real markdown syntax — rejected: a markdown table's `|`-delimited structure is still legible and useful as plain text even unrendered (the same reasoning this codebase already applies to fenced code blocks, which display as literal, unaltered raw text rather than being stripped down); flattening it to prose destroys information a raw-text reader could otherwise recover.
+- `h2m` instead of `html2md` for the conversion step — also Rust-based (via `flutter_rust_bridge`), so it doubles up on the native-toolchain build concern `super_clipboard` already introduces rather than avoiding it, with no compensating benefit for this app's needs. `html2md` is pure Dart.
+- Writing a bespoke, minimal HTML→Markdown converter instead of a library — rejected as reinventing HTML parsing/serialization for no real benefit; not a good use of scope.
+
+**Known risk, not yet resolved**: `super_clipboard` is implemented via a Rust-based native plugin (downloads precompiled binaries, or builds from source if a Rust toolchain is present). This is new build-pipeline surface across every platform this project targets (Android, Windows, Linux actively built; iOS/macOS scaffolding must stay buildable even though those platforms are deferred, per this project's hard rules). Not preemptively brought to the DevOps session — if the implementation PR's own CI run surfaces a build problem on any platform, that's the trigger to loop DevOps in, not a guess made now.
+
+**Deferred, tracked separately**: actually fetching/embedding external image URLs referenced by pasted `![alt](url)` markdown (#246, #247) — this ADR only preserves the reference as legible text, it does not download or locally embed anything. Rendering support for tables (#245) and fenced code (#244) — unaffected by this ADR either way.
+
+---
+
 ## ADR-34: Multi-run block indentation — per-indent-level TextPainter segments
 
 **Date**: 2026-07-22

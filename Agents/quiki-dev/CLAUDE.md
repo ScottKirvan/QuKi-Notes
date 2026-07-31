@@ -52,6 +52,30 @@ Read in this order — do not skip:
 
 > Written and maintained by the Spec session.
 
-No task currently in progress.
+### Rich-text (HTML) clipboard paste → GFM markdown conversion — ADR-35
 
-ADR-34 is now fully shipped (Stages 1-4, PRs #292/#294/#307, closing #242/#237/#241/#77), plus two immediate device-test follow-ups (PR #308 toolbar scroll, PR #309 tab render width) and a test-suite-health fix found during #309's review (PR #310 docs, PR #311 fix — a `pumpWidget()`-reuse gotcha, see `notes/dev/testing.md`). See `notes/dev/block_indentation.md` and `notes/dev/decisions.md` → ADR-34 for full context.
+**Branch**: `feat/html-paste-conversion`
+**Commit type**: `feat:` — genuinely new capability.
+**Suggested PR title** (Spec opens the PR, not you): `feat(editor): convert HTML clipboard content to markdown on paste (ADR-35)`
+
+**Read first, in this order**: `notes/dev/decisions.md` → ADR-35 (the full, authoritative rationale — read it in full, this brief is a summary, not a substitute). Then read the current `_pasteFromClipboard()` in `packages/markdown_live_editor/lib/src/quiki_editor.dart` (reads `Clipboard.kTextPlain`, inserts via `_updateValue`/`_connection?.setEditingState` — this exact buffer-update path must still be what a converted paste goes through) and `pubspec.yaml` for both the root app and `packages/markdown_live_editor` (to know where the new dependencies belong — this package is the one that owns paste handling, so the dependencies most likely belong there, but confirm by checking how existing dependencies are organized between the two).
+
+**What to build**: when the clipboard has an HTML representation available, `_pasteFromClipboard()` must read it (via `super_clipboard`'s `Formats.htmlText`), convert it to GFM markdown (via `html2md`), and insert the resulting markdown text through the exact same buffer-update mechanism plain-text paste already uses — same selection-replace semantics, same single edit, same undo behavior. When the clipboard has no HTML representation (pasting from another QuKi, a plain-text source, or anything without a rich-text entry), behavior must be byte-identical to what's currently shipped — this is the most important regression-risk category, since it's almost certainly the more common paste case day-to-day.
+
+**Correctness invariant, not a style choice**: conversion must preserve full GFM structure — tables, fenced code blocks, image references (`![alt](url)`, keeping the source's original URL, no attempt to fetch/download/embed anything) — even for markdown syntax this app's renderer doesn't yet give special visual treatment (tables: #245; fenced code: #244; external image URLs: #246 — all filed, none built). Do not simplify, strip, or degrade unsupported HTML structure down to plain prose — the raw markdown must stay exactly as legible and complete as `html2md` naturally produces it. See ADR-35's "Rejected alternatives" for why (the same reasoning this codebase already applies to fenced code blocks, which display as literal raw text rather than being stripped).
+
+**Also verify**: paste behavior (including whether HTML conversion happens) must be independent of `plainTextMode` — that flag controls how the *existing* buffer renders, not how paste writes to it, so there's no reason conversion should differ based on which mode the user happens to be viewing in.
+
+**Explicitly out of scope**: any UI toggle/preference for disabling HTML-to-markdown conversion (not asked for, adds chrome the manifesto discourages by default — if this turns out to be wanted, that's a separate future ask, flag it back rather than deciding to add it); actually fetching/embedding external images referenced by converted `![alt](url)` syntax (#246/#247's job, not this one); any change to copy/cut behavior (`Clipboard.setData` calls elsewhere in this file) — this ADR is paste-only.
+
+**Tests required**:
+- Clipboard with plain text only (no HTML) — paste result byte-identical to current shipped behavior. Most important regression guard.
+- Clipboard with HTML containing bold/italic/headers/links/lists/checkboxes — converts to correct GFM syntax matching what this app's own parser (`MdParser`) recognizes, so the pasted result actually renders once inserted, not just "looks like markdown."
+- Clipboard with HTML containing a table — converts to real markdown table syntax (`|`-delimited rows), not flattened prose.
+- Clipboard with HTML containing a code block — converts to fenced code markdown syntax.
+- Clipboard with HTML containing an `<img>` tag — converts to `![alt](url)` with the original source URL unchanged, no download attempt.
+- Pasting over an active (non-collapsed) selection replaces it, same as today's plain-text paste.
+- Paste behavior is the same whether `plainTextMode` is on or off (the conversion isn't gated on it).
+- If `super_clipboard` reports no HTML representation available (empty/plain-text-only clipboard), the code path falls through to today's `Clipboard.kTextPlain` behavior exactly — don't let the fallback path bit-rot into something subtly different from what's shipped now.
+
+**Checklist**: `dart format`, `flutter analyze`, package tests (`cd packages/markdown_live_editor && flutter test`) — all clean before pushing, run frequently during development. Note in your report-back if `flutter analyze`/`flutter test`/`dart format` behave any differently after adding these dependencies (e.g. new generated code, new lint surface) — flag it, don't silently work around it. Include in your report-back: confirmation the plain-text (no-HTML) fallback path is verified byte-identical to current behavior, example HTML snippets with their actual converted-markdown output for a few representative cases (bold/link mix, a table, a code block, an image), and anything ADR-35 didn't cover that required an independent judgment call (flag it, don't silently decide and bury it). **Do not preemptively investigate or fix CI/build issues related to the new native dependency (`super_clipboard` is Rust-based) across platforms you can't build for locally** — push your branch, let CI run, and report what you see; Spec will loop in the DevOps session if CI surfaces a real build problem.
