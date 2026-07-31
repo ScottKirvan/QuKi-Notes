@@ -78,15 +78,15 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
   final ScrollController _scrollController = ScrollController();
 
   // ADR-35: reads the clipboard's HTML representation for _pasteFromClipboard.
-  // Defaults to the real super_clipboard-backed implementation. Overridable
-  // via debugClipboardHtmlReader for tests, since super_clipboard's native
-  // plugin channel — unlike Clipboard.getData's platform channel — is not
-  // available under `flutter test`.
+  // Defaults to the real quill_native_bridge-backed implementation.
+  // Overridable via debugClipboardHtmlReader for tests, since
+  // quill_native_bridge's native plugin channel — unlike Clipboard.getData's
+  // platform channel — is not available under `flutter test`.
   static ClipboardHtmlReader _clipboardHtmlReader = readClipboardHtml;
 
   /// Test-only override for the clipboard HTML reader used by
   /// [_pasteFromClipboard]. Pass null to restore the real
-  /// super_clipboard-backed implementation.
+  /// quill_native_bridge-backed implementation.
   @visibleForTesting
   static set debugClipboardHtmlReader(ClipboardHtmlReader? reader) {
     _clipboardHtmlReader = reader ?? readClipboardHtml;
@@ -674,7 +674,7 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     });
   }
 
-  // The real super_clipboard-backed reader can throw (confirmed under
+  // The real quill_native_bridge-backed reader can throw (confirmed under
   // `flutter test`, where its native plugin channel is unregistered, but the
   // same class of failure — a misbehaving platform channel, an unsupported
   // clipboard content type, a permission prompt rejected by the user, etc. —

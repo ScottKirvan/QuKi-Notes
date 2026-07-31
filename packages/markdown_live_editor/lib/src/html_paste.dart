@@ -1,6 +1,6 @@
 import 'package:html/dom.dart' as dom;
 import 'package:html2md/html2md.dart' as html2md;
-import 'package:super_clipboard/super_clipboard.dart';
+import 'package:quill_native_bridge/quill_native_bridge.dart';
 
 // ---------------------------------------------------------------------------
 // Clipboard HTML reading (ADR-35).
@@ -16,20 +16,14 @@ import 'package:super_clipboard/super_clipboard.dart';
 /// fall back to the plain-text clipboard representation in either case.
 typedef ClipboardHtmlReader = Future<String?> Function();
 
-/// Real implementation, backed by `super_clipboard`.
+/// Real implementation, backed by `quill_native_bridge`.
 ///
 /// Overridable per-call site via a [ClipboardHtmlReader] parameter — see
-/// `QuikiEditorState.debugClipboardHtmlReader` — because super_clipboard's
+/// `QuikiEditorState.debugClipboardHtmlReader` — because quill_native_bridge's
 /// native plugin channel is not available under `flutter test`, unlike
 /// `Clipboard.getData`, which Flutter lets tests mock via a fake
 /// `SystemChannels.platform` handler.
-Future<String?> readClipboardHtml() async {
-  final clipboard = SystemClipboard.instance;
-  if (clipboard == null) return null;
-  final reader = await clipboard.read();
-  if (!reader.canProvide(Formats.htmlText)) return null;
-  return reader.readValue(Formats.htmlText);
-}
+Future<String?> readClipboardHtml() => QuillNativeBridge().getClipboardHtml();
 
 // ---------------------------------------------------------------------------
 // HTML -> GFM markdown conversion.
