@@ -1,0 +1,25 @@
+# Dependabot configuration.
+#
+# Scoped intentionally to a single package: file_picker (root pubspec.yaml).
+# See issue #316 — quill_native_bridge ^11.2.0 (needed for Linux HTML
+# clipboard paste) requires win32 ^6.2.0, which conflicts with
+# file_picker's current stable release (still on win32 ^5.9.0). This watch
+# exists so we notice the moment file_picker ships a stable release that
+# raises its win32 floor to 6.x, instead of relying on someone manually
+# checking pub.dev. The fix itself, once unblocked, is a one-line version
+# bump of quill_native_bridge in packages/markdown_live_editor/pubspec.yaml.
+#
+# Deliberately NOT a general dependency-update policy for this project —
+# broader Dependabot/Renovate adoption is a separate decision this project
+# hasn't made. Do not add further ecosystems or packages here without that
+# decision being made explicitly.
+
+version: 2
+updates:
+  - package-ecosystem: "pub"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    allow:
+      - dependency-name: "file_picker"
+    open-pull-requests-limit: 2
