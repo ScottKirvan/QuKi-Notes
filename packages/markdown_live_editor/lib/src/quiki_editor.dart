@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'editor_config.dart';
+import 'html_paste.dart';
 import 'indent_dedent.dart';
 import 'md_parser.dart';
 import 'quiki_render_editor.dart';
@@ -75,6 +76,21 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
   TextInputConnection? _connection;
   TextEditingValue _value = TextEditingValue.empty;
   final ScrollController _scrollController = ScrollController();
+
+  // ADR-35: reads the clipboard's HTML representation for _pasteFromClipboard.
+  // Defaults to the real super_clipboard-backed implementation. Overridable
+  // via debugClipboardHtmlReader for tests, since super_clipboard's native
+  // plugin channel — unlike Clipboard.getData's platform channel — is not
+  // available under `flutter test`.
+  static ClipboardHtmlReader _clipboardHtmlReader = readClipboardHtml;
+
+  /// Test-only override for the clipboard HTML reader used by
+  /// [_pasteFromClipboard]. Pass null to restore the real
+  /// super_clipboard-backed implementation.
+  @visibleForTesting
+  static set debugClipboardHtmlReader(ClipboardHtmlReader? reader) {
+    _clipboardHtmlReader = reader ?? readClipboardHtml;
+  }
 
   // Bug 2: track which pointer kind initiated the current gesture so pan-to-
   // select is restricted to mouse/stylus and touch gets normal scroll behaviour.
@@ -632,21 +648,59 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     _connection?.setEditingState(_value);
   }
 
+  // ADR-35: when the clipboard carries an HTML representation, convert it to
+  // GFM markdown and insert that instead of the plain-text representation —
+  // through this exact same buffer-update path (single edit, same selection-
+  // replace semantics, same undo behavior). plainTextMode is irrelevant here:
+  // it only controls how the existing buffer is rendered, not how paste
+  // writes to it.
   void _pasteFromClipboard() {
-    Clipboard.getData(Clipboard.kTextPlain).then((data) {
-      if (data?.text == null || !mounted) return;
-      final text = data!.text!;
-      final newText = _text.replaceRange(_sel.start, _sel.end, text);
-      final newOffset = _sel.start + text.length;
-      _updateValue(
-        TextEditingValue(
-          text: newText,
-          selection: TextSelection.collapsed(offset: newOffset),
-        ),
-        notify: true,
-      );
-      _connection?.setEditingState(_value);
+    _readClipboardHtmlSafely().then((html) {
+      if (!mounted) return;
+      if (html != null && html.trim().isNotEmpty) {
+        final markdown = convertHtmlToMarkdown(html);
+        if (markdown.isNotEmpty) {
+          _insertAtSelection(markdown);
+          return;
+        }
+      }
+      // No HTML representation on the clipboard (or conversion produced
+      // nothing usable) — identical to pre-ADR-35 behavior: read the plain-
+      // text representation.
+      Clipboard.getData(Clipboard.kTextPlain).then((data) {
+        if (data?.text == null || !mounted) return;
+        _insertAtSelection(data!.text!);
+      });
     });
+  }
+
+  // The real super_clipboard-backed reader can throw (confirmed under
+  // `flutter test`, where its native plugin channel is unregistered, but the
+  // same class of failure — a misbehaving platform channel, an unsupported
+  // clipboard content type, a permission prompt rejected by the user, etc. —
+  // is a real possibility on any platform in production too). Paste must
+  // never surface that as a crash: any failure reading the HTML
+  // representation is treated exactly like "no HTML representation present"
+  // and falls back to the plain-text path.
+  Future<String?> _readClipboardHtmlSafely() async {
+    try {
+      return await _clipboardHtmlReader();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _insertAtSelection(String text) {
+    final newText = _text.replaceRange(_sel.start, _sel.end, text);
+    final newOffset = _sel.start + text.length;
+    _updateValue(
+      TextEditingValue(
+        text: newText,
+        selection: TextSelection.collapsed(offset: newOffset),
+      ),
+      notify: true,
+    );
+    _connection?.setEditingState(_value);
   }
 
   void _handleBackspace() {
