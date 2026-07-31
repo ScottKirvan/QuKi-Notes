@@ -1,102 +1,105 @@
-# Text Selection — Research & Gap Spec
+# Text Selection — Standard Android Behavior (Research)
 
-This document is research, not a locked decision or a build plan — it exists to ground a discussion, per the project owner's explicit request ("research and spec out Android's default and expected selection behaviour — then let's discuss before proceeding"). No ADR yet. No implementation brief yet.
-
-Two independent research threads feed this: (1) a full read of how selection currently works in `packages/markdown_live_editor` — gesture handlers, state, toolbar, tests; (2) standard Android/Material platform conventions for text selection, so "what should it do" is grounded in platform expectation rather than guessed.
+Research only — not a locked decision, not a build plan. This documents what Android actually does for text selection, sourced from Material Design and Android platform documentation, independent of anything in this codebase. The point is to have a real target to hold an implementation against, not to guess at "reasonable" behavior.
 
 ---
 
-## Why this is harder here than in a normal Flutter app
+## 1. Entry points — how a selection starts
 
-`QuikiRenderEditor` (`quiki_render_editor.dart`) is a custom `RenderObject`, and `QuikiEditorState` (`quiki_editor.dart`) implements `TextInputClient` directly (ADR-31). This editor does not use Flutter's `TextField`/`EditableText`/`RenderEditable` at all. That means none of Flutter's built-in selection machinery is available for free: no `TextSelectionOverlay`, no `TextSelectionControls`, no handle rendering, no magnifier wiring, no `LayerLink`/`CompositedTransformFollower` positioning. Everything documented below as "missing" would have to be built from scratch inside this package, the same way tap-to-source mapping, checkbox hit-testing, and the clipboard toolbar already were.
+- **Tap**: places a collapsed cursor at the tapped position (no selection). Tapping inside an existing selection collapses it to that point.
+- **Long-press** (~500ms hold — the conventional Android/iOS threshold) selects the **word** under the finger.
+- **Double-tap** does the same thing — selects the word under the finger. Long-press and double-tap are two equivalent, redundant entry points into word selection, not two different behaviors.
+- Both **immediately show the two drag handles and the floating toolbar** described below — selection start is never a bare, unadorned highlight.
 
-This is worth stating up front because it changes the shape of the eventual work: it's not "wire up a Flutter selection widget," it's "reimplement the pieces of Android's native selection UX this editor needs, on top of a hand-built layout/paint/hit-test system."
+### Smart Text Selection (Android 8.0 Oreo+)
 
----
+Word selection isn't purely a `\w`-boundary scan on stock Android — a system service (Android System Intelligence / the OS's text-classification model) recognizes **entities** and expands the initial selection to cover the whole entity, not just the word under the finger:
 
-## Current state (verified by reading the code, not inferred)
+- A phone number selects the **whole number**, not one group of digits.
+- An email address selects the **whole address**.
+- A URL selects the **whole URL**.
+- A postal address selects the **whole address**, spanning multiple words/lines.
 
-### What exists
+This happens automatically on the same long-press/double-tap gesture that starts a plain word selection — the user doesn't do anything different, the boundary is just smarter when the system recognizes a known entity type. The floating toolbar also gains contextual actions for the recognized type (Call/Copy for a phone number, Compose for an email, Open/Copy for a URL, Maps for an address) alongside the standard Cut/Copy/Paste set.
 
-| Gesture | Current behavior |
-|---|---|
-| Tap | Places a collapsed cursor at the tapped position. Dismisses the toolbar first. Short-circuits (no cursor move) if the tap hit a link or checkbox glyph. |
-| Long-press | Selects the word under the finger (simple `\w` regex scan), remembers the word's start as a drag anchor. |
-| Long-press, finger still down, then move | Extends the selection from that anchor — **but only while the same finger stays down from the original long-press.** |
-| Long-press released | Selection stays as-is; toolbar shows (mobile only); keyboard does *not* reopen (deliberate). |
-| Touch drag, no prior long-press | Does nothing to selection — falls through to scrolling. Touch is explicitly excluded from the pan handler. |
-| Mouse/stylus drag | Extends selection from whatever the current `baseOffset` already is (normal click-drag select). Works because tap fires first in the gesture arena, setting the base. |
-| Double-tap | **Not implemented at all.** No handler registered; two independent taps just re-collapse the cursor twice. |
-| Keyboard (Shift+Arrow, Ctrl+A/C/X/V) | Fully implemented and working. |
-
-### What doesn't exist
-
-- **Draggable selection handles.** No handle rendering, no handle hit-testing, nothing. Once a long-press selection exists and the finger lifts, there is no affordance to adjust either boundary by dragging — the selection is frozen except via keyboard shortcuts.
-- **Magnifier/loupe.** No magnifier of any kind during any gesture.
-- **Double-tap-to-select-word.** Long-press is the only way to select a word by touch.
-- **Auto-scroll while extending a selection near a viewport edge.**
-- **Any selection support in reading mode**, since reading mode currently hides the cursor and disables the editing gesture set entirely (separate question — see "Open questions" below on whether that's even in scope for what "selection" means here).
-
-### Test coverage gap
-
-No test in the package simulates a real gesture (`tester.longPress`, `tester.drag`, `TestGesture`) and checks the resulting `TextSelection`. Every existing selection-adjacent test sets the selection programmatically (`setSelectionForTesting`) and checks downstream effects (clipboard actions, toolbar buttons, `wrapSelection`). The gesture→selection mapping — arguably the core of "how selection works" — has zero direct coverage today.
+**Relevance to a markdown editor**: this is the strongest argument for QuKi-Notes' own selection to be at least *link-aware* — a double-tap/long-press landing inside a rendered `[text](url)` or an autolinked bare URL arguably should select the meaningful unit (the link), not just whichever bare word the tap happened to land on. Whether to go further (phone/email detection) is a separate, smaller question.
 
 ---
 
-## What Android actually does (platform convention, not this app's choice to invent)
+## 2. Selection handles
 
-Grounded in Android/Material platform documentation, not assumption:
-
-1. **Tap**: places a collapsed cursor. Tapping inside an existing selection generally collapses it to that point.
-2. **Word selection — two equivalent entry points**: both **double-tap** and **long-press** select the word under the finger. This app currently only implements one of the two.
-3. **On word selection**, Android shows **two independent teardrop-shaped drag handles** (22×22dp, per Material spec) at the selection start and end. These are draggable **as their own, later gesture** — not tied to holding the original long-press. Each handle moves only its own boundary.
-4. **Magnifier** (Android 9+): while dragging a handle, a magnified loupe appears above the finger, showing the text the finger is covering. It tracks the finger horizontally, stays vertically locked to the current line, and is clamped so it never shows content past the line's bounds.
-5. **Handle drag can cross line boundaries** — dragging a handle down past the end of a visual line continues the selection into the next line, same as any normal multi-line select.
-6. **Auto-scroll**: dragging a handle near the top or bottom edge of the visible viewport scrolls the content, letting a selection extend beyond what's currently on screen.
-7. **Floating toolbar**: appears once there's a selection (Cut, Copy, Paste, sometimes "Share"/"Select all" — overflowed under "More" if the toolbar doesn't fit). Positioned above the selection when there's room, below otherwise. Dismissed by: an action being taken, or tapping elsewhere to collapse the selection.
-8. **Collapsed-cursor toolbar**: Android also shows a lightweight toolbar (typically just Paste, if the clipboard has content) even for a plain collapsed cursor, not only for a real selection.
-
-This app already has #2 partially (long-press only), #7 in a reasonable approximation (`AdaptiveTextSelectionToolbar`, gated to mobile), and #8 (collapsed selection shows Paste + Select All). It's missing #2's double-tap half, and entirely missing #3, #4, #5, #6.
+- Two independent, **teardrop-shaped** drag handles appear at the selection's start and end the moment a selection exists (word-select, or any other way a selection gets created).
+- Each handle is its own **later, independent gesture** — dragging one is not tied to whatever gesture created the selection. A user can long-press to select a word, lift their finger, then come back seconds later and drag either handle to adjust the boundary.
+- Handles move **independently** — dragging the start handle only moves the selection's start; the end handle only moves the end.
+- **Handles can cross**: dragging the start handle past the current end position (or vice versa) flips which one is logically "start" and which is "end" — the selection just continues to span between wherever the two handles currently sit, it doesn't clamp or refuse to cross.
+- Handle **drag precision is character-level**, not word-snapped — even though the *initial* selection (long-press/double-tap) snaps to a whole word (or a whole entity, per Smart Selection), adjusting it afterward via the handles lets the user land on any character boundary.
+- A **drag can cross line boundaries** — pulling a handle down past the end of the current visual line continues the selection into the next line and beyond, same as any ordinary multi-line select.
+- Touch target size is standard Material spec: **22×22dp** handles, though the actual touch-hit area is generally larger than the visible glyph (standard Android practice for small touch targets, ~48dp minimum recommended touch target regardless of visual size).
+- A **collapsed cursor also has a draggable handle** (a single one, not two) — even without a selection, the cursor position itself can be dragged to reposition it precisely, which is a separate, smaller affordance than the two-handle selection case.
 
 ---
 
-## Gap matrix
+## 3. Magnifier / loupe
 
-| Platform-expected behavior | Status here |
-|---|---|
-| Tap places collapsed cursor | Done |
-| Long-press selects word | Done |
-| Double-tap selects word | **Missing** |
-| Drag handles to adjust an existing selection, independent of the originating gesture | **Missing** — this is the single biggest gap, and the one users actually notice (this is very likely what's behind #238's "significant work, platform-specific" note) |
-| Magnifier while dragging a handle | **Missing** |
-| Handle drag crosses line boundaries | N/A — no handles to test this against |
-| Auto-scroll near viewport edge while extending selection | **Missing** |
-| Floating toolbar on selection (Cut/Copy/Paste/Select All) | Done |
-| Lightweight toolbar on collapsed cursor (Paste/Select All) | Done |
-| Keyboard selection (Shift+Arrow, Ctrl+A/C/X/V) | Done |
-| Mouse click-drag select (desktop) | Done |
-| Double-click word select (desktop convention) | **Missing** |
-| Triple-click paragraph/line select (desktop convention in many apps) | **Missing** — and not confirmed as a strict platform requirement anywhere, worth discussing rather than assuming |
+Available since Android 9 (API 28):
+
+- Appears **while actively dragging a handle** (either the selection handles or the single collapsed-cursor handle) — not during any other gesture.
+- Shows a **magnified copy of the text near the handle**, positioned above the finger so the finger itself doesn't obscure the exact character being targeted.
+- **Horizontal tracking**: follows the finger's x-position smoothly and continuously.
+- **Vertical locking**: stays fixed to the center of the *current text line* — it does not follow the finger vertically within a line, only jumps between lines as the drag crosses a line boundary.
+- **Clamped to line bounds**: the magnifier's content is bounded so it never shows past the actual left/right edges of the current line (e.g., dragging past the last character doesn't show blank space or the next line's content inside the lens).
+- The selection handle itself is **not visible inside the magnifier** on stock Android — only the surrounding text is shown, the handle graphic is excluded from the magnified view (a known, deliberate detail; some third-party implementations get this wrong and show the handle flashing in/out of the lens, which reads as a bug against the platform norm).
 
 ---
 
-## Open questions for discussion
+## 4. Auto-scroll during drag
 
-These are genuinely open — this document deliberately stops short of deciding them:
+- Dragging a selection handle (or the collapsed-cursor handle) near the **top or bottom edge of the visible viewport** triggers the view to scroll automatically, revealing more content in that direction.
+- This lets a selection extend to content that wasn't on-screen when the drag started, without the user needing to lift their finger, scroll manually, and resume dragging.
 
-1. **Scope for v1**: the full Android UX (handles + magnifier + auto-scroll + double-tap) is a lot of from-scratch work given there's no Flutter selection machinery to build on. Is the goal to close the whole gap in one pass, or land it in stages (e.g., handles + double-tap first since that's the biggest daily-use pain point, magnifier/auto-scroll later)?
-2. **Handle-drag precision**: on real Android, the initial double-tap/long-press snaps to a whole word, but dragging a handle afterward is character-precise, not word-snapped. Confirm that's the intended target here too (vs. e.g. word-snapping drag as a simpler, if less faithful, first cut).
-3. **Reading mode**: reading mode currently hides the cursor and disables the edit gesture set. Should selection (for copying text) work in reading mode at all, and if so, with which subset of the toolbar (Copy/Select All only, no Cut/Paste, matching Android's read-only `TextView` convention)? This wasn't asked for explicitly and touches the reading-mode design from Phase 3.40 — flagging rather than assuming.
-4. **Desktop conventions**: double-click-for-word and triple-click-for-paragraph/line are common on desktop but aren't a single unambiguous "platform standard" the way Android's gestures are (behavior varies by app/toolkit). Worth deciding explicitly rather than porting Android behavior 1:1 to desktop, given this app also ships on Windows and Linux.
-5. **Magnifier implementation approach**: Flutter does expose `TextMagnifierConfiguration`/`TextMagnifier` as a semi-generic building block (used by `TextField` internally), but since this editor doesn't use `RenderEditable`, it's not clear yet whether that's reusable here or whether the magnifier would also need to be hand-built. Not investigated in depth for this document — worth a spike if magnifier support is in scope for the first stage rather than deferred.
-6. **How much of this needs device testing vs. can be trusted from widget tests**: gesture-driven selection has historically been one of this codebase's harder areas to get right from code review alone (see the 2026-07-05 "Bug 1–4" gesture fixes, and the currently-zero gesture-simulation test coverage noted above). Worth deciding up front whether real-device verification is a required gate before merge for this work, not just CI-green.
+---
+
+## 5. Haptic feedback
+
+Two distinct, standard feedback moments (`android.view.HapticFeedbackConstants`):
+
+- **On long-press activation** — a standard, slightly more pronounced tick when the word/entity selection first triggers (the same category of feedback as a long-press anywhere else in Android, e.g., app icon long-press).
+- **`TEXT_HANDLE_MOVE`** — a distinct, deliberately **subtle** haptic constant fired repeatedly as a handle is dragged across character boundaries during an active drag. Android's own haptics design guidance is explicit that this needs to stay subtle specifically because it repeats so frequently during a single drag (same principle applied to scroll-tick and similar continuous-feedback cases) — a strong buzz per character would be fatiguing, not helpful.
+
+---
+
+## 6. Floating toolbar
+
+- **Trigger**: appears the moment a selection exists (or, in a lighter form, even for a bare collapsed cursor if the clipboard has content — see below).
+- **Actions and ordering**: Material guidance is explicit — order actions **by usage frequency, most-used leftmost**, with any remaining/secondary actions collapsed into an overflow ("More") rather than cramming everything into the primary row. The typical primary set for an editable field is **Cut, Copy, Paste**, with **More** as a 4th slot expanding into the rest (Select All, Share, and any Smart-Selection contextual actions like Call/Open/Maps when an entity was recognized).
+- **Collapsed-cursor variant**: even with nothing selected, tapping into a field with clipboard content available shows a lighter toolbar (typically just **Paste**, sometimes **Select All**) — the toolbar isn't gated purely on "is there a selection," it's gated on "is there something useful to offer right now."
+- **Positioning**: anchored to the selection — above it when there's room, below it when there isn't (e.g., a selection near the top of the viewport).
+- **Dismissal**: on taking an action (the toolbar typically closes after Cut/Copy/Paste, though Copy in particular may just briefly confirm and close rather than staying open), or on tapping elsewhere to collapse/move the selection.
+
+---
+
+## 7. Word/line/paragraph selection beyond a single word
+
+Stock Android's own `EditText`/`TextView` doesn't have a strong single native gesture for "select whole paragraph" or "select whole line" the way some desktop apps use triple-click — that's more of an app-specific or desktop-editor convention (e.g., Google Docs, many code editors) than a guaranteed Android platform behavior. Where it exists on Android, it's typically an *extension* apps build on top of the standard word-select + draggable-handle primitives already described above, not a separate system-level gesture. Worth being explicit about this distinction rather than assuming triple-tap-for-paragraph is "standard Android" — it isn't, in the same unambiguous way double-tap-for-word is.
+
+---
+
+## 8. Accessibility note (not deep-dived here)
+
+TalkBack (Android's screen reader) has its own separate interaction model for text selection — cursor and selection movement are driven through explicit TalkBack gestures/menu actions rather than the touch/drag model above, since TalkBack users aren't relying on visually locating a handle. Flagging that this exists as a distinct concern worth its own pass later, not folding it into the touch-gesture spec above.
+
+---
+
+## A framing note for QuKi-Notes specifically
+
+This project already has its own visual design system — GitHub Primer Dark/Light High Contrast palette and Lucide icons only, not stock Material widgets or Material's default toolbar typography (Roboto Medium 14sp all-caps, per the M2 spec) or default handle/toolbar colors. The behavioral conventions above (gesture entry points, handle independence, magnifier semantics, auto-scroll, toolbar action-ordering logic, haptic moments) are what should transfer — not necessarily stock Material's exact visual styling, which this app already deliberately overrides everywhere else.
 
 ---
 
 ## Sources
 
-- Codebase: `packages/markdown_live_editor/lib/src/quiki_editor.dart`, `quiki_render_editor.dart`, `markdown_editor.dart`, and `packages/markdown_live_editor/test/*.dart` (full read, this session).
-- [Material Design 2 — Android text selection toolbar](https://m2.material.io/design/platform-guidance/android-text-selection-toolbar.html)
-- [Android Developers — Implement a text magnifier](https://developer.android.com/develop/ui/views/text-and-emoji/magnifier)
-- [Flutter API — TextMagnifierConfiguration](https://api.flutter.dev/flutter/widgets/TextMagnifierConfiguration-class.html)
-- General Android platform convention (double-tap/long-press word selection, teardrop handles, floating toolbar) cross-checked across Material Design docs and Android developer/UX references.
+- [Material Design 2 — Android text selection toolbar](https://m2.material.io/design/platform-guidance/android-text-selection-toolbar.html) — toolbar actions, ordering rule, overflow behavior.
+- [Android Developers — Implement a text magnifier](https://developer.android.com/develop/ui/views/text-and-emoji/magnifier) — magnifier trigger, tracking, and clamping behavior.
+- [Android Developers — Add haptic feedback to events](https://developer.android.com/develop/ui/views/haptics/haptic-feedback) and [Haptics design principles](https://developer.android.com/develop/ui/views/haptics/haptics-principles) — `TEXT_HANDLE_MOVE` constant, subtlety guidance for repeated feedback.
+- Smart Text Selection / entity recognition (Android 8.0+): cross-checked across multiple Android platform-behavior write-ups describing phone/email/URL/address boundary expansion via the OS text-classification service.
+- General Android long-press (~500ms) and double-tap timing conventions: cross-checked against Android accessibility "touch & hold delay" settings documentation and standard `ViewConfiguration` behavior descriptions.
