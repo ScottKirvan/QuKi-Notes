@@ -52,49 +52,8 @@ Read in this order — do not skip:
 
 > Written and maintained by the Spec session.
 
-### Fix: replace `super_clipboard` with `quill_native_bridge` (ADR-35 CI failure)
+**No task currently in progress.**
 
-**Branch**: `feat/html-paste-conversion` (existing branch, PR #314 already open, not yet merged — push additional commit(s) here, do not create a new branch or PR)
-**Commit type**: `fix:` — closing a build-breaking gap in already-committed code, not new capability.
-**Do not open or edit the PR** — same rule as always, Spec handles that.
+Both the ADR-35 HTML-paste-conversion fix (PR #314, plus the `super_clipboard`→`quill_native_bridge` swap on the same branch) and Selection Stage 1 (PR #320 — correct word/entity selection, double-tap, recognizer hardening) are merged. See `notes/dev/decisions.md` → ADR-35 and `notes/dev/selection.md` → "Staging" for full status.
 
-**Context**: PR #314 implemented ADR-35 (HTML clipboard paste → GFM markdown conversion) using `super_clipboard` for clipboard HTML reading. Its `test` CI job passed (pure Dart, no real Android build), but the separate `Build Android` workflow — a real Gradle build — failed three times. Root cause, confirmed: `super_clipboard` transitively pulls in `irondash_engine_context`, whose Gradle integration (`cargokit`) calls `Project.exec()`, which Gradle 9.0 removed. This project is on AGP 9.0.1 + Gradle 9.1.0 (both latest; AGP 9.x requires Gradle 9.x, so the wrapper alone can't be downgraded), and neither `irondash_engine_context` (latest 0.5.5) nor `super_clipboard` (latest 0.9.1) has a released fix. Full detail and research trail: `notes/dev/decisions.md` → ADR-35, "Superseded sub-decision" section — read it in full before starting.
-
-**What to change**: swap the clipboard-HTML-reading dependency from `super_clipboard` to `quill_native_bridge` (pub.dev, standalone package — does not pull in the `flutter_quill` editor itself). Its API is `QuillNativeBridge().getClipboardHtml() → Future<String?>`, returning `null` when no HTML is available. Everything downstream of the HTML string — the `html2md` conversion, the buffer-insertion path — is unaffected and must not change. This should be a small, contained swap: `readClipboardHtml()` in `packages/markdown_live_editor/lib/src/html_paste.dart` is already isolated behind a `ClipboardHtmlReader` typedef specifically so the reading mechanism could change without touching `quiki_editor.dart` or the conversion logic — confirm that isolation still holds after the swap.
-
-**Also required**:
-- Remove `super_clipboard` from `packages/markdown_live_editor/pubspec.yaml`; add `quill_native_bridge`.
-- Existing tests that mock `debugClipboardHtmlReader` (the `ClipboardHtmlReader` test seam) should need no behavioral changes — verify this is still true rather than assuming it; if `quill_native_bridge`'s failure modes differ from `super_clipboard`'s in a way that changes what the try/catch fallback in `quiki_editor.dart` needs to handle, flag it back rather than silently adjusting the invariant.
-- `quill_native_bridge`'s Linux implementation shells out to a bundled `xclip` binary and has a known, upstream-tracked gap: no native Wayland support yet. This does not require any code change here — the existing fallback design (any HTML-read failure or empty conversion degrades to plain-text paste) already contains it. Just don't add Linux-specific special-casing that isn't needed.
-
-**Explicitly out of scope**: everything already out of scope in the original ADR-35 brief (no UI toggle for disabling conversion, no image fetching/embedding, no changes to copy/cut). This brief only concerns the clipboard-reading dependency.
-
-**Tests**: re-run the full existing `html_paste_test.dart` suite — it should still pass with the reader swapped underneath (tests exercise `ClipboardHtmlReader` at the seam, not the concrete package, so they should not need rewriting; if they do need changes, explain why in your report-back). No new test scenarios are required beyond what ADR-35's original brief already covered, unless you find the new package's behavior genuinely differs in a way current tests don't cover — flag that rather than deciding unilaterally whether it matters.
-
-**Checklist**: `dart format`, `flutter analyze`, package tests (`cd packages/markdown_live_editor && flutter test`) — all clean before pushing. **This fix cannot be fully verified without a real Android Gradle build, which is outside what you can run locally** — do not attempt to work around this by guessing; push the commit and report back, Spec will re-trigger CI (including `Build Android`) and confirm.
-
----
-
-### (Superseded — for reference only, do not re-implement) Original ADR-35 brief
-
-The section below is what shipped in PR #314's first commit and remains accurate for everything except the clipboard-reading dependency, which the fix above replaces.
-
-**What was built**: when the clipboard has an HTML representation available, `_pasteFromClipboard()` must read it, convert it to GFM markdown (via `html2md`), and insert the resulting markdown text through the exact same buffer-update mechanism plain-text paste already uses — same selection-replace semantics, same single edit, same undo behavior. When the clipboard has no HTML representation (pasting from another QuKi, a plain-text source, or anything without a rich-text entry), behavior must be byte-identical to what's currently shipped — this is the most important regression-risk category, since it's almost certainly the more common paste case day-to-day.
-
-**Correctness invariant, not a style choice**: conversion must preserve full GFM structure — tables, fenced code blocks, image references (`![alt](url)`, keeping the source's original URL, no attempt to fetch/download/embed anything) — even for markdown syntax this app's renderer doesn't yet give special visual treatment (tables: #245; fenced code: #244; external image URLs: #246 — all filed, none built). Do not simplify, strip, or degrade unsupported HTML structure down to plain prose — the raw markdown must stay exactly as legible and complete as `html2md` naturally produces it. See ADR-35's "Rejected alternatives" for why (the same reasoning this codebase already applies to fenced code blocks, which display as literal raw text rather than being stripped).
-
-**Also verify**: paste behavior (including whether HTML conversion happens) must be independent of `plainTextMode` — that flag controls how the *existing* buffer renders, not how paste writes to it, so there's no reason conversion should differ based on which mode the user happens to be viewing in.
-
-**Explicitly out of scope**: any UI toggle/preference for disabling HTML-to-markdown conversion (not asked for, adds chrome the manifesto discourages by default — if this turns out to be wanted, that's a separate future ask, flag it back rather than deciding to add it); actually fetching/embedding external images referenced by converted `![alt](url)` syntax (#246/#247's job, not this one); any change to copy/cut behavior (`Clipboard.setData` calls elsewhere in this file) — this ADR is paste-only.
-
-**Tests required**:
-- Clipboard with plain text only (no HTML) — paste result byte-identical to current shipped behavior. Most important regression guard.
-- Clipboard with HTML containing bold/italic/headers/links/lists/checkboxes — converts to correct GFM syntax matching what this app's own parser (`MdParser`) recognizes, so the pasted result actually renders once inserted, not just "looks like markdown."
-- Clipboard with HTML containing a table — converts to real markdown table syntax (`|`-delimited rows), not flattened prose.
-- Clipboard with HTML containing a code block — converts to fenced code markdown syntax.
-- Clipboard with HTML containing an `<img>` tag — converts to `![alt](url)` with the original source URL unchanged, no download attempt.
-- Pasting over an active (non-collapsed) selection replaces it, same as today's plain-text paste.
-- Paste behavior is the same whether `plainTextMode` is on or off (the conversion isn't gated on it).
-- If `super_clipboard` reports no HTML representation available (empty/plain-text-only clipboard), the code path falls through to today's `Clipboard.kTextPlain` behavior exactly — don't let the fallback path bit-rot into something subtly different from what's shipped now.
-
-**Checklist**: `dart format`, `flutter analyze`, package tests (`cd packages/markdown_live_editor && flutter test`) — all clean before pushing, run frequently during development. Note in your report-back if `flutter analyze`/`flutter test`/`dart format` behave any differently after adding these dependencies (e.g. new generated code, new lint surface) — flag it, don't silently work around it. Include in your report-back: confirmation the plain-text (no-HTML) fallback path is verified byte-identical to current behavior, example HTML snippets with their actual converted-markdown output for a few representative cases (bold/link mix, a table, a code block, an image), and anything ADR-35 didn't cover that required an independent judgment call (flag it, don't silently decide and bury it). **Do not preemptively investigate or fix CI/build issues related to the new native dependency (`super_clipboard` is Rust-based) across platforms you can't build for locally** — push your branch, let CI run, and report what you see; Spec will loop in the DevOps session if CI surfaces a real build problem.
+Selection Stage 2 (draggable handles) is not yet briefed — pending the project owner's real-device feedback on Stage 1 first, per `notes/dev/selection.md`'s staging plan.
