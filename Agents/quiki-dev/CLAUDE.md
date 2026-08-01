@@ -52,8 +52,40 @@ Read in this order — do not skip:
 
 > Written and maintained by the Spec session.
 
-**No task currently in progress.**
+### Selection Stage 2 — draggable selection handles
 
-Both the ADR-35 HTML-paste-conversion fix (PR #314, plus the `super_clipboard`→`quill_native_bridge` swap on the same branch) and Selection Stage 1 (PR #320 — correct word/entity selection, double-tap, recognizer hardening) are merged. See `notes/dev/decisions.md` → ADR-35 and `notes/dev/selection.md` → "Staging" for full status.
+**Branch**: `feat/selection-stage2`
+**Commit type**: `feat:` — genuinely new capability, nothing like this exists today.
+**Suggested PR title** (Spec opens the PR, not you): `feat(editor): draggable selection handles (selection stage 2)`
+
+**Read first**: `notes/dev/selection.md` in full, especially §2 ("Selection handles") and §6 ("Floating toolbar") — the authoritative target spec, confirmed by the project owner as requirements. Also read `notes/dev/decisions.md` → ADR-36 for how Stage 1 landed (same file, same overall initiative). Then read Stage 1's actual diff (`git log --oneline -- packages/markdown_live_editor/lib/src/quiki_editor.dart` will show it, commit `cba0dc1`/`85f4033` era) to understand the current gesture-handling architecture you're extending: `_onTapDown`, `_onDoubleTapDown`, `_onLongPressStart/MoveUpdate/End`, `_onPanStart/Update/End` all live on one `GestureDetector` wrapping the whole editor content; `_selectEntityAt` is the shared word/entity-selection determination; the selection toolbar (`_showSelectionToolbar`, `_toolbarController`) already exists and is mobile-gated via `_isMobile`.
+
+**Context — why this is real, from-scratch work, not a wiring task**: this editor is a custom `RenderObject` (`QuikiRenderEditor`) with `QuikiEditorState implements TextInputClient` directly — it does not use Flutter's `TextField`/`RenderEditable`, so none of Flutter's built-in `TextSelectionOverlay`/`TextSelectionControls`/handle machinery is available. Whatever gets built here is built from scratch, the same way tap-to-source mapping and the existing toolbar were.
+
+**What "correct" means here** — the confirmed requirements from `selection.md` §2:
+
+- The moment a non-collapsed selection exists (from long-press, double-tap, or any other means) on a touch-capable context, two independent, draggable handles appear at the selection's start and end.
+- Each handle is draggable as its **own, later, independent gesture** — not tied to whatever gesture created the selection. A user can select a word, lift their finger, wait, then come back and drag either handle.
+- Handles move **independently**: dragging the start handle only moves the selection's start boundary; the end handle only moves the end boundary.
+- **Handles can cross**: if the start handle is dragged past the current end position (or vice versa), the selection continues to span between wherever the two handles currently are — the logical start/end must flip, not clamp or refuse the drag.
+- Handle drag precision is **character-level**, not word-snapped, even though the selection that created the handles may have snapped to a whole word/entity (Stage 1).
+- Use `QuikiRenderEditor`'s existing `getOffsetForCaret()` (position a handle) and `positionForOffset()` (resolve a drag position back to a source offset) — this coordinate-mapping machinery already exists and is exactly what tap-to-source and the toolbar's anchoring already use; you should not need new coordinate math.
+- The floating toolbar (already implemented) should not remain visibly stuck in a stale position while a handle is actively being dragged — decide the right handling (hide during drag and reappear correctly positioned after, or reposition live) and justify your choice in your report-back; either is defensible, but silently leaving it stale in place is not.
+- Handle visibility/gating should reuse the same mobile/touch gating the selection toolbar already uses (`_isMobile`) rather than inventing a new condition — handles and the toolbar are the same category of touch-only affordance.
+
+**Deliberately scoped down from the full §2 spec — the single collapsed-cursor drag handle is NOT part of this stage.** §2 also describes a single draggable handle for a bare collapsed cursor (precise cursor repositioning, separate from the two-handle selection case). That's real, confirmed scope eventually, but it's being held back from this brief specifically to keep this stage focused on the higher-priority, "minimum bar" case — adjusting an existing selection, which currently has no adjustment affordance at all once a long-press/double-tap gesture ends. Flag back if you think bundling it in is clearly cheap given whatever handle-widget mechanism you build, but don't build it unless asked.
+
+**Explicitly out of scope for this stage**:
+- No magnifier — Stage 4.
+- No auto-scroll while dragging a handle near a viewport edge — Stage 3. A drag that reaches the edge of currently-visible content simply doesn't extend further until the content is manually scrolled; that's an acceptable, temporary limitation for this stage, not a bug to work around.
+- No haptic feedback — bundled with Stage 4 per the staging plan.
+- No changes to how a selection is *created* (long-press, double-tap, `_selectEntityAt`) — Stage 1's logic is correct and out of scope here. This stage is entirely about what happens *after* a selection exists.
+- No changes to desktop/mouse click-drag-select (`_onPanUpdate`/`_onPanStart`) — that already works and is unaffected; handles are an additional touch-specific affordance layered on top, not a replacement. Desktop-specific handle conventions (if any) are an explicitly separate, unresolved question (`selection.md` → "Still open") — don't guess at desktop behavior here.
+
+**Required test coverage — real gestures, not programmatic selection**, per the same discipline Stage 1 established (and the reason Stage 1's bug shipped in the first place): simulate actual drag gestures on the handle widgets and assert the resulting `TextSelection`, not just call an internal method directly. At minimum, cover: dragging the end handle to extend a selection further into the document; dragging the start handle to extend backward; dragging the end handle backward past the current start (crossing) and confirming the selection is still correct with start/end logically flipped; dragging the start handle forward past the current end (the reverse crossing case); a drag that moves a handle across a line boundary; a handle drag landing exactly on a markdown delimiter boundary (bold/link) to confirm it doesn't produce a source-offset mapping error given the same rendered-vs-source subtlety Stage 1 had to solve; confirming a fresh tap elsewhere still dismisses the handles/selection the same way it already dismisses the toolbar today.
+
+**Visual design standard, restated per process**: GitHub Primer Dark/Light High Contrast palette only (the accent/link token `#71b7ff` is a reasonable starting point for handle color, matching whatever this app's existing selection highlight already uses — check rather than guess), Lucide icons don't apply here (handles aren't icons), no stock Material handle assets/colors.
+
+**Checklist**: `dart format`, `flutter analyze`, both package tests (`cd packages/markdown_live_editor && flutter test`) **and root tests (`flutter test` from the repo root)** — both suites, not just the package one. Report back: how you resolved the toolbar-during-drag question and why, confirmation that crossing behaves correctly in both directions with test evidence, and anything about hit-testing (handle touch targets vs. the underlying content's own tap targets — links, checkboxes) that concerned you or required a judgment call. Real device testing is expected for this area given its history — say plainly what you could not verify without one.
 
 Selection Stage 2 (draggable handles) is not yet briefed — pending the project owner's real-device feedback on Stage 1 first, per `notes/dev/selection.md`'s staging plan.
