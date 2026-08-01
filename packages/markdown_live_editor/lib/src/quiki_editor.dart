@@ -83,6 +83,12 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
   // Bug 4: anchor offset for long-press word selection.
   int? _longPressAnchor;
 
+  // Recognizer hardening: explicit anchor offset for mouse/stylus
+  // drag-to-select, captured at drag-start rather than inherited implicitly
+  // from whatever _onTapDown last left in _value.selection.baseOffset. See
+  // _onPanStart.
+  int? _panAnchor;
+
   // Selection toolbar — shown on mobile after a long-press word-select.
   // ContextMenuController manages the OverlayEntry lifecycle correctly
   // alongside Flutter's own context menus.
@@ -830,12 +836,37 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     _connection?.setEditingState(_value);
   }
 
+  // Recognizer hardening: the drag's anchor is now captured explicitly here,
+  // at drag-start, rather than being inherited implicitly from whatever
+  // _onTapDown last left in _value.selection.baseOffset. That prior
+  // arrangement worked only because _onTapDown happens to always run first
+  // in the same gesture sequence — an ordering assumption, not a guarantee —
+  // and DragStartDetails.globalPosition is not even guaranteed to equal the
+  // original pointer-down position (a pan recognizer only starts once
+  // movement exceeds the touch/mouse slop, so its own start position can sit
+  // a few pixels from the true down point). Mirrors how long-press already
+  // captures its own anchor via _longPressAnchor.
+  void _onPanStart(DragStartDetails details) {
+    // Bug 2: touch drags scroll; only mouse/stylus drags anchor a selection.
+    if (_lastPointerKind != PointerDeviceKind.mouse &&
+        _lastPointerKind != PointerDeviceKind.stylus) {
+      _panAnchor = null;
+      return;
+    }
+    final re = _renderEditor;
+    if (re == null) return;
+    final localPos = re.globalToLocal(details.globalPosition);
+    _panAnchor = re.positionForOffset(localPos).offset;
+  }
+
   void _onPanUpdate(DragUpdateDetails details) {
     // Bug 2: touch drags scroll; only mouse/stylus drags extend the selection.
     if (_lastPointerKind != PointerDeviceKind.mouse &&
         _lastPointerKind != PointerDeviceKind.stylus) {
       return;
     }
+    final anchor = _panAnchor;
+    if (anchor == null) return;
     final re = _renderEditor;
     if (re == null) return;
     // Bug 1: no scroll offset correction — globalToLocal handles it.
@@ -843,24 +874,53 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     final position = re.positionForOffset(localPos);
     _updateValue(
       _value.copyWith(
-        selection: _value.selection.copyWith(extentOffset: position.offset),
+        selection:
+            TextSelection(baseOffset: anchor, extentOffset: position.offset),
       ),
       notify: false,
     );
     _connection?.setEditingState(_value);
   }
 
-  // Bug 4: long-press selects the word under the finger (touch only).
+  void _onPanEnd(DragEndDetails details) {
+    _panAnchor = null;
+  }
+
+  // Bug 4: long-press selects the entity under the finger (touch only).
+  // Double-tap (_onDoubleTapDown, below) shares this exact same
+  // determination — both are just different gesture entry points into
+  // _selectEntityAt, so they can never drift apart.
   void _onLongPressStart(LongPressStartDetails details) {
     final re = _renderEditor;
     if (re == null) return;
     // Bug 1 fix applied: no scroll offset.
     final localPos = re.globalToLocal(details.globalPosition);
     final position = re.positionForOffset(localPos);
-    final wordSel = _selectWordAt(position.offset);
-    _longPressAnchor = wordSel.baseOffset;
-    _updateValue(_value.copyWith(selection: wordSel), notify: false);
+    final entitySel = _selectEntityAt(position.offset);
+    _longPressAnchor = entitySel.baseOffset;
+    _updateValue(_value.copyWith(selection: entitySel), notify: false);
     _connection?.setEditingState(_value);
+  }
+
+  // Double-tap: identical underlying word/entity determination as
+  // long-press — see _selectEntityAt. Uses Flutter's standard double-tap
+  // recognizer as-is; no mitigation is added for the single-tap-commit
+  // latency Flutter introduces once a double-tap recognizer shares the
+  // gesture arena (an explicit instruction from the project owner — that
+  // tradeoff is judged from real device feel in a later round, not solved
+  // preemptively here). _onTapDown already ran for this same pointer-down
+  // event (it fires optimistically before the arena resolves single vs.
+  // double tap), so focus/IME handling is already done by the time this
+  // fires — only the selection needs to be overridden.
+  void _onDoubleTapDown(TapDownDetails details) {
+    final re = _renderEditor;
+    if (re == null) return;
+    final localPos = re.globalToLocal(details.globalPosition);
+    final position = re.positionForOffset(localPos);
+    final entitySel = _selectEntityAt(position.offset);
+    _updateValue(_value.copyWith(selection: entitySel), notify: false);
+    _connection?.setEditingState(_value);
+    _showSelectionToolbar();
   }
 
   void _onLongPressMoveUpdate(LongPressMoveUpdateDetails details) {
@@ -887,22 +947,151 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     _showSelectionToolbar();
   }
 
-  TextSelection _selectWordAt(int offset) {
+  // ---------------------------------------------------------------------------
+  // Entity-aware selection — shared by long-press and double-tap.
+  //
+  // Root cause of the previously-shipped partial-word-selection bug: the old
+  // implementation (formerly _selectWordAt/_isWordChar here) scanned the raw
+  // SOURCE text character-by-character with a \w word-char test. Source text
+  // still contains every hidden markdown delimiter — e.g. the '**' around
+  // '**bold**', or a mid-word nested-emphasis run like 're**a**lly' (ADR-33).
+  // '*' correctly fails the word-char test, so the scan stopped dead at the
+  // first hidden delimiter it hit and returned only the fragment of the word
+  // on one side of it, even though the delimiter is entirely invisible in
+  // rendered view and the user perceives one continuous word. This was
+  // reliably reproducible for any word containing or bordering hidden
+  // markup, which matches "sometimes" from real-device use — plain
+  // undecorated paragraph text was never affected.
+  //
+  // Fix: scan the RENDERED text (delimiters already stripped — exactly what
+  // is on screen) and translate the resulting boundary back to source
+  // offsets via RenderModel's existing bidirectional offset maps — the same
+  // maps _onTapDown already uses for tap-to-source and _showSelectionToolbar
+  // uses for caret positioning. This also naturally produces the required
+  // "select word, not delimiters" behaviour for a word immediately bordered
+  // by (rather than split by) a delimiter, since the delimiter characters
+  // never appear in the rendered string being scanned at all.
+  // ---------------------------------------------------------------------------
+
+  /// Matches an email address closely enough for practical selection
+  /// purposes (not full RFC 5322): a local part of word chars/./%/+/-, '@',
+  /// a domain of word chars/./-, ending in a dot-separated TLD of at least
+  /// two letters.
+  static final RegExp _emailPattern =
+      RegExp(r'[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}');
+
+  /// Matches a punctuated numeric string — digits combined with the
+  /// `. - / ( )` punctuation set (phone numbers, serial/part numbers,
+  /// version numbers, dates). Anchored to start AND end on a digit so
+  /// ordinary surrounding prose punctuation (a sentence-ending '.', a bare
+  /// '(') is never absorbed into the match.
+  ///
+  /// Deliberately strictly digits-plus-punctuation, with no letters: a
+  /// letter-suffixed identifier like 'SN-2024-0847-B' selects only
+  /// '2024-0847' here, not the 'SN-' prefix or '-B' suffix (see
+  /// selection_test.dart for the demonstrating case). Reasoning: allowing
+  /// letters into this character class would turn it from a numeric-token
+  /// matcher into a general punctuated-token matcher, which would also
+  /// reach ordinary hyphenated/dotted prose ('well-known', 'e.g.',
+  /// 'self-contained') — a much bigger behavioural change than "select
+  /// whole phone/serial/version numbers", with collateral effects on plain
+  /// word selection this task did not ask for. Anchoring strictly on digits
+  /// is the narrowest change that still selects the numeric identifier as a
+  /// whole; a mixed alnum+punctuation identifier matcher is a reasonable
+  /// future ask but a distinct one from what was requested here.
+  static final RegExp _numericEntityPattern = RegExp(r'\d(?:[\d.\-/()]*\d)?');
+
+  /// A plain word — letters, digits, underscore.
+  static final RegExp _wordPattern = RegExp(r'\w+');
+
+  /// Determines the word/entity that should be selected when a long-press or
+  /// double-tap resolves to source offset [sourceOffset], and returns it as
+  /// a source [TextSelection]. The single implementation both gestures call.
+  TextSelection _selectEntityAt(int sourceOffset) {
     final text = _value.text;
-    if (text.isEmpty) return TextSelection.collapsed(offset: offset);
-    int start = offset;
-    while (start > 0 && _isWordChar(text[start - 1])) {
-      start--;
+    if (text.isEmpty) return const TextSelection.collapsed(offset: 0);
+    final clampedSource = sourceOffset.clamp(0, text.length);
+
+    final re = _renderEditor;
+    if (re == null) return TextSelection.collapsed(offset: clampedSource);
+    final model = re.renderModel;
+
+    final ri = model.renderedForSource(clampedSource);
+
+    // Links (and bare autolinks) take priority, reusing the same LinkSlot
+    // data _onTapDown already relies on for tap-to-navigate — the whole
+    // rendered link label is one entity, never re-derived from a URL regex.
+    for (final slot in model.linkSlots) {
+      if (ri >= slot.renderedStart && ri < slot.renderedEnd) {
+        return _renderedRangeToSourceSelection(
+            model, slot.renderedStart, slot.renderedEnd);
+      }
     }
-    int end = offset;
-    while (end < text.length && _isWordChar(text[end])) {
-      end++;
+
+    final rendered = model.textSpan.toPlainText();
+    if (rendered.isEmpty) return TextSelection.collapsed(offset: clampedSource);
+    final clampedRi = ri.clamp(0, rendered.length);
+
+    final email = _findEnclosingMatch(_emailPattern, rendered, clampedRi);
+    if (email != null) {
+      return _renderedRangeToSourceSelection(model, email.start, email.end);
     }
-    if (start == end) return TextSelection.collapsed(offset: offset);
-    return TextSelection(baseOffset: start, extentOffset: end);
+    final numeric =
+        _findEnclosingMatch(_numericEntityPattern, rendered, clampedRi);
+    if (numeric != null) {
+      return _renderedRangeToSourceSelection(model, numeric.start, numeric.end);
+    }
+    final word = _findEnclosingMatch(_wordPattern, rendered, clampedRi);
+    if (word != null) {
+      return _renderedRangeToSourceSelection(model, word.start, word.end);
+    }
+
+    return TextSelection.collapsed(offset: clampedSource);
   }
 
-  bool _isWordChar(String c) => RegExp(r'\w').hasMatch(c);
+  /// Returns the first match of [pattern] in [text] whose range encloses
+  /// [offset] (inclusive of both ends, so a tap landing exactly on a match's
+  /// boundary character still counts — "on or adjacent to"), or null.
+  /// [pattern]'s matches are produced in ascending-start order, so this can
+  /// stop as soon as a match starts past [offset].
+  ({int start, int end})? _findEnclosingMatch(
+      RegExp pattern, String text, int offset) {
+    for (final m in pattern.allMatches(text)) {
+      if (m.start > offset) break;
+      if (offset <= m.end) return (start: m.start, end: m.end);
+    }
+    return null;
+  }
+
+  /// Converts a rendered-offset range `[renderedStart, renderedEnd)` — from
+  /// a regex match against the rendered plain text, or from a [LinkSlot] —
+  /// into a source [TextSelection], via [RenderModel]'s bidirectional offset
+  /// maps.
+  ///
+  /// Deliberately NOT `model.sourceForRendered(renderedEnd)` for the end
+  /// boundary: at the end of a collapsed run (e.g. the last visible
+  /// character of a bold word, just before its closing '**'), the
+  /// rendered→source map's entry at that exact position can land on the
+  /// end-of-source sentinel or the start of unrelated following content
+  /// rather than "one past the last matched character" — pulling trailing
+  /// hidden delimiters into the selection, exactly what the
+  /// whole-word/whole-link invariant forbids. Resolving the LAST matched
+  /// rendered character's own source offset and adding 1 always lands
+  /// exactly past that character and before any hidden delimiter following
+  /// it.
+  TextSelection _renderedRangeToSourceSelection(
+    RenderModel model,
+    int renderedStart,
+    int renderedEnd,
+  ) {
+    if (renderedEnd <= renderedStart) {
+      return TextSelection.collapsed(
+          offset: model.sourceForRendered(renderedStart));
+    }
+    final sourceStart = model.sourceForRendered(renderedStart);
+    final sourceEnd = model.sourceForRendered(renderedEnd - 1) + 1;
+    return TextSelection(baseOffset: sourceStart, extentOffset: sourceEnd);
+  }
 
   // -------------------------------------------------------------------------
   // Build
@@ -973,7 +1162,10 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onTapDown: _onTapDown,
+        onDoubleTapDown: _onDoubleTapDown,
+        onPanStart: _onPanStart,
         onPanUpdate: _onPanUpdate,
+        onPanEnd: _onPanEnd,
         onLongPressStart: _onLongPressStart,
         onLongPressMoveUpdate: _onLongPressMoveUpdate,
         onLongPressEnd: _onLongPressEnd,
