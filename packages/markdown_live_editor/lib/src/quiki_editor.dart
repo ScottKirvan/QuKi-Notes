@@ -11,13 +11,69 @@ import 'indent_dedent.dart';
 import 'md_parser.dart';
 import 'quiki_render_editor.dart';
 import 'render_model.dart';
+import 'selection_handle.dart';
 
-/// True when running on a mobile platform (Android or iOS).
+/// Test-only override forcing [_isMobile] to true regardless of the actual
+/// platform. Widget tests run on a desktop/CI host, where [_isMobile] is
+/// always false — this lets a test exercise mobile-only affordances
+/// (selection toolbar, selection handles) via the same real gesture path
+/// production code takes, rather than a `ForTesting` bypass that skips the
+/// gating logic entirely. See [QuikiEditorState.debugForceMobile].
+bool _debugForceMobile = false;
+
+/// True when running on a mobile platform (Android or iOS), or when a test
+/// has set [QuikiEditorState.debugForceMobile].
 ///
 /// iOS builds are deferred but the codebase must remain iOS-compatible;
 /// guard all mobile-specific behaviours with this helper rather than
 /// Platform.isAndroid alone.
-bool get _isMobile => Platform.isAndroid || Platform.isIOS;
+bool get _isMobile => Platform.isAndroid || Platform.isIOS || _debugForceMobile;
+
+// ---------------------------------------------------------------------------
+// _ActiveHandleDrag — Stage 2 selection-handle drag bookkeeping.
+//
+// While a handle is being dragged, the two rendered handle widgets must stay
+// glued to (a) the live drag position and (b) the untouched opposite
+// boundary — NOT to `selection.start`/`selection.end` directly. Those two
+// only coincide with "grabbed handle" / "anchor handle" until the drag
+// crosses the opposite boundary, at which point `.start`/`.end` swap which
+// physical side they refer to but the ACTIVE GestureDetector (bound to a
+// pointer, not a screen position) keeps receiving events for the same
+// widget it started on. Rendering straight from `.start`/`.end` mid-drag
+// would make the handle under the user's finger visually snap away the
+// instant a crossing happens. Tracking (fixed, moving) explicitly instead —
+// and rendering from those while a drag is active — keeps the dragged handle
+// glued to the pointer through a crossing, and the other handle pinned at
+// its untouched anchor, exactly matching what the finger is actually doing.
+// ---------------------------------------------------------------------------
+
+class _ActiveHandleDrag {
+  const _ActiveHandleDrag({
+    required this.isStartRole,
+    required this.fixed,
+    required this.moving,
+  });
+
+  /// True when the user grabbed the handle that was rendered at
+  /// `selection.start` at the moment the drag began. Fixed for the whole
+  /// drag — it identifies which of the two handle widgets is live, not which
+  /// numeric boundary is currently smaller (those can swap on a crossing).
+  final bool isStartRole;
+
+  /// The source offset of the boundary NOT being dragged, captured once at
+  /// drag-start. Never changes for the duration of this drag.
+  final int fixed;
+
+  /// The live, continuously-updated source offset of the boundary being
+  /// dragged, resolved from the pointer's current position on every update.
+  final int moving;
+
+  _ActiveHandleDrag copyWith({int? moving}) => _ActiveHandleDrag(
+        isStartRole: isStartRole,
+        fixed: fixed,
+        moving: moving ?? this.moving,
+      );
+}
 
 // ---------------------------------------------------------------------------
 // _QuikiEditor — stateful widget
@@ -110,6 +166,21 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
   // alongside Flutter's own context menus.
   final ContextMenuController _toolbarController = ContextMenuController();
 
+  // Stage 2: selection handles. Non-null for the entire duration of an
+  // active handle drag (set in onPanStart, cleared in onPanEnd) — see
+  // _ActiveHandleDrag's doc comment for why rendering must consult this
+  // instead of selection.start/selection.end while a drag is in progress.
+  _ActiveHandleDrag? _activeHandleDrag;
+
+  /// Visible handle glyph diameter — approximates selection.md §2's ~22dp.
+  static const double _handleDiameter = 20.0;
+
+  /// Touch-hit box side length — approximates selection.md §2's ~48dp
+  /// minimum recommended touch target, centered around the visible glyph.
+  static const double _handleHitBoxSize = 44.0;
+
+  static const double _handleInset = (_handleHitBoxSize - _handleDiameter) / 2;
+
   // Parse cache — re-parsed only when text changes.
   String _lastParsedText = '';
   List<MdElement> _elements = const [];
@@ -179,6 +250,15 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
   }
 
   final GlobalKey _renderKey = GlobalKey();
+
+  /// Key for the Stack that directly contains the Stage 2 selection-handle
+  /// Positioned widgets (see build()'s doc comment for why this is a
+  /// separate overlay Stack, not nested inside the scrollable content) —
+  /// resolved to a RenderBox so handle positions can be converted from
+  /// QuikiRenderEditor's local coordinate space via
+  /// globalToLocal/localToGlobal, the same pattern _showSelectionToolbar
+  /// already uses to anchor the toolbar.
+  final GlobalKey _handleOverlayKey = GlobalKey();
 
   @override
   void initState() {
@@ -353,6 +433,18 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
   /// from production code.
   @visibleForTesting
   void showToolbarForTesting() => _showSelectionToolbar(skipMobileCheck: true);
+
+  /// Forces [_isMobile] to true regardless of the actual platform, for the
+  /// lifetime of the test process (or until reset back to false).
+  ///
+  /// Unlike [showToolbarForTesting]'s one-shot bypass, this flips the same
+  /// gate production code checks, so a test can drive a real gesture (a real
+  /// long-press, a real drag on a handle widget) end-to-end exactly as it
+  /// would happen on a mobile device, including handles actually appearing
+  /// in the widget tree for `tester.drag`/`startGesture` to act on. Do not
+  /// call from production code.
+  @visibleForTesting
+  static set debugForceMobile(bool value) => _debugForceMobile = value;
 
   // Thin @visibleForTesting wrappers so clipboard operation tests can invoke
   // the private methods without going through gesture simulation.
@@ -1001,6 +1093,222 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     _showSelectionToolbar();
   }
 
+  // -------------------------------------------------------------------------
+  // Selection handles — Stage 2 (notes/dev/selection.md §2, ADR-36).
+  //
+  // Two independent, later, draggable handles at a non-collapsed selection's
+  // start and end. Each handle's GestureDetector is its own fresh gesture —
+  // unrelated to whatever gesture (long-press, double-tap) created the
+  // selection in the first place, so a user can select a word, lift their
+  // finger, wait, and come back later to drag either boundary.
+  //
+  // Drag precision is character-level (positionForOffset resolves to the
+  // nearest source character, not a word/entity boundary) even though the
+  // selection that produced the handles may have snapped to a whole word —
+  // deliberately not routed through _selectEntityAt.
+  // -------------------------------------------------------------------------
+
+  /// Resolves a global pointer position to a source-text offset, via the
+  /// same globalToLocal → positionForOffset path every other gesture handler
+  /// in this class already uses (_onTapDown, _onPanUpdate, etc.) — no new
+  /// coordinate math, only a new caller of what already exists.
+  int? _sourceOffsetForGlobal(Offset globalPosition) {
+    final re = _renderEditor;
+    if (re == null) return null;
+    final localPos = re.globalToLocal(globalPosition);
+    return re.positionForOffset(localPos).offset;
+  }
+
+  void _onStartHandlePanStart(DragStartDetails details) {
+    final moving = _sourceOffsetForGlobal(details.globalPosition);
+    if (moving == null) return;
+    // Requirement: the floating toolbar must not sit stuck in a stale
+    // position while a handle is actively dragged. Hidden here and re-shown
+    // (freshly anchored to the settled selection) in _onStartHandlePanEnd —
+    // simpler and less jittery than live-repositioning it every drag update,
+    // and matches the platform convention this editor's selection behaviour
+    // is otherwise modelled on (Android also hides the floating toolbar for
+    // the duration of a handle drag).
+    _toolbarController.remove();
+    setState(() {
+      _activeHandleDrag = _ActiveHandleDrag(
+        isStartRole: true,
+        fixed: _sel.end,
+        moving: moving,
+      );
+    });
+  }
+
+  void _onStartHandlePanUpdate(DragUpdateDetails details) {
+    final drag = _activeHandleDrag;
+    if (drag == null || !drag.isStartRole) return;
+    final moving = _sourceOffsetForGlobal(details.globalPosition);
+    if (moving == null) return;
+    _activeHandleDrag = drag.copyWith(moving: moving);
+    // Deliberately unconditional TextSelection(baseOffset: fixed, extentOffset:
+    // moving) — no min/max reordering. TextSelection.start/.end (used by
+    // every other reader: highlight painting, textInside, toolbar anchoring)
+    // already normalize via min/max regardless of base/extent order, so a
+    // drag that pushes `moving` past `fixed` correctly flips which physical
+    // boundary is logically start vs end with no special-case crossing logic
+    // needed here — see _ActiveHandleDrag's doc comment for why the RENDER
+    // POSITIONS of the two handle widgets need their own (fixed, moving)
+    // tracking regardless.
+    _updateValue(
+      _value.copyWith(
+        selection: TextSelection(baseOffset: drag.fixed, extentOffset: moving),
+      ),
+      notify: false,
+    );
+    _connection?.setEditingState(_value);
+  }
+
+  void _onStartHandlePanEnd(DragEndDetails details) {
+    setState(() {
+      _activeHandleDrag = null;
+    });
+    _showSelectionToolbar();
+  }
+
+  void _onEndHandlePanStart(DragStartDetails details) {
+    final moving = _sourceOffsetForGlobal(details.globalPosition);
+    if (moving == null) return;
+    _toolbarController.remove();
+    setState(() {
+      _activeHandleDrag = _ActiveHandleDrag(
+        isStartRole: false,
+        fixed: _sel.start,
+        moving: moving,
+      );
+    });
+  }
+
+  void _onEndHandlePanUpdate(DragUpdateDetails details) {
+    final drag = _activeHandleDrag;
+    if (drag == null || drag.isStartRole) return;
+    final moving = _sourceOffsetForGlobal(details.globalPosition);
+    if (moving == null) return;
+    _activeHandleDrag = drag.copyWith(moving: moving);
+    _updateValue(
+      _value.copyWith(
+        selection: TextSelection(baseOffset: drag.fixed, extentOffset: moving),
+      ),
+      notify: false,
+    );
+    _connection?.setEditingState(_value);
+  }
+
+  void _onEndHandlePanEnd(DragEndDetails details) {
+    setState(() {
+      _activeHandleDrag = null;
+    });
+    _showSelectionToolbar();
+  }
+
+  /// Builds the (start, end) handle widgets for the current selection, or an
+  /// empty list when handles should not be shown. Always exactly 0 or 2
+  /// entries. Given constant [ValueKey]s so the overlay Stack's child-list
+  /// reconciliation always matches them to the same Element/State across
+  /// rebuilds — required for GestureDetector's PanGestureRecognizer to
+  /// survive a selection crossing mid-drag (see _ActiveHandleDrag's doc
+  /// comment).
+  ///
+  /// Positions are computed via [QuikiRenderEditor.localToGlobal] (a global,
+  /// screen-space point — the same call [_showSelectionToolbar] already uses
+  /// to anchor the toolbar) and then [RenderBox.globalToLocal] against the
+  /// overlay Stack's OWN RenderBox (resolved via [_handleOverlayKey]) rather
+  /// than any manual scroll-offset arithmetic — this stays correct through
+  /// scrolling, resizing, or any other ancestor transform without this
+  /// method needing to know about any of them.
+  List<Widget> _buildSelectionHandlesOverlay(Color color) {
+    final re = _renderEditor;
+    if (re == null) return const [];
+    final drag = _activeHandleDrag;
+    final sel = _value.selection;
+    final showing =
+        _isMobile && (drag != null || (sel.isValid && !sel.isCollapsed));
+    if (!showing) return const [];
+
+    final overlayBox =
+        _handleOverlayKey.currentContext?.findRenderObject() as RenderBox?;
+    if (overlayBox == null || !overlayBox.attached || !overlayBox.hasSize) {
+      return const [];
+    }
+
+    final int startSourceOffset;
+    final int endSourceOffset;
+    if (drag == null) {
+      startSourceOffset = sel.start;
+      endSourceOffset = sel.end;
+    } else if (drag.isStartRole) {
+      startSourceOffset = drag.moving;
+      endSourceOffset = drag.fixed;
+    } else {
+      startSourceOffset = drag.fixed;
+      endSourceOffset = drag.moving;
+    }
+
+    Widget buildHandle({
+      required Key key,
+      required int sourceOffset,
+      required bool isStart,
+      required GestureDragStartCallback onPanStart,
+      required GestureDragUpdateCallback onPanUpdate,
+      required GestureDragEndCallback onPanEnd,
+    }) {
+      // Handles hang below the line, anchored where the caret meets the
+      // line's bottom edge — see selection_handle.dart's _HandlePainter doc
+      // comment for how the "point" corner is derived from this same anchor.
+      final caretLocal =
+          re.getOffsetForCaret(TextPosition(offset: sourceOffset)) +
+              re.localPadding.topLeft;
+      final lineHeight = re.preferredLineHeight;
+      final anchorInRenderEditor =
+          Offset(caretLocal.dx, caretLocal.dy + lineHeight);
+      final anchorGlobal = re.localToGlobal(anchorInRenderEditor);
+      final anchor = overlayBox.globalToLocal(anchorGlobal);
+
+      final pointLocal = isStart
+          ? const Offset(_handleInset + _handleDiameter, _handleInset)
+          : const Offset(_handleInset, _handleInset);
+      final topLeft = anchor - pointLocal;
+      return Positioned(
+        key: key,
+        left: topLeft.dx,
+        top: topLeft.dy,
+        width: _handleHitBoxSize,
+        height: _handleHitBoxSize,
+        child: SelectionHandle(
+          color: color,
+          diameter: _handleDiameter,
+          pointOnRight: isStart,
+          onPanStart: onPanStart,
+          onPanUpdate: onPanUpdate,
+          onPanEnd: onPanEnd,
+        ),
+      );
+    }
+
+    return [
+      buildHandle(
+        key: const ValueKey('quiki-selection-handle-start'),
+        sourceOffset: startSourceOffset,
+        isStart: true,
+        onPanStart: _onStartHandlePanStart,
+        onPanUpdate: _onStartHandlePanUpdate,
+        onPanEnd: _onStartHandlePanEnd,
+      ),
+      buildHandle(
+        key: const ValueKey('quiki-selection-handle-end'),
+        sourceOffset: endSourceOffset,
+        isStart: false,
+        onPanStart: _onEndHandlePanStart,
+        onPanUpdate: _onEndHandlePanUpdate,
+        onPanEnd: _onEndHandlePanEnd,
+      ),
+    ];
+  }
+
   // ---------------------------------------------------------------------------
   // Entity-aware selection — shared by long-press and double-tap.
   //
@@ -1227,11 +1535,62 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
       ),
     );
 
-    return Focus(
+    final focusable = Focus(
       focusNode: widget.focusNode,
       autofocus: widget.autofocus,
       onKeyEvent: _handleKeyEvent,
       child: gestureDetector,
+    );
+
+    // Stage 2 selection handles: deliberately rendered as a SEPARATE overlay
+    // layer — a sibling of `focusable` in the Stack below, not a descendant
+    // of it. A handle's own GestureDetector nested inside the same hit-test
+    // path as the editor's Tap/DoubleTap/Pan/LongPress recognizers would put
+    // both in the same gesture arena for every pointer-down landing on a
+    // handle — precisely the kind of shared-arena ambiguity this stage was
+    // warned could ripple unpredictably (see the double-tap-vs-tap latency
+    // finding from Stage 1). Kept as a sibling instead: Stack hit-testing
+    // stops at the first (topmost) child that claims a hit, so a pointer
+    // down inside a handle's hit box is claimed entirely by the handle and
+    // never reaches `focusable`'s subtree at all — no ambiguity possible.
+    //
+    // The tradeoff: handles no longer scroll "for free" as children of the
+    // same SingleChildScrollView, so their screen position is recomputed
+    // from scratch (via QuikiRenderEditor.localToGlobal → this overlay's own
+    // RenderBox.globalToLocal, resolved fresh against the CURRENT live
+    // scroll transform on every call — see _buildSelectionHandlesOverlay)
+    // inside an AnimatedBuilder listening to _scrollController, so only this
+    // small overlay subtree rebuilds on every scroll tick, not the whole
+    // editor.
+    // StackFit.expand: without it, Stack only loosens (not removes) the
+    // incoming constraints for non-positioned children, so `focusable` — no
+    // longer forced to a TIGHT size the way it was pre-Stage-2 (as the sole
+    // top-level widget under whatever tight/bounded constraints its parent,
+    // e.g. Scaffold.body, imposed) — could shrink to its own content height
+    // instead of filling the available area, while this Stack's own
+    // reported size still expands to fill it (an empty overlay Stack with no
+    // non-positioned children of its own sizes to constraints.biggest
+    // regardless). The mismatch is exactly what broke
+    // clipboard_toolbar_test.dart's "toolbar is dismissed on next tap" during
+    // review: a tap at the geometric center of the (larger) reported
+    // MarkdownEditor bounds landed below the (smaller, content-sized)
+    // focusable area — hitting nothing at all, so _onTapDown never fired.
+    // StackFit.expand gives every non-positioned child the Stack's own exact
+    // size, restoring the original fill-available-space sizing exactly.
+    return Stack(
+      fit: StackFit.expand,
+      clipBehavior: Clip.hardEdge,
+      children: [
+        focusable,
+        AnimatedBuilder(
+          animation: _scrollController,
+          builder: (context, _) => Stack(
+            clipBehavior: Clip.none,
+            key: _handleOverlayKey,
+            children: _buildSelectionHandlesOverlay(cursorColor),
+          ),
+        ),
+      ],
     );
   }
 }
