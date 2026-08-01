@@ -52,6 +52,41 @@ Read in this order — do not skip:
 
 > Written and maintained by the Spec session.
 
+### Selection Stage 1 — correct word/entity selection + double-tap
+
+**Branch**: `feat/selection-stage1`
+**Commit type**: `feat:` — double-tap and entity-aware selection are new capability; the word-selection correctness work below is a required part of delivering that capability correctly, not a separate fix.
+**Suggested PR title** (Spec opens the PR, not you): `feat(editor): double-tap and entity-aware word selection (selection stage 1)`
+
+**Read first**: `notes/dev/selection.md` in full — this is the authoritative target spec (Android/Material selection behavior, confirmed by the project owner as requirements — see its "Status" line at the top — plus §1a, a QuKi-Notes-specific extension for email and punctuated-numeric-string selection). This brief covers only the slice of that document scoped as "Stage 1"; the rest (draggable handles, auto-scroll, magnifier) is later, separate work — do not build ahead into those.
+
+**Confirmed bug, not a hypothesis**: long-press word selection, as currently shipped, sometimes selects only part of a word rather than the whole word — confirmed through real use, not a code-review guess. Do not assume the existing `_selectWordAt`/`_isWordChar` logic in `quiki_editor.dart` is a correct foundation just because it reads as though it should work — a prior code review of this exact logic concluded it looked correct, and it evidently is not. Find the actual root cause and explain it in your report-back, not just that it's "fixed."
+
+**What "correct" means here** — this is the actual deliverable, not a nice-to-have:
+
+- Long-press or double-tap landing anywhere on or adjacent to a word must select the **entire word**, correctly bounded — never a truncated substring, never spilling into an adjacent word or into markdown delimiter characters that are hidden in rendered view.
+- Long-press and double-tap must be **fully equivalent entry points** — both trigger the identical underlying word/entity-selection determination, not two separately-written implementations that could drift apart.
+- **Entity-aware selection (§1a of the spec)**: a long-press/double-tap landing inside an email address or a punctuated numeric string (digits combined with `. - / ( )`) selects the whole entity, not a word-fragment within it. For links specifically, prefer reusing whatever data this editor already tracks for tap-to-navigate (link span boundaries) rather than re-deriving link boundaries from scratch with new regex — that data already exists for a reason.
+- The exact character class for punctuated-numeric-string detection is deliberately left to you to decide and justify — the spec doc flags an open question (should a letter-suffixed identifier, e.g. a serial number ending in a letter, also count?) that it explicitly does not resolve. Make a reasoned call, state it and your reasoning in your report-back, and back it with a test case that demonstrates the boundary you chose.
+
+**Required test coverage — real gestures, not programmatic selection**: this bug shipped despite existing tests, because every existing selection test sets the selection programmatically (`setSelectionForTesting`) rather than simulating an actual gesture and checking what selection results. That gap is exactly how a bug like this survives. Tests for this brief must simulate real gestures (`tester.longPressAt`, double-tap equivalent, or `TestGesture` — whatever fits this editor's existing widget-test patterns) and assert the resulting `TextSelection` offsets against real rendered content, at minimum: a plain word in a plain paragraph; a word immediately adjacent to markdown delimiters (bold/italic/strikethrough/inline code) with the delimiters hidden in rendered view; a word inside a rendered link (must select the whole link); a bare autolinked URL; an email address; a punctuated numeric string; a word at the very start of the document; a word at the very end of the document; a word immediately adjacent to a checkbox or list marker.
+
+**Recognizer hardening — two specific, identified issues, not a rewrite**:
+- `_onPanUpdate`'s selection "base" is currently never explicitly captured when a drag begins — it implicitly relies on `_onTapDown` having already run first in the same gesture sequence and left the right value sitting in state. That's an ordering assumption, not a guarantee. Make it explicit: the drag's anchor must be captured at drag-start, the same way long-press already does it via `_longPressAnchor`, not inherited implicitly.
+- The current mouse-vs-touch dispatch for `_onPanUpdate` is a tracked `_lastPointerKind` field read inside the handler, set by a separate `Listener.onPointerDown`. Now that double-tap is being added to the same gesture arena, verify this still correctly and reliably distinguishes touch from mouse/stylus input — add test coverage that exercises this distinction directly (not just visually plausible), and if you find it's not robust, fix it. Use your own judgment on the mechanism; the requirement is that touch and mouse/stylus input are never misattributed to the wrong path, verified by a test, not just spot-checked.
+
+**Explicitly out of scope for this stage**:
+- No draggable selection handles, no magnifier, no auto-scroll — later stages.
+- **Do not touch tap-to-place-cursor (`_onTapDown`'s cursor-placement path) at all**, and do not add any speculative mitigation for double-tap's known effect on single-tap recognition latency (Flutter's double-tap recognizer delays single-tap commitment while it waits to disambiguate). Add double-tap using Flutter's standard recognizer as-is. Whether that latency is actually a problem gets judged from real device feel in the next round, not solved preemptively against a hypothetical.
+- No changes to keyboard-based selection (Shift+Arrow, Ctrl+A/C/X/V) — already correct, not in scope.
+- No changes to focus/keyboard-lifecycle behavior. That's a separate, already-tracked problem area, not part of this brief.
+
+**Visual design standard, restated per process**: GitHub Primer Dark/Light High Contrast palette only, Lucide icons only for any new UI. This stage is unlikely to add much new visible chrome (selection highlighting almost certainly already uses correct theming), but flag anything that does.
+
+**Checklist**: `dart format`, `flutter analyze`, package tests (`cd packages/markdown_live_editor && flutter test`) — all clean before pushing. Report back: the root cause you found for the partial-word-selection bug, your reasoning on the punctuated-numeric-string character-class boundary, confirmation that long-press and double-tap share one underlying implementation, and anything you found in the existing gesture code that concerned you beyond the two items called out above — flag it rather than silently fixing or silently leaving it. Real device testing is expected for this area given its history (this codebase's gesture-handling has needed device-driven fixes before, not just CI-green) — say plainly in your report if there's anything you could not verify without a device.
+
+---
+
 ### Rich-text (HTML) clipboard paste → GFM markdown conversion — ADR-35
 
 **Branch**: `feat/html-paste-conversion`

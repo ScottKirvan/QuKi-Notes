@@ -109,12 +109,22 @@ This project already has its own visual design system — GitHub Primer Dark/Lig
 
 ---
 
+## Staging — confirmed by the project owner
+
+This editor has no Flutter selection machinery to build on (see the framing note above) — handles, magnifier, auto-scroll, and entity-aware selection are all from-scratch work, staged as four independently shippable, independently device-testable rounds:
+
+1. **Correct word/entity selection + double-tap.** Includes a real, confirmed correctness bug: long-press currently selects only part of a word in some cases, not the whole word — found through actual use, not a hypothesis, and directly why this project isn't trusting "the code reads like it should work" as a substitute for verification here. Long-press and double-tap must be two equivalent entry points into the same underlying selection logic, extended for §1a (email + punctuated numeric strings). See `Agents/quiki-dev/CLAUDE.md` for the active brief.
+2. Draggable selection handles + crossing.
+3. Auto-scroll while dragging a handle near a viewport edge.
+4. Magnifier + haptic polish — explicitly provisional: try it for a round or two; if it isn't landing, it can be dropped, *unless* stages 2/3 turn out to genuinely need it for usable cursor/handle placement rather than just polish.
+
+Tap-to-place-cursor is deliberately **not** being touched or preemptively hardened (e.g. against double-tap's effect on single-tap recognition latency) until real device feel says it needs it — per the project owner's explicit call not to fix a hypothetical.
+
 ## Still open (not resolved by "adopt Android's behavior as requirements")
 
-- **Scope/staging for v1**: this editor has no Flutter selection machinery to build on (see the framing note above) — handles, magnifier, auto-scroll, and entity-aware selection are all from-scratch work. Whether this lands as one pass or staged (e.g., handles + entity-aware word/double-tap select first, magnifier/auto-scroll/haptics later) isn't decided.
 - **Reading mode**: reading mode currently hides the cursor and disables the edit gesture set entirely. Whether selection (for copying) works there at all, and with which subset of the toolbar (Copy/Select All only, no Cut/Paste — matching Android's read-only `TextView` convention), is unresolved.
 - **Desktop (Windows/Linux) equivalents**: this document is Android-specific by design. Double-click-for-word and triple-click-for-paragraph are common desktop conventions but — per §7 — aren't a single unambiguous platform standard the way Android's gestures are. Needs its own decision, not a straight port of the Android spec.
-- **Exact character class for §1a's punctuated-numeric-string detection**: digits plus `. - / ( )` is the confirmed starting point; whether letter-suffixed identifiers (e.g. a serial number ending in a letter) should also be swept in is unresolved — see §1a.
+- **Exact character class for §1a's punctuated-numeric-string detection**: digits plus `. - / ( )` is the confirmed starting point; whether letter-suffixed identifiers (e.g. a serial number ending in a letter) should also be swept in is unresolved — see §1a. Stage 1's brief leaves the final call to whoever implements it, with reasoning required.
 
 ---
 
