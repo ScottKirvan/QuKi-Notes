@@ -1,6 +1,8 @@
 # Text Selection — Standard Android Behavior (Research)
 
-Research only — not a locked decision, not a build plan. This documents what Android actually does for text selection, sourced from Material Design and Android platform documentation, independent of anything in this codebase. The point is to have a real target to hold an implementation against, not to guess at "reasonable" behavior.
+**Status**: the Android/Material behaviors documented below (sections 1–8) are confirmed by the project owner as the target requirements for QuKi-Notes' own selection implementation — not just research to weigh. Section 1a is a QuKi-Notes-specific extension beyond stock Android, also confirmed. This is still not an ADR and not a build plan — scope-for-v1/staging, reading-mode selection support, and desktop-specific (Windows/Linux) equivalents remain open and need their own discussion before a brief gets written.
+
+This documents what Android actually does for text selection, sourced from Material Design and Android platform documentation, independent of anything in this codebase. The point is to have a real target to hold an implementation against, not to guess at "reasonable" behavior.
 
 ---
 
@@ -22,7 +24,18 @@ Word selection isn't purely a `\w`-boundary scan on stock Android — a system s
 
 This happens automatically on the same long-press/double-tap gesture that starts a plain word selection — the user doesn't do anything different, the boundary is just smarter when the system recognizes a known entity type. The floating toolbar also gains contextual actions for the recognized type (Call/Copy for a phone number, Compose for an email, Open/Copy for a URL, Maps for an address) alongside the standard Cut/Copy/Paste set.
 
-**Relevance to a markdown editor**: this is the strongest argument for QuKi-Notes' own selection to be at least *link-aware* — a double-tap/long-press landing inside a rendered `[text](url)` or an autolinked bare URL arguably should select the meaningful unit (the link), not just whichever bare word the tap happened to land on. Whether to go further (phone/email detection) is a separate, smaller question.
+**Relevance to a markdown editor**: this is the strongest argument for QuKi-Notes' own selection to be at least *link-aware* — a double-tap/long-press landing inside a rendered `[text](url)` or an autolinked bare URL arguably should select the meaningful unit (the link), not just whichever bare word the tap happened to land on.
+
+### 1a. QuKi-Notes extension: email + punctuated numeric strings (confirmed requirement)
+
+QuKi-Notes has no access to Android's OS-level text-classification service (Android System Intelligence is a system app, not something a third-party app can invoke) — so none of stock Android's Smart Text Selection is available for free, regardless of platform. Whatever entity-awareness this editor gets, it has to implement itself, the same way bare-URL autolink detection is already a heuristic living in `MdParser`, not something the OS provides.
+
+Confirmed scope for QuKi-Notes' own entity detection, beyond a plain `\w` word-boundary scan:
+
+- **Email addresses** — a long-press/double-tap landing inside an email address selects the whole address, not just the local-part or domain fragment on either side of the `@`.
+- **Punctuated numeric strings** — a long-press/double-tap landing inside a run of digits combined with `.`, `-`, `/`, `(`, or `)` characters selects the *whole* run, not just the digit group the tap happened to land in. This is deliberately broader than stock Android's phone-number-specific detection — the intent is to also catch serial numbers, part numbers, and similar structured identifiers (e.g. `(555) 123-4567`, `SN-2024-0847-B12`-style mixed alphanumeric... — note: whether letters mixed into an otherwise-numeric identifier, like a serial number with a letter suffix, should also be captured is not yet resolved by "numeric strings with `./-/(/)`" alone; worth confirming the exact character class before implementation, since "numeric" and "serial/part number" aren't quite the same shape in practice).
+
+Not yet decided: whether recognizing one of these entity types should also change the floating toolbar's contents (stock Android adds Call/Compose/Open/Maps-style contextual actions for a recognized entity — see §6) — QuKi-Notes has no equivalent "call this number" or "compose to this email" action to offer, so the open question is narrower: does recognition only change *selection boundary* behavior, or is some contextual action worth adding too (e.g. an explicit "Copy" shortcut is already covered by the standard toolbar either way).
 
 ---
 
@@ -93,6 +106,15 @@ TalkBack (Android's screen reader) has its own separate interaction model for te
 ## A framing note for QuKi-Notes specifically
 
 This project already has its own visual design system — GitHub Primer Dark/Light High Contrast palette and Lucide icons only, not stock Material widgets or Material's default toolbar typography (Roboto Medium 14sp all-caps, per the M2 spec) or default handle/toolbar colors. The behavioral conventions above (gesture entry points, handle independence, magnifier semantics, auto-scroll, toolbar action-ordering logic, haptic moments) are what should transfer — not necessarily stock Material's exact visual styling, which this app already deliberately overrides everywhere else.
+
+---
+
+## Still open (not resolved by "adopt Android's behavior as requirements")
+
+- **Scope/staging for v1**: this editor has no Flutter selection machinery to build on (see the framing note above) — handles, magnifier, auto-scroll, and entity-aware selection are all from-scratch work. Whether this lands as one pass or staged (e.g., handles + entity-aware word/double-tap select first, magnifier/auto-scroll/haptics later) isn't decided.
+- **Reading mode**: reading mode currently hides the cursor and disables the edit gesture set entirely. Whether selection (for copying) works there at all, and with which subset of the toolbar (Copy/Select All only, no Cut/Paste — matching Android's read-only `TextView` convention), is unresolved.
+- **Desktop (Windows/Linux) equivalents**: this document is Android-specific by design. Double-click-for-word and triple-click-for-paragraph are common desktop conventions but — per §7 — aren't a single unambiguous platform standard the way Android's gestures are. Needs its own decision, not a straight port of the Android spec.
+- **Exact character class for §1a's punctuated-numeric-string detection**: digits plus `. - / ( )` is the confirmed starting point; whether letter-suffixed identifiers (e.g. a serial number ending in a letter) should also be swept in is unresolved — see §1a.
 
 ---
 
