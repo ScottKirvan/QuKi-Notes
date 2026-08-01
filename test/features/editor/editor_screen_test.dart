@@ -438,8 +438,19 @@ void main() {
 
       // Focus the editor so QuikiEditorState opens a TextInputConnection.
       // When setValue is called after load, the IME state will be updated.
+      //
+      // The pump here is deliberately longer than kDoubleTapTimeout: now
+      // that a double-tap recognizer shares this GestureDetector's gesture
+      // arena (feat/selection-stage1), any tap through it schedules
+      // DoubleTapGestureRecognizer's internal "forget the last tap" timer,
+      // which must be allowed to fire before the test ends or flutter_test's
+      // own teardown assertion ('A Timer is still pending even after the
+      // widget tree was disposed') fails — a test-harness bookkeeping
+      // requirement, unrelated to app correctness. See
+      // packages/markdown_live_editor/test/selection_test.dart's
+      // doubleTapAt() doc comment for the full explanation.
       await tester.tap(find.byType(MarkdownEditor));
-      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
 
       await tester.runAsync(() async {
         container.read(activeQukiIdProvider.notifier).setId(meta.id);

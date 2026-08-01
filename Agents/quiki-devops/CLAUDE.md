@@ -54,4 +54,22 @@ You do NOT touch app code (`lib/`, `test/`) or `notes/dev/` docs. If a CI fix re
 
 ---
 
-**No task currently in progress.**
+### Dependabot — track `file_picker` for a `win32 ^6.x`-compatible release
+
+**Branch**: `chore/dependabot-file-picker`
+**Commit type**: `chore(ci):`
+**Do not open a PR** — push the branch and report back; Spec reviews and creates the PR.
+
+**Context**: Issue [#316](https://github.com/ScottKirvan/QuKi-Notes/issues/316) — Linux HTML clipboard paste is blocked because `quill_native_bridge ^11.2.0` (needed for its Linux implementation) requires `win32 ^6.2.0`, which conflicts with `file_picker` (root `pubspec.yaml`, backs the storage-root picker, ADR-27/28) — its current latest stable release still requires `win32 ^5.9.0`. The fix, once unblocked, is a one-line version bump (`quill_native_bridge` to `^11.2.0`) — but someone has to notice when `file_picker` ships a stable release that finally raises its `win32` floor. Right now that requires remembering to check pub.dev manually.
+
+**What to build**: Add `.github/dependabot.yml` with a `pub` ecosystem entry for the root directory (`/`), scoped to just `file_picker` via an `allow` rule — so Dependabot opens a PR only when `file_picker` has a new version, not for every dependency in the tree (that's a separate, broader ask this project hasn't made). Weekly schedule is a reasonable default; use your judgment on the exact `schedule.interval`/`open-pull-requests-limit` values, this isn't prescriptive.
+
+**Verify before finishing**: confirm `file_picker` is in fact declared in root `pubspec.yaml` (not `packages/markdown_live_editor/pubspec.yaml`) before writing the `directory:` path — check rather than assume. Confirm the `allow`/`ignore` rule syntax you use is current Dependabot config syntax (GitHub's dependabot.yml schema), not stale documentation — this is config-as-code with no local way to test it before it runs on GitHub's schedule, so get the syntax right the first time.
+
+**Definition of done**: `.github/dependabot.yml` exists, targets the `pub` ecosystem, correct directory, scoped to `file_picker` only, on a schedule. No other files touched. Report back what schedule/limit values you chose and why, and flag anything about Dependabot's pub-ecosystem support that surprised you or that you couldn't verify locally.
+
+**Note for whoever picks up the resulting Dependabot PR later** (not part of this task, just context): when Dependabot opens a PR bumping `file_picker`, check whether its new `win32` constraint reaches `^6.2.0` — if so, that's the trigger to also bump `quill_native_bridge` to `^11.2.0` in `packages/markdown_live_editor/pubspec.yaml` and close #316.
+
+---
+
+**No task currently in progress beyond the above.**

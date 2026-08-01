@@ -52,65 +52,8 @@ Read in this order — do not skip:
 
 > Written and maintained by the Spec session.
 
-### Selection Stage 1 — correct word/entity selection + double-tap
+**No task currently in progress.**
 
-**Branch**: `feat/selection-stage1`
-**Commit type**: `feat:` — double-tap and entity-aware selection are new capability; the word-selection correctness work below is a required part of delivering that capability correctly, not a separate fix.
-**Suggested PR title** (Spec opens the PR, not you): `feat(editor): double-tap and entity-aware word selection (selection stage 1)`
+Both the ADR-35 HTML-paste-conversion fix (PR #314, plus the `super_clipboard`→`quill_native_bridge` swap on the same branch) and Selection Stage 1 (PR #320 — correct word/entity selection, double-tap, recognizer hardening) are merged. See `notes/dev/decisions.md` → ADR-35 and `notes/dev/selection.md` → "Staging" for full status.
 
-**Read first**: `notes/dev/selection.md` in full — this is the authoritative target spec (Android/Material selection behavior, confirmed by the project owner as requirements — see its "Status" line at the top — plus §1a, a QuKi-Notes-specific extension for email and punctuated-numeric-string selection). This brief covers only the slice of that document scoped as "Stage 1"; the rest (draggable handles, auto-scroll, magnifier) is later, separate work — do not build ahead into those.
-
-**Confirmed bug, not a hypothesis**: long-press word selection, as currently shipped, sometimes selects only part of a word rather than the whole word — confirmed through real use, not a code-review guess. Do not assume the existing `_selectWordAt`/`_isWordChar` logic in `quiki_editor.dart` is a correct foundation just because it reads as though it should work — a prior code review of this exact logic concluded it looked correct, and it evidently is not. Find the actual root cause and explain it in your report-back, not just that it's "fixed."
-
-**What "correct" means here** — this is the actual deliverable, not a nice-to-have:
-
-- Long-press or double-tap landing anywhere on or adjacent to a word must select the **entire word**, correctly bounded — never a truncated substring, never spilling into an adjacent word or into markdown delimiter characters that are hidden in rendered view.
-- Long-press and double-tap must be **fully equivalent entry points** — both trigger the identical underlying word/entity-selection determination, not two separately-written implementations that could drift apart.
-- **Entity-aware selection (§1a of the spec)**: a long-press/double-tap landing inside an email address or a punctuated numeric string (digits combined with `. - / ( )`) selects the whole entity, not a word-fragment within it. For links specifically, prefer reusing whatever data this editor already tracks for tap-to-navigate (link span boundaries) rather than re-deriving link boundaries from scratch with new regex — that data already exists for a reason.
-- The exact character class for punctuated-numeric-string detection is deliberately left to you to decide and justify — the spec doc flags an open question (should a letter-suffixed identifier, e.g. a serial number ending in a letter, also count?) that it explicitly does not resolve. Make a reasoned call, state it and your reasoning in your report-back, and back it with a test case that demonstrates the boundary you chose.
-
-**Required test coverage — real gestures, not programmatic selection**: this bug shipped despite existing tests, because every existing selection test sets the selection programmatically (`setSelectionForTesting`) rather than simulating an actual gesture and checking what selection results. That gap is exactly how a bug like this survives. Tests for this brief must simulate real gestures (`tester.longPressAt`, double-tap equivalent, or `TestGesture` — whatever fits this editor's existing widget-test patterns) and assert the resulting `TextSelection` offsets against real rendered content, at minimum: a plain word in a plain paragraph; a word immediately adjacent to markdown delimiters (bold/italic/strikethrough/inline code) with the delimiters hidden in rendered view; a word inside a rendered link (must select the whole link); a bare autolinked URL; an email address; a punctuated numeric string; a word at the very start of the document; a word at the very end of the document; a word immediately adjacent to a checkbox or list marker.
-
-**Recognizer hardening — two specific, identified issues, not a rewrite**:
-- `_onPanUpdate`'s selection "base" is currently never explicitly captured when a drag begins — it implicitly relies on `_onTapDown` having already run first in the same gesture sequence and left the right value sitting in state. That's an ordering assumption, not a guarantee. Make it explicit: the drag's anchor must be captured at drag-start, the same way long-press already does it via `_longPressAnchor`, not inherited implicitly.
-- The current mouse-vs-touch dispatch for `_onPanUpdate` is a tracked `_lastPointerKind` field read inside the handler, set by a separate `Listener.onPointerDown`. Now that double-tap is being added to the same gesture arena, verify this still correctly and reliably distinguishes touch from mouse/stylus input — add test coverage that exercises this distinction directly (not just visually plausible), and if you find it's not robust, fix it. Use your own judgment on the mechanism; the requirement is that touch and mouse/stylus input are never misattributed to the wrong path, verified by a test, not just spot-checked.
-
-**Explicitly out of scope for this stage**:
-- No draggable selection handles, no magnifier, no auto-scroll — later stages.
-- **Do not touch tap-to-place-cursor (`_onTapDown`'s cursor-placement path) at all**, and do not add any speculative mitigation for double-tap's known effect on single-tap recognition latency (Flutter's double-tap recognizer delays single-tap commitment while it waits to disambiguate). Add double-tap using Flutter's standard recognizer as-is. Whether that latency is actually a problem gets judged from real device feel in the next round, not solved preemptively against a hypothetical.
-- No changes to keyboard-based selection (Shift+Arrow, Ctrl+A/C/X/V) — already correct, not in scope.
-- No changes to focus/keyboard-lifecycle behavior. That's a separate, already-tracked problem area, not part of this brief.
-
-**Visual design standard, restated per process**: GitHub Primer Dark/Light High Contrast palette only, Lucide icons only for any new UI. This stage is unlikely to add much new visible chrome (selection highlighting almost certainly already uses correct theming), but flag anything that does.
-
-**Checklist**: `dart format`, `flutter analyze`, package tests (`cd packages/markdown_live_editor && flutter test`) — all clean before pushing. Report back: the root cause you found for the partial-word-selection bug, your reasoning on the punctuated-numeric-string character-class boundary, confirmation that long-press and double-tap share one underlying implementation, and anything you found in the existing gesture code that concerned you beyond the two items called out above — flag it rather than silently fixing or silently leaving it. Real device testing is expected for this area given its history (this codebase's gesture-handling has needed device-driven fixes before, not just CI-green) — say plainly in your report if there's anything you could not verify without a device.
-
----
-
-### Rich-text (HTML) clipboard paste → GFM markdown conversion — ADR-35
-
-**Branch**: `feat/html-paste-conversion`
-**Commit type**: `feat:` — genuinely new capability.
-**Suggested PR title** (Spec opens the PR, not you): `feat(editor): convert HTML clipboard content to markdown on paste (ADR-35)`
-
-**Read first, in this order**: `notes/dev/decisions.md` → ADR-35 (the full, authoritative rationale — read it in full, this brief is a summary, not a substitute). Then read the current `_pasteFromClipboard()` in `packages/markdown_live_editor/lib/src/quiki_editor.dart` (reads `Clipboard.kTextPlain`, inserts via `_updateValue`/`_connection?.setEditingState` — this exact buffer-update path must still be what a converted paste goes through) and `pubspec.yaml` for both the root app and `packages/markdown_live_editor` (to know where the new dependencies belong — this package is the one that owns paste handling, so the dependencies most likely belong there, but confirm by checking how existing dependencies are organized between the two).
-
-**What to build**: when the clipboard has an HTML representation available, `_pasteFromClipboard()` must read it (via `super_clipboard`'s `Formats.htmlText`), convert it to GFM markdown (via `html2md`), and insert the resulting markdown text through the exact same buffer-update mechanism plain-text paste already uses — same selection-replace semantics, same single edit, same undo behavior. When the clipboard has no HTML representation (pasting from another QuKi, a plain-text source, or anything without a rich-text entry), behavior must be byte-identical to what's currently shipped — this is the most important regression-risk category, since it's almost certainly the more common paste case day-to-day.
-
-**Correctness invariant, not a style choice**: conversion must preserve full GFM structure — tables, fenced code blocks, image references (`![alt](url)`, keeping the source's original URL, no attempt to fetch/download/embed anything) — even for markdown syntax this app's renderer doesn't yet give special visual treatment (tables: #245; fenced code: #244; external image URLs: #246 — all filed, none built). Do not simplify, strip, or degrade unsupported HTML structure down to plain prose — the raw markdown must stay exactly as legible and complete as `html2md` naturally produces it. See ADR-35's "Rejected alternatives" for why (the same reasoning this codebase already applies to fenced code blocks, which display as literal raw text rather than being stripped).
-
-**Also verify**: paste behavior (including whether HTML conversion happens) must be independent of `plainTextMode` — that flag controls how the *existing* buffer renders, not how paste writes to it, so there's no reason conversion should differ based on which mode the user happens to be viewing in.
-
-**Explicitly out of scope**: any UI toggle/preference for disabling HTML-to-markdown conversion (not asked for, adds chrome the manifesto discourages by default — if this turns out to be wanted, that's a separate future ask, flag it back rather than deciding to add it); actually fetching/embedding external images referenced by converted `![alt](url)` syntax (#246/#247's job, not this one); any change to copy/cut behavior (`Clipboard.setData` calls elsewhere in this file) — this ADR is paste-only.
-
-**Tests required**:
-- Clipboard with plain text only (no HTML) — paste result byte-identical to current shipped behavior. Most important regression guard.
-- Clipboard with HTML containing bold/italic/headers/links/lists/checkboxes — converts to correct GFM syntax matching what this app's own parser (`MdParser`) recognizes, so the pasted result actually renders once inserted, not just "looks like markdown."
-- Clipboard with HTML containing a table — converts to real markdown table syntax (`|`-delimited rows), not flattened prose.
-- Clipboard with HTML containing a code block — converts to fenced code markdown syntax.
-- Clipboard with HTML containing an `<img>` tag — converts to `![alt](url)` with the original source URL unchanged, no download attempt.
-- Pasting over an active (non-collapsed) selection replaces it, same as today's plain-text paste.
-- Paste behavior is the same whether `plainTextMode` is on or off (the conversion isn't gated on it).
-- If `super_clipboard` reports no HTML representation available (empty/plain-text-only clipboard), the code path falls through to today's `Clipboard.kTextPlain` behavior exactly — don't let the fallback path bit-rot into something subtly different from what's shipped now.
-
-**Checklist**: `dart format`, `flutter analyze`, package tests (`cd packages/markdown_live_editor && flutter test`) — all clean before pushing, run frequently during development. Note in your report-back if `flutter analyze`/`flutter test`/`dart format` behave any differently after adding these dependencies (e.g. new generated code, new lint surface) — flag it, don't silently work around it. Include in your report-back: confirmation the plain-text (no-HTML) fallback path is verified byte-identical to current behavior, example HTML snippets with their actual converted-markdown output for a few representative cases (bold/link mix, a table, a code block, an image), and anything ADR-35 didn't cover that required an independent judgment call (flag it, don't silently decide and bury it). **Do not preemptively investigate or fix CI/build issues related to the new native dependency (`super_clipboard` is Rust-based) across platforms you can't build for locally** — push your branch, let CI run, and report what you see; Spec will loop in the DevOps session if CI surfaces a real build problem.
+Selection Stage 2 (draggable handles) is not yet briefed — pending the project owner's real-device feedback on Stage 1 first, per `notes/dev/selection.md`'s staging plan.

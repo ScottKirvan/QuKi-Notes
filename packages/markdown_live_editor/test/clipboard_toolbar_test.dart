@@ -473,9 +473,17 @@ void main() {
       expect(state.isToolbarShown, isTrue,
           reason: 'toolbar must be visible after Select All');
 
-      // A subsequent tap must dismiss it.
+      // A subsequent tap must dismiss it. The pump is deliberately longer
+      // than kDoubleTapTimeout: now that a double-tap recognizer shares this
+      // GestureDetector's gesture arena (feat/selection-stage1),
+      // TapGestureRecognizer cannot conclusively resolve — and so onTapDown
+      // does not fire — until it's certain no second tap is coming, which
+      // takes up to kDoubleTapTimeout. See selection_test.dart's doubleTapAt
+      // doc comment for the full explanation; this is the same underlying
+      // gesture-arena behavior, just observed from a single-tap test rather
+      // than a double-tap one.
       await tester.tapAt(tester.getCenter(find.byType(MarkdownEditor)));
-      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
 
       expect(state.isToolbarShown, isFalse,
           reason: 'toolbar must be dismissed by _onTapDown after the re-show');
@@ -500,8 +508,11 @@ void main() {
       expect(state.isToolbarShown, isTrue);
 
       // Simulate a tap anywhere in the editor — _onTapDown dismisses toolbar.
+      // See the comment on the equivalent tapAt above (same file) for why
+      // this pump must be longer than kDoubleTapTimeout now that a
+      // double-tap recognizer shares the gesture arena.
       await tester.tapAt(tester.getCenter(find.byType(MarkdownEditor)));
-      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
 
       expect(state.isToolbarShown, isFalse,
           reason: 'toolbar must be dismissed by the next _onTapDown');
