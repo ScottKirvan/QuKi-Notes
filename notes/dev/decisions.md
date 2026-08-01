@@ -12,11 +12,32 @@ Normative framing in `manifesto.md` — read that first.
 
 ---
 
+## ADR-36: Text selection rework — Android-standard behavior as target requirements
+
+**Date**: 2026-07-31
+
+**Status**: Stage 1 of 4 (correct word/entity selection + double-tap) complete — PR #320, merged 2026-08-01. Device-tested and confirmed by the project owner: tap-to-cursor placement feels unaffected by the double-tap recognizer now sharing the gesture arena (a real, measured ~300ms latency was confirmed to exist via test timing during review, but does not read as laggy in practice) — closes that open question from Stage 1 without further action. Full spec, staging plan, and research trail: `notes/dev/selection.md` — read that first; this entry is the index pointer.
+
+**What**: Adopted documented Android/Material text-selection behavior (long-press and double-tap as equivalent word-select entry points, independent draggable handles, magnifier, auto-scroll, haptics, Material's usage-frequency toolbar ordering) as target requirements for this editor's own from-scratch selection implementation — this editor has no `RenderEditable`/`TextSelectionOverlay` to build on (ADR-31), so none of it is free. Plus a QuKi-Notes-specific extension: long-press/double-tap on an email address or a punctuated numeric string (digits + `. - / ( )`, covering phone/serial/part numbers) selects the whole entity, not a word-fragment.
+
+Staged as four independently shippable, independently device-tested rounds: (1) correct word/entity selection + double-tap — done; (2) draggable handles + crossing; (3) auto-scroll; (4) magnifier + haptic polish, explicitly provisional — droppable if it doesn't land within a round or two, unless stages 2/3 turn out to need it for usable cursor/handle placement.
+
+**Why**: Real, confirmed daily-use friction, not hypothetical — long-press word selection could select only part of a word (root cause: the old scan ran over raw source text, which still contains hidden markdown delimiters; fixed by scanning rendered text and mapping back through `RenderModel`'s existing offset maps). Found through actual use, not code review — a prior code review of the same logic concluded it looked correct. This is why Stage 1's brief required real-gesture test coverage (`tester.longPress`/double-tap simulation asserting actual resulting selections) rather than the programmatic-selection-only tests that let the original bug ship undetected.
+
+**Rejected/deferred**:
+- Space in the punctuated-numeric-string character class (so `(555) 123-4567` would select as one unit instead of two) — deliberately deferred, not fixed. Stage 2's handles give a manual way to bridge the gap; not worth blocking Stage 1 on.
+- Letters in the numeric-entity character class (so a letter-suffixed serial number would sweep in its prefix/suffix) — deliberately excluded; would turn a numeric-token matcher into a general punctuated-token matcher that also reaches ordinary hyphenated prose (`well-known`, `e.g.`).
+- Preemptive mitigation for double-tap's effect on single-tap latency — deliberately not built; judged from real device feel instead (see Status above — feels fine).
+
+**Deferred, tracked separately**: reading-mode selection scope (Copy-only toolbar?), desktop (Windows/Linux) double-click/triple-click conventions — both still open, not part of any staged round yet. See `notes/dev/selection.md` → "Still open".
+
+---
+
 ## ADR-35: Rich-text (HTML) clipboard paste → GFM markdown conversion
 
 **Date**: 2026-07-30
 
-**Status**: implemented (PR #314, `feat/html-paste-conversion`); clipboard-reading dependency swapped mid-review after the first implementation's CI surfaced a real build failure — see "Superseded sub-decision" below. Android and Windows get full HTML paste; Linux is a known, tracked gap (#316), not a regression. Not yet merged as of this entry.
+**Status**: implemented and merged — PR #314 (`feat/html-paste-conversion`), merged 2026-08-01. Clipboard-reading dependency swapped mid-review after the first implementation's CI surfaced a real build failure — see "Superseded sub-decision" below. Android and Windows get full HTML paste; Linux is a known, tracked gap (#316), not a regression.
 
 **What**: Read the clipboard's HTML representation when present, convert it to GFM markdown via `html2md` (pure-Dart HTML→Markdown conversion), and insert the resulting markdown text through the exact same buffer-update path plain-text paste already uses today (same single edit, same undo behavior, same reparse-on-next-build). When no HTML representation is present on the clipboard — pasting from another QuKi, a plain-text source, or anything without a rich-text clipboard entry — behavior is completely unchanged from today: read `Clipboard.kTextPlain`, insert as-is. Clipboard HTML reading itself is provided by `quill_native_bridge` (`getClipboardHtml()`) — see superseded sub-decision below for why this isn't `super_clipboard`.
 
