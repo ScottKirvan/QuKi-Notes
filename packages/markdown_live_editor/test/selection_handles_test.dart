@@ -70,6 +70,52 @@ Offset globalPositionForSourceOffset(
   return tester.getTopLeft(find.byType(QuikiRenderWidget)) + local;
 }
 
+/// Independently computes where a handle's visible glyph — and therefore its
+/// touch target — SHOULD be centered on screen for [sourceOffset], for the
+/// start handle ([isStart] true) or end handle (false). This reimplements
+/// the anchor geometry from scratch in the TEST rather than calling
+/// QuikiEditorState's private _buildSelectionHandlesOverlay, so it can serve
+/// as an INDEPENDENT check on the actual rendered handle
+/// (tester.getCenter/tester.getRect) rather than trusting the handle
+/// widget's own self-reported position — see the file doc comment on
+/// dragHandleTo's circularity.
+///
+/// Written to catch a real, confirmed bug: a handle overlay rebuild driven
+/// directly off ScrollPosition notifications reads QuikiRenderEditor's paint
+/// transform BEFORE the frame's layout phase applies a just-changed scroll
+/// offset (ScrollPosition.notifyListeners fires synchronously the moment
+/// `.pixels` changes, which is before that frame's layout runs) — so the
+/// computed handle position was permanently one scroll-tick stale after any
+/// scroll, with nothing to later self-correct it. This helper calls
+/// getOffsetForCaret / localToGlobal directly from the test, after whatever
+/// pumping the test has already done, so it always reflects the CURRENT,
+/// already-laid-out render tree — it cannot share that staleness even when
+/// production code does.
+Offset independentHandleCenter(
+  QuikiRenderEditor ro, {
+  required int sourceOffset,
+  required bool isStart,
+}) {
+  final caret = ro.getOffsetForCaret(TextPosition(offset: sourceOffset)) +
+      ro.localPadding.topLeft;
+  final anchorLocal = Offset(caret.dx, caret.dy + ro.preferredLineHeight);
+  final anchorGlobal = ro.localToGlobal(anchorLocal);
+  // Mirrors QuikiEditorState's handle geometry constants exactly
+  // (_handleDiameter=20, _handleHitBoxSize=44, _handleInset=12): the
+  // "point" corner where the anchor lands sits at (inset+diameter, inset)
+  // within the hit box's own local space for the start handle, or
+  // (inset, inset) for the end handle; the hit box's own center is always
+  // 22px from its own top-left on both axes.
+  const inset = 12.0;
+  const diameter = 20.0;
+  const hitBoxCenter = Offset(22.0, 22.0);
+  final pointLocal = isStart
+      ? const Offset(inset + diameter, inset)
+      : const Offset(inset, inset);
+  final topLeft = anchorGlobal - pointLocal;
+  return topLeft + hitBoxCenter;
+}
+
 /// Drags the handle found by [handleFinder] from its current center to
 /// [targetGlobal] via several intermediate move events (see
 /// selection_test.dart's performDrag for why: a single large jump does not
@@ -446,6 +492,170 @@ void main() {
       expect(controller.selectionForTesting.isCollapsed, isTrue);
       expect(find.byKey(_startHandleKey), findsNothing);
       expect(find.byKey(_endHandleKey), findsNothing);
+    });
+  });
+
+  group('Selection handles — position accuracy after scrolling (regression)',
+      () {
+    // Real, confirmed device bug: after scrolling, a handle looked roughly
+    // right (visible in the general area) but dragging it did not grab it —
+    // the touch fell through to the underlying scrollable content instead.
+    // Root cause: the handle overlay was rebuilt directly off
+    // ScrollPosition's notification, which fires synchronously the instant
+    // `.pixels` changes — before that frame's layout phase applies the new
+    // scroll offset to QuikiRenderEditor's paint transform. So the position
+    // computed in that rebuild (via getOffsetForCaret + localToGlobal) was
+    // always one scroll-tick stale, and — because nothing else triggers a
+    // further handle-overlay rebuild once scrolling stops — the staleness
+    // never self-corrected. Both tests below scroll and then pump only a
+    // couple of plain frames (deliberately NOT pumpAndSettle, which would
+    // let an unrelated later rebuild paper over the bug) to catch exactly
+    // that just-scrolled state.
+    //
+    // Long document + constrained viewport height so the target text
+    // requires an actual scroll to reach — the single-screen tests above
+    // never move the ScrollPosition at all, so they could not have caught
+    // this class of bug regardless of how the drag's start position was
+    // computed.
+    String buildLongSource() =>
+        List.generate(60, (i) => 'line $i alpha beta gamma delta').join('\n');
+
+    Future<QuikiRenderEditor> pumpScrolledSelection(
+      WidgetTester tester, {
+      required String source,
+      required MarkdownEditorController controller,
+      required TextSelection selection,
+    }) async {
+      QuikiEditorState.debugForceMobile = true;
+      await tester.pumpWidget(MaterialApp(
+        key: UniqueKey(),
+        home: Scaffold(
+          body: SizedBox(
+            height: 300,
+            child: MarkdownEditor(initialValue: source, controller: controller),
+          ),
+        ),
+      ));
+      await tester.pump();
+      controller.setSelectionForTesting(selection);
+      await tester.pump();
+
+      // Scroll by an amount CALIBRATED from the selection's own measured
+      // position (not a guessed constant) so the target line lands roughly
+      // 100px below the viewport's top edge — comfortably on-screen — rather
+      // than risking an over-large drag that clamps at maxScrollExtent and
+      // scrolls straight past the target, off the top of the viewport
+      // entirely (which would make the handle genuinely, correctly absent —
+      // a test-construction mistake, not the staleness bug this group is
+      // written to catch).
+      final roBeforeScroll = renderEditorOf(tester);
+      final targetLocalY = roBeforeScroll
+              .getOffsetForCaret(TextPosition(offset: selection.start))
+              .dy +
+          roBeforeScroll.localPadding.top;
+      final dragDistance = (targetLocalY - 100).clamp(0.0, double.infinity);
+
+      final scrollable = find.byType(Scrollable).first;
+      await tester.drag(scrollable, Offset(0, -dragDistance));
+      await tester.pump();
+      await tester.pump();
+
+      return renderEditorOf(tester);
+    }
+
+    testWidgets(
+        'a handle rendered right after the editor scrolls sits at the '
+        'position independently computed via getOffsetForCaret, not stale '
+        'from before the scroll', (tester) async {
+      final source = buildLongSource();
+      final controller = MarkdownEditorController();
+      final lineStart = source.indexOf('line 40');
+      final betaStart = source.indexOf('beta', lineStart);
+      final betaEnd = betaStart + 'beta'.length;
+
+      final ro = await pumpScrolledSelection(
+        tester,
+        source: source,
+        controller: controller,
+        selection: TextSelection(baseOffset: betaStart, extentOffset: betaEnd),
+      );
+
+      expect(find.byKey(_startHandleKey), findsOneWidget,
+          reason: 'the selection must have scrolled into view for this test '
+              'to exercise anything');
+
+      final expectedCenter =
+          independentHandleCenter(ro, sourceOffset: betaStart, isStart: true);
+      final actualCenter = tester.getCenter(find.byKey(_startHandleKey));
+
+      expect((actualCenter - expectedCenter).distance, lessThan(2.0),
+          reason: 'the rendered handle must sit at the position '
+              'getOffsetForCaret independently says it should — a mismatch '
+              'here means the handle is stuck at a stale pre-scroll '
+              'position (actual=$actualCenter, expected=$expectedCenter)');
+
+      // Drain DoubleTapGestureRecognizer's internal timer — the scroll drag
+      // above is a real pointer down/up sequence through the main editor's
+      // (ancestor) GestureDetector, which arms it regardless of whether the
+      // gesture turns out to be a tap (see selection_test.dart's
+      // doubleTapAt for the full mechanism).
+      await tester.pump(const Duration(milliseconds: 400));
+    });
+
+    testWidgets(
+        'dragging from the independently-computed touch position — not the '
+        'handle widget\'s own reported center — still grabs and moves the '
+        'handle after scrolling', (tester) async {
+      final source = buildLongSource();
+      final controller = MarkdownEditorController();
+      final lineStart = source.indexOf('line 40');
+      final betaStart = source.indexOf('beta', lineStart);
+      final betaEnd = betaStart + 'beta'.length;
+
+      final ro = await pumpScrolledSelection(
+        tester,
+        source: source,
+        controller: controller,
+        selection: TextSelection(baseOffset: betaStart, extentOffset: betaEnd),
+      );
+
+      expect(find.byKey(_startHandleKey), findsOneWidget);
+
+      // Deliberately NOT tester.getCenter(handleFinder) — that would be
+      // exactly the circularity this test exists to avoid (see the file doc
+      // comment and independentHandleCenter's doc comment). This is the
+      // screen position a real finger aiming at the handle would land on,
+      // computed independently of what the handle widget itself reports.
+      final startTouchPos =
+          independentHandleCenter(ro, sourceOffset: betaStart, isStart: true);
+
+      final targetOffset = source.indexOf('alpha', lineStart);
+      final targetGlobal =
+          globalPositionForSourceOffset(tester, ro, targetOffset);
+
+      final gesture = await tester.startGesture(startTouchPos,
+          kind: PointerDeviceKind.touch);
+      for (var i = 1; i <= 5; i++) {
+        await gesture.moveTo(Offset.lerp(startTouchPos, targetGlobal, i / 5)!);
+        await tester.pump();
+      }
+      await gesture.up();
+      await tester.pump();
+
+      final sel = controller.selectionForTesting;
+      expect(sel.end, betaEnd,
+          reason: 'dragging the start handle must not move the end boundary');
+      expect(sel.start, targetOffset,
+          reason: 'a drag starting from the real, independently-computed '
+              'touch position must grab the handle and move the selection '
+              'start — if this fails while the handle is visually present, '
+              'the touch fell through to the underlying content instead of '
+              'the handle (the exact bug this regression test guards '
+              'against)');
+
+      // Drain DoubleTapGestureRecognizer's internal timer (see the previous
+      // test's identical comment).
+      await tester.pump(const Duration(milliseconds: 400));
     });
   });
 }
