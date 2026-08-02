@@ -133,6 +133,60 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
   TextEditingValue _value = TextEditingValue.empty;
   final ScrollController _scrollController = ScrollController();
 
+  // Selection-handle-overlay rebuild trigger — see _onScrollChangedForHandles
+  // for why this exists instead of the overlay's AnimatedBuilder listening to
+  // _scrollController directly.
+  final ValueNotifier<int> _handleOverlayTick = ValueNotifier<int>(0);
+  bool _handleOverlayRebuildScheduled = false;
+
+  // Root cause of a real, confirmed device bug (handle drag not grabbing —
+  // touch fell through to the underlying scrollable content instead): a
+  // ScrollPosition fires notifyListeners() SYNCHRONOUSLY at the moment
+  // `.pixels` changes — i.e. within the same call stack as the pointer/
+  // ballistic-scroll event that changed it, which is BEFORE that frame's
+  // layout phase runs. _buildSelectionHandlesOverlay computes each handle's
+  // screen position via QuikiRenderEditor.localToGlobal, which reads the
+  // render tree's CURRENT paint transform — and that transform is only
+  // updated to reflect the new scroll offset during THIS frame's upcoming
+  // layout pass, which hasn't happened yet at the moment a scroll-triggered
+  // rebuild's build() method runs. So a rebuild driven directly off a scroll
+  // notification always computes handle positions one scroll-tick stale.
+  // During continuous scrolling this stayed imperceptible (each tick's error
+  // was quickly superseded by the next), but the LAST notification before
+  // scrolling comes to rest suffers the exact same staleness with nothing
+  // afterward to correct it — confirmed via a widget test that scrolls, lets
+  // the scroll settle, and compares the rendered handle's actual position
+  // against a position independently computed from
+  // QuikiRenderEditor.getOffsetForCaret fresh (outside any widget rebuild):
+  // driving the overlay off _scrollController directly left the two positions
+  // measurably apart (tens of px) even after the scroll had fully stopped —
+  // the mismatch never self-corrected because nothing but a scroll
+  // notification ever triggered another overlay rebuild.
+  //
+  // Fix: don't rebuild the overlay directly off _scrollController's
+  // notification. Instead, schedule a WidgetsBinding.instance.
+  // addPostFrameCallback the first time a scroll notification arrives for a
+  // given frame (the `_handleOverlayRebuildScheduled` guard collapses any
+  // further notifications in that same frame into the one callback), and only
+  // bump _handleOverlayTick — which is what the overlay's AnimatedBuilder
+  // actually listens to — from inside that callback. A post-frame callback
+  // runs strictly after the frame's layout and paint have both completed, so
+  // by the time _handleOverlayTick's own listener notification triggers the
+  // NEXT frame's overlay rebuild, QuikiRenderEditor's paint transform already
+  // reflects the scroll offset that was current as of the frame just
+  // finished — no scroll delta remains unaccounted for once scrolling stops,
+  // since that scenario's final notification gets the same deferred, now-
+  // accurate treatment as every other tick.
+  void _onScrollChangedForHandles() {
+    if (_handleOverlayRebuildScheduled) return;
+    _handleOverlayRebuildScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _handleOverlayRebuildScheduled = false;
+      if (!mounted) return;
+      _handleOverlayTick.value++;
+    });
+  }
+
   // ADR-35: reads the clipboard's HTML representation for _pasteFromClipboard.
   // Defaults to the real quill_native_bridge-backed implementation.
   // Overridable via debugClipboardHtmlReader for tests, since
@@ -266,6 +320,7 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     _value = widget.controller.value;
     widget.controller.addListener(_onControllerChanged);
     widget.focusNode.addListener(_onFocusChanged);
+    _scrollController.addListener(_onScrollChangedForHandles);
     if (widget.autofocus) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) widget.focusNode.requestFocus();
@@ -293,8 +348,10 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     _toolbarController.remove();
     widget.controller.removeListener(_onControllerChanged);
     widget.focusNode.removeListener(_onFocusChanged);
+    _scrollController.removeListener(_onScrollChangedForHandles);
     _connection?.close();
     _scrollController.dispose();
+    _handleOverlayTick.dispose();
     super.dispose();
   }
 
@@ -1559,9 +1616,13 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     // from scratch (via QuikiRenderEditor.localToGlobal → this overlay's own
     // RenderBox.globalToLocal, resolved fresh against the CURRENT live
     // scroll transform on every call — see _buildSelectionHandlesOverlay)
-    // inside an AnimatedBuilder listening to _scrollController, so only this
-    // small overlay subtree rebuilds on every scroll tick, not the whole
-    // editor.
+    // inside an AnimatedBuilder, so only this small overlay subtree rebuilds
+    // on every scroll tick, not the whole editor. The AnimatedBuilder listens
+    // to _handleOverlayTick, NOT _scrollController directly — see
+    // _onScrollChangedForHandles for why a direct listen leaves computed
+    // handle positions permanently one scroll-tick stale (a real, confirmed
+    // drag-grab bug), and why the extra indirection through a post-frame-
+    // deferred tick fixes it.
     // StackFit.expand: without it, Stack only loosens (not removes) the
     // incoming constraints for non-positioned children, so `focusable` — no
     // longer forced to a TIGHT size the way it was pre-Stage-2 (as the sole
@@ -1583,7 +1644,7 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
       children: [
         focusable,
         AnimatedBuilder(
-          animation: _scrollController,
+          animation: _handleOverlayTick,
           builder: (context, _) => Stack(
             clipBehavior: Clip.none,
             key: _handleOverlayKey,
