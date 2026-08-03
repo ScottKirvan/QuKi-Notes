@@ -136,7 +136,13 @@ See root `CLAUDE.md` → Development Pipeline Summary for the authoritative phas
 
 **Current version**: v0.19.0 (released 2026-07-21, PR #262) is the latest tagged release. `main` has moved well past it — release-please bundling PR status not re-checked this sync; check `gh pr list` fresh rather than trusting this line.
 
-**PRs open**: none as of this sync (2026-08-03) — check `gh pr list` fresh, as always, rather than trusting this being kept current in real time.
+**PRs open**: none as of this sync (2026-08-03, later same day) — check `gh pr list` fresh, as always, rather than trusting this being kept current in real time.
+
+**Merged since prior sync — text selection Stage 3**:
+- **PR #324** (`docs/sync-adr36-stage2-brief-stage3`, merged) — docs sync for Stage 2's merge, briefed Stage 3.
+- **PR #325** (`feat/selection-stage3`, merged 2026-08-03, ADR-36) — auto-scroll while dragging a handle near a viewport edge. Built on Stage 2 Round 1's post-frame-deferred scroll-notification machinery to keep the dragged boundary resolving correctly against a stationary finger while content scrolls continuously underneath it. **Device-tested and accepted on the first attempt — no fix rounds needed, a first for this feature**, likely because the brief front-loaded the exact Stage 2 landmines (stale-transform timing, touch-position correction) instead of leaving them to be rediscovered. Independently A/B-verified during review: temporarily disabled the boundary re-resolution call, confirmed 3 of 6 regression tests genuinely failed (not a placebo fix), restored it. Also verified the report's "one-frame paint lag, test adjusted to sample after a settle-frame" claim was honest and narrowly scoped — isolated to a separate cosmetic handle-position check, with zero settle-frame allowance on the actual functional selection-boundary correctness tests. Full detail: root `CLAUDE.md` implementation notes, `notes/dev/decisions.md` → ADR-36.
+
+**Process note**: briefing Stage 3 with explicit, named context on Stage 2's two fix rounds (not just "here's the spec," but "here are the two specific bugs the thing you're building on top of already had, and why") appears to have been worth the extra brief length — this is the first stage in this feature that shipped clean on the first device-test pass. Worth continuing this pattern for Stage 4: name the prior landmines explicitly, don't assume the next implementer will rediscover them from context alone.
 
 **Merged since last sync (2026-08-03) — text selection Stage 2**:
 - **PR #322** (`docs/selection-stage2-brief`, merged) — briefed Stage 2 (draggable handles), deliberately scoped down from `selection.md` §2 to exclude the collapsed-cursor handle, keeping the stage focused on adjusting an existing selection.
