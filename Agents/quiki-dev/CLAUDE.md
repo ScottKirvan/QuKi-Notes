@@ -52,35 +52,8 @@ Read in this order — do not skip:
 
 > Written and maintained by the Spec session.
 
-### Selection Stage 4 — magnifier + haptics (explicitly provisional)
+**No task currently in progress.**
 
-**Branch**: `feat/selection-stage4`
-**Commit type**: `feat:` — genuinely new capability.
-**Suggested PR title** (Spec opens the PR, not you): `feat(editor): selection handle magnifier and haptic feedback (selection stage 4)`
+ADR-36 (the full Android-standard text selection rework) is fully shipped — all four stages merged: Stage 1 (PR #320), Stage 2 (PR #323), Stage 3 (PR #325), Stage 4 (PR #327). See `notes/dev/decisions.md` → ADR-36 and `notes/dev/selection.md` for the complete record.
 
-**Read first**: `notes/dev/selection.md` §3 ("Magnifier / loupe") and §5 ("Haptic feedback") — the authoritative target spec. Also read `notes/dev/decisions.md` → ADR-36 in full for how Stages 1-3 landed. Then read the current handle implementation: `packages/markdown_live_editor/lib/src/quiki_editor.dart`'s `_buildSelectionHandlesOverlay`, `_onStartHandlePanStart/Update/End`, `_onEndHandlePanStart/Update/End`, `_sourceOffsetForGlobal`, and `selection_handle.dart`.
-
-**This stage is explicitly provisional — read this before you start building, and read the correction below carefully.** Per `selection.md`'s staging plan: try the magnifier for a round; if it isn't landing, it can be dropped. Stages 2 and 3 both shipped and were confirmed usable on a real device *without* a magnifier, so the escape clause that would force it ("unless stages 2/3 turn out to need it for usable handle placement") does not apply — this is genuinely optional polish, not a blocking requirement. Magnifier and haptics are two independent, separable pieces — evaluate and report on each on its own merits.
-
-**Correction, explicit and important**: "droppable if it isn't landing" means *dropped after a real, working attempt gets tried on an actual device and found not to work well* — it does **not** mean droppable on your own code-level judgment that it looks expensive, awkward, or architecturally ugly to build. A feasibility investigation finding ("`TextMagnifierConfiguration` isn't reusable here without `RenderEditable` because X") is legitimate and valuable on its own — but that finding should tell you *how* to build the fallback (e.g., hand-rolled via `BackdropFilter`/`Transform`), not give you license to skip building and shipping something for real-device testing. Build a genuine, working magnifier implementation and get it in front of a real device before anyone — including you — concludes it should be dropped. If you genuinely cannot get *any* working version built in this environment, say exactly what you tried and why it didn't come together, in enough detail that a fresh attempt (by you or someone else) doesn't repeat the same dead end — that is different from "I judged it not worth attempting."
-
-**Known open question, not yet resolved — investigate before committing to an approach**: this editor has no `RenderEditable`, so Flutter's own `TextField`-internal magnifier wiring isn't available directly. Flutter does expose a more general `TextMagnifierConfiguration`/`TextMagnifier` building block, but whether that's actually pluggable onto a custom `RenderObject` like this one, or whether a magnifier here needs to be hand-built (e.g. via `BackdropFilter`/`Transform` compositing), was never determined — `selection.md` flagged it explicitly as unresolved. Spend real investigation time on this before writing magnifier code, and report what you found either way — if it turns out `TextMagnifierConfiguration` genuinely isn't usable without `RenderEditable`, that's a legitimate, useful finding on its own, not a failure.
-
-**What "correct" would mean for the magnifier, if you build it** — the confirmed target from `selection.md` §3:
-- Appears only while actively dragging a handle, not during any other gesture.
-- Shows a magnified view of the text near the handle, positioned so the finger doesn't obscure the character being targeted.
-- Follows the finger's horizontal position smoothly; stays vertically locked to the center of the current text line (only jumps between lines when the drag crosses a line boundary) — it does not track the finger's raw vertical position within a line.
-- Never shows content past the actual left/right edges of the current line.
-- The handle's own glyph is not visible inside the magnifier — only the surrounding text.
-
-**What "correct" means for haptics** — the confirmed target from `selection.md` §5, using Flutter's own `HapticFeedback` API (find the closest match yourself, don't guess a specific method name here):
-- A distinct, one-time haptic when a long-press/double-tap first triggers word/entity selection.
-- A separate, deliberately subtle haptic fired as a handle crosses a **character boundary** during a drag — not a continuous buzz, not fired on every pixel of movement, only on actual boundary crossings. Real Android's own guidance is explicit that this needs to stay subtle specifically because it repeats so often during a single drag.
-
-**Explicitly out of scope**:
-- No changes to how a selection is created, to auto-scroll (Stage 3), or to the single collapsed-cursor handle (still not built).
-- No new dependency for the magnifier without checking with Spec first (project rule: no new runtime dependency without an ADR) — if `TextMagnifierConfiguration` isn't usable and a hand-built approach needs something beyond what's already in this package's dependencies, flag it back rather than adding a package unilaterally.
-
-**Required test coverage**: whatever you build, cover it with real-gesture tests matching this feature's established discipline — assert actual magnifier visibility/position during a drag (not just that some widget exists), and assert haptic calls fire at the right moments (Flutter's `HapticFeedback` calls are mockable/observable in tests — use that, don't just eyeball it). If the magnifier is dropped, this obviously only applies to haptics.
-
-**Checklist**: `dart format`, `flutter analyze`, both package tests (`cd packages/markdown_live_editor && flutter test`) **and root tests (`flutter test` from the repo root)** — both suites, every time. Report back: **a working magnifier implementation ready for real-device testing** (per the correction above — not a decision that it isn't worth attempting), what you found about `TextMagnifierConfiguration`'s actual reusability here, confirmation haptics fire at the right moments with test evidence, and what you could not verify without a real device (magnifier visual feel and haptic feel are both fundamentally real-device-only judgments — this stage's actual "drop or keep" call happens after device testing, not before).
+Two real gaps found during the initiative are filed as tracked issues, not yet briefed: **#328** (selection doesn't work in reading mode) and **#329** (no draggable handle for precise single-tap collapsed-cursor placement).
