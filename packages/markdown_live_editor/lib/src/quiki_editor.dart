@@ -1335,30 +1335,13 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
         top: topLeft.dy,
         width: _handleHitBoxSize,
         height: _handleHitBoxSize,
-        // TEMP DIAGNOSTIC (remove before merge): wraps the real hit-test
-        // rect in a visible, semi-transparent box so it can be compared by
-        // eye, on a real device, against where the visible teardrop glyph
-        // sits and where a finger naturally lands. If the box visibly does
-        // not line up with the glyph, that alone confirms a position bug
-        // independent of any gesture-arena/timing question.
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: const Color(0x66FF00FF),
-            border: Border.all(color: const Color(0xFFFF00FF), width: 1),
-          ),
-          child: SelectionHandle(
-            color: color,
-            diameter: _handleDiameter,
-            pointOnRight: isStart,
-            onPanStart: (details) {
-              // ignore: avoid_print
-              print('DIAG: ${isStart ? "START" : "END"} handle GRABBED '
-                  'onPanStart at ${details.globalPosition}');
-              onPanStart(details);
-            },
-            onPanUpdate: onPanUpdate,
-            onPanEnd: onPanEnd,
-          ),
+        child: SelectionHandle(
+          color: color,
+          diameter: _handleDiameter,
+          pointOnRight: isStart,
+          onPanStart: onPanStart,
+          onPanUpdate: onPanUpdate,
+          onPanEnd: onPanEnd,
         ),
       );
     }
@@ -1594,20 +1577,7 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
 
     // Bug 2: track pointer device kind so _onPanUpdate can gate on mouse/stylus.
     final gestureDetector = Listener(
-      // TEMP DIAGNOSTIC (remove before merge): if this prints for a touch
-      // the user aimed at a handle, the touch reached the MAIN content
-      // layer, not the handle overlay above it — meaning the handle's own
-      // hit-test rect did not actually cover that point, whatever the
-      // visible diagnostic box above suggests. Position is in this
-      // Listener's own local coordinate space (same space the visible pink
-      // box's Positioned/left/top values are expressed in, for a direct
-      // by-eye comparison against the printed numbers).
-      onPointerDown: (e) {
-        _lastPointerKind = e.kind;
-        // ignore: avoid_print
-        print('DIAG: MAIN CONTENT layer got pointer down at '
-            '${e.localPosition} (global ${e.position})');
-      },
+      onPointerDown: (e) => _lastPointerKind = e.kind,
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onTapDown: _onTapDown,
