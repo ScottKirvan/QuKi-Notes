@@ -13,6 +13,7 @@ import 'md_parser.dart';
 import 'quiki_render_editor.dart';
 import 'render_model.dart';
 import 'selection_handle.dart';
+import 'selection_magnifier.dart';
 
 /// Test-only override forcing [_isMobile] to true regardless of the actual
 /// platform. Widget tests run on a desktop/CI host, where [_isMobile] is
@@ -229,7 +230,9 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     if (drag == null || pointerGlobal == null) return;
     final moving = _sourceOffsetForGlobal(pointerGlobal);
     if (moving == null) return;
+    _fireBoundaryCrossingHapticIfChanged(drag.moving, moving);
     _activeHandleDrag = drag.copyWith(moving: moving);
+    _updateMagnifierForDrag(moving);
     _updateValue(
       _value.copyWith(
         selection: TextSelection(baseOffset: drag.fixed, extentOffset: moving),
@@ -332,6 +335,120 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
   /// boundary after an auto-scroll tick moves content under a finger that,
   /// from the pointer's own perspective, has not moved at all.
   Offset? _lastHandleDragGlobalPosition;
+
+  // ---------------------------------------------------------------------------
+  // Stage 4 — magnifier + haptics (notes/dev/selection.md §3 and §5, ADR-36).
+  // ---------------------------------------------------------------------------
+
+  /// Manages the magnifier's [OverlayEntry] lifecycle — shown on handle
+  /// pan-start, hidden on pan-end. See selection_magnifier.dart's file doc
+  /// comment for why [RawMagnifier]/[MagnifierController] (general-purpose,
+  /// not RenderEditable-specific) rather than flutter/material.dart's own
+  /// styled `Magnifier`/`TextMagnifier`.
+  final MagnifierController _magnifierController = MagnifierController();
+
+  /// Live geometry fed to the currently-showing [QuikiMagnifier] (if any) —
+  /// updated on every handle pan-update and after every auto-scroll-driven
+  /// re-resolution (Stage 3). The initial value is never shown: nothing
+  /// reads it until [_showMagnifierForDrag] has set a real value and calls
+  /// [MagnifierController.show].
+  final ValueNotifier<QuikiMagnifierInfo> _magnifierInfo = ValueNotifier(
+    const QuikiMagnifierInfo(
+        gesturePosition: Offset.zero, lineBounds: Rect.zero),
+  );
+
+  /// The ambient accent color, captured at the top of the most recent
+  /// [build] — used to color the magnifier's lens border so it matches this
+  /// app's own Primer palette (the same [Color] [_buildSelectionHandlesOverlay]
+  /// already receives for the handle glyphs). The magnifier's own builder
+  /// runs later, inside the root [Overlay], with no direct access to this
+  /// State's latest `build()` locals, so it is captured here instead.
+  Color _handleColor = const Color(0xFF71B7FF);
+
+  /// Resolves a [QuikiMagnifierInfo] snapshot for the handle drag's current
+  /// [globalGesturePosition] with its dragged boundary now at source offset
+  /// [sourceOffset], or null if the render object isn't available.
+  QuikiMagnifierInfo? _magnifierInfoFor(
+    Offset globalGesturePosition,
+    int sourceOffset,
+  ) {
+    final re = _renderEditor;
+    if (re == null) return null;
+    final ri = re.renderModel.renderedForSource(sourceOffset);
+    final localLineBounds =
+        re.lineBoundsForRendered(ri).shift(re.localPadding.topLeft);
+    final lineBounds = Rect.fromPoints(
+      re.localToGlobal(localLineBounds.topLeft),
+      re.localToGlobal(localLineBounds.bottomRight),
+    );
+    return QuikiMagnifierInfo(
+      gesturePosition: globalGesturePosition,
+      lineBounds: lineBounds,
+    );
+  }
+
+  /// Shows the magnifier for a handle drag that just started, with its
+  /// dragged boundary at source offset [sourceOffset].
+  void _showMagnifierForDrag(int sourceOffset) {
+    final info =
+        _magnifierInfoFor(_lastHandleDragGlobalPosition!, sourceOffset);
+    if (info == null) return;
+    _magnifierInfo.value = info;
+    _magnifierController.show(
+      context: context,
+      builder: (ctx) =>
+          QuikiMagnifier(info: _magnifierInfo, color: _handleColor),
+    );
+  }
+
+  /// Updates the already-showing magnifier's geometry for a handle drag's
+  /// dragged boundary now at source offset [sourceOffset]. No-op if the
+  /// magnifier isn't currently shown (defensive — callers already gate on an
+  /// active drag, which is the same condition under which the magnifier is
+  /// shown).
+  void _updateMagnifierForDrag(int sourceOffset) {
+    if (!_magnifierController.shown) return;
+    final info = _magnifierInfoFor(
+        _lastHandleDragGlobalPosition ?? Offset.zero, sourceOffset);
+    if (info == null) return;
+    _magnifierInfo.value = info;
+  }
+
+  void _hideMagnifier() {
+    // Fire-and-forget: with no AnimationController set, MagnifierController.hide
+    // resolves synchronously to a removeFromOverlay() call internally; nothing
+    // here needs to await that Future.
+    _magnifierController.hide();
+  }
+
+  /// Fires the deliberately subtle character-boundary-crossing haptic
+  /// (selection.md §5) exactly when a handle drag's resolved boundary
+  /// actually moved to a different character — not on every pointer-move
+  /// event, many of which resolve to the same character. Mirrors Flutter's
+  /// own stock `TextSelectionOverlay`, which fires this identical call
+  /// (`HapticFeedback.selectionClick()`, Android's `CLOCK_TICK` constant)
+  /// at the same moment — a handle-drag boundary changing — for its own
+  /// built-in selection handles; Flutter's terse HapticFeedback API has no
+  /// separate wrapper for Android's `TEXT_HANDLE_MOVE` constant specifically,
+  /// and this is the closest (and, per that precedent, the establishedly
+  /// correct) match.
+  void _fireBoundaryCrossingHapticIfChanged(int previousMoving, int newMoving) {
+    if (newMoving != previousMoving) {
+      HapticFeedback.selectionClick();
+    }
+  }
+
+  /// Exposed for widget tests only — whether the Stage 4 magnifier is
+  /// currently shown. Do not use in production code.
+  @visibleForTesting
+  bool get isMagnifierShownForTesting => _magnifierController.shown;
+
+  /// Exposed for widget tests only — the live geometry currently fed to the
+  /// magnifier (meaningful only while [isMagnifierShownForTesting] is true;
+  /// otherwise reflects whatever was last set, including the unshown initial
+  /// value). Do not use in production code.
+  @visibleForTesting
+  QuikiMagnifierInfo get magnifierInfoForTesting => _magnifierInfo.value;
 
   /// Key for the [SingleChildScrollView] that owns the editor's scroll
   /// position — resolved to a [RenderBox] purely to measure the VISIBLE
@@ -532,6 +649,7 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
   @override
   void dispose() {
     _toolbarController.remove();
+    _hideMagnifier();
     _autoScrollTimer?.cancel();
     widget.controller.removeListener(_onControllerChanged);
     widget.focusNode.removeListener(_onFocusChanged);
@@ -539,6 +657,7 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     _connection?.close();
     _scrollController.dispose();
     _handleOverlayTick.dispose();
+    _magnifierInfo.dispose();
     super.dispose();
   }
 
@@ -1290,6 +1409,14 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     _longPressAnchor = entitySel.baseOffset;
     _updateValue(_value.copyWith(selection: entitySel), notify: false);
     _connection?.setEditingState(_value);
+    // selection.md §5: a distinct, one-time haptic exactly when this gesture
+    // actually triggers a word/entity selection (not for a bare tap that
+    // lands on whitespace/punctuation and falls back to a collapsed cursor —
+    // see _selectEntityAt). HapticFeedback.vibrate() is documented as
+    // simulating Android's own long-press haptic (HapticFeedbackConstants.
+    // LONG_PRESS) — the exact "same category of feedback as a long-press
+    // anywhere else in Android" the spec calls for.
+    if (!entitySel.isCollapsed) HapticFeedback.vibrate();
   }
 
   // Double-tap: identical underlying word/entity determination as
@@ -1310,6 +1437,11 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     final entitySel = _selectEntityAt(position.offset);
     _updateValue(_value.copyWith(selection: entitySel), notify: false);
     _connection?.setEditingState(_value);
+    // See _onLongPressStart's identical, identically-reasoned haptic — long
+    // press and double-tap are two equivalent entry points into the same
+    // _selectEntityAt determination (selection.md §1), so they fire the same
+    // feedback under the same condition.
+    if (!entitySel.isCollapsed) HapticFeedback.vibrate();
     _showSelectionToolbar();
   }
 
@@ -1412,6 +1544,9 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     // viewport) must begin auto-scrolling immediately, not wait for a first
     // pan-update.
     _updateAutoScrollForDrag(details.globalPosition);
+    // Stage 4: the magnifier appears the moment a handle drag begins, not
+    // during any other gesture (selection.md §3).
+    _showMagnifierForDrag(moving);
   }
 
   void _onStartHandlePanUpdate(DragUpdateDetails details) {
@@ -1421,7 +1556,9 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     _updateAutoScrollForDrag(details.globalPosition);
     final moving = _sourceOffsetForGlobal(details.globalPosition);
     if (moving == null) return;
+    _fireBoundaryCrossingHapticIfChanged(drag.moving, moving);
     _activeHandleDrag = drag.copyWith(moving: moving);
+    _updateMagnifierForDrag(moving);
     // Deliberately unconditional TextSelection(baseOffset: fixed, extentOffset:
     // moving) — no min/max reordering. TextSelection.start/.end (used by
     // every other reader: highlight painting, textInside, toolbar anchoring)
@@ -1442,6 +1579,7 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
 
   void _onStartHandlePanEnd(DragEndDetails details) {
     _stopAutoScroll();
+    _hideMagnifier();
     _lastHandleDragGlobalPosition = null;
     setState(() {
       _activeHandleDrag = null;
@@ -1462,6 +1600,7 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
       );
     });
     _updateAutoScrollForDrag(details.globalPosition);
+    _showMagnifierForDrag(moving);
   }
 
   void _onEndHandlePanUpdate(DragUpdateDetails details) {
@@ -1471,7 +1610,9 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     _updateAutoScrollForDrag(details.globalPosition);
     final moving = _sourceOffsetForGlobal(details.globalPosition);
     if (moving == null) return;
+    _fireBoundaryCrossingHapticIfChanged(drag.moving, moving);
     _activeHandleDrag = drag.copyWith(moving: moving);
+    _updateMagnifierForDrag(moving);
     _updateValue(
       _value.copyWith(
         selection: TextSelection(baseOffset: drag.fixed, extentOffset: moving),
@@ -1483,6 +1624,7 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
 
   void _onEndHandlePanEnd(DragEndDetails details) {
     _stopAutoScroll();
+    _hideMagnifier();
     _lastHandleDragGlobalPosition = null;
     setState(() {
       _activeHandleDrag = null;
@@ -1508,6 +1650,10 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
   List<Widget> _buildSelectionHandlesOverlay(Color color) {
     final re = _renderEditor;
     if (re == null) return const [];
+    // Captured for the Stage 4 magnifier's builder, which runs later (inside
+    // the root Overlay) with no access to this build's own locals — see
+    // _handleColor's doc comment.
+    _handleColor = color;
     final drag = _activeHandleDrag;
     final sel = _value.selection;
     final showing =
@@ -1557,19 +1703,39 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
           ? const Offset(_handleInset + _handleDiameter, _handleInset)
           : const Offset(_handleInset, _handleInset);
       final topLeft = anchor - pointLocal;
+      // Stage 4 (selection.md §3): "the handle's own glyph is not visible
+      // inside the magnifier — only the surrounding text is shown." This
+      // editor's handles are ordinary widget-tree content, not OverlayEntries
+      // the way Flutter's own TextSelectionOverlay handles are — so there is
+      // no ordering trick (see MagnifierController.overlayEntry's own doc
+      // comment on entries painted "below" a magnifier) that can exclude just
+      // this glyph from the magnifier's BackdropFilter sampling, which
+      // otherwise sees the entire composited scene beneath it. The pragmatic
+      // fix, given that architectural constraint: make the ACTIVELY DRAGGED
+      // handle's glyph fully transparent for the duration of its own drag
+      // (matching the magnifier's own shown/hidden lifetime exactly) — its
+      // GestureDetector stays mounted and fully hit-testable throughout
+      // (Opacity does not affect hit-testing, only painting), so the drag
+      // itself is completely unaffected; only its visible glyph disappears,
+      // replaced by the magnifier the user is looking at instead. The OTHER,
+      // untouched handle (if any) is unaffected and stays visible.
+      final hiddenDuringDrag = drag != null && isStart == drag.isStartRole;
       return Positioned(
         key: key,
         left: topLeft.dx,
         top: topLeft.dy,
         width: _handleHitBoxSize,
         height: _handleHitBoxSize,
-        child: SelectionHandle(
-          color: color,
-          diameter: _handleDiameter,
-          pointOnRight: isStart,
-          onPanStart: onPanStart,
-          onPanUpdate: onPanUpdate,
-          onPanEnd: onPanEnd,
+        child: Opacity(
+          opacity: hiddenDuringDrag ? 0.0 : 1.0,
+          child: SelectionHandle(
+            color: color,
+            diameter: _handleDiameter,
+            pointOnRight: isStart,
+            onPanStart: onPanStart,
+            onPanUpdate: onPanUpdate,
+            onPanEnd: onPanEnd,
+          ),
         ),
       );
     }

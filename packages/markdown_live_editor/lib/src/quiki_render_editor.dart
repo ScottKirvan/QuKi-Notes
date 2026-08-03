@@ -435,6 +435,53 @@ class QuikiRenderEditor extends RenderBox {
     return TextPosition(offset: sourceOffset);
   }
 
+  /// The bounding [Rect] (text-origin-relative local coordinates — no
+  /// padding, no canvas/scroll offset, matching [getOffsetForCaret]'s own
+  /// convention) of the VISUAL (soft-wrapped) line containing rendered
+  /// offset [ri].
+  ///
+  /// Used by the Stage 4 magnifier (notes/dev/selection.md §3) to lock its
+  /// vertical position to the current line's center and to clamp its
+  /// horizontal tracking so it never samples content past that line's own
+  /// actual left/right edges. This is a visual/wrapped line, not a source
+  /// markdown "line" and not a whole [RenderRun] — a run's own TextPainter
+  /// may itself wrap into several visual lines (ADR-34), and
+  /// [TextPainter.getLineBoundary] resolves exactly the one containing [ri].
+  Rect lineBoundsForRendered(int ri) {
+    final r = _runForRendered(ri);
+    final localLen = r.run.end - r.run.start;
+    final localOff = (ri - r.run.start).clamp(0, localLen);
+    final lineRange = r.painter.getLineBoundary(TextPosition(offset: localOff));
+    final boxes = r.painter.getBoxesForSelection(
+      TextSelection(baseOffset: lineRange.start, extentOffset: lineRange.end),
+      boxHeightStyle: ui.BoxHeightStyle.tight,
+    );
+    if (boxes.isEmpty) {
+      // An empty visual line (e.g. a blank source line) has no glyph boxes —
+      // fall back to the caret's own position with zero width, the same
+      // fallback _slotVerticalExtent uses for the same reason.
+      final caret = r.painter
+          .getOffsetForCaret(TextPosition(offset: localOff), Rect.zero);
+      return Rect.fromLTWH(
+        r.x + caret.dx,
+        r.y + caret.dy,
+        0,
+        r.painter.preferredLineHeight,
+      );
+    }
+    var left = boxes.first.left;
+    var right = boxes.first.right;
+    var top = boxes.first.top;
+    var bottom = boxes.first.bottom;
+    for (final b in boxes) {
+      if (b.left < left) left = b.left;
+      if (b.right > right) right = b.right;
+      if (b.top < top) top = b.top;
+      if (b.bottom > bottom) bottom = b.bottom;
+    }
+    return Rect.fromLTRB(r.x + left, r.y + top, r.x + right, r.y + bottom);
+  }
+
   /// The preferred line height, from the first run's TextPainter.
   ///
   /// A pre-existing simplification (unchanged by ADR-34): callers (arrow-key
