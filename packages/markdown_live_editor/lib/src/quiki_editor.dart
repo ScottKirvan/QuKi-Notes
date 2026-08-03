@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -184,7 +185,58 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
       _handleOverlayRebuildScheduled = false;
       if (!mounted) return;
       _handleOverlayTick.value++;
+      // Stage 3 (auto-scroll while dragging a handle, ADR-36, selection.md
+      // §4): every scroll change — whether from an ordinary finger-scroll or
+      // from _autoScrollTimer moving content under a stationary drag — must
+      // also re-resolve the actively-dragged handle's boundary, not just its
+      // painted position. Piggybacking on this SAME deferred callback
+      // (rather than adding a second one) is deliberate: both concerns
+      // depend on the identical precondition — this frame's layout has
+      // applied the new scroll offset to QuikiRenderEditor's paint
+      // transform — that Stage 2 Round 1 discovered the hard way is NOT
+      // true synchronously inside a scroll notification. See
+      // _resolveActiveHandleDragAfterScroll's doc comment.
+      _resolveActiveHandleDragAfterScroll();
     });
+  }
+
+  /// Re-resolves the actively-dragged handle's boundary against the
+  /// pointer's last known screen position, after a scroll change.
+  ///
+  /// During ordinary handle dragging (Stage 2) the pointer moving is what
+  /// triggers a new boundary resolution — _onStartHandlePanUpdate /
+  /// _onEndHandlePanUpdate resolve directly off DragUpdateDetails. Stage 3's
+  /// auto-scroll breaks that assumption: while a held finger sits still in
+  /// an edge zone, [_autoScrollTimer] moves the CONTENT underneath it every
+  /// tick, with no corresponding pointer-move event at all — the finger's
+  /// screen position is unchanged, but which character now sits under it
+  /// is not. This re-runs the exact same [_sourceOffsetForGlobal]
+  /// resolution the ordinary pan-update handlers use, against
+  /// [_lastHandleDragGlobalPosition] (updated on every real pan-start/
+  /// update, left untouched by a scroll-only change), so the boundary keeps
+  /// tracking "whatever is now under the finger" on every tick, not just
+  /// once the drag's own next real pointer-move event happens to arrive.
+  ///
+  /// MUST run only after the triggering frame's layout has applied the new
+  /// scroll offset — calling this directly from a scroll notification
+  /// (instead of via _onScrollChangedForHandles's post-frame deferral)
+  /// would resolve [_sourceOffsetForGlobal] against a stale paint
+  /// transform, reproducing Stage 2 Round 1's bug for the selection
+  /// boundary instead of the handle's painted position.
+  void _resolveActiveHandleDragAfterScroll() {
+    final drag = _activeHandleDrag;
+    final pointerGlobal = _lastHandleDragGlobalPosition;
+    if (drag == null || pointerGlobal == null) return;
+    final moving = _sourceOffsetForGlobal(pointerGlobal);
+    if (moving == null) return;
+    _activeHandleDrag = drag.copyWith(moving: moving);
+    _updateValue(
+      _value.copyWith(
+        selection: TextSelection(baseOffset: drag.fixed, extentOffset: moving),
+      ),
+      notify: false,
+    );
+    _connection?.setEditingState(_value);
   }
 
   // ADR-35: reads the clipboard's HTML representation for _pasteFromClipboard.
@@ -234,6 +286,140 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
   static const double _handleHitBoxSize = 44.0;
 
   static const double _handleInset = (_handleHitBoxSize - _handleDiameter) / 2;
+
+  // ---------------------------------------------------------------------------
+  // Stage 3 — auto-scroll while dragging a handle near a viewport edge
+  // (notes/dev/selection.md §4, ADR-36).
+  // ---------------------------------------------------------------------------
+
+  /// Distance in px from either the top or bottom edge of the visible
+  /// viewport within which a held handle drag triggers continuous
+  /// auto-scroll. Unlike the ~22dp handle / ~48dp touch-target figures in
+  /// selection.md §2, no documented Android/Material constant exists for
+  /// this edge-zone size — chosen as a reasonable finger-sized zone; tune
+  /// from real device feel if it reads as too eager or too sluggish.
+  static const double _autoScrollEdgeThreshold = 56.0;
+
+  /// Px scrolled per auto-scroll tick.
+  static const double _autoScrollStep = 16.0;
+
+  /// Auto-scroll tick cadence. Deliberately a plain [Timer.periodic], not a
+  /// [Ticker]/vsync callback — this needs to keep firing for as long as the
+  /// pointer sits in the edge zone regardless of whether anything else is
+  /// requesting frames, and a fixed wall-clock cadence is simplest to reason
+  /// about and to drive deterministically from a widget test via repeated
+  /// `tester.pump(_autoScrollInterval)` calls.
+  static const Duration _autoScrollInterval = Duration(milliseconds: 16);
+
+  /// Non-null for the duration of an active auto-scroll (pointer currently
+  /// held within the edge zone during a handle drag). Cancelled the instant
+  /// the pointer moves back away from the edge, the drag ends, or the
+  /// widget is disposed.
+  Timer? _autoScrollTimer;
+
+  /// -1 (scrolling up/toward document start), 0 (no auto-scroll), or +1
+  /// (scrolling down/toward document end) — the direction the pointer's
+  /// LAST KNOWN position currently calls for. Read fresh by every
+  /// [_onAutoScrollTick]; not captured at timer-start, so a pointer that
+  /// moves from one edge zone to the other without leaving an edge zone at
+  /// all correctly reverses direction without needing to stop and restart
+  /// the timer.
+  int _autoScrollDirection = 0;
+
+  /// The last real (non-synthetic) global pointer position reported for the
+  /// active handle drag, from [DragStartDetails]/[DragUpdateDetails]. Used
+  /// by [_resolveActiveHandleDragAfterScroll] to re-resolve the dragged
+  /// boundary after an auto-scroll tick moves content under a finger that,
+  /// from the pointer's own perspective, has not moved at all.
+  Offset? _lastHandleDragGlobalPosition;
+
+  /// Key for the [SingleChildScrollView] that owns the editor's scroll
+  /// position — resolved to a [RenderBox] purely to measure the VISIBLE
+  /// viewport's own on-screen bounds for the auto-scroll edge-proximity
+  /// check. Deliberately NOT [_renderKey]/[_renderEditor]: that RenderBox is
+  /// the full (typically much taller than the viewport) scrolled content,
+  /// and its on-screen position changes AS A SIDE EFFECT of scrolling —
+  /// exactly the moving target an edge-proximity check must not be measured
+  /// against. [SingleChildScrollView]'s own RenderBox is sized to, and
+  /// stays fixed on screen at, the visible viewport only; its child scrolls
+  /// inside it, the box itself never moves.
+  final GlobalKey _viewportKey = GlobalKey();
+
+  RenderBox? get _viewportBox {
+    final box = _viewportKey.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.attached || !box.hasSize) return null;
+    return box;
+  }
+
+  /// Evaluates whether [globalPosition] (the current handle-drag pointer
+  /// position) is within [_autoScrollEdgeThreshold] of the visible
+  /// viewport's top or bottom edge, and starts/stops the continuous
+  /// auto-scroll timer accordingly. Called from every handle pan-start AND
+  /// pan-update — re-evaluated on every real pointer event so moving back
+  /// away from the edge stops auto-scroll immediately, and so a drag that
+  /// STARTS already inside the edge zone begins scrolling right away rather
+  /// than waiting for a first update.
+  void _updateAutoScrollForDrag(Offset globalPosition) {
+    final box = _viewportBox;
+    if (box == null) {
+      _stopAutoScroll();
+      return;
+    }
+    final local = box.globalToLocal(globalPosition);
+    final height = box.size.height;
+    int direction = 0;
+    if (local.dy < _autoScrollEdgeThreshold) {
+      direction = -1;
+    } else if (local.dy > height - _autoScrollEdgeThreshold) {
+      direction = 1;
+    }
+    _autoScrollDirection = direction;
+    if (direction == 0) {
+      _stopAutoScroll();
+    } else {
+      _startAutoScrollTimerIfNeeded();
+    }
+  }
+
+  void _startAutoScrollTimerIfNeeded() {
+    if (_autoScrollTimer != null) return;
+    _autoScrollTimer =
+        Timer.periodic(_autoScrollInterval, (_) => _onAutoScrollTick());
+  }
+
+  void _stopAutoScroll() {
+    _autoScrollTimer?.cancel();
+    _autoScrollTimer = null;
+    _autoScrollDirection = 0;
+  }
+
+  /// One auto-scroll tick: nudges the scroll position by [_autoScrollStep]
+  /// in the current [_autoScrollDirection], clamped to the document's
+  /// actual scroll extent so this can never scroll past the real start or
+  /// end (the confirmed requirement — notes/dev/selection.md §4).
+  ///
+  /// Deliberately does NOT resolve/commit the dragged selection boundary
+  /// itself. [ScrollController.jumpTo] below triggers the SAME
+  /// [ScrollPosition] notification an ordinary user scroll would, which
+  /// [_onScrollChangedForHandles] (registered on [_scrollController] in
+  /// [initState]) already listens for — its deferred post-frame callback is
+  /// what actually re-resolves the boundary, once this frame's layout has
+  /// applied the new offset. Doing the resolution here instead, synchronously
+  /// after jumpTo, would resolve against a stale paint transform — the exact
+  /// bug Stage 2 Round 1 fixed for the handle's painted position, reproduced
+  /// here for the selection boundary if this shortcut were taken.
+  void _onAutoScrollTick() {
+    if (_activeHandleDrag == null || _autoScrollDirection == 0) {
+      _stopAutoScroll();
+      return;
+    }
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    final target = (position.pixels + _autoScrollDirection * _autoScrollStep)
+        .clamp(position.minScrollExtent, position.maxScrollExtent);
+    if (target == position.pixels) return;
+    _scrollController.jumpTo(target);
+  }
 
   // Parse cache — re-parsed only when text changes.
   String _lastParsedText = '';
@@ -346,6 +532,7 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
   @override
   void dispose() {
     _toolbarController.remove();
+    _autoScrollTimer?.cancel();
     widget.controller.removeListener(_onControllerChanged);
     widget.focusNode.removeListener(_onFocusChanged);
     _scrollController.removeListener(_onScrollChangedForHandles);
@@ -1212,6 +1399,7 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     // is otherwise modelled on (Android also hides the floating toolbar for
     // the duration of a handle drag).
     _toolbarController.remove();
+    _lastHandleDragGlobalPosition = details.globalPosition;
     setState(() {
       _activeHandleDrag = _ActiveHandleDrag(
         isStartRole: true,
@@ -1219,11 +1407,18 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
         moving: moving,
       );
     });
+    // Stage 3: a drag that STARTS already inside the edge zone (e.g. the
+    // selection's start boundary happens to sit right at the top of the
+    // viewport) must begin auto-scrolling immediately, not wait for a first
+    // pan-update.
+    _updateAutoScrollForDrag(details.globalPosition);
   }
 
   void _onStartHandlePanUpdate(DragUpdateDetails details) {
     final drag = _activeHandleDrag;
     if (drag == null || !drag.isStartRole) return;
+    _lastHandleDragGlobalPosition = details.globalPosition;
+    _updateAutoScrollForDrag(details.globalPosition);
     final moving = _sourceOffsetForGlobal(details.globalPosition);
     if (moving == null) return;
     _activeHandleDrag = drag.copyWith(moving: moving);
@@ -1246,6 +1441,8 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
   }
 
   void _onStartHandlePanEnd(DragEndDetails details) {
+    _stopAutoScroll();
+    _lastHandleDragGlobalPosition = null;
     setState(() {
       _activeHandleDrag = null;
     });
@@ -1256,6 +1453,7 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     final moving = _sourceOffsetForGlobal(details.globalPosition);
     if (moving == null) return;
     _toolbarController.remove();
+    _lastHandleDragGlobalPosition = details.globalPosition;
     setState(() {
       _activeHandleDrag = _ActiveHandleDrag(
         isStartRole: false,
@@ -1263,11 +1461,14 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
         moving: moving,
       );
     });
+    _updateAutoScrollForDrag(details.globalPosition);
   }
 
   void _onEndHandlePanUpdate(DragUpdateDetails details) {
     final drag = _activeHandleDrag;
     if (drag == null || drag.isStartRole) return;
+    _lastHandleDragGlobalPosition = details.globalPosition;
+    _updateAutoScrollForDrag(details.globalPosition);
     final moving = _sourceOffsetForGlobal(details.globalPosition);
     if (moving == null) return;
     _activeHandleDrag = drag.copyWith(moving: moving);
@@ -1281,6 +1482,8 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
   }
 
   void _onEndHandlePanEnd(DragEndDetails details) {
+    _stopAutoScroll();
+    _lastHandleDragGlobalPosition = null;
     setState(() {
       _activeHandleDrag = null;
     });
@@ -1596,6 +1799,7 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     );
 
     final scrollable = SingleChildScrollView(
+      key: _viewportKey,
       controller: _scrollController,
       child: renderWidget,
     );
