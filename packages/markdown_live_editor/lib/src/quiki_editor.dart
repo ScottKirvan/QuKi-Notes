@@ -1165,15 +1165,40 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
   // deliberately not routed through _selectEntityAt.
   // -------------------------------------------------------------------------
 
-  /// Resolves a global pointer position to a source-text offset, via the
-  /// same globalToLocal → positionForOffset path every other gesture handler
-  /// in this class already uses (_onTapDown, _onPanUpdate, etc.) — no new
-  /// coordinate math, only a new caller of what already exists.
+  /// Resolves a global pointer position to a source-text offset, for a
+  /// selection-HANDLE drag specifically — NOT the same mapping _onTapDown /
+  /// _onPanUpdate use for an ordinary tap/drag directly on the text, because
+  /// a handle is not drawn where it points. Real device bug (confirmed by
+  /// the project owner): "if i click the handle, it moves a line lower as
+  /// soon as i touch it, and i have to slide back ... onto the word i had
+  /// selected ... to control the selection."
+  ///
+  /// Root cause: _buildSelectionHandlesOverlay's buildHandle deliberately
+  /// anchors each handle's "point" one full `preferredLineHeight` BELOW the
+  /// caret it represents (`caretLocal.dy + lineHeight`) — a real teardrop
+  /// handle hangs below the line it controls, matching Android's own
+  /// convention (notes/dev/selection.md §2). That offset is correct for
+  /// PAINTING the handle, but this method used to feed the pointer's raw,
+  /// untranslated position straight into positionForOffset — so a touch
+  /// landing exactly on the handle's own drawn glyph resolved to whatever
+  /// text sits one whole line below the line the handle is supposed to
+  /// control, not that line itself. Subtracting the same lineHeight back out
+  /// before resolving is the exact inverse of the paint-time offset, so a
+  /// touch on the handle's drawn position now maps back to the line it
+  /// visually anchors to from the very first touch — the user should no
+  /// longer need to drag back up onto the real text to "catch up".
+  ///
+  /// Ordinary taps/drags on the text itself must NOT go through this
+  /// correction — they are touching content directly, not a handle drawn
+  /// below it — which is why this stays its own method rather than a change
+  /// to the shared globalToLocal → positionForOffset path _onTapDown /
+  /// _onPanUpdate use.
   int? _sourceOffsetForGlobal(Offset globalPosition) {
     final re = _renderEditor;
     if (re == null) return null;
     final localPos = re.globalToLocal(globalPosition);
-    return re.positionForOffset(localPos).offset;
+    final handleCorrected = localPos - Offset(0, re.preferredLineHeight);
+    return re.positionForOffset(handleCorrected).offset;
   }
 
   void _onStartHandlePanStart(DragStartDetails details) {

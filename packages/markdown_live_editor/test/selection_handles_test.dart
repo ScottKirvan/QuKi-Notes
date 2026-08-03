@@ -363,8 +363,26 @@ void main() {
       );
 
       final targetOffset = source.indexOf('epsilon') + 'epsilon'.length;
+      // The FINGER's target is one preferredLineHeight BELOW the text
+      // position it should end up controlling, not the raw text position
+      // itself — a handle is always drawn (and, per the touch-resolution fix
+      // this test now exercises, always resolved) one line below the
+      // boundary it represents, and that relationship holds constantly
+      // throughout an entire drag, not just at touch-down, matching real
+      // Android/Material handle dragging (the finger stays below the text so
+      // it never obscures the character being targeted). Before that fix,
+      // touch resolution used the pointer's raw position with no correction
+      // at all, so this test's target used to be the raw (un-offset) text
+      // position and still passed — it was unknowingly encoding the exact
+      // bug ADR-36's device report caught: only the FINAL drag step's
+      // resolved offset is asserted here, and dragging a raw finger position
+      // onto raw, un-offset text happened to resolve correctly by
+      // coincidence, the same coincidence that let a real device drag "work"
+      // only once the user's finger physically slid off the handle and onto
+      // the text itself.
       final targetGlobal =
-          globalPositionForSourceOffset(tester, ro, targetOffset);
+          globalPositionForSourceOffset(tester, ro, targetOffset) +
+              Offset(0, ro.preferredLineHeight);
       await dragHandleTo(tester, find.byKey(_endHandleKey), targetGlobal);
 
       final sel = controller.selectionForTesting;
@@ -630,8 +648,16 @@ void main() {
           independentHandleCenter(ro, sourceOffset: betaStart, isStart: true);
 
       final targetOffset = source.indexOf('alpha', lineStart);
+      // See the multi-line group's identically-reasoned comment: the
+      // FINGER's target stays one preferredLineHeight below the text
+      // position it should end up controlling, for the whole drag — the
+      // touch-resolution fix this test now also exercises (in addition to
+      // its original stale-overlay-position purpose) applies that same
+      // constant correction from the moment of touch-down through every
+      // subsequent update, matching real Android/Material handle dragging.
       final targetGlobal =
-          globalPositionForSourceOffset(tester, ro, targetOffset);
+          globalPositionForSourceOffset(tester, ro, targetOffset) +
+              Offset(0, ro.preferredLineHeight);
 
       final gesture = await tester.startGesture(startTouchPos,
           kind: PointerDeviceKind.touch);
@@ -656,6 +682,154 @@ void main() {
       // Drain DoubleTapGestureRecognizer's internal timer (see the previous
       // test's identical comment).
       await tester.pump(const Duration(milliseconds: 400));
+    });
+  });
+
+  group(
+      'Selection handles — touch resolves to the line the handle represents '
+      '(regression, real device bug)', () {
+    // Real, confirmed device report (not a synthetic worry), verbatim: "if i
+    // click the handle, it moves a line lower as soon as i touch it, and i
+    // have to slide back, actually on to the word i had selected (again, not
+    // below it, where the handle should be) to control the selection within
+    // the originally selected word."
+    //
+    // Root cause: _buildSelectionHandlesOverlay's buildHandle deliberately
+    // PAINTS a handle one whole preferredLineHeight below the caret it
+    // represents (a real teardrop handle hangs below its line — matches
+    // Android's own convention, notes/dev/selection.md §2), but
+    // _sourceOffsetForGlobal used to feed the pointer's raw, untranslated
+    // position straight into positionForOffset with no correction for that
+    // paint-time offset — so touching the handle exactly where it is drawn
+    // resolved to whatever text sits a whole line below the line the handle
+    // actually controls.
+    //
+    // Both tests below start a real drag exactly at the handle's own
+    // rendered screen position (tester.getCenter — the real pixels
+    // production painted, not an idealized position) and move the pointer
+    // ONLY horizontally, never vertically — deliberately withholding the
+    // "slide back up onto the word" correction a user currently has to
+    // perform by hand. If the resolved selection is already on the correct
+    // (original) line after nothing but that sideways nudge, the fix is
+    // working; if it lands on the line below/above instead, the bug has
+    // reproduced. Checked mid-drag (before gesture.up()) specifically so
+    // this catches a jump on the very first update, not just whatever the
+    // selection eventually settles on.
+    testWidgets(
+        'dragging the END handle from its own rendered position resolves '
+        'onto the line it represents from the very first update, with no '
+        'vertical correction from the user', (tester) async {
+      const source = 'alpha beta gamma\ndelta epsilon zeta';
+      final controller = MarkdownEditorController();
+      final startOffset = source.indexOf('beta');
+      final initialEnd = startOffset + 'beta'.length;
+      final newlineIndex = source.indexOf('\n');
+
+      final ro = await pumpWithSelection(
+        tester,
+        source: source,
+        controller: controller,
+        selection:
+            TextSelection(baseOffset: startOffset, extentOffset: initialEnd),
+      );
+
+      final handleCenter = tester.getCenter(find.byKey(_endHandleKey));
+
+      // Test premise check: the handle really must be drawn below the line
+      // it represents, via an INDEPENDENT computation (the caret's own
+      // on-screen line position, not the handle's) — otherwise this test
+      // would not be exercising the bug at all.
+      final caretLineGlobal =
+          globalPositionForSourceOffset(tester, ro, initialEnd);
+      expect(handleCenter.dy, greaterThan(caretLineGlobal.dy + 5),
+          reason: 'test premise: the end handle must be painted below the '
+              'line it represents for this regression test to mean anything '
+              '(handle dy=${handleCenter.dy}, line dy=${caretLineGlobal.dy})');
+
+      final gesture = await tester.startGesture(handleCenter,
+          kind: PointerDeviceKind.touch);
+      // Exceed PanGestureRecognizer's slop (kPanSlop) with a PURELY
+      // HORIZONTAL move — the vertical axis is never touched, so nothing in
+      // this drag "slides back up" toward the correct line. With
+      // DragStartBehavior.start (GestureDetector's default), the whole
+      // slop-exceeding delta folds into onStart's own reported position and
+      // fires no onUpdate for this same event.
+      await gesture.moveTo(handleCenter + const Offset(kPanSlop + 10, 0));
+      await tester.pump();
+      // A further small horizontal nudge — still zero vertical movement —
+      // to produce a genuine onUpdate event so the resolved position is
+      // actually committed to the controller's selection, not just held in
+      // the drag's own bookkeeping.
+      await gesture.moveTo(handleCenter + const Offset(kPanSlop + 15, 0));
+      await tester.pump();
+
+      final selDuringDrag = controller.selectionForTesting;
+      expect(selDuringDrag.start, startOffset,
+          reason: 'dragging the end handle must not move the start boundary');
+      expect(selDuringDrag.end, lessThan(newlineIndex),
+          reason: 'the resolved end offset must stay on line one (the line '
+              'the end handle represents) the instant the handle is touched '
+              'and nudged sideways — landing at or past the newline means '
+              'touch resolution jumped to the line the handle is merely '
+              'DRAWN on, not the line it controls (actual='
+              '${selDuringDrag.end}, newlineIndex=$newlineIndex)');
+
+      await gesture.up();
+      await tester.pump();
+    });
+
+    testWidgets(
+        'dragging the START handle from its own rendered position resolves '
+        'onto the line it represents from the very first update, with no '
+        'vertical correction from the user', (tester) async {
+      const source = 'alpha beta gamma\ndelta epsilon zeta\ntheta iota kappa';
+      final controller = MarkdownEditorController();
+      final startOffset = source.indexOf('epsilon');
+      final endOffset = startOffset + 'epsilon'.length;
+      final firstNewline = source.indexOf('\n');
+      final secondNewline = source.indexOf('\n', firstNewline + 1);
+
+      final ro = await pumpWithSelection(
+        tester,
+        source: source,
+        controller: controller,
+        selection:
+            TextSelection(baseOffset: startOffset, extentOffset: endOffset),
+      );
+
+      final handleCenter = tester.getCenter(find.byKey(_startHandleKey));
+
+      final caretLineGlobal =
+          globalPositionForSourceOffset(tester, ro, startOffset);
+      expect(handleCenter.dy, greaterThan(caretLineGlobal.dy + 5),
+          reason: 'test premise: the start handle must be painted below the '
+              'line it represents for this regression test to mean anything '
+              '(handle dy=${handleCenter.dy}, line dy=${caretLineGlobal.dy})');
+
+      final gesture = await tester.startGesture(handleCenter,
+          kind: PointerDeviceKind.touch);
+      await gesture.moveTo(handleCenter + const Offset(kPanSlop + 10, 0));
+      await tester.pump();
+      await gesture.moveTo(handleCenter + const Offset(kPanSlop + 15, 0));
+      await tester.pump();
+
+      final selDuringDrag = controller.selectionForTesting;
+      expect(selDuringDrag.end, endOffset,
+          reason: 'dragging the start handle must not move the end boundary');
+      expect(selDuringDrag.start, greaterThan(firstNewline),
+          reason: 'the resolved start offset must not have jumped back up '
+              'to line one (actual=${selDuringDrag.start}, '
+              'firstNewline=$firstNewline)');
+      expect(selDuringDrag.start, lessThan(secondNewline),
+          reason: 'the resolved start offset must stay on line two (the '
+              'line the start handle represents) the instant the handle is '
+              'touched and nudged sideways — landing at or past the second '
+              'newline means touch resolution jumped to line three, the '
+              'line the handle is merely DRAWN on, not the line it controls '
+              '(actual=${selDuringDrag.start}, secondNewline=$secondNewline)');
+
+      await gesture.up();
+      await tester.pump();
     });
   });
 }
