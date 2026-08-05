@@ -12,6 +12,7 @@ import '../../core/storage/quki_meta.dart';
 import '../../core/storage/quki_search.dart' as qs;
 import '../../core/storage/quki_storage.dart';
 import '../../shared/relative_time.dart';
+import '../settings/help_dialog.dart';
 import '../settings/settings_screen.dart';
 
 class StreamScreen extends ConsumerStatefulWidget {
@@ -149,6 +150,11 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
             icon: const Icon(LucideIcons.plus),
             tooltip: 'New QuKi',
             onPressed: _openNew,
+          ),
+          IconButton(
+            icon: const Icon(LucideIcons.circleHelp),
+            tooltip: 'Help',
+            onPressed: () => showHelpDialog(context),
           ),
           IconButton(
             icon: const Icon(LucideIcons.settings),
@@ -298,6 +304,7 @@ class _QuKiTileState extends State<_QuKiTile> {
       ),
       onDismissed: (_) => widget.onDelete(widget.meta),
       child: ListTile(
+        visualDensity: const VisualDensity(horizontal: 0, vertical: -4),
         title: Text(
           _preview ?? '…',
           maxLines: 1,
