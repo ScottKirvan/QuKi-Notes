@@ -1,4 +1,4 @@
-# QuKi Notes &nbsp; [![starline](https://starlines.qoo.monster/assets/ScottKirvan/QuKi-Notes)](https://github.com/qoomon/starline)
+# QuKi Notes &nbsp; [![starline](https://raw.githubusercontent.com/ScottKirvan/QuKi-Notes/refs/heads/starlines/ScottKirvan/QuKi-Notes/starline.svg)](https://github.com/qoomon/starlines)
 
 <div align="center">
 
