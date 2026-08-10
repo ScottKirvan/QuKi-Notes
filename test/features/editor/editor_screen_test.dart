@@ -242,15 +242,43 @@ Future<String> _toggleAndReadDisk(
   // WidgetsBinding.instance.handleAppLifecycleStateChanged usage) triggers
   // one real, awaitable save without depending on Timer/FakeAsync timing at
   // all.
-  await tester.runAsync(() async {
+  // Poll the file rather than sleeping a fixed duration: a fixed real delay
+  // (previously 300ms) was observed to be flaky under full-suite load — the
+  // real dart:io write occasionally hadn't completed yet when a fixed sleep
+  // elapsed, even though it always completes given enough time. Polling
+  // with a generous overall timeout removes the timing assumption; the
+  // "file no longer matches the ORIGINAL body" condition is a stand-in for
+  // "the write is done" — a genuine toggle failure (the thing this test
+  // guards against) instead exhausts the timeout and returns the unchanged
+  // original body, which the caller's `expect` correctly flags as a
+  // mismatch rather than this helper hanging or throwing.
+  final onDisk = await tester.runAsync(() async {
     WidgetsBinding.instance
         .handleAppLifecycleStateChanged(AppLifecycleState.paused);
-    await Future<void>.delayed(const Duration(milliseconds: 300));
+    final file = File(meta.filePath);
+    final deadline = DateTime.now().add(const Duration(seconds: 5));
+    // QuKiStorage.update() writes to a temp file then renames over the
+    // target (CLAUDE.md: "write-to-temp-then-rename for atomicity") — the
+    // rename briefly makes the destination path momentarily inaccessible on
+    // Windows, where a concurrent read during that instant throws
+    // (FileSystemException / PathAccessException) rather than just
+    // returning stale content. Observed as a genuine full-suite-only
+    // flake (never reproduced running this file alone, where there's no
+    // contention): treat a transient read failure the same as "not written
+    // yet" and retry, instead of letting it escape and fail the test.
+    String? content;
+    while (DateTime.now().isBefore(deadline)) {
+      try {
+        content = await file.readAsString();
+        if (content != body) break;
+      } catch (_) {
+        // Transient — most likely mid-rename. Fall through to retry.
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+    return content ?? body;
   });
   await tester.pump();
-
-  final onDisk =
-      await tester.runAsync(() => File(meta.filePath).readAsString());
 
   // Tear down the widget tree (disposes EditorScreen -> AutoSaveController
   // .dispose(), cancelling the ORIGINAL debounce Timer notifyChanged()
