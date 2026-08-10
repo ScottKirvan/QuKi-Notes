@@ -1,10 +1,20 @@
 import 'dart:io';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:markdown_live_editor/markdown_live_editor.dart';
+// Reaches into the package's implementation library rather than its public
+// barrel — the same convention the package's own tests already use (see
+// e.g. packages/markdown_live_editor/test/checkbox_hit_target_test.dart) to
+// get at QuikiRenderEditor/QuikiRenderWidget for real tap-coordinate
+// geometry. Needed here to drive a REAL tap gesture at a checkbox's actual
+// painted position through the full EditorScreen tree — the only way to
+// exercise EditorScreen._onCheckboxToggle (#354) as production code, rather
+// than calling it directly (it's private).
+import 'package:markdown_live_editor/src/quiki_render_editor.dart';
 
 import 'package:quki_notes/app.dart';
 import 'package:quki_notes/core/storage/quki_index.dart';
@@ -119,6 +129,139 @@ Widget _buildEditor(
 Future<void> cleanup(WidgetTester tester) async {
   await tester.pumpWidget(const SizedBox.shrink());
   await tester.pump(Duration.zero);
+}
+
+QuikiRenderEditor _renderEditorOf(WidgetTester tester) =>
+    tester.renderObject<QuikiRenderEditor>(find.byType(QuikiRenderWidget));
+
+/// The global screen position of [slot]'s actual painted checkbox box.
+///
+/// Mirrors packages/markdown_live_editor/test/checkbox_hit_target_test.dart's
+/// own `checkboxTapPoint`-equivalent geometry (kept as its own copy here,
+/// per this codebase's existing convention of each test file owning its own
+/// self-contained geometry helpers rather than sharing one across the app
+/// and the package). Deliberately targets the exact glyph center — not the
+/// #352 widened hit-test zone — so this test exercises only
+/// EditorScreen._onCheckboxToggle's marker-read logic (#354), independent of
+/// the separate hit-test-zone fix already on this branch.
+Offset _checkboxTapPoint(
+  WidgetTester tester,
+  QuikiRenderEditor ro,
+  CheckboxSlot slot,
+) {
+  final caret = ro.getOffsetForCaret(TextPosition(offset: slot.element.start));
+  final lineHeight = ro.preferredLineHeight;
+  final boxSize = lineHeight * 0.8;
+  final tapX = caret.dx - 4.0 - boxSize / 2;
+  final boxTop = caret.dy + (lineHeight - boxSize) / 2 + lineHeight / 3;
+  final tapY = boxTop + boxSize / 2;
+  final local = Offset(tapX, tapY) + ro.localPadding.topLeft;
+  return tester.getTopLeft(find.byType(QuikiRenderWidget)) + local;
+}
+
+/// Settles the delayed single-tap resolution this editor's GestureDetector
+/// always has — an onDoubleTapDown callback is unconditionally wired
+/// alongside onTapDown (see packages/markdown_live_editor/test/
+/// reading_mode_safety_test.dart's identically-named helper for the full
+/// explanation), so onTapDown itself — including the checkbox-toggle branch
+/// this test depends on — is deferred until kDoubleTapTimeout has elapsed
+/// with no second tap.
+Future<void> _settleSingleTap(WidgetTester tester) =>
+    tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 50));
+
+/// Loads [body] into a fresh [EditorScreen], taps its single checkbox
+/// (assumed to be the only one in [body]), waits past the auto-save
+/// debounce, and returns the persisted file content.
+///
+/// Verifies via the FILE, not `tester.testTextInput.editingState` —
+/// an existing QuKi loads into READING mode
+/// (`_editorController.unfocus()` in `_onActiveQukiChanged`), which closes
+/// the TextInputConnection. A checkbox toggle's `setValuePreservingSelection`
+/// call is deliberately reading-mode-safe (#335/#266) — it must NOT
+/// reconnect or request focus as a side effect — so there is no open
+/// connection to push `editingState` through, and reading it back would
+/// simply be null/stale regardless of whether the toggle itself worked.
+/// Reading the file after the debounce is a reliable signal independent of
+/// connection state, and doubles as this task's required persistence check.
+Future<String> _toggleAndReadDisk(
+  WidgetTester tester, {
+  required String body,
+}) async {
+  late Directory tmpDir;
+  late QuKiStorage storage;
+  late QuKiMeta meta;
+
+  await tester.runAsync(() async {
+    tmpDir = await Directory.systemTemp.createTemp('quki_checkbox_toggle_');
+    storage = QuKiStorage(tmpDir);
+    meta = await storage.create(body);
+  });
+  addTearDown(() => tmpDir.delete(recursive: true));
+
+  final container = ProviderContainer(
+    overrides: [
+      quKiStorageProvider.overrideWithValue(storage),
+      quKiIndexProvider.overrideWith(() => _FakeQuKiIndex([meta])),
+    ],
+  );
+  addTearDown(container.dispose);
+
+  await tester.pumpWidget(
+    UncontrolledProviderScope(
+      container: container,
+      child: const MaterialApp(home: EditorScreen()),
+    ),
+  );
+  await tester.pump();
+
+  await tester.runAsync(() async {
+    container.read(activeQukiIdProvider.notifier).setId(meta.id);
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+  });
+  await tester.pump();
+  await tester.pump();
+
+  final ro = _renderEditorOf(tester);
+  final slot = ro.renderModel.checkboxSlots.single;
+  await tester.tapAt(_checkboxTapPoint(tester, ro, slot));
+  await _settleSingleTap(tester);
+
+  // Force an immediate flush rather than waiting on the 2s debounce Timer.
+  // A Timer created during the tap (inside the widget test's fake-async
+  // zone) only fires on a matching tester.pump(duration) — but the real
+  // dart:io write its callback performs needs the REAL event loop to
+  // actually complete, which tester.runAsync provides but does not itself
+  // advance fake timers. Mixing the two reliably requires either driving
+  // the Timer via fake pumps and separately re-entering runAsync for the
+  // write (fragile to get the ordering right), or sidestepping the Timer
+  // entirely: EditorScreen.didChangeAppLifecycleState already calls
+  // _autoSave.save() directly and unconditionally on inactive/paused/
+  // detached — the exact same underlying save this test needs — so
+  // simulating that lifecycle transition inside tester.runAsync (mirroring
+  // test/features/setup/storage_setup_screen_test.dart's existing
+  // WidgetsBinding.instance.handleAppLifecycleStateChanged usage) triggers
+  // one real, awaitable save without depending on Timer/FakeAsync timing at
+  // all.
+  await tester.runAsync(() async {
+    WidgetsBinding.instance
+        .handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+  });
+  await tester.pump();
+
+  final onDisk =
+      await tester.runAsync(() => File(meta.filePath).readAsString());
+
+  // Tear down the widget tree (disposes EditorScreen -> AutoSaveController
+  // .dispose(), cancelling the ORIGINAL debounce Timer notifyChanged()
+  // scheduled from the tap, which was never cancelled by the lifecycle-
+  // triggered save above — AutoSaveController.save() doesn't cancel
+  // _debounce, only flush() does) before the caller's addTearDown deletes
+  // the temp directory — otherwise that still-pending real Timer can fire
+  // and race a concurrent write against the directory deletion.
+  await cleanup(tester);
+
+  return onDisk!;
 }
 
 void main() {
@@ -480,6 +623,45 @@ void main() {
       );
 
       await cleanup(tester);
+    });
+  });
+
+  group('EditorScreen checkbox toggle (#354)', () {
+    testWidgets(
+        'tapping a non-nested checkbox toggles it — regression guard: must '
+        'keep working after the #354 fix', (tester) async {
+      // 'Notes' precedes the checklist so the loaded cursor position
+      // (offset 0, from MarkdownEditorController.setValue's document-switch
+      // reset) lands in a plain line, not inside the checkbox element's own
+      // [start, end] range — otherwise RenderModel would reveal the
+      // checkbox as raw source (cursor-position reveal is not gated on
+      // focus, see render_model.dart) and it would have no CheckboxSlot to
+      // tap at all, unrelated to what this test means to exercise.
+      final onDisk = await _toggleAndReadDisk(
+        tester,
+        body: 'Notes\n- [ ] Task',
+      );
+
+      expect(onDisk, 'Notes\n- [x] Task',
+          reason: 'a non-nested checkbox must still toggle, and persist, '
+              'after the #354 fix');
+    });
+
+    testWidgets(
+        'tapping a NESTED checkbox toggles it — regression: #354, '
+        'EditorScreen._onCheckboxToggle read a fixed 6-char marker starting '
+        'exactly at the checkbox\'s source offset (the line\'s absolute '
+        'start, before the leading indentation whitespace) and silently '
+        'no-oped when it landed on whitespace instead', (tester) async {
+      final onDisk = await _toggleAndReadDisk(
+        tester,
+        body: '- Parent\n  - [ ] Nested task',
+      );
+
+      expect(onDisk, '- Parent\n  - [x] Nested task',
+          reason: 'a nested checkbox must toggle — and persist via the '
+              'unchanged auto-save path — exactly like a non-nested one, '
+              'regardless of leading whitespace length (#354)');
     });
   });
 }

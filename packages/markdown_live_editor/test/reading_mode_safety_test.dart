@@ -155,11 +155,25 @@ Future<void> doubleTapAt(WidgetTester tester, Offset location) async {
 /// exercises the real production flow rather than a synthetic shortcut — see
 /// checkbox_toggle_test.dart's toggleCheckbox for the equivalent precedent
 /// for the pure marker-swap logic on its own.
+///
+/// Skips any leading whitespace before reading the 6-char marker (#354):
+/// [sourceOffset] is the checkbox element's own source offset, which is
+/// always the LINE's absolute start — for a nested/indented checkbox that is
+/// before the leading indentation whitespace, not the marker's own start.
+/// This mirrors EditorScreen._onCheckboxToggle's identical fix exactly, so
+/// this helper still faithfully represents production behavior for any test
+/// in this file that exercises a nested checkbox.
 void handleCheckboxToggle(
     MarkdownEditorController controller, int sourceOffset) {
   final current = controller.currentValue;
-  if (sourceOffset < 0 || sourceOffset + 6 > current.length) return;
-  final marker = current.substring(sourceOffset, sourceOffset + 6);
+  if (sourceOffset < 0 || sourceOffset > current.length) return;
+  var markerStart = sourceOffset;
+  while (markerStart < current.length &&
+      (current[markerStart] == ' ' || current[markerStart] == '\t')) {
+    markerStart++;
+  }
+  if (markerStart + 6 > current.length) return;
+  final marker = current.substring(markerStart, markerStart + 6);
   final String replacement;
   if (marker == '- [ ] ') {
     replacement = '- [x] ';
@@ -169,7 +183,7 @@ void handleCheckboxToggle(
     return;
   }
   final newText =
-      current.replaceRange(sourceOffset, sourceOffset + 6, replacement);
+      current.replaceRange(markerStart, markerStart + 6, replacement);
   controller.setValuePreservingSelection(newText);
 }
 

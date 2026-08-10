@@ -17,15 +17,28 @@ import 'package:flutter_test/flutter_test.dart';
 /// Toggles the checkbox marker at [sourceOffset] within [source].
 ///
 /// Returns the modified string, or [source] unchanged if the 6-char marker
-/// at [sourceOffset] is not a valid checkbox marker.
+/// found is not a valid checkbox marker.
+///
+/// [sourceOffset] is the checkbox element's own source offset — always the
+/// LINE's absolute start (see md_parser.dart's checkbox branches), which for
+/// a nested/indented checkbox is BEFORE the leading whitespace, not the
+/// marker's own start. Any leading space/tab characters are skipped first
+/// (#354) before reading the 6-char marker, so this works identically for a
+/// non-nested checkbox (zero-iteration no-op) and a nested one.
 ///
 /// Invariants:
-/// - '- [ ] ' at [sourceOffset] → '- [x] '
-/// - '- [x] ' at [sourceOffset] → '- [ ] '
-/// - '- [X] ' at [sourceOffset] → '- [ ] '  (uppercase X treated as checked)
+/// - '- [ ] ' at the marker's start → '- [x] '
+/// - '- [x] ' at the marker's start → '- [ ] '
+/// - '- [X] ' at the marker's start → '- [ ] '  (uppercase X treated as checked)
 String toggleCheckbox(String source, int sourceOffset) {
-  if (sourceOffset < 0 || sourceOffset + 6 > source.length) return source;
-  final marker = source.substring(sourceOffset, sourceOffset + 6);
+  if (sourceOffset < 0 || sourceOffset > source.length) return source;
+  var markerStart = sourceOffset;
+  while (markerStart < source.length &&
+      (source[markerStart] == ' ' || source[markerStart] == '\t')) {
+    markerStart++;
+  }
+  if (markerStart + 6 > source.length) return source;
+  final marker = source.substring(markerStart, markerStart + 6);
   String replacement;
   if (marker == '- [ ] ') {
     replacement = '- [x] ';
@@ -34,7 +47,7 @@ String toggleCheckbox(String source, int sourceOffset) {
   } else {
     return source;
   }
-  return source.replaceRange(sourceOffset, sourceOffset + 6, replacement);
+  return source.replaceRange(markerStart, markerStart + 6, replacement);
 }
 
 void main() {
@@ -89,6 +102,63 @@ void main() {
       // And back again.
       const checked = '- [x] **urgent** call back';
       expect(toggleCheckbox(checked, 0), '- [ ] **urgent** call back');
+    });
+  });
+
+  group('toggleCheckbox — nested/indented checkboxes (#354)', () {
+    test(
+        'a nested checkbox toggles correctly when sourceOffset is the '
+        'LINE\'s absolute start (before the leading whitespace) — the exact '
+        'offset checkboxSourceOffsetForTap() resolves to, per '
+        'md_parser.dart\'s indented-checkbox branch (start: lineStart)', () {
+      // '  - [ ] Nested task' — sourceOffset 0 is the first leading space,
+      // NOT the '-' at offset 2. Before the #354 fix this returned `source`
+      // unchanged, since substring(0, 6) read '  - [ ' (two leading spaces
+      // + a partial marker), which matches neither '- [ ] ' nor '- [x] '.
+      const source = '  - [ ] Nested task';
+      expect(toggleCheckbox(source, 0), '  - [x] Nested task');
+    });
+
+    test('a checked nested checkbox toggles back to unchecked', () {
+      const source = '  - [x] Nested task';
+      expect(toggleCheckbox(source, 0), '  - [ ] Nested task');
+    });
+
+    test('a tab-indented checkbox toggles correctly (tabs, not just spaces)',
+        () {
+      const source = '\t- [ ] Nested task';
+      expect(toggleCheckbox(source, 0), '\t- [x] Nested task');
+    });
+
+    test('a deeply-nested (2-level) checkbox toggles correctly', () {
+      const source = '    - [ ] Deeply nested task';
+      expect(toggleCheckbox(source, 0), '    - [x] Deeply nested task');
+    });
+
+    test(
+        'a nested checkbox on a non-zero-offset line toggles correctly — '
+        'combines the leading-whitespace skip with a non-zero sourceOffset',
+        () {
+      // 'Parent\n  - [ ] task' — the nested checkbox's line starts at
+      // offset 7 (just past 'Parent\n'), and its own leading whitespace
+      // starts there too.
+      const source = 'Parent\n  - [ ] task';
+      expect(toggleCheckbox(source, 7), 'Parent\n  - [x] task');
+    });
+
+    test(
+        'a nested line that is NOT actually a checkbox (whitespace-skip '
+        'lands on ordinary indented text) is left unchanged', () {
+      const source = '  not a checkbox line';
+      expect(toggleCheckbox(source, 0), source);
+    });
+
+    test(
+        'bounds check still applies after skipping whitespace: an indented '
+        'marker too short to contain a full 6-char marker is left unchanged',
+        () {
+      const source = '  - [ ]'; // whitespace + 5 chars — too short overall
+      expect(toggleCheckbox(source, 0), source);
     });
   });
 }
