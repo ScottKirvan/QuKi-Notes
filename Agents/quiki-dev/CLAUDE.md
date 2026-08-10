@@ -52,37 +52,12 @@ Read in this order — do not skip:
 
 > Written and maintained by the Spec session.
 
-### Rename "Toss" → "Transport" / keep "Send" only where already correct
+**No task currently in progress.**
 
-**Branch**: `refactor/rename-toss-to-transport`
-**Commit type**: `refactor:` — no behavior change, pure rename.
+The checkbox/selection reading-mode-safety effort is fully shipped: PR #350 (merged 2026-08-10) closed **#335**, **#266**, **#336**, **#352**, and **#354** across four device-tested rounds. See root `CLAUDE.md` → Phase 3.60 and `notes/dev/decisions.md` for the full record.
 
-**Why**: "Toss" was never the locked vocabulary (`CONTRIBUTING.md`'s vocabulary table already banned it from user-facing text: "Send (user-facing action) | Toss (user-facing) [never write]"), but it survived as internal code naming because those classes predate the vocabulary lock. The project owner wants it gone entirely — "it has to look like it's never existed" — so agents and contributors stop reaching for it as a live term.
+The Toss → Transport rename is also fully shipped: PR #347 (code) and PR #348 (docs), both merged 2026-08-09.
 
-**What**: Rename every "Toss"/"toss" identifier in `lib/`, `test/`, and `packages/markdown_live_editor/` to "Transport" — the concept/class-level noun, per `CONTRIBUTING.md`'s own rule ("use 'transport' for the concept"). Do **not** introduce "Send" as a replacement anywhere in this rename — "Send" already exists correctly in a few places (the UI button label, `_onToss`'s caller-facing role) and those are staying as `Send`/`_onSend`-adjacent UI text exactly as they are; this task is scoped to removing "Toss", not touching existing "Send" usage. This is a pure mechanical rename — zero design judgment involved, so exact target names are specified below rather than left open.
-
-**Exact rename map**:
-
-| Current | New |
-|---|---|
-| `lib/core/transports/plugins/clipboard_toss.dart` | `clipboard_transport.dart` (`git mv`) |
-| `lib/core/transports/plugins/share_sheet_toss.dart` | `share_sheet_transport.dart` (`git mv`) |
-| `lib/features/editor/toss_picker_sheet.dart` | `transport_picker_sheet.dart` (`git mv`) |
-| `test/core/transports/clipboard_toss_test.dart` | `clipboard_transport_test.dart` (`git mv`) |
-| `test/core/transports/share_sheet_toss_test.dart` | `share_sheet_transport_test.dart` (`git mv`) |
-| `class ClipboardToss` | `ClipboardTransport` |
-| `class ShareSheetToss` | `ShareSheetTransport` |
-| `class TossResult` | `TransportResult` |
-| `class TossImage` | `TransportImage` |
-| `class TossContext` | `TransportContext` |
-| `class TossPickerSheet` | `TransportPickerSheet` |
-| `TransportPlugin.toss()` (interface method) | `TransportPlugin.transport()` |
-| `EditorScreen._onToss()` | `_onTransport()` |
-
-Plus every comment, doc-comment, string literal, `group()`/`test()` description, and test fixture value containing "toss" in any of these files (already identified, do not go hunting beyond this list — it's the complete scope): `lib/core/transports/transport_plugin.dart`, `lib/core/transports/registry_provider.dart`, `lib/features/editor/editor_screen.dart`, `lib/features/settings/settings_screen.dart`, `test/core/transports/transport_settings_notifier_test.dart`, `test/features/editor/editor_screen_test.dart`, plus the five files/renames above. Example: `settings_screen.dart`'s dead-branch string `'Toss plugins land in Phase 2.'` → `'Transport plugins land in Phase 2.'`.
-
-**Correctness invariant**: after the change, `grep -rli toss lib/ test/ packages/markdown_live_editor/` (case-insensitive) returns nothing. No user-facing string changes beyond what's already listed above — the UI already said "Send"/"Transports" everywhere real users see it; this task only touches internal naming.
-
-**Explicitly out of scope**: `notes/dev/decisions.md`, `notes/dev/design_spec.md`, and any other `notes/dev/` docs — Spec will sync those after reviewing this diff, per usual. Do not touch them.
-
-**Checklist**: `dart format`, `flutter analyze`, `just test` (root), `flutter test` (package) — all must pass with the same pass/skip counts as before, since this is a pure rename with zero behavior change. Report back with branch name only, per usual.
+**Known real gaps found during the checkbox effort, filed but not yet briefed**:
+- **#349** — link-tap has the identical eager-focus-before-hit-test pattern checkboxes had before this fix; likely also opens the keyboard when tapped in reading mode.
+- **#328** — text selection in reading mode partially addressed by PR #350 (selecting no longer opens the keyboard), but whether handles/toolbar render, and whether the toolbar should scope down to Copy/Select-All-only, is still open.
