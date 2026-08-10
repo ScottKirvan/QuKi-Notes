@@ -17,7 +17,7 @@ import '../../core/transports/registry_provider.dart';
 import '../../core/transports/transport_plugin.dart';
 
 import 'auto_save_controller.dart';
-import 'toss_picker_sheet.dart';
+import 'transport_picker_sheet.dart';
 import '../settings/help_dialog.dart';
 import '../settings/settings_screen.dart';
 import '../stream/stream_screen.dart';
@@ -222,7 +222,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         context, _slideFromRight(const SettingsScreen()));
   }
 
-  Future<void> _onToss() async {
+  Future<void> _onTransport() async {
     final body = _editorController.currentValue;
     if (body.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -252,7 +252,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     } else {
       plugin = await showModalBottomSheet<TransportPlugin>(
         context: context,
-        builder: (_) => TossPickerSheet(plugins: enabled),
+        builder: (_) => TransportPickerSheet(plugins: enabled),
       );
     }
     if (plugin == null || !mounted) return;
@@ -261,23 +261,24 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     if (!mounted) return;
 
     final now = DateTime.now();
-    final ctx = TossContext(
+    final ctx = TransportContext(
       firedAt: now,
       quki: QukiMetadata(
           id: _autoSave.savedId ?? 'unsaved', createdAt: now, modifiedAt: now),
     );
 
-    TossResult result;
+    TransportResult result;
     try {
-      result = await plugin.toss(markdown: body, images: const [], ctx: ctx);
+      result =
+          await plugin.transport(markdown: body, images: const [], ctx: ctx);
     } catch (e, st) {
-      _log.severe('plugin.toss threw unexpectedly', e, st);
+      _log.severe('plugin.transport threw unexpectedly', e, st);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('Send failed — unexpected error.'),
           duration: const Duration(seconds: 4),
-          action: SnackBarAction(label: 'Retry', onPressed: _onToss),
+          action: SnackBarAction(label: 'Retry', onPressed: _onTransport),
         ),
       );
       return;
@@ -292,7 +293,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
             ? const Duration(seconds: 2)
             : const Duration(seconds: 4),
         action: (!result.success && result.retryable)
-            ? SnackBarAction(label: 'Retry', onPressed: _onToss)
+            ? SnackBarAction(label: 'Retry', onPressed: _onTransport)
             : null,
       ),
     );
@@ -355,7 +356,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           IconButton(
             icon: const Icon(LucideIcons.send),
             tooltip: 'Send',
-            onPressed: _onToss,
+            onPressed: _onTransport,
           ),
           IconButton(
             icon: const Icon(LucideIcons.settings),
@@ -393,7 +394,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       return CallbackShortcuts(
         bindings: {
           const SingleActivator(LogicalKeyboardKey.keyT, control: true): () {
-            _onToss();
+            _onTransport();
           },
           const SingleActivator(LogicalKeyboardKey.keyN, control: true): () {
             _newQuKi();

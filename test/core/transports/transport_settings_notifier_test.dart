@@ -23,12 +23,12 @@ class _StubTransport extends TransportPlugin {
   String get description => 'stub';
 
   @override
-  Future<TossResult> toss({
+  Future<TransportResult> transport({
     required String markdown,
-    required List<TossImage> images,
-    required TossContext ctx,
+    required List<TransportImage> images,
+    required TransportContext ctx,
   }) async =>
-      TossResult(success: true);
+      TransportResult(success: true);
 }
 
 void main() {

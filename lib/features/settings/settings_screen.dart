@@ -86,7 +86,7 @@ class SettingsScreen extends ConsumerWidget {
           if (registry.plugins.isEmpty)
             const ListTile(
               title: Text('No transports installed'),
-              subtitle: Text('Toss plugins land in Phase 2.'),
+              subtitle: Text('Transport plugins land in Phase 2.'),
               enabled: false,
             )
           else

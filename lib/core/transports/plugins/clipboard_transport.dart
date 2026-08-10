@@ -2,8 +2,8 @@ import 'package:flutter/services.dart';
 
 import '../transport_plugin.dart';
 
-class ClipboardToss extends TransportPlugin {
-  const ClipboardToss();
+class ClipboardTransport extends TransportPlugin {
+  const ClipboardTransport();
 
   @override
   String get id => 'clipboard';
@@ -16,12 +16,13 @@ class ClipboardToss extends TransportPlugin {
       'Copy the QuKi as markdown to the system clipboard.';
 
   @override
-  Future<TossResult> toss({
+  Future<TransportResult> transport({
     required String markdown,
-    required List<TossImage> images,
-    required TossContext ctx,
+    required List<TransportImage> images,
+    required TransportContext ctx,
   }) async {
     await Clipboard.setData(ClipboardData(text: markdown));
-    return const TossResult(success: true, message: 'Copied to clipboard.');
+    return const TransportResult(
+        success: true, message: 'Copied to clipboard.');
   }
 }

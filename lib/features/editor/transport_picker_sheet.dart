@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../core/transports/transport_plugin.dart';
 
-class TossPickerSheet extends StatelessWidget {
-  const TossPickerSheet({super.key, required this.plugins});
+class TransportPickerSheet extends StatelessWidget {
+  const TransportPickerSheet({super.key, required this.plugins});
 
   final List<TransportPlugin> plugins;
 

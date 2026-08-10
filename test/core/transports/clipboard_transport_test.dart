@@ -1,34 +1,34 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:quki_notes/core/transports/plugins/clipboard_toss.dart';
+import 'package:quki_notes/core/transports/plugins/clipboard_transport.dart';
 import 'package:quki_notes/core/transports/transport_plugin.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   final epoch = DateTime.fromMillisecondsSinceEpoch(0);
-  late TossContext ctx;
+  late TransportContext ctx;
 
   setUp(() {
-    ctx = TossContext(
+    ctx = TransportContext(
       firedAt: DateTime(2026, 1, 1),
       quki: QukiMetadata(id: 'q1', createdAt: epoch, modifiedAt: epoch),
     );
   });
 
-  group('ClipboardToss metadata', () {
-    test(
-        'id is clipboard', () => expect(const ClipboardToss().id, 'clipboard'));
+  group('ClipboardTransport metadata', () {
+    test('id is clipboard',
+        () => expect(const ClipboardTransport().id, 'clipboard'));
 
     test('displayName and description are non-empty', () {
-      const t = ClipboardToss();
+      const t = ClipboardTransport();
       expect(t.displayName, isNotEmpty);
       expect(t.description, isNotEmpty);
     });
   });
 
-  group('ClipboardToss.toss', () {
+  group('ClipboardTransport.transport', () {
     test('returns success result with message', () async {
-      final result = await const ClipboardToss().toss(
+      final result = await const ClipboardTransport().transport(
         markdown: '# Hello\n\nWorld',
         images: const [],
         ctx: ctx,
@@ -40,7 +40,7 @@ void main() {
     });
 
     test('returns success even for empty markdown', () async {
-      final result = await const ClipboardToss().toss(
+      final result = await const ClipboardTransport().transport(
         markdown: '',
         images: const [],
         ctx: ctx,
