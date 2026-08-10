@@ -95,10 +95,10 @@ class _ThrowingTransport extends TransportPlugin {
   String get description => 'Always throws.';
 
   @override
-  Future<TossResult> toss({
+  Future<TransportResult> transport({
     required String markdown,
-    required List<TossImage> images,
-    required TossContext ctx,
+    required List<TransportImage> images,
+    required TransportContext ctx,
   }) async {
     throw Exception('transport error');
   }
@@ -257,7 +257,7 @@ void main() {
     });
   });
 
-  group('EditorScreen toss — snackbars', () {
+  group('EditorScreen transport — snackbars', () {
     testWidgets('empty-body guard snackbar has duration ≤ 3s', (tester) async {
       await tester.pumpWidget(_buildEditor());
       await tester.pump();
@@ -304,13 +304,14 @@ void main() {
       await tester.pump(const Duration(milliseconds: 400));
       tester.testTextInput.updateEditingValue(
         const TextEditingValue(
-            text: 'toss me', selection: TextSelection.collapsed(offset: 7)),
+            text: 'type me', selection: TextSelection.collapsed(offset: 7)),
       );
       await tester.pump();
 
       await tester.tap(find.byIcon(LucideIcons.send));
 
-      // Multiple pumps to let the async toss chain (flush → toss → snackbar) settle.
+      // Multiple pumps to let the async transport chain (flush → transport →
+      // snackbar) settle.
       await tester.pump();
       await tester.pump();
       await tester.pump();

@@ -1,4 +1,4 @@
-// Regression tests for #92: ShareSheetToss false-negative on Android.
+// Regression tests for #92: ShareSheetTransport false-negative on Android.
 //
 // share_plus fires ShareResultStatus.dismissed even when the user completes a
 // share on Android. Always returning success avoids a false "Share cancelled."
@@ -7,45 +7,45 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:share_plus/share_plus.dart';
 
-import 'package:quki_notes/core/transports/plugins/share_sheet_toss.dart';
+import 'package:quki_notes/core/transports/plugins/share_sheet_transport.dart';
 import 'package:quki_notes/core/transports/transport_plugin.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   final epoch = DateTime.fromMillisecondsSinceEpoch(0);
-  late TossContext ctx;
+  late TransportContext ctx;
 
   setUp(() {
-    ctx = TossContext(
+    ctx = TransportContext(
       firedAt: DateTime(2026, 1, 1),
       quki: QukiMetadata(id: 'q1', createdAt: epoch, modifiedAt: epoch),
     );
   });
 
-  group('ShareSheetToss metadata', () {
+  group('ShareSheetTransport metadata', () {
     test('id is share_sheet', () {
-      expect(const ShareSheetToss().id, 'share_sheet');
+      expect(const ShareSheetTransport().id, 'share_sheet');
     });
 
     test('displayName and description are non-empty', () {
-      const t = ShareSheetToss();
+      const t = ShareSheetTransport();
       expect(t.displayName, isNotEmpty);
       expect(t.description, isNotEmpty);
     });
   });
 
-  group('ShareSheetToss.toss — regression #92', () {
-    // We cannot invoke toss() directly in a unit test (requires a live platform
-    // channel). Instead we verify:
-    // 1. The TossResult shape that the fix produces is correct.
+  group('ShareSheetTransport.transport — regression #92', () {
+    // We cannot invoke transport() directly in a unit test (requires a live
+    // platform channel). Instead we verify:
+    // 1. The TransportResult shape that the fix produces is correct.
     // 2. The root cause: dismissed != success, proving the old code was wrong.
 
     test(
-        'TossResult(success: true, message: Shared.) is the correct result shape — '
+        'TransportResult(success: true, message: Shared.) is the correct result shape — '
         'regression: dismissed status was incorrectly treated as failure (#92)',
         () {
-      const result = TossResult(success: true, message: 'Shared.');
+      const result = TransportResult(success: true, message: 'Shared.');
       expect(result.success, isTrue);
       expect(result.message, 'Shared.');
       expect(result.retryable, isFalse);
