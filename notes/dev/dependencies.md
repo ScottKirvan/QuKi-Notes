@@ -23,11 +23,11 @@ Versions track what's currently pinned in `pubspec.yaml`. Use compatible-version
 | `shared_preferences` | `^2.5.5` | Non-sensitive settings |
 | `logging` | `^1.3.0` | Structured logger |
 
-### Transports (Phase 2 — for first built-in QuKi-Toss)
+### Transports (Phase 2 — for first built-in transport)
 
 | Package | Version | Purpose |
 |---|---|---|
-| `share_plus` | TBD | Share-sheet transport (toss-to-share) |
+| `share_plus` | TBD | Share-sheet transport (send-to-share) |
 
 Additional transport-specific packages (e.g. `dio`, `flutter_secure_storage`, `url_launcher` for any GitHub/HTTP transport) are added **with the plugin that needs them**, not preemptively. Authentication helper (`lib/core/auth/`) lands at the same time as the first OAuth-needing plugin.
 
@@ -44,7 +44,7 @@ Additional transport-specific packages (e.g. `dio`, `flutter_secure_storage`, `u
 | `receive_sharing_intent` | `^1.8.1` | Android share-in (receive intents) |
 | `window_manager` | `^0.5.1` | Desktop window size/position persistence (Windows + Linux) |
 | `file_picker` | `^11.0.2` | Directory picker for storage location choice (ADR-27); SAF on Android, native dialogs on Windows/Linux/macOS, Files.app on iOS |
-| `geolocator` | TBD | GPS capture (per-toss opt-in) |
+| `geolocator` | TBD | GPS capture (per-send opt-in) |
 | `geocoding` | TBD | Platform-native reverse geocoding (no API key) |
 
 ### Sync (Phase 4+ — first sync plugin)

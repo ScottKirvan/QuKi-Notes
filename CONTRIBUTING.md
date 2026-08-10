@@ -29,11 +29,11 @@ Use these terms consistently in code, commit messages, issues, and PRs:
 | QuKi (singular), QuKis (plural) | note, document, file |
 | QuKis list | stream, library, inbox |
 | Send (user-facing action) | Toss (user-facing) |
-| Transport | workflow, integration |
+| Transport | Toss, workflow, integration |
 | Recently Deleted | trash, archive |
 | The app | the vault |
 
-Transport plugin code names (`ClipboardToss`, `ShareSheetToss`, `TossPickerSheet`) use "Toss" because they predate the vocabulary lock. New code should use "send" for user-facing strings and "transport" for the concept.
+Transport plugin code names (`ClipboardTransport`, `ShareSheetTransport`, `TransportPickerSheet`) previously used a "Toss" prefix, predating the vocabulary lock — renamed throughout the codebase (2026-08-09) so "Toss" no longer appears anywhere in `lib/`, `test/`, or docs. Use "send" for user-facing strings and "transport" for the concept; "toss" is never correct in new code, docs, or commits.
 
 ---
 
@@ -106,7 +106,7 @@ This project uses [Conventional Commits](https://www.conventionalcommits.org/). 
 feat(editor): add WYSIWYG markdown rendering
 fix(stream): guarantee undo snackbar dismissal via explicit Timer
 fix(docs): add philosophy page to user guide
-refactor(transport): extract toss context into separate class
+refactor(transport): extract shared context into separate class
 test(database): add regression test for soft-delete restore
 chore(ci): pin flutter-action to v2
 feat!: change TransportPlugin interface — breaking

@@ -1,5 +1,5 @@
 name: quki_notes
-description: "QuKi-Notes — capture and toss ephemeral notes."
+description: "QuKi-Notes — capture and send ephemeral notes."
 publish_to: 'none'
 version: 0.20.0+49
 

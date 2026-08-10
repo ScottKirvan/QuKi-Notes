@@ -8,7 +8,7 @@
 
 A `quki` command-line interface may be useful in the future for:
 
-- Scripted toss-from-a-pipe (`echo "ship it" | quki toss daily-log`)
+- Scripted send-from-a-pipe (`echo "ship it" | quki send daily-log`)
 - Batch import / export
 - CI integration (emit a QuKi from a GitHub Action)
 - Debugging the core library outside the Flutter UI
@@ -63,9 +63,9 @@ quki new "ship it"                # creates a QuKi from arg
 quki ls [--limit 20] [--search X] # list recent QuKis (newest first)
 quki cat <id>                     # print QuKi body to stdout
 quki rm <id>                      # delete a QuKi
-quki toss <quki-id> <toss-id>     # fire a transport on a stored QuKi
-echo "..." | quki toss daily-log  # one-shot: capture from stdin + immediately toss
-quki tosses                       # list configured transports
+quki send <quki-id> <transport-id> # fire a transport on a stored QuKi
+echo "..." | quki send daily-log  # one-shot: capture from stdin + immediately send
+quki transports                   # list configured transports
 quki doctor                       # check config / plugin availability
 ```
 

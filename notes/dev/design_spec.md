@@ -9,7 +9,7 @@
 QuKi-Notes is a **scratchpad, pasteboard, and capture surface** — a blank canvas when you open it:
 
 - **Open and go**: blank editor, cursor ready. Type, paste, draft, link-dump, whiteboard. No title, no folder, no template.
-- **Use it, send it, or let it fade**: use the content right there, fire a transport plugin to send the QuKi somewhere (a "QuKi-Toss"), or just let it drift down the stream as newer entries arrive. All three are valid outcomes.
+- **Use it, send it, or let it fade**: use the content right there, fire a transport plugin to send the QuKi somewhere, or just let it drift down the stream as newer entries arrive. All three are valid outcomes.
 - **History**: the stream surfaces newest-first. Older QuKis age off the top but stay searchable. Nothing auto-deletes.
 
 Single-device, local-only in MVP. Sync is a deferred plugin axis. MCP is reserved for v2.
@@ -72,23 +72,23 @@ abstract class TransportPlugin {
   String get id;
   String get displayName;
   String get description;
-  Widget settingsView(WidgetRef ref);              // for Settings → Tosses
+  Widget settingsView(WidgetRef ref);              // for Settings → Transports
 
-  Future<TossResult> toss({
+  Future<TransportResult> transport({
     required String markdown,
     required List<Image> images,
-    required TossContext ctx,
+    required TransportContext ctx,
   });
 }
 
-class TossResult {
+class TransportResult {
   final bool success;
   final String? message;       // user-facing detail
   final bool retryable;        // hint for UI
 }
 
-class TossContext {
-  final DateTime firedAt;              // when toss button was pressed
+class TransportContext {
+  final DateTime firedAt;              // when the Send button was pressed
   final QukiMetadata quki;             // id, createdAt, modifiedAt — for templating
   final Geolocation? gps;              // null unless all GPS gates ON (ADR-19)
   final Map<String, String> userOverrides; // free-form per-fire overrides
@@ -111,10 +111,10 @@ class Geolocation {
 **Key intentional constraints:**
 
 - **`List<Image>`, not `List<Attachment>`** — a QuKi is GFM markdown which renders text + images. We do not generalize to arbitrary attachments (PDFs, videos, archives); see ADR-14 rationale. If a future use case demands it, we revisit.
-- **`firedAt` vs `quki.createdAt`** — distinct on purpose. Transports may template either depending on intent (a daily-log toss uses `firedAt`; a wiki-publish toss may use `quki.createdAt`).
+- **`firedAt` vs `quki.createdAt`** — distinct on purpose. Transports may template either depending on intent (a daily-log send uses `firedAt`; a wiki-publish send may use `quki.createdAt`).
 - **`gps` is nullable**. Transports must handle absence — see Privacy & Permissions below and ADR-19 for the opt-in gates.
 
-Tosses are stateless **per fire** — they do not persist history beyond what the plugin chooses to store in its own settings.
+Transports are stateless **per fire** — they do not persist history beyond what the plugin chooses to store in its own settings.
 
 ### Sync plugin contract (deferred, ADR-17)
 
@@ -129,7 +129,7 @@ abstract class SyncBackend {
 
 ### MCP plugin contract (reserved, v2.0+)
 
-Not designed in detail. Architectural intent: an embedded MCP server inside the app advertising the same QuKi-Notes operations (list, read, search, append, toss) over the Model Context Protocol so external AI agents can use QuKi-Notes as a context store / dispatcher. Re-evaluate after v1.x stabilises.
+Not designed in detail. Architectural intent: an embedded MCP server inside the app advertising the same QuKi-Notes operations (list, read, search, append, send) over the Model Context Protocol so external AI agents can use QuKi-Notes as a context store / dispatcher. Re-evaluate after v1.x stabilises.
 
 ---
 
@@ -186,7 +186,7 @@ Data recovery screen — not an organizer feature.
 
 ### 4. Send (Transport)
 
-In the editor, **Send...** in the hamburger menu (≡) opens a sheet listing configured transports. User picks one. App fires `toss()`. UI shows result (success / failure with retry, auto-dismiss after a few seconds).
+In the editor, **Send...** in the hamburger menu (≡) opens a sheet listing configured transports. User picks one. App fires `transport()`. UI shows result (success / failure with retry, auto-dismiss after a few seconds).
 
 - After a successful send, the local QuKi remains in the QuKis list untouched. Send copies, never moves.
 - Built-in transports (shipped in Phase 2): Clipboard, Share Sheet.
@@ -194,7 +194,7 @@ In the editor, **Send...** in the hamburger menu (≡) opens a sheet listing con
 ### 5. Settings
 
 - Theme: follow system (ADR-12). No manual override in v1. **Color palette: GitHub Primer Dark High Contrast** (`primer.style/primitives/colors`). Key tokens mapped to Flutter `ColorScheme`: canvas `#0a0c10`, surface `#272b33`, foreground `#f0f3f9`, muted `#9ea7b4`, accent/primary `#71b7ff` / `#1f6feb`, borders `#7a828e`. Light system theme uses Primer Light High Contrast. Do not use Flutter's default `Colors.deepPurple` seed.
-- Tosses (transports): list installed plugins, configure each via its `settingsView`.
+- Transports: list installed plugins, configure each via its `settingsView`.
 - **Storage** (ADR-27): shows current storage path. "Change location" button opens the native directory picker; new QuKis go to the new path, existing files stay put (no migration in v1). When app storage is active, a persistent subtitle reads "Files will be removed on uninstall. Change location." — always visible, not dismissible.
 - Sync: empty in MVP ("No sync backends installed" placeholder; copy hints at v1.1+).
 - **Privacy**: per-capability opt-in toggles (GPS first; camera/mic/etc. as transports require). All default OFF. See Privacy & Permissions below.
@@ -202,7 +202,7 @@ In the editor, **Send...** in the hamburger menu (≡) opens a sheet listing con
 
 ### 6. Privacy & Permissions (ADR-19)
 
-Device-backed enrichments (GPS today; camera/mic/contacts later if transports demand) follow a **three-gate opt-in** model. All three must be ON before the OS-level permission dialog appears or the field appears in `TossContext`:
+Device-backed enrichments (GPS today; camera/mic/contacts later if transports demand) follow a **three-gate opt-in** model. All three must be ON before the OS-level permission dialog appears or the field appears in `TransportContext`:
 
 1. **Device capability** — if the platform doesn't have the hardware (e.g. GPS on a desktop tower), the capability is invisible. No toggles, no toasts, no "feature unavailable" banners. The setting just doesn't exist.
 2. **App-wide Privacy setting** — `Settings → Privacy` shows one toggle per supported capability. Default **OFF** for every one. Onboarding does NOT ask. The user discovers these settings if/when they install a transport that wants the capability.
@@ -215,7 +215,7 @@ Device-backed enrichments (GPS today; camera/mic/contacts later if transports de
 - If the app-wide toggle is OFF but a transport asks for the capability: transport's `settingsView` displays a hint ("GPS is disabled in app Privacy settings"); the transport still fires, just without the field.
 - OS-level permission revocation = capability gate OFF. Graceful degradation, no nagging dialog on next launch.
 
-**MVP scope:** only GPS is wired (because at least one candidate first-toss might want geotagging — OQ-NEW-1). Camera/mic/etc. land if and when a transport needs them.
+**MVP scope:** only GPS is wired (because at least one candidate first-send might want geotagging — OQ-NEW-1). Camera/mic/etc. land if and when a transport needs them.
 
 ### 7. What's NOT in MVP
 
@@ -224,7 +224,7 @@ Device-backed enrichments (GPS today; camera/mic/contacts later if transports de
 - No JSON workflow DSL, no workflow editor (transports are code, not data — ADR-14).
 - No MCP server.
 - No CLI.
-- No backup/export beyond the toss mechanism itself.
+- No backup/export beyond the transport mechanism itself.
 
 ---
 
@@ -306,8 +306,8 @@ Device-backed enrichments (GPS today; camera/mic/contacts later if transports de
 - **Local storage**: individual `.md` files via `dart:io` + `path_provider` (ADR-25).
 - **Image clipboard**: `super_clipboard` — deferred; CargoKit archived 2026-03-26.
 - **Share-in**: `receive_sharing_intent` (Android; Windows/Linux equivalents TBD).
-- **Share-out / toss-to-share-sheet**: `share_plus`.
-- **GPS** (per-toss opt-in only): `geolocator` + `geocoding` for reverse-geocoded address strings (platform-native, no API key).
+- **Share-out / send-to-share-sheet**: `share_plus`.
+- **GPS** (per-send opt-in only): `geolocator` + `geocoding` for reverse-geocoded address strings (platform-native, no API key).
 - **Secrets** (plugin-owned): `flutter_secure_storage`. ADR-2.
 - **Settings** (non-secret): `shared_preferences`.
 - **HTTP** (for any transport that needs it): `dio`.
@@ -363,14 +363,14 @@ Supersedes the `buildTextSpan()` zero-width-hiding model (ADR-30). Full rational
 | `Provider`         | Stateless services: `AppDatabase`, `TransportRegistry`                            |
 | `StreamProvider`   | `drift` queries: stream view, single QuKi watch                                   |
 | `FutureProvider`   | One-shot async: plugin discovery, asset loads                                     |
-| `NotifierProvider` | Stateful controllers: `EditorController` (auto-save, formatting), `TossController` |
+| `NotifierProvider` | Stateful controllers: `EditorController` (auto-save, formatting), `TransportController` |
 | `StateProvider`    | Trivial mutable values: current QuKi ID, search query                             |
 
 ### Application flow
 
 **First launch:**
 1. Skip onboarding entirely — drop straight into a blank QuKi. (No "Connect GitHub" prompt; that was the old framing.)
-2. A subtle Settings entry surfaces tosses + future sync.
+2. A subtle Settings entry surfaces transports + future sync.
 
 **Subsequent launches:**
 1. Honor `launch_behavior` setting: blank QuKi (default) or stream view.
@@ -380,7 +380,7 @@ Supersedes the `buildTextSpan()` zero-width-hiding model (ADR-30). Full rational
 ### Save semantics (ADR-6)
 
 - **Save** (local file): 2s idle debounce + 30s periodic + lifecycle `inactive`/`paused`/`detached`. Never blocks the UI.
-- **Toss** (transport): user-initiated. Pressing the toss button is the only path; no auto-toss.
+- **Send** (transport): user-initiated. Pressing the Send button is the only path; no auto-send.
 - **Push** (sync, when sync exists): same debounce shape as save, but only triggers from foreground + manual sync button, never from periodic/lifecycle saves.
 
 ### Storage — individual `.md` files (ADR-25, supersedes Drift schema)
@@ -401,9 +401,9 @@ Supersedes the `buildTextSpan()` zero-width-hiding model (ADR-30). Full rational
 ### Image handling (ADR-4)
 
 - On paste / share-in: copy bytes to `<app docs>/images/YYYY-MM-DD-{uuid8}.{ext}`; reference in QuKi markdown as `![](../images/{filename})`.
-- The `../images/` prefix keeps the markdown portable into a tossed destination (transports may rewrite to whatever path makes sense at the destination).
+- The `../images/` prefix keeps the markdown portable into a sent destination (transports may rewrite to whatever path makes sense at the destination).
 - Cascade delete on QuKi delete.
-- No base64-embed, ever (file bloat + editor perf + unreadable when tossed).
+- No base64-embed, ever (file bloat + editor perf + unreadable when sent).
 
 ### Deletion (ADR-5, updated by ADR-25)
 
@@ -477,7 +477,7 @@ quki_notes/
 | ----- | ---------------------------------------------------------------------- | -------------- |
 | 0     | Bootstrap scaffold (project, CI, docs)                                 | Complete       |
 | 1     | Local QuKi capture on Android — editor, stream, drift, auto-save       | Complete (v0.3.0) |
-| 2     | Transport plugin loader + built-in QuKi-Tosses + Settings → Tosses     | Complete (v0.5.0) |
+| 2     | Transport plugin loader + built-in transports + Settings → Transports     | Complete (v0.5.0) |
 | 3     | Polish + share-in + Windows + Linux desktop ports                      | In progress (v0.13.1) |
 | 4     | Sync plugin axis (`core/sync/`) + first sync backend (probably GitHub) | v1.1+       |
 | 5     | iPadOS / iOS / macOS builds (CI wiring + device QA)                    | Deferred    |
@@ -503,10 +503,10 @@ Sub-PRs completed in order:
 Delivered as a single PR:
 
 1. **Transport registry + plugin interface**: `lib/core/transports/`; compile-time built-in registry (OQ-NEW-2 resolved — no dynamic loading in v1); ADR-14 contract. ADR-21 documents the Flutter-import exception for `settingsView()`.
-2. **ClipboardToss**: copies markdown body to system clipboard. Proves loader + toss-button UX with zero network involvement.
-3. **ShareSheetToss**: opens native Android share sheet via `share_plus`. Second built-in toss shipped in the same PR.
-4. **Toss UI**: toss button in editor → `TossPickerSheet` bottom sheet → success/failure snackbar; retry offered on retryable failures.
-5. **Settings → Tosses**: `SwitchListTile` per plugin; disabled plugins hidden from toss picker. `TransportSettingsNotifier` persists enabled state via `shared_preferences`.
+2. **ClipboardTransport**: copies markdown body to system clipboard. Proves loader + Send-button UX with zero network involvement.
+3. **ShareSheetTransport**: opens native Android share sheet via `share_plus`. Second built-in transport shipped in the same PR.
+4. **Send UI**: Send button in editor → `TransportPickerSheet` bottom sheet → success/failure snackbar; retry offered on retryable failures.
+5. **Settings → Transports**: `SwitchListTile` per plugin; disabled plugins hidden from the transport picker. `TransportSettingsNotifier` persists enabled state via `shared_preferences`.
 
 ### Phase 3 — Polish + Windows + Linux
 
@@ -515,15 +515,15 @@ Sub-tasks in priority order:
 1. **Android share-in** — receive content shared from other Android apps via `receive_sharing_intent`. ✓ Complete (v0.6.0). Text only; multi-part shares joined with `\n\n`; cold-start and warm-start both handled. Images deferred (CargoKit still blocked).
    - Desktop platform guard: `Platform.isAndroid` guard in `lib/features/share_in/share_handler.dart` — no-ops cleanly on Windows/Linux. ✓ Complete (v0.6.2).
 2. **Windows + Linux CI** — `build-windows.yml` and `build-linux.yml` produce working artifacts; OQ-NEW-3 resolved (tarball). ✓ Complete (v0.6.1).
-3. **Desktop keyboard shortcuts + window-state persistence** — Ctrl+T (toss), Ctrl+N (new); `window_manager` persists bounds via `shared_preferences`; `WindowStateScope` listener saves on move/resize. ✓ Complete (v0.7.0). ADR-22.
-4. **Snackbar auto-dismiss + paragraph spacing** — toss result snackbar 2s/4s duration; undo snackbar 4s via explicit `Timer` workaround (Flutter 3.44 + Material 3 bug); stylesheet paragraph padding reduced. ✓ Complete (v0.8.0).
-5. **Editor navigation redesign** — `← Stream` and `Toss ▼` removed; top-left QuKis icon (Lucide) + top-right hamburger (≡) with Send…/QuKis/Settings; `TossPickerSheet` title → "Send this QuKi via…"; snackbar copy → "Sent!" / "Send failed"; Settings section "Tosses" → "Transports". ✓ Complete (v0.8.0). ADR-23 (Lucide icons).
+3. **Desktop keyboard shortcuts + window-state persistence** — Ctrl+T (send), Ctrl+N (new); `window_manager` persists bounds via `shared_preferences`; `WindowStateScope` listener saves on move/resize. ✓ Complete (v0.7.0). ADR-22.
+4. **Snackbar auto-dismiss + paragraph spacing** — send result snackbar 2s/4s duration; undo snackbar 4s via explicit `Timer` workaround (Flutter 3.44 + Material 3 bug); stylesheet paragraph padding reduced. ✓ Complete (v0.8.0).
+5. **Editor navigation redesign** — `← Stream` and the old send-button dropdown removed; top-left QuKis icon (Lucide) + top-right hamburger (≡) with Send…/QuKis/Settings; `TransportPickerSheet` title → "Send this QuKi via…"; snackbar copy → "Sent!" / "Send failed"; Settings section renamed to "Transports". ✓ Complete (v0.8.0). ADR-23 (Lucide icons).
 6. **Editor single-root architecture** — replaced push-based QuKi loading with `activeQukiIdProvider` (NotifierProvider<String?>); editor is now the permanent root, `StreamScreen` sets the provider and pops; `AutoSaveController.resetForQuki(id:)` switches save target without disposal; share-in routes through provider (no second EditorScreen). ✓ Complete (v0.8.1).
 7. **WYSIWYG markdown rendering (OQ-1 / #27)** — live GFM rendering (bold, italic, headings, task lists, code blocks, etc.). ✓ Complete (v0.9.1). Fenced code block rendering deferred.
 8. **Primer DHC color palette (#37)** — replace `Colors.deepPurple` seed with GitHub Primer Dark High Contrast `ColorScheme`. ✓ Complete (v0.9.2, PR #63). Primer LHC for light mode also applied.
 9. **Auto-capitalization bug (#32)** — `TextCapitalization.none` on editor IME config. Partially addressed (v0.9.2). #74 (super_editor-specific root cause) closed when super_editor removed. Spell check (#83) and swipe-to-type remain open features — unblocked now that `markdown_live_editor` uses plain `TextField`.
 10. **Editor auto-focus + keyboard dismiss** — cursor visible and keyboard raised on Android cold launch; keyboard dismiss button added then later removed (PR #137). Known follow-up: #72 keyboard not always raised on cold launch.
-11. **Error handling + code review fixes** — share-in, toss, auto-save wrapped in try/catch; case-insensitive search; `relativeTime` utility extracted. ✓ Complete (v0.9.3, PR #90).
+11. **Error handling + code review fixes** — share-in, send, auto-save wrapped in try/catch; case-insensitive search; `relativeTime` utility extracted. ✓ Complete (v0.9.3, PR #90).
 12. **Storage migration + Recently Deleted (#29)** — Drift/SQLite replaced with individual `.md` files (ADR-25); Recently Deleted screen (#29) shipped. ✓ Complete (v0.9.5–v0.9.6, PRs #103–#105).
 13. **Replace `super_editor` with `markdown_live_editor` (ADR-26)** — block-flip Typora model in `packages/markdown_live_editor/`. ✓ Complete (v0.10.0–v0.11.0): Stage 1 plain-text foundation, Stage 2 formatting toolbar + list auto-continue, Stage 3 block-flip WYSIWYG, Stage 4 task checkbox tap / cross-block nav / flip animations.
 14. **App icon** — QuKi Notes branded icon: Android adaptive, iOS, Windows, Linux. ✓ Complete (v0.12.0–v0.13.0, PRs #124, #126, #128).
@@ -642,7 +642,7 @@ For beta testers reinstalling frequently, this makes every reinstall a data-loss
 
 #### 3. Extensibility — transports are compile-time only
 
-**Gap**: The manifesto promises user-defined destinations. The current transport system (ADR-14) uses a compile-time registry with only ClipboardToss and ShareSheetToss built in. Users cannot add their own transport without forking the codebase and rebuilding. This is a known MVP limitation, not a regression — but the extensibility axis is the load-bearing promise that distinguishes QuKi-Notes from a plain notes app.
+**Gap**: The manifesto promises user-defined destinations. The current transport system (ADR-14) uses a compile-time registry with only ClipboardTransport and ShareSheetTransport built in. Users cannot add their own transport without forking the codebase and rebuilding. This is a known MVP limitation, not a regression — but the extensibility axis is the load-bearing promise that distinguishes QuKi-Notes from a plain notes app.
 
 **Priority: Medium — deferred to v1.1+ per ADR-14. The transport *architecture* is in place; the user-facing plugin discovery mechanism is not.**
 
@@ -668,7 +668,7 @@ Tracked in `notes/dev/open_questions.md`. Snapshot of what's outstanding at spec
 - OQ-2: `super_editor` image node integration.
 - OQ-3: GitHub OAuth `client_id` distribution (deferred to first plugin that needs OAuth).
 - OQ-4: Initial-sync progress UX (deferred to first sync plugin).
-- OQ-NEW-1: Which built-in QuKi-Toss ships first?
+- OQ-NEW-1: Which built-in transport ships first?
 - OQ-NEW-2: Plugin discovery model — built-in registry only in v1, or pubspec-declared optional packages?
 - OQ-NEW-3: Linux distribution format (AppImage vs tarball vs Flatpak vs Snap).
 - OQ-NEW-4: Linux + `flutter_secure_storage` keyring availability matrix.

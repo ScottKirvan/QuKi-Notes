@@ -25,7 +25,7 @@ Each folder has its own `CLAUDE.md` with role-specific instructions and the curr
 
 | Layer | What it does | MVP |
 |---|---|---|
-| **Transports** (QuKi-Tosses) | Take a QuKi → deliver to a destination. Stateless per fire. | Yes — ClipboardToss + ShareSheetToss shipped |
+| **Transports** | Take a QuKi → deliver to a destination. Stateless per fire. | Yes — ClipboardTransport + ShareSheetTransport shipped |
 | **Sync** | Move QuKis across this user's own devices. Opt-in. | No — v1.1+ |
 | **MCP** | Expose QuKi-Notes to AI agents over Model Context Protocol. | No — v2.0+ |
 
@@ -43,14 +43,14 @@ Each folder has its own `CLAUDE.md` with role-specific instructions and the curr
 | WYSIWYG editor | `markdown_live_editor` (monorepo package, ADR-26) — All stages complete (v0.11.0) |
 | Local storage | Individual `.md` files + `.meta/{uuid}.json` sidecar (ADR-25) |
 | Sync (MVP) | None — opt-in plugin axis v1.1+ (ADR-17, ADR-18) |
-| Transports (MVP) | Built-in compile-time registry; ClipboardToss + ShareSheetToss shipped (ADR-14) |
+| Transports (MVP) | Built-in compile-time registry; ClipboardTransport + ShareSheetTransport shipped (ADR-14) |
 | `lib/core/transports/` | Flutter import allowed for `settingsView()` (ADR-21) |
 | MCP | Reserved, no code in v1 (ADR-14, ADR-18) |
 | Auth | None in MVP; GitHub Device Flow when a plugin needs it (ADR-9) |
 | Token storage | `flutter_secure_storage`, namespaced per plugin (ADR-2) |
 | Image storage | Separate binary files; `![](../images/...)`; never base64 (ADR-4) |
 | Deletion | `.trash/` subfolder; user-managed, no timer (ADR-25) |
-| Save vs toss | Save: 2s debounce + 30s periodic + lifecycle. Toss: user-initiated only (ADR-6) |
+| Save vs send | Save: 2s debounce + 30s periodic + lifecycle. Send: user-initiated only (ADR-6) |
 | Ephemerality | Gmail-style: framed ephemeral, persisted forever locally (ADR-15) |
 | CLI | Working hypothesis; not in MVP; `lib/core/` stays Flutter-free for it (ADR-16) |
 | Theme / Logging / Privacy | System theme; `logging` package; no analytics ever (ADR-12) |
@@ -103,7 +103,7 @@ QuKi-Notes/
 | | 1.4 Image paste | Blocked — CargoKit archived; deferred |
 | | 1.5 Auto-save controller | Complete (v0.3.0) |
 | | 1.6 Settings stub | Complete (v0.4.0) |
-| 2 | Transport plugin loader + built-in QuKi-Tosses | Complete (v0.5.0) |
+| 2 | Transport plugin loader + built-in transports | Complete (v0.5.0) |
 | 3 | Polish + share-in + Windows + Linux | In progress (v0.9.3) |
 | | 3.1 Android share-in | Complete (v0.6.0) |
 | | 3.2 Windows + Linux CI verification | Complete (v0.6.1) |
@@ -199,7 +199,7 @@ QuKi-Notes/
 
 **Share-in**: `lib/features/share_in/share_handler.dart` — guarded with `Platform.isAndroid`; creates a new QuKi via `QuKiStorage.create()` and routes via `activeQukiIdProvider` (no second screen).
 
-**Smart send (#85)**: `_onToss()` skips the picker sheet when `enabled.length == 1` and fires the single transport directly. Picker shown for 2+ transports.
+**Smart send (#85)**: `_onTransport()` skips the picker sheet when `enabled.length == 1` and fires the single transport directly. Picker shown for 2+ transports.
 
 **QuKis icon disabled when empty (#86)**: `_hasQukisProvider` (`StreamProvider<bool>`) watches `quKiIndexProvider` — drives `onPressed: hasQukis ? _openQuKisList : null`.
 
@@ -207,7 +207,7 @@ QuKi-Notes/
 
 **APK signing**: `android/app/build.gradle.kts` reads `STORE_FILE` / `STORE_PASSWORD` / `KEY_ALIAS` / `KEY_PASSWORD` env vars; falls back to debug signing when absent (local dev). Four GitHub Actions secrets required for release builds.
 
-**ShareSheetToss always succeeds (#92)**: `share_plus` fires `ShareResultStatus.dismissed` on Android even on success. Dropped the status check; always returns `TossResult(success: true, message: 'Shared.')`.
+**ShareSheetTransport always succeeds (#92)**: `share_plus` fires `ShareResultStatus.dismissed` on Android even on success. Dropped the status check; always returns `TransportResult(success: true, message: 'Shared.')`.
 
 **Focus on launch — removed, was never functional (corrected 2026-08-09)**: `_EditorScreenState.initState()` no longer posts `requestFocus()` via `postFrameCallback` on cold launch. This code (originally from PR #232/#72, and the "Complete" status on Phase 3.11/3.20/3.20a/3.38) was carried in the codebase and documented as shipped, but per the project owner it never actually worked in practice — the code has been removed outright rather than left in place implying it functions. The outer desktop `Focus(skipTraversal: true, ...)` wrapper for `CallbackShortcuts` still does not carry `autofocus: true` (unrelated desktop keyboard-shortcut focus, untouched). A startup splash screen (#342) is the chosen replacement approach for the cold-launch experience — see #342 for the design questions this resolves. The other `requestFocus()`/`unfocus()` calls tied to switching *which* QuKi is active (new note → edit mode, existing note → reading mode) are untouched by this — that's a different code path than cold-launch auto-focus, and its own reliability is tracked under #340.
 

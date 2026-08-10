@@ -52,8 +52,37 @@ Read in this order — do not skip:
 
 > Written and maintained by the Spec session.
 
-**No task currently in progress.**
+### Rename "Toss" → "Transport" / keep "Send" only where already correct
 
-ADR-36 (the full Android-standard text selection rework) is fully shipped — all four stages merged: Stage 1 (PR #320), Stage 2 (PR #323), Stage 3 (PR #325), Stage 4 (PR #327). See `notes/dev/decisions.md` → ADR-36 and `notes/dev/selection.md` for the complete record.
+**Branch**: `refactor/rename-toss-to-transport`
+**Commit type**: `refactor:` — no behavior change, pure rename.
 
-Two real gaps found during the initiative are filed as tracked issues, not yet briefed: **#328** (selection doesn't work in reading mode) and **#329** (no draggable handle for precise single-tap collapsed-cursor placement).
+**Why**: "Toss" was never the locked vocabulary (`CONTRIBUTING.md`'s vocabulary table already banned it from user-facing text: "Send (user-facing action) | Toss (user-facing) [never write]"), but it survived as internal code naming because those classes predate the vocabulary lock. The project owner wants it gone entirely — "it has to look like it's never existed" — so agents and contributors stop reaching for it as a live term.
+
+**What**: Rename every "Toss"/"toss" identifier in `lib/`, `test/`, and `packages/markdown_live_editor/` to "Transport" — the concept/class-level noun, per `CONTRIBUTING.md`'s own rule ("use 'transport' for the concept"). Do **not** introduce "Send" as a replacement anywhere in this rename — "Send" already exists correctly in a few places (the UI button label, `_onToss`'s caller-facing role) and those are staying as `Send`/`_onSend`-adjacent UI text exactly as they are; this task is scoped to removing "Toss", not touching existing "Send" usage. This is a pure mechanical rename — zero design judgment involved, so exact target names are specified below rather than left open.
+
+**Exact rename map**:
+
+| Current | New |
+|---|---|
+| `lib/core/transports/plugins/clipboard_toss.dart` | `clipboard_transport.dart` (`git mv`) |
+| `lib/core/transports/plugins/share_sheet_toss.dart` | `share_sheet_transport.dart` (`git mv`) |
+| `lib/features/editor/toss_picker_sheet.dart` | `transport_picker_sheet.dart` (`git mv`) |
+| `test/core/transports/clipboard_toss_test.dart` | `clipboard_transport_test.dart` (`git mv`) |
+| `test/core/transports/share_sheet_toss_test.dart` | `share_sheet_transport_test.dart` (`git mv`) |
+| `class ClipboardToss` | `ClipboardTransport` |
+| `class ShareSheetToss` | `ShareSheetTransport` |
+| `class TossResult` | `TransportResult` |
+| `class TossImage` | `TransportImage` |
+| `class TossContext` | `TransportContext` |
+| `class TossPickerSheet` | `TransportPickerSheet` |
+| `TransportPlugin.toss()` (interface method) | `TransportPlugin.transport()` |
+| `EditorScreen._onToss()` | `_onTransport()` |
+
+Plus every comment, doc-comment, string literal, `group()`/`test()` description, and test fixture value containing "toss" in any of these files (already identified, do not go hunting beyond this list — it's the complete scope): `lib/core/transports/transport_plugin.dart`, `lib/core/transports/registry_provider.dart`, `lib/features/editor/editor_screen.dart`, `lib/features/settings/settings_screen.dart`, `test/core/transports/transport_settings_notifier_test.dart`, `test/features/editor/editor_screen_test.dart`, plus the five files/renames above. Example: `settings_screen.dart`'s dead-branch string `'Toss plugins land in Phase 2.'` → `'Transport plugins land in Phase 2.'`.
+
+**Correctness invariant**: after the change, `grep -rli toss lib/ test/ packages/markdown_live_editor/` (case-insensitive) returns nothing. No user-facing string changes beyond what's already listed above — the UI already said "Send"/"Transports" everywhere real users see it; this task only touches internal naming.
+
+**Explicitly out of scope**: `notes/dev/decisions.md`, `notes/dev/design_spec.md`, and any other `notes/dev/` docs — Spec will sync those after reviewing this diff, per usual. Do not touch them.
+
+**Checklist**: `dart format`, `flutter analyze`, `just test` (root), `flutter test` (package) — all must pass with the same pass/skip counts as before, since this is a pure rename with zero behavior change. Report back with branch name only, per usual.
