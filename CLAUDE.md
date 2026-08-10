@@ -115,7 +115,7 @@ QuKi-Notes/
 | | 3.8 WYSIWYG markdown rendering (OQ-1) | Complete (v0.9.1) |
 | | 3.9 Primer DHC color palette (#37) | Complete (v0.9.2) |
 | | 3.10 Auto-capitalization bug (#32, #74) | Partially addressed (v0.9.2) — IME workaround insufficient; root issue persists, tracked #74 |
-| | 3.11 Editor auto-focus + keyboard dismiss button | Complete (v0.9.2) |
+| | 3.11 Editor auto-focus + keyboard dismiss button | **Corrected 2026-08-09: auto-focus never actually worked** — kept shipping as "Complete" across this row and 3.20/3.20a/3.38 below without ever being genuinely fixed. Dead cold-launch `requestFocus()` code removed; see Known bugs / #342 (splash screen chosen as the actual replacement approach) |
 | | 3.12 Error handling + case-insensitive search + relativeTime utility | Complete (v0.9.3) |
 | | 3.13 Editor UX polish batch (#75, #78, #82, #85, #86, #92) | Complete (PR #96) |
 | | 3.14 Post-#96 device regressions (transport state, #75 re-fix, #78 re-fix, #82 format fix) | Complete (PR #99) |
@@ -124,8 +124,8 @@ QuKi-Notes/
 | | 3.17 Replace super_editor with markdown_live_editor (ADR-26) | Complete (v0.11.0) |
 | | 3.18 App icon — Android adaptive, iOS, Windows, Linux | Complete (v0.12.0–v0.13.0) |
 | | 3.19 Storage location choice + first-launch setup (ADR-27/28, #134) | Complete (PR #145) |
-| | 3.20 Keyboard on cold launch (#72) — remove hacks, establish clean baseline | Complete (PR #155) |
-| | 3.20a Keyboard on cold launch (#72) — + button paths + resume fix | Complete (PRs #165, #168, #170) |
+| | 3.20 Keyboard on cold launch (#72) — remove hacks, establish clean baseline | Marked "Complete" (PR #155) at the time, but per the project owner (2026-08-09) auto-focus has never actually worked — see 3.11 correction above |
+| | 3.20a Keyboard on cold launch (#72) — + button paths + resume fix | Marked "Complete" (PRs #165, #168, #170) at the time, but per the project owner (2026-08-09) auto-focus has never actually worked — see 3.11 correction above |
 | | 3.21 Stream performance (lazy loading) | Defer until threshold hit |
 | | 3.22 Single-buffer TextSpan editor — replace block-flip (ADR-30, #179, #180) | Complete (PRs #186, #189, v0.15.0) |
 | | 3.23 ADR-31 Stage 1 — custom RenderObject + TextInputClient, plain-text editor | Complete (PR #201, v0.16.0) |
@@ -135,7 +135,7 @@ QuKi-Notes/
 | | 3.27 ADR-31 Stage 3 — boundary-reveal cursor movement + precise tap-to-source | Complete (IME-native; arrow-key device-test deferred) |
 | | 3.28 ADR-31 Stage 4 — list glyphs, checkboxes, ordered-list numbering | Complete (PR #211) |
 | | 3.29 ADR-31 Stage 4 device regressions — list auto-continue IME sync, ol block-relative numbering, plain text mode | Complete (PR #213) |
-| | 3.30 ADR-31 Stage 5 — block-level inline images | Complete (PR #215) |
+| | 3.30 ADR-31 Stage 5 — block-level inline images | Marked "Complete" (PR #215) at the time; per the project owner (2026-08-09) this has never actually worked in practice — always renders a blank gray placeholder box, never a real image. See Known bugs / #344 for the traced root cause |
 | | 3.31 ADR-31 Stage 6 — inline link rendering and tap-to-navigate | Complete (PR #217) |
 | | 3.32 Clipboard toolbar — Cut/Copy/Paste/Select All on Android | Complete (PR #218, v0.17.0) |
 | | 3.33 Bold delimiter fallthrough fix (#219) | Complete (v0.18.0) |
@@ -143,7 +143,7 @@ QuKi-Notes/
 | | 3.35 GFM second batch — blockquotes, horizontal rules, autolink word-boundary, inline code bg | Complete (v0.18.0) |
 | | 3.36 Sort order fix — sidecar modifiedAt decouples list sort from filesystem mtime (#75) | Complete (PRs #224, v0.18.1) |
 | | 3.37 Checkbox tap-to-toggle (#130) | Complete (PR #226, v0.18.1) |
-| | 3.38 Cold launch keyboard focus — postFrameCallback requestFocus() on all platforms (#72) | Complete (PR #232, v0.18.2) |
+| | 3.38 Cold launch keyboard focus — postFrameCallback requestFocus() on all platforms (#72) | Marked "Complete" (PR #232, v0.18.2) at the time; per the project owner (2026-08-09) this never actually worked. The dead `postFrameCallback`/`requestFocus()` code has been removed rather than left in place implying it functions — a startup splash screen (#342) is the chosen replacement approach for the cold-launch experience, not a further attempt at auto-focus |
 | | 3.39 Windows MSI installer (WiX 4) with optional Explorer context menu | Complete (PR #230, v0.18.2) |
 | | 3.40 Reading mode + toolbar gating + wrapSelection cursor + scroll padding + T-button icons + markdown mark icon (#234, #235, #236, #239) | Complete (PR #257, v0.19.0) |
 | | 3.41 Sticky plaintext mode + standalone Send/Settings AppBar buttons (#249, #251) | Complete (PR #258, v0.19.0) |
@@ -187,7 +187,7 @@ QuKi-Notes/
 
 **Navigation**: Editor is the permanent root. `app.dart` home = `EditorScreen`; it never has a back button. `activeQukiIdProvider` (NotifierProvider<String?>) controls which QuKi is loaded. `StreamScreen` sets `activeQukiIdProvider` and pops — no second `EditorScreen` is ever pushed. QuKis list slides in from the left; Settings slides in from the right (directional per affordance position).
 
-**Storage layer (ADR-25, ADR-27, ADR-28)**: `lib/core/storage/` — `QuKiStorage` (file I/O, write-to-temp-then-rename for atomicity), `QuKiIndex` (Riverpod `Notifier<List<QuKiMeta>>`, in-memory, rescanned on `StreamScreen.initState`), `TrashIndex` (same pattern for `.trash/`), `QuKiSearch` (content scan at query time). Directory: `<storage-root>/qukis/{uuid}.md` + `.meta/{uuid}.json` (createdAt + modifiedAt) + `.trash/`. `modifiedAt` stored as UTC ISO-8601 in sidecar; `_readMeta()` falls back to `stat.modified` for pre-v0.18.1 notes (gain sidecar modifiedAt on next edit). `QuKiStorage.update()` returns `Future<DateTime>` — caller passes the same timestamp to `updateMeta()` to keep in-memory and on-disk state identical. First-launch setup modal: user picks "Filesystem storage" (`Documents/QuKi_Notes`, requires `MANAGE_EXTERNAL_STORAGE` on Android) or "App storage" (`getApplicationDocumentsDirectory()`); changeable from Settings.
+**Storage layer (ADR-25, ADR-27, ADR-28)**: `lib/core/storage/` — `QuKiStorage` (file I/O, write-to-temp-then-rename for atomicity), `QuKiIndex` (Riverpod `Notifier<List<QuKiMeta>>`, in-memory, rescanned on `StreamScreen.initState`), `TrashIndex` (same pattern for `.trash/`), `QuKiSearch` (content scan at query time). **Directory, corrected 2026-08-09** — `.md` files live directly at `<storage-root>/{uuid}.md` (no nested `qukis/` subfolder in production; `_mdFile()` joins straight off `QuKiStorage.basePath`, which is `StorageLocationService.basePath` — the user's own chosen root — via `QuKiStorage.fromPath()`) + `.meta/{uuid}.json` (createdAt + modifiedAt) + `.trash/`, all as siblings inside that same root. A `qukis/` subfolder only exists in the app-sandbox-only `QuKiStorage.fromAppDir()` test helper, which is not the production path. This doc previously (incorrectly) described the production layout as `<storage-root>/qukis/{uuid}.md` — that nested-subfolder shape predates the ADR-27/28 user-choosable storage location and was never corrected after the flat layout landed; see the image-rendering entry in Known bugs / #344 for why this mismatch matters (it's the root cause of ADR-4's `../images/{filename}` reference convention resolving outside the user's chosen folder). `modifiedAt` stored as UTC ISO-8601 in sidecar; `_readMeta()` falls back to `stat.modified` for pre-v0.18.1 notes (gain sidecar modifiedAt on next edit). `QuKiStorage.update()` returns `Future<DateTime>` — caller passes the same timestamp to `updateMeta()` to keep in-memory and on-disk state identical. First-launch setup modal: user picks "Filesystem storage" (`Documents/QuKi_Notes`, requires `MANAGE_EXTERNAL_STORAGE` on Android) or "App storage" (`getApplicationDocumentsDirectory()`); changeable from Settings.
 
 **Auto-save (ADR-6)**: `AutoSaveController` — 2s idle debounce + 30s periodic + lifecycle hooks. Accepts a `Future<void> Function(String body)` write callback. Tracks `_lastSavedBody` and skips writes when content is identical. `resetForQuki(id:, initialBody:)` switches the save target without disposing the controller.
 
@@ -209,7 +209,7 @@ QuKi-Notes/
 
 **ShareSheetToss always succeeds (#92)**: `share_plus` fires `ShareResultStatus.dismissed` on Android even on success. Dropped the status check; always returns `TossResult(success: true, message: 'Shared.')`.
 
-**Focus on launch**: `_EditorScreenState.initState()` posts `requestFocus()` via `postFrameCallback` — fires on all platforms after the first frame, gives focus to the editor regardless of autofocus ordering. The outer desktop `Focus(skipTraversal: true, ...)` wrapper for `CallbackShortcuts` no longer carries `autofocus: true`.
+**Focus on launch — removed, was never functional (corrected 2026-08-09)**: `_EditorScreenState.initState()` no longer posts `requestFocus()` via `postFrameCallback` on cold launch. This code (originally from PR #232/#72, and the "Complete" status on Phase 3.11/3.20/3.20a/3.38) was carried in the codebase and documented as shipped, but per the project owner it never actually worked in practice — the code has been removed outright rather than left in place implying it functions. The outer desktop `Focus(skipTraversal: true, ...)` wrapper for `CallbackShortcuts` still does not carry `autofocus: true` (unrelated desktop keyboard-shortcut focus, untouched). A startup splash screen (#342) is the chosen replacement approach for the cold-launch experience — see #342 for the design questions this resolves. The other `requestFocus()`/`unfocus()` calls tied to switching *which* QuKi is active (new note → edit mode, existing note → reading mode) are untouched by this — that's a different code path than cold-launch auto-focus, and its own reliability is tracked under #340.
 
 **Windows installer**: `installer/` directory — WiX 4 MSI with optional Explorer context menu (right-click → "New QuKi"). Built by `build-windows.yml` in CI.
 

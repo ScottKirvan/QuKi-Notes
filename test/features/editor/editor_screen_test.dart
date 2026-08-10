@@ -296,8 +296,12 @@ void main() {
       await tester.pump();
 
       // Focus the editor and inject text via the TextInputClient.
+      //
+      // The pump here is deliberately longer than kDoubleTapTimeout — see
+      // the identical pattern earlier in this file (auto-save debounce
+      // test) for the full explanation.
       await tester.tap(find.byType(MarkdownEditor));
-      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
       tester.testTextInput.updateEditingValue(
         const TextEditingValue(
             text: 'toss me', selection: TextSelection.collapsed(offset: 7)),
@@ -327,8 +331,15 @@ void main() {
       await tester.pump();
 
       // Focus the editor and inject text via the TextInputClient.
+      //
+      // The pump here is deliberately longer than kDoubleTapTimeout: a
+      // double-tap recognizer shares this GestureDetector's gesture arena
+      // (feat/selection-stage1), so any tap through it delays onTapDown's
+      // own resolution — including the requestFocus() call inside it —
+      // until DoubleTapGestureRecognizer gives up waiting for a second tap.
+      // See the identical pattern a few tests below this one.
       await tester.tap(find.byType(MarkdownEditor));
-      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
       tester.testTextInput.updateEditingValue(
         const TextEditingValue(
           text: 'debounce test',

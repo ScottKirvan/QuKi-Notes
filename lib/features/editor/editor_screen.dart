@@ -78,10 +78,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
     WidgetsBinding.instance.addObserver(this);
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _editorController.requestFocus();
-    });
-
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final prefs = await SharedPreferences.getInstance();
       if (!mounted) return;
