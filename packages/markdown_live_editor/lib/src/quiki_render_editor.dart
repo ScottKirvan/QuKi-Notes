@@ -520,22 +520,19 @@ class QuikiRenderEditor extends RenderBox {
     return null;
   }
 
-  /// Returns the source offset of the collapsed checkbox element whose box
-  /// was tapped at [localPosition], or null if the tap does not hit any
-  /// collapsed checkbox box.
+  /// Returns the source offset of the collapsed checkbox element whose tap
+  /// zone contains [localPosition], or null if the tap does not hit any
+  /// checkbox's zone.
   ///
-  /// Hit-tests against the box's actual painted [Rect] — via
-  /// [_checkboxLocalRect], the same helper [paint] uses — rather than a
-  /// rendered-offset range: ADR-34 Fix 2 removed the inline blank-character
-  /// marker reservation the box's position used to be derived from, so there
-  /// is no rendered-offset range to test against any more; the box's real
-  /// on-screen position/size is the only source of truth for both painting
-  /// and hit-testing now. Returns [element.start] of the matching slot so the
-  /// caller can locate the marker in the source.
+  /// Hit-tests against [_checkboxHitTestRect], a widened zone anchored on the
+  /// box's actual painted [Rect] (#352) — not the painted box itself, which
+  /// has zero margin and is extremely hard to tap precisely. Returns
+  /// [element.start] of the matching slot so the caller can locate the marker
+  /// in the source.
   int? checkboxSourceOffsetForTap(Offset localPosition) {
     final textOffset = localPosition - _padding.topLeft;
     for (final slot in _renderModel.checkboxSlots) {
-      if (_checkboxLocalRect(slot).contains(textOffset)) {
+      if (_checkboxHitTestRect(slot).contains(textOffset)) {
         return slot.element.start;
       }
     }
@@ -566,8 +563,8 @@ class QuikiRenderEditor extends RenderBox {
 
   /// The checkbox box's [Rect] for [slot], in text-origin-relative local
   /// coordinates (no padding, no canvas offset) — shared by [paint] and
-  /// [checkboxSourceOffsetForTap] so the tap target always matches exactly
-  /// where the box is painted (ADR-34 Fix 2).
+  /// [_checkboxHitTestRect] (the latter widens it for tap purposes only; the
+  /// painted glyph itself always matches this rect exactly, ADR-34 Fix 2).
   ///
   /// The box sits in [slot]'s containing run's list-marker gutter,
   /// immediately to the left of that run's own content-start x
@@ -590,6 +587,34 @@ class QuikiRenderEditor extends RenderBox {
       boxSize,
       boxSize,
     );
+  }
+
+  /// The checkbox's tap **hit-test** [Rect] for [slot] — wider than the
+  /// painted glyph itself ([_checkboxLocalRect]), used only by
+  /// [checkboxSourceOffsetForTap] (#352). [paint] never uses this rect, so
+  /// the visible box size is unaffected — this widens only what counts as
+  /// "close enough" to register a tap.
+  ///
+  /// Extends the box's own rect horizontally to fill the *entire* reserved
+  /// list-marker gutter ([_listMarkerGutterWidth]) — from the gutter's own
+  /// left edge (where a shallower nesting level's content would start) all
+  /// the way to this run's content-start x ([_RunLayout.x]), which also folds
+  /// in [_listMarkerContentGap], the small gap between the box and the text.
+  /// Both of those exact regions are called out by #352 as currently-dead
+  /// tap space immediately around the box. Bounding the left edge to the
+  /// gutter's own width (rather than, say, padding by an arbitrary amount)
+  /// means this can never reach past this run's own reserved marker band —
+  /// it cannot bleed into a shallower level's content to the left.
+  ///
+  /// Vertical extent is left identical to [_checkboxLocalRect] — the bug
+  /// report and the box's own vertical placement (already tuned by #267) are
+  /// unrelated to this widening, and leaving it untouched guarantees this
+  /// zone can never reach into an adjacent line's own checkbox hit zone.
+  Rect _checkboxHitTestRect(CheckboxSlot slot) {
+    final r = _runForRendered(slot.renderedStart);
+    final box = _checkboxLocalRect(slot);
+    return Rect.fromLTRB(
+        r.x - _listMarkerGutterWidth, box.top, r.x, box.bottom);
   }
 
   /// The top-left [Offset] to paint a [ListMarkerSlot]'s [label] at, in
