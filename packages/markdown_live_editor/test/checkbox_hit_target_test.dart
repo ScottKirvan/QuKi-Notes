@@ -11,12 +11,13 @@
 // widened *data* range that a real tap never actually reaches would pass a
 // synthetic test while leaving the reported bug exactly as bad as before.
 //
-// Geometry constants here (`_listMarkerGutterWidth` = 24.0,
-// `_listMarkerContentGap` = 4.0) are copied from QuikiRenderEditor's own
-// private constants of the same name, mirroring the existing convention in
-// block_indentation_test.dart / reading_mode_safety_test.dart of each test
-// file keeping its own self-contained geometry helpers rather than sharing
-// a helper module.
+// The `_listMarkerGutterWidth` constant here (24.0) is copied from
+// QuikiRenderEditor's own private constant of the same name, mirroring the
+// existing convention in block_indentation_test.dart /
+// reading_mode_safety_test.dart of each test file keeping its own
+// self-contained geometry helpers rather than sharing a helper module. The
+// widened zone's right edge is content-start x itself, which already folds
+// in the content gap without needing that constant separately.
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -29,7 +30,6 @@ import 'package:markdown_live_editor/src/quiki_render_editor.dart';
 // ---------------------------------------------------------------------------
 
 const double _listMarkerGutterWidth = 24.0;
-const double _listMarkerContentGap = 4.0;
 
 // A fresh Key per pumpWidget call forces a real unmount + remount rather
 // than an in-place widget update — see notes/dev/testing.md's
@@ -231,17 +231,17 @@ void main() {
       final ro = renderEditorOf(tester);
       final slots = ro.renderModel.checkboxSlots;
       expect(slots, hasLength(2));
-      final firstSlot =
-          slots.firstWhere((s) => s.element.start == source.indexOf('- [ ] First'));
-      final secondSlot =
-          slots.firstWhere((s) => s.element.start == source.indexOf('- [ ] Second'));
+      final firstSlot = slots
+          .firstWhere((s) => s.element.start == source.indexOf('- [ ] First'));
+      final secondSlot = slots
+          .firstWhere((s) => s.element.start == source.indexOf('- [ ] Second'));
 
       // Tap 1px inside the second item's zone top edge — as close as
       // possible to the boundary with the first item's zone without
       // actually crossing into it.
       final secondZone = _zoneFor(ro, secondSlot);
-      final tapLocal =
-          Offset((secondZone.left + secondZone.right) / 2, secondZone.top + 1.0);
+      final tapLocal = Offset(
+          (secondZone.left + secondZone.right) / 2, secondZone.top + 1.0);
 
       await tester.tapAt(_toGlobal(tester, ro, tapLocal));
       await settleSingleTap(tester);
@@ -260,7 +260,8 @@ void main() {
     });
   });
 
-  group('Widened checkbox tap zone is still reading-mode-safe (#352, '
+  group(
+      'Widened checkbox tap zone is still reading-mode-safe (#352, '
       'no regression on #335/#266)', () {
     testWidgets(
         'tapping near the widened zone\'s edge while unfocused (reading '
