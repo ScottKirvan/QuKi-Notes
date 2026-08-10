@@ -290,7 +290,7 @@ The replacement editor lives in `packages/markdown_live_editor/` (monorepo path 
 
 ## ADR-15: Ephemerality model — Gmail-style, no auto-delete
 
-**Current.** QuKis are *framed* as ephemeral (newest-first stream, no folders, no tags) but persisted forever locally by default. A tossed QuKi is copied, not moved. User-initiated delete is the only deletion mechanism — no auto-archive, no expire-after-N-days.
+**Current.** QuKis are *framed* as ephemeral (newest-first stream, no folders, no tags) but persisted forever locally by default. A sent QuKi is copied, not moved. User-initiated delete is the only deletion mechanism — no auto-archive, no expire-after-N-days.
 
 **Why**: organizing friction is what makes vaults heavy; "ephemeral but searchable" framing keeps QuKis weightless without surprising the user with data loss.
 
@@ -300,7 +300,9 @@ The replacement editor lives in `packages/markdown_live_editor/` (monorepo path 
 
 ## ADR-14: Plugin architecture — three independent axes, Dart-only
 
-**Current — this is the live transport mechanism today.** Three plugin axes with separate lifecycles: **Transports**/QuKi-Tosses (stateless `(text, images) → success/failure`, multiple may exist, user picks at toss time — this is what's built and shipping), **Sync backends** (ADR-17, not yet built), **MCP servers** (v2.0+, not yet built). All plugins are Dart-only — no JS/TS, no native bindings (Obsidian gets a separate glue TypeScript plugin talking to a Dart-shaped endpoint, out of scope for core).
+**Current — this is the live transport mechanism today.** Three plugin axes with separate lifecycles: **Transports** (stateless `(text, images) → success/failure`, multiple may exist, user picks at transport time — this is what's built and shipping), **Sync backends** (ADR-17, not yet built), **MCP servers** (v2.0+, not yet built). All plugins are Dart-only — no JS/TS, no native bindings (Obsidian gets a separate glue TypeScript plugin talking to a Dart-shaped endpoint, out of scope for core).
+
+**Naming correction, 2026-08-09**: the internal implementation originally named these types/methods with a "Toss" prefix (`TossResult`, `TossContext`, `toss()`), predating this project's vocabulary lock (`CONTRIBUTING.md`) which already banned "Toss" from user-facing text. Per the project owner's direction, "Toss" has been removed from the codebase entirely — renamed to "Transport" throughout, reflected below.
 
 **Transport interface (MVP, live)**:
 ```dart
@@ -310,20 +312,20 @@ abstract class TransportPlugin {
   String get description;
   Widget settingsView(WidgetRef ref);
 
-  Future<TossResult> toss({
+  Future<TransportResult> transport({
     required String markdown,
     required List<Image> images,
-    required TossContext ctx,
+    required TransportContext ctx,
   });
 }
 
-class TossResult {
+class TransportResult {
   final bool success;
   final String? message;
   final bool retryable;
 }
 
-class TossContext {
+class TransportContext {
   final DateTime firedAt;
   final QukiMetadata quki;
   final Geolocation? gps;   // null unless all ADR-19 gates ON
@@ -355,7 +357,7 @@ class TossContext {
 
 ## ADR-11: Rate limiting & lazy image download (sync-plugin scope)
 
-**Locked, applies only once a sync plugin exists (v1.1+)** — MVP has no rate-limit considerations since nothing leaves the device until toss. GitHub sync plugin: throttle when `X-RateLimit-Remaining < 100`; QuKis pulled newest-first; images lazy-fetched on first view (row inserted with `localPath = null`) since bodies are KB-sized but images can be MB each. Per-transport rate-limit behavior is that plugin's responsibility, not core's.
+**Locked, applies only once a sync plugin exists (v1.1+)** — MVP has no rate-limit considerations since nothing leaves the device until sent. GitHub sync plugin: throttle when `X-RateLimit-Remaining < 100`; QuKis pulled newest-first; images lazy-fetched on first view (row inserted with `localPath = null`) since bodies are KB-sized but images can be MB each. Per-transport rate-limit behavior is that plugin's responsibility, not core's.
 
 ---
 
@@ -389,7 +391,7 @@ Superseded by ADR-14 (transport plugins replace the JSON workflow DSL) and ADR-1
 
 ## ADR-6: Save vs Push — separate concerns (MVP: save only)
 
-**Current** (storage mechanism corrected for ADR-25 — "SQLite" in the original entry is now "local files", nothing else changed). **Save** (local files): 2s idle debounce + 30s periodic + lifecycle `inactive`/`paused`/`detached`. Never blocks, never networks. **Push** (sync plugin): not in MVP; when it lands (v1.1+), 2s idle + foreground + manual sync only — periodic/lifecycle saves never trigger push. **Toss** (transport): user-initiated only, never automatic.
+**Current** (storage mechanism corrected for ADR-25 — "SQLite" in the original entry is now "local files", nothing else changed). **Save** (local files): 2s idle debounce + 30s periodic + lifecycle `inactive`/`paused`/`detached`. Never blocks, never networks. **Push** (sync plugin): not in MVP; when it lands (v1.1+), 2s idle + foreground + manual sync only — periodic/lifecycle saves never trigger push. **Send** (transport): user-initiated only, never automatic.
 
 **Why**: protects against long-typing-run data loss without networking; max unsaved window ≈ 30s.
 
@@ -407,11 +409,11 @@ Superseded by ADR-14 (transport plugins replace the JSON workflow DSL) and ADR-1
 
 ## ADR-4: Image storage — separate binary files
 
-**Locked design; feature itself blocked** (image paste blocked on CargoKit being archived — see `dependencies.md`). Binary files at `<app docs>/images/{filename}` (`YYYY-MM-DD-{uuid8}.{ext}`), referenced from QuKi markdown as `![](../images/{filename})` (relative, so the reference stays portable when tossed). Cascade delete on QuKi delete. When a sync plugin is active: push image before referencing QuKi, to avoid a broken-link window.
+**Locked design; feature itself blocked** (image paste blocked on CargoKit being archived — see `dependencies.md`). Binary files at `<app docs>/images/{filename}` (`YYYY-MM-DD-{uuid8}.{ext}`), referenced from QuKi markdown as `![](../images/{filename})` (relative, so the reference stays portable when sent). Cascade delete on QuKi delete. When a sync plugin is active: push image before referencing QuKi, to avoid a broken-link window.
 
 **Correction, 2026-08-09**: this `../images/{filename}` relative-path convention was designed around a `<storage-root>/qukis/{uuid}.md` on-disk layout (image folder as a *sibling* of the folder holding notes). The actual production layout after ADR-27/28 is flat — `.md` files live directly at `<storage-root>/{uuid}.md`, no nested `qukis/` subfolder — so `../images/{filename}` resolves *outside* the user's chosen storage folder entirely (a sibling of it, not nested within it). Confirmed by the project owner that image rendering has never actually worked in practice (always a blank gray placeholder); this path mismatch is one traced contributing cause, on top of there being no working UI path to place a file at the referenced location at all (paste blocked, no insert button) and `_loadImage` only ever reading local files (no remote-URL handling for images introduced via HTML-paste conversion, ADR-35). See #344 for the full bug report and #246/#247 for the separately-tracked feature requests (external-URL images, clipboard paste) this depends on. Whether the fix is updating the reference convention to match the flat layout, or nesting notes back under `qukis/`, is not yet decided — needs a design pass alongside whichever of #246/#247 actually unblocks image creation in the first place.
 
-**Rejected**: base64-embed in markdown (file bloat, editor performance, unreadable when tossed).
+**Rejected**: base64-embed in markdown (file bloat, editor performance, unreadable when sent).
 
 ---
 

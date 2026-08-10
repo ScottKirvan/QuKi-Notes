@@ -44,7 +44,7 @@ flutter create . \
   --platforms=android,windows,linux,ios,macos \
   --org com.quki \
   --project-name quki_notes \
-  --description "QuKi-Notes — capture and toss ephemeral notes."
+  --description "QuKi-Notes — capture and send ephemeral notes."
 ```
 
 This adds `lib/`, `android/`, `windows/`, `linux/`, `ios/`, `macos/`, `test/`, `pubspec.yaml`, etc. alongside the existing planning docs.
@@ -56,7 +56,7 @@ iOS and macOS scaffolds are created so the codebase compiles for them; they're *
 Replace the generated file. Use `dependencies.md` as the source of truth for which packages belong in Phase 1. Concretely:
 
 - `name: quki_notes`
-- `description: QuKi-Notes — capture and toss ephemeral notes.`
+- `description: QuKi-Notes — capture and send ephemeral notes.`
 - `publish_to: 'none'`
 - `version: 0.1.0+1`
 - `environment.sdk: '>=3.5.0 <4.0.0'` (or current stable)

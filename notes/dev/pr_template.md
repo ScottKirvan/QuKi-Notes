@@ -17,7 +17,7 @@ Scope is the feature folder name when applicable: `feat(editor):`, `feat(stream)
 
 **Examples:**
 - `feat(editor): add formatting toolbar with bold/italic/strikethrough`
-- `feat(transports): add clipboard toss as first built-in transport`
+- `feat(transports): add clipboard transport as first built-in transport`
 - `fix(stream): preserve scroll position after swipe-to-delete`
 - `chore(deps): pin flutter_secure_storage to 9.x`
 

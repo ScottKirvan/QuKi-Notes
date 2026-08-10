@@ -11,15 +11,15 @@ This file is the operational spec. The policy decision lives in `decisions.md` �
 | Layer           | Tool                        | What goes here                                                                                                                                               |
 | --------------- | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Unit            | `flutter_test` + `mocktail` | Pure logic, services with substitutable deps, DAOs (against in-memory drift), serializers, transport plugins' core logic                                     |
-| Widget          | `flutter_test`              | UI behavior where the widget has non-trivial state or transforms input (formatting toolbar, toss sheet, image-paste handler)                                |
-| Integration     | `integration_test/`         | End-to-end flows across DB + UI on a real device or emulator (QuKi CRUD round-trip, paste→render→save→reopen, toss success/failure)                          |
+| Widget          | `flutter_test`              | UI behavior where the widget has non-trivial state or transforms input (formatting toolbar, transport picker sheet, image-paste handler)                                |
+| Integration     | `integration_test/`         | End-to-end flows across DB + UI on a real device or emulator (QuKi CRUD round-trip, paste→render→save→reopen, send success/failure)                          |
 | Drift migration | `drift_dev schema verify`   | Schema snapshots in `test/db/schemas/`. Required for every `schemaVersion` bump per ADR-8                                                                    |
 
 ---
 
 ## What must have a test
 
-- Every transport plugin's `toss()` happy path + at least one failure path (retryable + non-retryable)
+- Every transport plugin's `transport()` happy path + at least one failure path (retryable + non-retryable)
 - Every transport plugin's `settingsView` validation (rejecting bad input, persisting good input)
 - The save controller's debounce/periodic/lifecycle triggers
 - The 24h delete-sweep behavior (boundary cases)
@@ -57,7 +57,7 @@ test/
 │   │   ├── transport_registry_test.dart
 │   │   ├── save_controller_test.dart
 │   │   └── plugins/
-│   │       ├── clipboard_toss_test.dart
+│   │       ├── clipboard_transport_test.dart
 │   │       └── ...
 │   └── settings/
 ├── features/
@@ -146,8 +146,8 @@ flutter test integration_test/
 |---|---|
 | 0 (bootstrap) | Generated default widget test passes — proves CI toolchain works |
 | 1 (local capture) | DAO tests (qukis + images), save controller triggers, 24h delete sweep, formatting toolbar widget tests, image paste validation, image-ref diff, super_editor round-trip |
-| 2 (transports) | Transport registry tests, first built-in toss (likely clipboard) happy + failure paths, toss-sheet widget test, settings view for each plugin |
-| 3 (polish + Win + Linux) | Share-in handler, accessibility semantics, integration tests for full capture→toss flows, platform-specific quirks (keyboard shortcuts, file path separators, libsecret on Linux) |
+| 2 (transports) | Transport registry tests, first built-in transport (likely clipboard) happy + failure paths, transport-picker-sheet widget test, settings view for each plugin |
+| 3 (polish + Win + Linux) | Share-in handler, accessibility semantics, integration tests for full capture→send flows, platform-specific quirks (keyboard shortcuts, file path separators, libsecret on Linux) |
 | 4 (sync, v1.1+) | First sync backend with mocked dio, sync state machine, conflict resolver, rate-limit throttle, OAuth device flow polling |
 | 6 (MCP, v2.0+) | MCP server handler tests, JSON-RPC envelope round-trip, capability negotiation |
 

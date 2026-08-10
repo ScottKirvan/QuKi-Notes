@@ -76,7 +76,7 @@ Bulk-pull progress banner: always, or only above some threshold? Decision belong
 
 - **OQ-5: Workflow JSON schema validation** — **Removed.** Workflow JSON DSL dropped entirely per ADR-14. Transports are Dart code; no JSON schema to validate.
 
-- **OQ-NEW-1: Which built-in QuKi-Toss ships first?** — **Resolved (Phase 2, v0.5.0).** Both ClipboardToss and ShareSheetToss shipped in the same Phase 2 PR. Clipboard proved the loader + UI first (zero deps, zero auth); Share Sheet followed immediately. Append-to-GitHub-file deferred until the OAuth helper exists (Phase 4+). No new ADR needed — consistent with the "likely resolution" stated at spec time.
+- **OQ-NEW-1: Which built-in transport ships first?** — **Resolved (Phase 2, v0.5.0).** Both ClipboardTransport and ShareSheetTransport shipped in the same Phase 2 PR. Clipboard proved the loader + UI first (zero deps, zero auth); Share Sheet followed immediately. Append-to-GitHub-file deferred until the OAuth helper exists (Phase 4+). No new ADR needed — consistent with the "likely resolution" stated at spec time.
 
 - **OQ-NEW-2: Plugin discovery model** — **Resolved (Phase 2, v0.5.0).** Built-in compile-time registry only (`lib/core/transports/registry.dart`). Every transport ships in the same APK; new transports require a new app version. Re-evaluate if third parties start writing transports post-v1.
 

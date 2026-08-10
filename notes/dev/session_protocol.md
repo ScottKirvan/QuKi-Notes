@@ -69,7 +69,7 @@ What to do at the **start** and **end** of every implementation session, and the
 | Plugin secrets and full QuKi contents are never logged. | ADR-12 |
 | Image base64-embedding in markdown is forbidden. Images are separate binary files referenced as `![](../images/...)`. | ADR-4 |
 | Deletion moves the QuKi to a `.trash/` subfolder inside the storage root. Hard delete is user-initiated from the Recently Deleted screen. No background sweep, no timer. | ADR-25 |
-| Save (local) and Toss (transport) are separate. Toss is **always** user-initiated. No auto-toss. | ADR-6, ADR-14 |
+| Save (local) and Send (transport) are separate. Send is **always** user-initiated. No auto-send. | ADR-6, ADR-14 |
 | Tests ship with the code in every feature PR — not retrofitted later | ADR-13 |
 | Bug fixes: failing regression test **first**, verify it fails, then write the fix | ADR-13 |
 | Flaky tests are tagged and fixed within one session — never left to accumulate | ADR-13 |

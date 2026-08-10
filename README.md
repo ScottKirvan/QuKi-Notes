@@ -183,7 +183,7 @@ lib/
 ├── core/
 │   ├── storage/                 # QuKiStorage (file I/O), QuKiIndex, TrashIndex, QuKiSearch
 │   ├── transports/              # TransportPlugin interface + compile-time registry
-│   │   └── plugins/             # ClipboardToss, ShareSheetToss
+│   │   └── plugins/             # ClipboardTransport, ShareSheetTransport
 │   ├── auth/                    # Reserved — OAuth device flow (ADR-9, v1.1+)
 │   ├── settings/                # shared_preferences wrapper
 │   └── sync/                    # Reserved skeleton (ADR-17, v1.1+)
@@ -210,7 +210,7 @@ QuKi Notes is built around three extension points. Only the first is active in t
 | **Sync** | Move QuKis across a user's own devices, opt-in per backend | Reserved skeleton — v1.1+ |
 | **MCP** | Expose QuKi Notes to AI agents over Model Context Protocol | Reserved — v2.0+ |
 
-Transports are registered at compile time in `lib/core/transports/registry.dart`. The interface is `TransportPlugin` — implement `toss()` + `settingsView()` and add to the registry.
+Transports are registered at compile time in `lib/core/transports/registry.dart`. The interface is `TransportPlugin` — implement `transport()` + `settingsView()` and add to the registry.
 
 
 
