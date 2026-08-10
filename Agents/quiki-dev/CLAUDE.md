@@ -59,5 +59,6 @@ The checkbox/selection reading-mode-safety effort is fully shipped: PR #350 (mer
 The Toss → Transport rename is also fully shipped: PR #347 (code) and PR #348 (docs), both merged 2026-08-09.
 
 **Known real gaps found during the checkbox effort, filed but not yet briefed**:
-- **#349** — link-tap has the identical eager-focus-before-hit-test pattern checkboxes had before this fix; likely also opens the keyboard when tapped in reading mode.
-- **#328** — text selection in reading mode partially addressed by PR #350 (selecting no longer opens the keyboard), but whether handles/toolbar render, and whether the toolbar should scope down to Copy/Select-All-only, is still open.
+- **#328** — text selection in reading mode partially addressed by PR #350 (selecting no longer opens the keyboard). Per the project owner (2026-08-10), likely a downstream symptom of #340 rather than a separate selection-specific gap — see #340 for a new concrete repro (a persistent black keyboard-shaped bar on the QuKis list screen, traced to a stale `MediaQuery.viewInsets.bottom` that reproduces against a plain Flutter `TextField`, not the custom editor).
+
+(#349, link-tap eager-focus, was filed as a hypothesized mirror of the checkbox bug but confirmed working correctly by the project owner and closed — not a real gap.)
