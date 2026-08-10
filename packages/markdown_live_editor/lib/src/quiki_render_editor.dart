@@ -636,11 +636,31 @@ class QuikiRenderEditor extends RenderBox {
   /// report and the box's own vertical placement (already tuned by #267) are
   /// unrelated to this widening, and leaving it untouched guarantees this
   /// zone can never reach into an adjacent line's own checkbox hit zone.
+  ///
+  /// Round 4 (#352): device-tested again after round 2/3 landed — tapping at
+  /// the farthest-left point actually reachable on screen, right next to a
+  /// checkbox, still fell through to edit mode instead of toggling it. Root
+  /// cause: [checkboxSourceOffsetForTap] converts the incoming
+  /// widget-relative `localPosition` into this rect's own text-origin-
+  /// relative coordinate space by subtracting `_padding.topLeft` BEFORE
+  /// hit-testing — but round 2 anchored this rect's left edge at `0`, which
+  /// is text-origin-relative local x = 0, not the widget's own left edge.
+  /// [_padding] (`EdgeInsets.fromLTRB(12, 12, 12, 36)`, configured by
+  /// `EditorScreen`) sits further left than that: a tap at the actual
+  /// leftmost pixel of the editor widget (`localPosition.dx == 0`) produces
+  /// `textOffset.dx == -_padding.left` — outside `[0, gutterRight)` — even
+  /// though visually that padding strip reads as more of the same blank
+  /// margin a user would expect to be part of the tap target. The left edge
+  /// now starts at `-_padding.left` instead of `0`, covering the padding
+  /// strip too; the right edge is untouched. This mirrors round 2's own
+  /// framing exactly, one coordinate-space layer further out: round 2 fixed
+  /// "gutter-relative" vs. "row-relative", this fixes "row-relative" vs.
+  /// "widget-relative".
   Rect _checkboxHitTestRect(CheckboxSlot slot) {
     final r = _runForRendered(slot.renderedStart);
     final box = _checkboxLocalRect(slot);
     final gutterRight = r.x;
-    return Rect.fromLTRB(0, box.top, gutterRight, box.bottom);
+    return Rect.fromLTRB(-_padding.left, box.top, gutterRight, box.bottom);
   }
 
   /// The top-left [Offset] to paint a [ListMarkerSlot]'s [label] at, in
