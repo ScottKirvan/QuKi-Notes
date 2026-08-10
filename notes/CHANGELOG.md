@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.21.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.20.0...v0.21.0) (2026-08-10)
+
+
+### Features
+
+* add pre-release staging workflow, update release pipeline ([caf0888](https://github.com/ScottKirvan/QuKi-Notes/commit/caf0888a2e7ab5206cedc9a9db9ec9ab91bbbedc))
+* auto-scroll while dragging a selection handle near a viewport edge ([063bc45](https://github.com/ScottKirvan/QuKi-Notes/commit/063bc456511dec9cbc285ec333ef45e35e69101a))
+* convert pasted HTML clipboard content to GFM markdown (ADR-35) ([04c0a6a](https://github.com/ScottKirvan/QuKi-Notes/commit/04c0a6a680a5744b0db87903022d9a8f8498e88d))
+* draggable selection handles (ADR-36 Stage 2) ([3a4ec5d](https://github.com/ScottKirvan/QuKi-Notes/commit/3a4ec5de315af96bb3911fea909d0077de2e41c2))
+* entity-aware double-tap selection, fix long-press word truncation ([3526a92](https://github.com/ScottKirvan/QuKi-Notes/commit/3526a92056a2b8d9c1e7f0f70e8b9cf4cf7b8729))
+* interactive Indent/Dedent for list items and paragraphs (ADR-34 Stage 4, [#77](https://github.com/ScottKirvan/QuKi-Notes/issues/77)) ([993a7fc](https://github.com/ScottKirvan/QuKi-Notes/commit/993a7fcbb6952bc0c6798cc0e496118d3cffac86))
+* selection handle magnifier + haptic feedback (ADR-36 Stage 4) ([5945278](https://github.com/ScottKirvan/QuKi-Notes/commit/5945278fad91f361e92fe0df322e82f8e8f41c73))
+
+
+### Bug Fixes
+
+* add manual workflow dispatch for rewriting release notes ([61b2a1f](https://github.com/ScottKirvan/QuKi-Notes/commit/61b2a1f3f08f07b576a76fdf054eaf6a8c8a5649))
+* anchor checkbox tap zone at the row's true left edge, not the gutter width ([#352](https://github.com/ScottKirvan/QuKi-Notes/issues/352), round 2) ([86abf1a](https://github.com/ScottKirvan/QuKi-Notes/commit/86abf1a13b7d5e2de1c7d9be18736f7489bb082f))
+* correct selection-handle touch resolution for its below-line offset ([189d35a](https://github.com/ScottKirvan/QuKi-Notes/commit/189d35ad6de78b9abcf2bf22bbe42eade1824bf1))
+* extend checkbox tap hit-test zone to cover content padding ([#352](https://github.com/ScottKirvan/QuKi-Notes/issues/352), round 4) ([cb39711](https://github.com/ScottKirvan/QuKi-Notes/commit/cb397110b18872b04595846fb3093abf9b25779c))
+* hr lines no-op on Indent — no tab position preserves recognition ([c164630](https://github.com/ScottKirvan/QuKi-Notes/commit/c164630fdaffd36ea77d0f8c275dcc08b381a252))
+* keep checkbox taps and text selection reading-mode-safe ([#335](https://github.com/ScottKirvan/QuKi-Notes/issues/335), [#266](https://github.com/ScottKirvan/QuKi-Notes/issues/266), [#336](https://github.com/ScottKirvan/QuKi-Notes/issues/336)) ([a9c3219](https://github.com/ScottKirvan/QuKi-Notes/commit/a9c3219f7b69785d8d0b276cbb06dbd96c53a577))
+* make FormattingToolbar horizontally scrollable ([75fdd89](https://github.com/ScottKirvan/QuKi-Notes/commit/75fdd89a932df014ad467ace3db143eababc4a5e))
+* migrate starline badge to self-hosted GitHub Action ([228e5bf](https://github.com/ScottKirvan/QuKi-Notes/commit/228e5bf27fd6f063b7e5ecf9c45648a809f03dff))
+* move link banner to header and add Ko-Fi support link ([fd6d4a3](https://github.com/ScottKirvan/QuKi-Notes/commit/fd6d4a34078af9c91510a0aef77e248c7c37e400))
+* selection handle overlay position going stale after scrolling ([a1986b4](https://github.com/ScottKirvan/QuKi-Notes/commit/a1986b46f51f97a813ed55d48b0faedbdfb40bcb))
+* skip leading indentation whitespace before reading a checkbox's marker ([#354](https://github.com/ScottKirvan/QuKi-Notes/issues/354)) ([2b1d21f](https://github.com/ScottKirvan/QuKi-Notes/commit/2b1d21f7228eaf2c70349ac8b03cea3bc6c96a93))
+* strip non-functional cold-launch auto-focus; correct docs claiming it and image rendering work ([6ee0db9](https://github.com/ScottKirvan/QuKi-Notes/commit/6ee0db92fe493f27636c7f8cadaf077ec65fe1d1))
+* swap super_clipboard for quill_native_bridge in HTML paste (ADR-35) ([1ca9745](https://github.com/ScottKirvan/QuKi-Notes/commit/1ca974554b731611e267e0e9546a2c8222c723ef))
+* **ui:** add Ko-fi link, QuKis list Help button, tighter list density ([5dbe834](https://github.com/ScottKirvan/QuKi-Notes/commit/5dbe834faa4c03618963b24345ebe9557b851adb))
+* widen checkbox tap hit-test zone beyond the exact painted glyph ([#352](https://github.com/ScottKirvan/QuKi-Notes/issues/352)) ([c1a8d44](https://github.com/ScottKirvan/QuKi-Notes/commit/c1a8d44a83a65325c418b8fdb67008f3cfb6a7f8))
+* widen literal tab rendering to 4 space-widths ([#305](https://github.com/ScottKirvan/QuKi-Notes/issues/305) follow-up) ([7a77b39](https://github.com/ScottKirvan/QuKi-Notes/commit/7a77b39324e2e6a3d9bb391d9a8337409b2c3b72))
+* wire discord_blurb through artifact, update context, add preview workflow ([177b03b](https://github.com/ScottKirvan/QuKi-Notes/commit/177b03bf37aff8713a3110c7088461b636c2fb6b))
+
 ## [0.20.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.19.0...v0.20.0) (2026-07-24)
 
 
