@@ -52,13 +52,41 @@ Read in this order — do not skip:
 
 > Written and maintained by the Spec session.
 
-**No task currently in progress.**
+### Fix: block-marker reveal must be scoped to the marker itself, not the whole line (#345, ADR-37)
+
+**Branch**: `fix/marker-scoped-reveal`
+**Commit type**: `fix:` — closing a confirmed-wrong design decision (see ADR-37, `notes/dev/decisions.md`), not new UX.
+
+Read #345 in full on GitHub first (including the 2026-08-10 comment with the confirmed root cause) and read ADR-37 in `notes/dev/decisions.md` before starting.
+
+**Confirmed symptom**: today, whenever the cursor lands *anywhere* on a list-item, heading, or blockquote line, the entire line reveals as raw markdown source — marker, indentation, and all inline content — even though only the marker itself needs to be raw for editing. This causes a visible left-snap/jump on every such line the cursor touches, which the project owner has confirmed leads to real typing mistakes in daily use, not just a visual annoyance.
+
+**Confirmed root cause** (already traced by spec — verify yourself against the current code before proceeding, don't just trust this restatement): `RenderModel.build()` in `packages/markdown_live_editor/lib/src/render_model.dart` computes the "reveal unit" as `topLevel = block ?? (active.isEmpty ? null : active.first)` (~line 560), and the block-level `MdElement` for list/checkbox/heading/blockquote kinds spans the *entire line* (`block.start` to `block.end`), not just the marker. The code's own existing comment states this is deliberate: "a block always encloses its line's inline children, so it is the outermost [reveal unit] when present." `revealed = cursorOffset >= topLevel.start && cursorOffset <= topLevel.end` then evaluates true for the cursor anywhere in that whole span.
+
+**The target, restated precisely by the project owner**: "I want everything fully rendered until you're actually inside some formatted markdown text, then only reveal that portion for editing — same behavior as regular line editing." I.e., the block marker should be treated as *just another revealable element* with its own narrow range — exactly like bold/italic/links/inline-code already are — not as something whose reveal boundary drags the whole line along with it.
+
+**Correctness invariants** (not a prescribed mechanism — you decide how to wire this into `RenderModel`):
+- A list-item (`ul`/`ol`/`checkboxUnchecked`/`checkboxChecked`), heading (`h1`–`h6`), or blockquote (`blockquote`) line's marker reveals as raw source **only** when the cursor is positioned within the marker's own source character range — not merely somewhere else on the same line.
+- `MdElement.openDelimLen` (already exists, already computes the exact marker length for every one of these kinds, including the variable-length list/ol/checkbox/blockquote cases via the existing `srcMarkerLen` mechanism from ADR-34) is very likely the right building block for the marker's own narrow end (`block.start + block.openDelimLen`) — verify this is actually correct for every kind in scope before relying on it, don't just assume the field means what its doc comment implies.
+- Inline content elsewhere in that same line (bold, italic, links, inline code, nested emphasis) must keep its **exact existing** per-element reveal behavior, completely unaffected by this change — this fix only changes how the block-level marker portion participates in reveal computation, nothing about the inline-scanning/nesting machinery (ADR-33) should need to change.
+- When the marker is *not* revealed, it must render exactly as it already does today in the collapsed/off-cursor case (bullet glyph, checkbox box, heading type-scale, blockquote stripe) — this is purely about *when* reveal triggers, not a visual redesign of either state.
+- Scope is `ul`/`ol`/`checkboxUnchecked`/`checkboxChecked`/`h1`-`h6`/`blockquote` — **not** `image` or `hr`. Those two kinds have no inline content sharing the line with their marker (the "marker" effectively *is* the whole line already, by design — `openDelimLen` for both is `end - start`), so they're not affected by this bug and should be left alone; don't extend the fix to them speculatively.
+- Must not regress the just-shipped checkbox reading-mode-safety behavior (PR #350, #335/#266/#352/#354) — a checkbox *tap* (not a cursor placement) still must not move the cursor into the marker's range or trigger a reveal. Since checkbox-toggle already returns early before any cursor placement (`_onTapDown`'s checkbox branch), this should be naturally unaffected — confirm this with a test rather than assuming it.
+- Cursor-boundary behavior (exactly at the transition between the marker's own range and the first inline character) should resolve consistently with how other element boundaries already resolve in this codebase (the existing `>=`/`<=` inclusive-end convention) — get this right, don't introduce a new, different boundary rule just for markers.
+
+**Explicitly out of scope**: `image`/`hr` kinds (see above). Any change to how markers are *painted* when collapsed. Any change to checkbox tap-to-toggle logic itself. #340/#328 (separate, unrelated keyboard-detection issue).
+
+**Required test coverage**: real cursor-position/interaction tests (not just `RenderModel` data assertions in isolation, though those are useful too) confirming: (a) placing the cursor inside a list item's/heading's/blockquote's inline text content does **not** reveal or shift the marker; (b) placing the cursor directly within the marker's own characters **does** reveal it as raw, editable source; (c) existing inline reveal behavior (bold/italic/links/nested emphasis) inside list items, headings, and blockquotes continues working exactly as before, unchanged; (d) this holds for at least one nested/indented list case (ADR-34), not just a top-level list; (e) a checkbox tap-to-toggle still does not trigger the marker's reveal (non-regression against PR #350).
+
+**Checklist**: `dart format`, `flutter analyze`, both package tests (`cd packages/markdown_live_editor && flutter test`) and root tests (`flutter test` from repo root) — both suites, every time, note before/after counts. Report back: how you exposed/computed the marker's own narrow reveal range, confirmation `openDelimLen` was actually correct for every in-scope kind (or what you found instead if it wasn't), test evidence for each invariant above, and whether headings/blockquotes needed anything different from list items or all fell out of the same fix uniformly.
+
+---
 
 The checkbox/selection reading-mode-safety effort is fully shipped: PR #350 (merged 2026-08-10) closed **#335**, **#266**, **#336**, **#352**, and **#354** across four device-tested rounds. See root `CLAUDE.md` → Phase 3.60 and `notes/dev/decisions.md` for the full record.
 
 The Toss → Transport rename is also fully shipped: PR #347 (code) and PR #348 (docs), both merged 2026-08-09.
 
-**Known real gaps found during the checkbox effort, filed but not yet briefed**:
+**Known real gaps, filed but not yet briefed**:
 - **#328** — text selection in reading mode partially addressed by PR #350 (selecting no longer opens the keyboard). Per the project owner (2026-08-10), likely a downstream symptom of #340 rather than a separate selection-specific gap — see #340 for a new concrete repro (a persistent black keyboard-shaped bar on the QuKis list screen, traced to a stale `MediaQuery.viewInsets.bottom` that reproduces against a plain Flutter `TextField`, not the custom editor).
 
 (#349, link-tap eager-focus, was filed as a hypothesized mirror of the checkbox bug but confirmed working correctly by the project owner and closed — not a real gap.)
