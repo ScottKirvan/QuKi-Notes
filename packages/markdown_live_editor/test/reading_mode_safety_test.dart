@@ -170,7 +170,7 @@ void handleCheckboxToggle(
   }
   final newText =
       current.replaceRange(sourceOffset, sourceOffset + 6, replacement);
-  controller.setValue(newText);
+  controller.setValuePreservingSelection(newText);
 }
 
 void main() {

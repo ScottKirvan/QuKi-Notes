@@ -261,6 +261,21 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
   // select is restricted to mouse/stylus and touch gets normal scroll behaviour.
   PointerDeviceKind _lastPointerKind = PointerDeviceKind.touch;
 
+  // #336: whether the editor already had focus immediately BEFORE the
+  // current gesture's very first physical pointer-down — captured in the
+  // Listener.onPointerDown callback below (build()), which fires
+  // synchronously for every raw pointer down, ahead of any gesture
+  // recognizer's own (possibly delayed) callbacks. This is deliberately NOT
+  // read from inside _onTapDown itself: _onTapDown's own focus-request is
+  // one of the things that can change focus mid-gesture (e.g. partway
+  // through a long-press's hold, well before _onLongPressStart fires — see
+  // that method's doc comment), so by the time _onLongPressStart or
+  // _onDoubleTapDown runs, widget.focusNode.hasFocus may already reflect a
+  // change _onTapDown itself just made for THIS SAME gesture. Capturing at
+  // the raw pointer-down instead records the true pre-gesture state, immune
+  // to that ordering.
+  bool _hadFocusAtPointerDown = false;
+
   // Bug 4: anchor offset for long-press word selection.
   int? _longPressAnchor;
 
@@ -1300,6 +1315,27 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     // Dismiss the selection toolbar on any new tap.
     _toolbarController.remove();
 
+    // Bug 1: globalToLocal already accounts for the scroll translation baked
+    // into the render tree — do NOT add scrollOffset again.
+    final re = _renderEditor;
+    final localPos = re?.globalToLocal(details.globalPosition);
+
+    // Checkbox tap detection (#335, #266): checked BEFORE the focus/
+    // connection handling below, and returns without touching focus at all.
+    // A checkbox toggle must be a reading-mode-safe operation — it must
+    // never itself request focus or re-show the keyboard, regardless of
+    // whether the editor was already focused. (Previously this check ran
+    // after the focus block, so every checkbox tap requested focus / re-
+    // showed the IME connection as an unconditional side effect of the tap,
+    // even when the note was in reading mode.)
+    if (re != null && localPos != null) {
+      final checkboxSrcOffset = re.checkboxSourceOffsetForTap(localPos);
+      if (checkboxSrcOffset != null) {
+        widget.onCheckboxToggle?.call(checkboxSrcOffset);
+        return;
+      }
+    }
+
     // Bug 3: handle all focus/connection states so the keyboard is always
     // shown after a tap regardless of how the previous session ended.
     if (!widget.focusNode.hasFocus) {
@@ -1313,25 +1349,13 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
       _connection!.show();
     }
 
-    final re = _renderEditor;
-    if (re == null) return;
-    // Bug 1: globalToLocal already accounts for the scroll translation baked
-    // into the render tree — do NOT add scrollOffset again.
-    final localPos = re.globalToLocal(details.globalPosition);
+    if (re == null || localPos == null) return;
 
     // Link tap detection: if the tap lands on a collapsed link, call
     // onLinkTap and do NOT move the cursor.
     final linkUrl = re.linkUrlForOffset(localPos);
     if (linkUrl != null) {
       widget.onLinkTap?.call(linkUrl);
-      return;
-    }
-
-    // Checkbox tap detection: if the tap lands on a collapsed ☐/☑ glyph,
-    // call onCheckboxToggle with the source offset and do NOT move the cursor.
-    final checkboxSrcOffset = re.checkboxSourceOffsetForTap(localPos);
-    if (checkboxSrcOffset != null) {
-      widget.onCheckboxToggle?.call(checkboxSrcOffset);
       return;
     }
 
@@ -1395,6 +1419,31 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     _panAnchor = null;
   }
 
+  // #336: undoes _onTapDown's eager focus/keyboard request when this same
+  // gesture turns out to have been a long-press or double-tap that created a
+  // genuine (non-collapsed) selection, AND the editor was unfocused before
+  // the gesture started (_hadFocusAtPointerDown). _onTapDown cannot itself
+  // avoid requesting focus for these gestures — at the moment it runs, the
+  // arena has not yet resolved single-tap vs. long-press vs. double-tap, so
+  // there is no way to know in advance that this pointer-down will become a
+  // selection gesture rather than an ordinary tap-to-edit. Reversing it here
+  // instead keeps _onTapDown's existing eager-focus timing (already tuned
+  // and device-confirmed for the plain-tap case, ADR-36 Stage 1) untouched.
+  //
+  // Deliberately gated on !entitySel.isCollapsed: a long-press that finds no
+  // entity to select (falls back to a collapsed cursor placement, exactly
+  // like a plain tap) is left alone and keeps entering edit mode — only a
+  // genuine selection is treated as reading-mode-safe.
+  //
+  // If the editor was ALREADY focused before the gesture, this never fires
+  // — an in-progress edit session must not be disrupted by a selection
+  // gesture.
+  void _restoreReadingModeIfSelectionCreated(TextSelection entitySel) {
+    if (!_hadFocusAtPointerDown && !entitySel.isCollapsed) {
+      widget.focusNode.unfocus();
+    }
+  }
+
   // Bug 4: long-press selects the entity under the finger (touch only).
   // Double-tap (_onDoubleTapDown, below) shares this exact same
   // determination — both are just different gesture entry points into
@@ -1417,6 +1466,7 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     // LONG_PRESS) — the exact "same category of feedback as a long-press
     // anywhere else in Android" the spec calls for.
     if (!entitySel.isCollapsed) HapticFeedback.vibrate();
+    _restoreReadingModeIfSelectionCreated(entitySel);
   }
 
   // Double-tap: identical underlying word/entity determination as
@@ -1443,6 +1493,7 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     // feedback under the same condition.
     if (!entitySel.isCollapsed) HapticFeedback.vibrate();
     _showSelectionToolbar();
+    _restoreReadingModeIfSelectionCreated(entitySel);
   }
 
   void _onLongPressMoveUpdate(LongPressMoveUpdateDetails details) {
@@ -1971,8 +2022,14 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     );
 
     // Bug 2: track pointer device kind so _onPanUpdate can gate on mouse/stylus.
+    // #336: also capture the pre-gesture focus state here — see
+    // _hadFocusAtPointerDown's doc comment for why this must be the raw
+    // pointer-down, not anything read from inside a gesture callback.
     final gestureDetector = Listener(
-      onPointerDown: (e) => _lastPointerKind = e.kind,
+      onPointerDown: (e) {
+        _lastPointerKind = e.kind;
+        _hadFocusAtPointerDown = widget.focusNode.hasFocus;
+      },
       child: GestureDetector(
         behavior: HitTestBehavior.translucent,
         onTapDown: _onTapDown,
