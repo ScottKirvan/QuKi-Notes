@@ -12,6 +12,22 @@ Normative framing in `manifesto.md` — read that first.
 
 ---
 
+## ADR-37: Block-marker reveal scoped to the marker itself, not the whole line
+
+**Date**: 2026-08-10
+
+**Status**: Locked, briefed — not deferred. Supersedes the reveal-unit behavior originally shipped in ADR-31 Stage 2 for block-level element kinds (list/checkbox markers, headings, blockquotes).
+
+**What**: A list-item, checkbox, or heading line's block-level marker (`- `, `## `, `- [ ] `, `> `, etc.) reveals as raw source only when the cursor is positioned within the *marker's own* character range — not, as today, whenever the cursor is anywhere on that line. Inline content elsewhere in the same line (bold, italic, links, inline code) keeps its existing, unaffected per-element reveal behavior. Net effect: a list item behaves exactly like an ordinary paragraph line for reveal purposes — nothing about that line jumps or re-indents just because the cursor entered it; only the specific span (marker or inline element) the cursor is actually inside ever reveals.
+
+**Why**: Confirmed root cause, traced directly in `render_model.dart`'s `RenderModel.build()`: block-level `MdElement`s are constructed to span the entire line (`block.start` to `block.end` covers the marker *and* all inline content after it), and the reveal computation's own code comment states this is intentional design — "a block always encloses its line's inline children, so it is the outermost [reveal unit] when present." That's exactly what makes the whole line, including its indentation, snap to raw source the instant the cursor lands anywhere on it (#345) — a real, confirmed source of typing mistakes in daily use, not a cosmetic issue. The project owner confirmed this is being tackled now, not deferred to a future design pass, once the actual mechanism was identified precisely.
+
+**Rejected**: leaving whole-line reveal as-is (status quo) — already ruled out, this is what #345 exists to fix. A special-cased "collapse the marker back after the trailing space is typed" mechanism (an earlier proposed alternative, noted in #345) — rejected in favor of the more general fix: make block markers follow the *same* per-element reveal rule inline elements already use, rather than adding a second, bespoke collapse mechanism just for the typing-in-progress case.
+
+**Scope**: `packages/markdown_live_editor/` only (`RenderModel`, `MdElement`, the reveal-computation loop in `render_model.dart`). No `lib/` (app-layer) changes expected. See `Agents/quiki-dev/CLAUDE.md` for the implementation brief.
+
+---
+
 ## ADR-36: Text selection rework — Android-standard behavior as target requirements
 
 **Date**: 2026-07-31
