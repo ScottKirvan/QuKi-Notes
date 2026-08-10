@@ -40,6 +40,23 @@ class MarkdownEditorController {
 
   void setValue(String value) => _state?._setValue(value);
 
+  /// Replaces the editor's text without disturbing the current selection or
+  /// requesting focus — for an external content edit (e.g. a checkbox
+  /// toggle, #335 / #266) that must not implicitly switch the note between
+  /// reading and edit mode. Contrast with [setValue], which resets the
+  /// selection to the top on purpose for a document switch (opening a
+  /// different QuKi, or starting a new one) — that reset is correct there
+  /// but was, before this method existed, also being applied to in-place
+  /// edits it was never meant for, jumping the cursor to offset 0 (and, if
+  /// offset 0 happened to fall inside a markdown element, revealing that
+  /// line as raw source) as a side effect of a same-document edit.
+  ///
+  /// The selection is clamped to the new text's length so a same-length edit
+  /// (the checkbox marker swap is always 6-for-6 chars) is a pure no-op on
+  /// the selection, while a length-changing edit still leaves it valid.
+  void setValuePreservingSelection(String value) =>
+      _state?._setValuePreservingSelection(value);
+
   bool get plainTextMode => _state?._plainTextMode ?? false;
   void togglePlainTextMode() => _state?._togglePlainTextMode();
 
@@ -412,6 +429,21 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
       text: value,
       selection: const TextSelection.collapsed(offset: 0),
     );
+    _previousValue = _textController.value;
+    _suppressListener = false;
+  }
+
+  /// See [MarkdownEditorController.setValuePreservingSelection].
+  void _setValuePreservingSelection(String value) {
+    _suppressListener = true;
+    final current = _textController.selection;
+    final preserved = current.isValid
+        ? TextSelection(
+            baseOffset: current.baseOffset.clamp(0, value.length),
+            extentOffset: current.extentOffset.clamp(0, value.length),
+          )
+        : current;
+    _textController.value = TextEditingValue(text: value, selection: preserved);
     _previousValue = _textController.value;
     _suppressListener = false;
   }

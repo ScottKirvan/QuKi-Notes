@@ -145,8 +145,14 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   ///
   /// Reads the 6-char marker starting at [sourceOffset] and swaps
   /// '- [ ] ' ↔ '- [x] ' (uppercase '- [X] ' is also treated as checked).
-  /// Calls [_editorController.setValue] to update the editor, then notifies
-  /// [_autoSave] so the change is persisted.
+  /// Calls [_editorController.setValuePreservingSelection] — NOT [setValue]
+  /// — to update the editor, then notifies [_autoSave] so the change is
+  /// persisted. A checkbox toggle is an in-place content edit, not a
+  /// document switch: [setValue] resets the selection to the top on purpose
+  /// for opening a different QuKi, which is wrong here (#335, #266) — it
+  /// would jump the cursor away from wherever it actually was, and if reset
+  /// to offset 0 happened to land inside a still-collapsed markdown element,
+  /// reveal that line as raw source too.
   void _onCheckboxToggle(int sourceOffset) {
     final current = _editorController.currentValue;
     if (sourceOffset < 0 || sourceOffset + 6 > current.length) return;
@@ -161,7 +167,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     }
     final newText =
         current.replaceRange(sourceOffset, sourceOffset + 6, replacement);
-    _editorController.setValue(newText);
+    _editorController.setValuePreservingSelection(newText);
     _autoSave.notifyChanged();
   }
 
