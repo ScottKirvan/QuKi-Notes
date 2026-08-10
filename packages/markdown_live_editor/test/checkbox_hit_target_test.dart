@@ -192,6 +192,51 @@ Offset _toGlobal(WidgetTester tester, QuikiRenderEditor ro, Offset local) {
       ro.localPadding.topLeft;
 }
 
+/// Converts a WIDGET-RELATIVE offset (the literal coordinate space
+/// `QuikiEditorState._onTapDown`'s own `details.localPosition` is in, and
+/// therefore the same space `tester.tapAt`'s target implies once converted
+/// through `tester.getTopLeft`) directly to a GLOBAL screen offset — with NO
+/// padding re-added, unlike [_toGlobal] above.
+///
+/// This is the coordinate space round 2's own tests never exercised (#352,
+/// round 4's finding): [_toGlobal] takes a "local" offset that is already
+/// TEXT-ORIGIN-relative (post `_padding.topLeft` subtraction, the space
+/// `_checkboxHitTestRect` itself operates in) and re-adds padding to land on
+/// screen — so its `local.dx = 0` case exercises `textOffset.dx = 0`, i.e.
+/// round 2's own "row's true left edge", never `textOffset.dx =
+/// -_padding.left`, the literal widget edge a real finger can actually
+/// reach. This helper's `widgetLocal.dx = 0` case is the one that does.
+Offset _toGlobalWidgetEdge(WidgetTester tester, Offset widgetLocal) {
+  return tester.getTopLeft(find.byType(QuikiRenderWidget)) + widgetLocal;
+}
+
+/// [_zoneFor]'s bounds re-expressed in the same WIDGET-RELATIVE coordinate
+/// space [_toGlobalWidgetEdge] targets — i.e. with [QuikiRenderEditor]'s own
+/// [EdgeInsets] padding folded back in (`+ ro.localPadding.topLeft` on the Y
+/// axis; the X axis is handled separately below since round 4 changes it).
+///
+/// `left` is `0.0` here too, but it means something different from
+/// [_zoneFor]'s `left: 0.0`: this is the literal widget edge (round 4's
+/// fix — `_checkboxHitTestRect`'s real left bound, `-_padding.left` in
+/// text-origin-relative terms, becomes exactly `0.0` once padding is added
+/// back to convert to widget-relative coordinates), not
+/// text-origin-relative local x = 0 one layer further in (round 2's claim,
+/// which — after round 4 — is no longer the zone's actual left edge, just a
+/// point `_padding.left` pixels inside it).
+({double left, double right, double top, double bottom}) _widgetZoneFor(
+  QuikiRenderEditor ro,
+  CheckboxSlot slot,
+) {
+  final z = _zoneFor(ro, slot);
+  final pad = ro.localPadding;
+  return (
+    left: 0.0,
+    right: z.right + pad.left,
+    top: z.top + pad.top,
+    bottom: z.bottom + pad.top,
+  );
+}
+
 void main() {
   group('Checkbox tap zone geometry (#352, round 2) — explicit bounds', () {
     testWidgets(
@@ -680,6 +725,180 @@ void main() {
           reason: 'a nested checkbox tap anywhere in its widened zone must '
               'also stay on the reading-mode-safe path — this newly-reached '
               'zone is not exempt from #335/#266\'s fix');
+    });
+  });
+
+  group(
+      'Checkbox tap zone reaches the literal widget edge, not just '
+      'text-origin-relative local x = 0 (#352, round 4)', () {
+    testWidgets(
+        'checkboxSourceOffsetForTap resolves a non-null offset at exactly '
+        'widget-relative x = 0 — called directly against the production '
+        'API (not through a gesture), so this asserts the real hit-test '
+        'boundary rather than a value the test itself assumes', (tester) async {
+      final focusNode = FocusNode();
+      await tester.pumpWidget(buildEditor(
+        initialValue: '- [ ] Task',
+        focusNode: focusNode,
+      ));
+      await tester.pump();
+
+      final ro = renderEditorOf(tester);
+      final slot = ro.renderModel.checkboxSlots.single;
+      final widgetZone = _widgetZoneFor(ro, slot);
+      final midY = (widgetZone.top + widgetZone.bottom) / 2;
+
+      // The exact edge (widgetLocal.dx == 0): must resolve. This is the
+      // literal coordinate checkboxSourceOffsetForTap receives as
+      // `localPosition` when a real tap lands on the widget's own leftmost
+      // pixel — round 2 left this returning null (textOffset.dx worked out
+      // to -_padding.left there, outside its `[0, gutterRight)` rect).
+      expect(
+          ro.checkboxSourceOffsetForTap(Offset(0.0, midY)), slot.element.start,
+          reason: 'a tap at the literal widget edge must resolve to this '
+              'checkbox\'s own source offset');
+
+      // Just past the edge (widgetLocal.dx == -0.5): not a reachable real
+      // tap position (nothing renders left of the widget's own bounds), but
+      // calling the API directly here proves the fixed left bound is
+      // exactly `-_padding.left` in text-offset terms (== widget x = 0), not
+      // some looser padding-plus-slop value that would happen to also cover
+      // this out-of-bounds case.
+      expect(ro.checkboxSourceOffsetForTap(Offset(-0.5, midY)), isNull,
+          reason: 'the widened zone\'s left bound is exactly the widget '
+              'edge, not wider than it');
+    });
+
+    testWidgets(
+        'tapping at the literal left edge of the editor widget '
+        '(localPosition.dx == 0, in the SAME coordinate space '
+        'tester.tapAt targets, relative to the widget\'s own top-left — '
+        'NOT _zoneFor\'s text-origin-relative local x = 0) toggles a '
+        'non-nested checkbox', (tester) async {
+      final focusNode = FocusNode();
+      final controller = MarkdownEditorController();
+      await tester.pumpWidget(buildEditor(
+        initialValue: '- [ ] Task',
+        focusNode: focusNode,
+        controller: controller,
+        onCheckboxToggle: (offset) => handleCheckboxToggle(controller, offset),
+      ));
+      await tester.pump();
+
+      final ro = renderEditorOf(tester);
+      final slot = ro.renderModel.checkboxSlots.single;
+      final widgetZone = _widgetZoneFor(ro, slot);
+      // widgetLocal.dx = 0 is the literal widget edge -- round 2's own tests
+      // tapped `zone.left + 2.0` through `_toGlobal`, which is text-origin
+      // x = 2, i.e. widget-relative x = 2 + _padding.left (~14px in from the
+      // real edge) -- never the true edge itself.
+      final tapWidgetLocal =
+          Offset(0.0, (widgetZone.top + widgetZone.bottom) / 2);
+
+      await tester.tapAt(_toGlobalWidgetEdge(tester, tapWidgetLocal));
+      await settleSingleTap(tester);
+
+      expect(controller.currentValue, '- [x] Task',
+          reason: 'a tap at the literal widget edge (widgetLocal.dx == 0) '
+              'must toggle the checkbox -- this is the exact tap position '
+              '#352\'s latest device-test report describes ("the farthest '
+              'left point actually reachable on screen")');
+    });
+
+    testWidgets(
+        'tapping at the literal left edge of the editor widget '
+        '(localPosition.dx == 0) toggles a NESTED checkbox too',
+        (tester) async {
+      final focusNode = FocusNode();
+      final controller = MarkdownEditorController();
+      await tester.pumpWidget(buildEditor(
+        initialValue: '  - [ ] Nested',
+        focusNode: focusNode,
+        controller: controller,
+        onCheckboxToggle: (offset) => handleCheckboxToggle(controller, offset),
+      ));
+      await tester.pump();
+
+      final ro = renderEditorOf(tester);
+      final slot = ro.renderModel.checkboxSlots.single;
+      final widgetZone = _widgetZoneFor(ro, slot);
+      final tapWidgetLocal =
+          Offset(0.0, (widgetZone.top + widgetZone.bottom) / 2);
+
+      await tester.tapAt(_toGlobalWidgetEdge(tester, tapWidgetLocal));
+      await settleSingleTap(tester);
+
+      expect(controller.currentValue, '  - [x] Nested',
+          reason: 'a tap at the literal widget edge must toggle a nested '
+              'checkbox too -- padding sits outside every run regardless of '
+              'nesting depth, so this widening is not nesting-dependent');
+    });
+
+    testWidgets(
+        'tapping at the literal left edge of the editor widget, on a row '
+        'with NO checkbox, does not toggle anything -- proves the widening '
+        'is checkbox-specific, not a general padding hit-test change',
+        (tester) async {
+      final focusNode = FocusNode();
+      final controller = MarkdownEditorController();
+      const source = 'Just a paragraph, no checkbox here.';
+      await tester.pumpWidget(buildEditor(
+        initialValue: source,
+        focusNode: focusNode,
+        controller: controller,
+        onCheckboxToggle: (offset) => handleCheckboxToggle(controller, offset),
+      ));
+      await tester.pump();
+
+      final ro = renderEditorOf(tester);
+      expect(ro.renderModel.checkboxSlots, isEmpty,
+          reason: 'sanity check: this line must have no checkbox slot at '
+              'all, or the negative result below would not prove anything');
+      final lineHeight = ro.preferredLineHeight;
+      final tapWidgetLocal = Offset(0.0, ro.localPadding.top + lineHeight / 2);
+
+      await tester.tapAt(_toGlobalWidgetEdge(tester, tapWidgetLocal));
+      await settleSingleTap(tester);
+
+      expect(controller.currentValue, source,
+          reason: 'a widget-edge tap on a checkbox-free row must not alter '
+              'the document -- the widening only ever applies within '
+              'checkboxSourceOffsetForTap\'s own loop over checkboxSlots, '
+              'never as a blanket padding-is-tappable rule');
+    });
+
+    testWidgets(
+        'tapping at the literal left edge of the editor widget while '
+        'unfocused (reading mode) toggles the checkbox without requesting '
+        'focus or opening the keyboard', (tester) async {
+      final focusNode = FocusNode();
+      final controller = MarkdownEditorController();
+      await tester.pumpWidget(buildEditor(
+        initialValue: '- [ ] Task',
+        focusNode: focusNode,
+        controller: controller,
+        onCheckboxToggle: (offset) => handleCheckboxToggle(controller, offset),
+      ));
+      await tester.pump();
+      expect(focusNode.hasFocus, isFalse, reason: 'starts in reading mode');
+
+      final ro = renderEditorOf(tester);
+      final slot = ro.renderModel.checkboxSlots.single;
+      final widgetZone = _widgetZoneFor(ro, slot);
+      final tapWidgetLocal =
+          Offset(0.0, (widgetZone.top + widgetZone.bottom) / 2);
+
+      await tester.tapAt(_toGlobalWidgetEdge(tester, tapWidgetLocal));
+      await settleSingleTap(tester);
+
+      expect(controller.currentValue, '- [x] Task',
+          reason: 'sanity check: the widget-edge tap must actually land on '
+              'the widened zone and toggle it, or the assertion below is '
+              'vacuous');
+      expect(focusNode.hasFocus, isFalse,
+          reason: 'a widget-edge checkbox tap must still stay on the '
+              'reading-mode-safe path established by #335/#266 -- this '
+              'newly-reached padding strip is not exempt either');
     });
   });
 }
