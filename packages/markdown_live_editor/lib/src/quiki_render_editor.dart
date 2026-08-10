@@ -591,20 +591,46 @@ class QuikiRenderEditor extends RenderBox {
 
   /// The checkbox's tap **hit-test** [Rect] for [slot] — wider than the
   /// painted glyph itself ([_checkboxLocalRect]), used only by
-  /// [checkboxSourceOffsetForTap] (#352). [paint] never uses this rect, so
-  /// the visible box size is unaffected — this widens only what counts as
-  /// "close enough" to register a tap.
+  /// [checkboxSourceOffsetForTap] (#352, round 2). [paint] never uses this
+  /// rect, so the visible box size is unaffected — this widens only what
+  /// counts as "close enough" to register a tap.
   ///
-  /// Extends the box's own rect horizontally to fill the *entire* reserved
-  /// list-marker gutter ([_listMarkerGutterWidth]) — from the gutter's own
-  /// left edge (where a shallower nesting level's content would start) all
-  /// the way to this run's content-start x ([_RunLayout.x]), which also folds
-  /// in [_listMarkerContentGap], the small gap between the box and the text.
-  /// Both of those exact regions are called out by #352 as currently-dead
-  /// tap space immediately around the box. Bounding the left edge to the
-  /// gutter's own width (rather than, say, padding by an arbitrary amount)
-  /// means this can never reach past this run's own reserved marker band —
-  /// it cannot bleed into a shallower level's content to the left.
+  /// Round 1 (#352) bounded the widened zone's left edge to
+  /// `r.x - _listMarkerGutterWidth` — the reserved list-marker gutter's own
+  /// left edge. That is only equal to this ROW's true left edge when
+  /// [RenderRun.indentLevel] is 0: [_RunLayout.x] (`r.x`, aliased here as
+  /// [gutterRight]) is computed in [performLayout] as an ABSOLUTE offset from
+  /// this render object's own text origin (`run.indentLevel * _indentUnit +
+  /// listGutter`), not incrementally stacked from a parent run's own x — so
+  /// for an indented (nested list/checkbox) run, `r.x - _listMarkerGutterWidth`
+  /// still leaves a dead zone `indentLevel * _indentUnit` pixels wide between
+  /// the row's actual left edge (local x = 0, same physical margin every run
+  /// shares) and the start of round 1's zone. That dead band grows with
+  /// nesting depth, which is why round 1's fix read as having little to no
+  /// effect for nested checkboxes on-device even though it measurably widened
+  /// the top-level case.
+  ///
+  /// The fix: anchor the left edge at this ROW's own true left edge (local
+  /// x = 0) instead of a gutter-relative offset. The right edge stays at this
+  /// run's content-start x ([_RunLayout.x]), which already folds in
+  /// [_listMarkerContentGap] (the small gap between the box and the text) —
+  /// matching #352's restated requirement: the entire leading
+  /// whitespace/marker region of the row, from its true start through to
+  /// just before the visible text, is one tap target. For a non-nested
+  /// (indentLevel 0) run this is numerically identical to round 1's zone
+  /// (content-start x IS the gutter width there), so the top-level case is
+  /// unchanged in geometry — round 1's own zone there was already anchored at
+  /// the row's true left edge; the narrowness reported on-device is inherent
+  /// to a ~24px-wide target, not a further geometry bug this round addresses.
+  ///
+  /// Safe from collision with other content: each [RenderRun] owns an
+  /// exclusive vertical band (no other run's TextPainter, marker, or
+  /// checkbox paints inside `[box.top, box.bottom)` for THIS slot's line —
+  /// see [_checkboxLocalRect]'s and [_listMarkerLabelOffset]'s Y derivation,
+  /// both keyed to the specific slot/line, never to a whole run), so widening
+  /// the X range up to local 0 cannot bleed into a shallower ancestor's own
+  /// content — an ancestor list item is always a DIFFERENT source line, hence
+  /// a different (non-overlapping) Y band, never the same row.
   ///
   /// Vertical extent is left identical to [_checkboxLocalRect] — the bug
   /// report and the box's own vertical placement (already tuned by #267) are
@@ -613,8 +639,8 @@ class QuikiRenderEditor extends RenderBox {
   Rect _checkboxHitTestRect(CheckboxSlot slot) {
     final r = _runForRendered(slot.renderedStart);
     final box = _checkboxLocalRect(slot);
-    return Rect.fromLTRB(
-        r.x - _listMarkerGutterWidth, box.top, r.x, box.bottom);
+    final gutterRight = r.x;
+    return Rect.fromLTRB(0, box.top, gutterRight, box.bottom);
   }
 
   /// The top-left [Offset] to paint a [ListMarkerSlot]'s [label] at, in
