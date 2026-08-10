@@ -56,25 +56,18 @@
 // position as the marker's own '-' character (no leading whitespace), but
 // for a NESTED checkbox it is `wsLen` characters BEFORE '-' (the leading
 // indentation whitespace). `EditorScreen._onCheckboxToggle`
-// (lib/features/editor/editor_screen.dart:156) reads a fixed 6-character
-// marker starting exactly at that offset and only recognizes literal
-// '- [ ] ' / '- [x] ' / '- [X] ' — for a nested item this reads e.g.
-// '  - [ ' (leading spaces included) instead, matches neither pattern, and
-// silently returns without editing anything. This means a NESTED checkbox
-// does not visibly toggle in the shipped app today EVEN WITH a perfectly
-// targeted tap — independent of, and in addition to, the hit-test geometry
-// bug this file's fix addresses. It is toggle-logic behavior, explicitly out
-// of scope for this round's brief (hit-test geometry only) and outside this
-// package (`lib/features/editor/editor_screen.dart`, not
-// `packages/markdown_live_editor/`) — not fixed here. The tests below that
-// exercise a nested checkbox's POSITIVE case therefore assert what this
-// round's fix actually controls — that the tap resolves to the correct
-// `element.start` source offset (`checkboxSourceOffsetForTap`'s real
-// contract) — rather than asserting a full visible toggle through
-// `handleCheckboxToggle`, which faithfully mirrors production and would
-// spuriously fail here for a reason unrelated to this fix. See this file's
-// own report for the full finding; it should be filed as its own issue and
-// fixed in EditorScreen, not in QuikiRenderEditor.
+// (lib/features/editor/editor_screen.dart) read a fixed 6-character marker
+// starting exactly at that offset and only recognized literal '- [ ] ' /
+// '- [x] ' / '- [X] ' — for a nested item this read e.g. '  - [ ' (leading
+// spaces included) instead, matched neither pattern, and silently returned
+// without editing anything. This meant a NESTED checkbox did not visibly
+// toggle in the shipped app EVEN WITH a perfectly targeted tap — independent
+// of, and in addition to, the hit-test geometry bug this file's other fix
+// addresses. Filed as #354 and FIXED in round 3, same branch: `handleCheckboxToggle`
+// below now mirrors EditorScreen._onCheckboxToggle's whitespace-skip fix, so
+// the nested "toggles it" tests below assert the real, full end-to-end
+// toggle again (not just offset resolution, which is what round 2 was
+// reduced to asserting while #354 was still open).
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -122,11 +115,21 @@ Future<void> settleSingleTap(WidgetTester tester) =>
 /// Mirrors the checkbox-toggle logic in
 /// lib/features/editor/editor_screen.dart's EditorScreen._onCheckboxToggle —
 /// copied from reading_mode_safety_test.dart's identically-named helper.
+///
+/// Skips any leading whitespace before reading the 6-char marker (#354) —
+/// see this file's header comment for the full finding. Kept in sync with
+/// EditorScreen's real fix.
 void handleCheckboxToggle(
     MarkdownEditorController controller, int sourceOffset) {
   final current = controller.currentValue;
-  if (sourceOffset < 0 || sourceOffset + 6 > current.length) return;
-  final marker = current.substring(sourceOffset, sourceOffset + 6);
+  if (sourceOffset < 0 || sourceOffset > current.length) return;
+  var markerStart = sourceOffset;
+  while (markerStart < current.length &&
+      (current[markerStart] == ' ' || current[markerStart] == '\t')) {
+    markerStart++;
+  }
+  if (markerStart + 6 > current.length) return;
+  final marker = current.substring(markerStart, markerStart + 6);
   final String replacement;
   if (marker == '- [ ] ') {
     replacement = '- [x] ';
@@ -136,7 +139,7 @@ void handleCheckboxToggle(
     return;
   }
   final newText =
-      current.replaceRange(sourceOffset, sourceOffset + 6, replacement);
+      current.replaceRange(markerStart, markerStart + 6, replacement);
   controller.setValuePreservingSelection(newText);
 }
 
@@ -448,28 +451,20 @@ void main() {
       await tester.tapAt(_toGlobal(tester, ro, tapLocal));
       await settleSingleTap(tester);
 
-      // This is what THIS round's fix actually controls: the tap resolves
-      // to this checkbox's own element.start, exactly as it does for a
-      // non-nested checkbox — proving the widened hit-test zone, not just
-      // its computed bounds above, actually catches a real tap gesture at
-      // the row's true left edge. A SEPARATE, out-of-scope bug in
-      // EditorScreen._onCheckboxToggle (see this file's header comment)
-      // currently prevents a nested toggle from producing a visible content
-      // change — asserted explicitly below so that gap stays documented
-      // rather than silently hidden by picking a weaker assertion.
+      // Proves both fixes together: the tap resolves to this checkbox's own
+      // element.start (round 2's hit-test-geometry fix — the widened zone,
+      // not just its computed bounds above, actually catches a real tap
+      // gesture at the row's true left edge), AND that offset now produces
+      // a real, visible toggle (round 3's #354 fix — handleCheckboxToggle
+      // above now skips the leading indentation whitespace the same way
+      // EditorScreen._onCheckboxToggle does).
       expect(toggledOffset, slot.element.start,
           reason: 'a tap at the true start of a NESTED checkbox\'s row must '
               'resolve to THIS checkbox\'s own source offset, even though it '
               'lands well left of round 1\'s gutter-only zone');
-      expect(controller.currentValue, '  - [ ] Nested',
-          reason: 'documents the SEPARATE, out-of-scope '
-              'EditorScreen._onCheckboxToggle bug (see file header): the '
-              'offset above resolved correctly, but the marker-matching '
-              'logic downstream does not yet account for the leading '
-              'indentation, so no visible edit happens YET. If this starts '
-              'failing because the content DID change, that downstream bug '
-              'has been fixed — update this test to assert the toggled '
-              'value instead of documenting the gap.');
+      expect(controller.currentValue, '  - [x] Nested',
+          reason: 'the resolved offset must also produce a real toggle '
+              '(#354) — not just resolve to the right position');
     });
 
     testWidgets(
@@ -648,16 +643,15 @@ void main() {
 
     testWidgets(
         'tapping at the true start of a NESTED checkbox\'s row while '
-        'unfocused (reading mode) resolves to it without requesting focus '
-        'or opening the keyboard', (tester) async {
+        'unfocused (reading mode) toggles it without requesting focus or '
+        'opening the keyboard', (tester) async {
       final focusNode = FocusNode();
       final controller = MarkdownEditorController();
-      int? toggledOffset;
       await tester.pumpWidget(buildEditor(
         initialValue: '  - [ ] Nested',
         focusNode: focusNode,
         controller: controller,
-        onCheckboxToggle: (offset) => toggledOffset = offset,
+        onCheckboxToggle: (offset) => handleCheckboxToggle(controller, offset),
       ));
       await tester.pump();
       expect(focusNode.hasFocus, isFalse, reason: 'starts in reading mode');
@@ -670,20 +664,18 @@ void main() {
       await tester.tapAt(_toGlobal(tester, ro, tapLocal));
       await settleSingleTap(tester);
 
-      // Sanity check via the resolved offset, not a full visible toggle
-      // (see this file's header comment: a separate, out-of-scope bug in
-      // EditorScreen._onCheckboxToggle currently blocks the visible edit for
-      // a nested checkbox regardless of hit-test geometry). The reading-mode
-      // safety property below is unaffected by that bug either way — the
-      // checkbox hit-test branch in QuikiEditorState._onTapDown runs BEFORE
-      // any focus-related code and returns immediately once
+      // Full end-to-end toggle now that #354 is fixed (handleCheckboxToggle
+      // above mirrors EditorScreen._onCheckboxToggle's whitespace-skip fix).
+      // The reading-mode safety property is independent of that fix either
+      // way — the checkbox hit-test branch in QuikiEditorState._onTapDown
+      // runs BEFORE any focus-related code and returns immediately once
       // checkboxSourceOffsetForTap resolves non-null, never reaching the
       // focus-request branch regardless of what the toggle callback then
       // does with that offset.
-      expect(toggledOffset, slot.element.start,
-          reason: 'sanity check: the tap must actually resolve to the '
-              'nested checkbox\'s widened zone, or the assertion below is '
-              'vacuous');
+      expect(controller.currentValue, '  - [x] Nested',
+          reason: 'sanity check: the tap must actually land on the nested '
+              'checkbox\'s widened zone and toggle it, or the assertion '
+              'below is vacuous');
       expect(focusNode.hasFocus, isFalse,
           reason: 'a nested checkbox tap anywhere in its widened zone must '
               'also stay on the reading-mode-safe path — this newly-reached '
