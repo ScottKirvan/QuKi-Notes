@@ -143,7 +143,19 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   /// Toggles the checkbox marker at [sourceOffset] in the current editor value.
   ///
-  /// Reads the 6-char marker starting at [sourceOffset] and swaps
+  /// [sourceOffset] is the checkbox element's own source offset as resolved
+  /// by `checkboxSourceOffsetForTap()` — which is always the LINE's absolute
+  /// start (`MdElement.start` / `lineStart` in md_parser.dart, for both the
+  /// non-nested and the indented/nested checkbox branches). For a non-nested
+  /// checkbox that happens to be the marker's own start ('-'), but for a
+  /// nested checkbox it is BEFORE the leading indentation whitespace — the
+  /// real marker begins `wsLen` characters later. Skipping any leading
+  /// space/tab characters first (mirroring `MdParser._listIndent`'s own
+  /// whitespace consumption) finds the marker's actual start regardless of
+  /// nesting depth; for a non-nested checkbox this is a zero-iteration no-op,
+  /// so that path is unchanged (#354).
+  ///
+  /// Reads the 6-char marker starting at the resolved marker start and swaps
   /// '- [ ] ' ↔ '- [x] ' (uppercase '- [X] ' is also treated as checked).
   /// Calls [_editorController.setValuePreservingSelection] — NOT [setValue]
   /// — to update the editor, then notifies [_autoSave] so the change is
@@ -155,8 +167,14 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   /// reveal that line as raw source too.
   void _onCheckboxToggle(int sourceOffset) {
     final current = _editorController.currentValue;
-    if (sourceOffset < 0 || sourceOffset + 6 > current.length) return;
-    final marker = current.substring(sourceOffset, sourceOffset + 6);
+    if (sourceOffset < 0 || sourceOffset > current.length) return;
+    var markerStart = sourceOffset;
+    while (markerStart < current.length &&
+        (current[markerStart] == ' ' || current[markerStart] == '\t')) {
+      markerStart++;
+    }
+    if (markerStart + 6 > current.length) return;
+    final marker = current.substring(markerStart, markerStart + 6);
     final String replacement;
     if (marker == '- [ ] ') {
       replacement = '- [x] ';
@@ -166,7 +184,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
       return;
     }
     final newText =
-        current.replaceRange(sourceOffset, sourceOffset + 6, replacement);
+        current.replaceRange(markerStart, markerStart + 6, replacement);
     _editorController.setValuePreservingSelection(newText);
     _autoSave.notifyChanged();
   }
