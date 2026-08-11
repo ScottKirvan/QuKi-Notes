@@ -31,6 +31,7 @@ jobs:
     outputs:
       used_staging: ${{ steps.apply.outputs.used_staging }}
       discord_blurb: ${{ steps.apply.outputs.discord_blurb }}
+      play_store_notes: ${{ steps.apply.outputs.play_store_notes }}
     steps:
       - name: Apply staged notes and clean up
         id: apply
@@ -65,6 +66,15 @@ jobs:
           { echo 'discord_blurb<<BLURB_EOF'
             printf '%s\n' "$BLURB"
             echo 'BLURB_EOF'
+          } >> "$GITHUB_OUTPUT"
+
+          PLAY_NOTES=$(printf '%s' "$BLURB" | \
+            sed 's/\*\*//g; s/\*//g; s/__//g; s/_//g; s/`//g' | \
+            sed 's/\[([^]]*)\]([^)]*)/\1/g' | \
+            cut -c1-500)
+          { echo 'play_store_notes<<NOTES_EOF'
+            printf '%s\n' "$PLAY_NOTES"
+            echo 'NOTES_EOF'
           } >> "$GITHUB_OUTPUT"
 
   improve-release-notes:
@@ -106,6 +116,26 @@ jobs:
         with:
           name: discord-blurb-${{ needs.release-please.outputs.tag_name }}
           path: discord_blurb.txt
+          retention-days: 7
+
+  store-play-store-notes:
+    needs: [release-please, apply-staged-notes]
+    if: >-
+      always() &&
+      needs.release-please.outputs.release_created == 'true' &&
+      needs.apply-staged-notes.outputs.play_store_notes != '' &&
+      !failure() && !cancelled()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write notes to file
+        env:
+          PLAY_STORE_NOTES: ${{ needs.apply-staged-notes.outputs.play_store_notes }}
+        run: printf '%s' "$PLAY_STORE_NOTES" > play-store-notes.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: play-store-notes-${{ needs.release-please.outputs.tag_name }}
+          path: play-store-notes.txt
           retention-days: 7
 
   update-changelog-prs:

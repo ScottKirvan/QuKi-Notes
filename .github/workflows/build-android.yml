@@ -63,11 +63,47 @@ jobs:
             build/app/outputs/flutter-apk/app-release.apk
             build/app/outputs/bundle/release/app-release.aab
 
-      - name: Upload to Play Store (alpha / draft)
+      - name: Prepare whatsnew directory
+        run: mkdir -p whatsnew
+
+      - name: Find play store notes artifact
+        if: github.event_name == 'release'
+        id: find-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          RUN_ID=$(gh api "repos/$REPO/actions/artifacts?name=play-store-notes-$TAG&per_page=5" \
+            --jq '.artifacts | sort_by(.created_at) | reverse | .[0].workflow_run.id // ""')
+          if [ -z "$RUN_ID" ] || [ "$RUN_ID" = "null" ]; then
+            echo "run_id=" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_id=$RUN_ID" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download play store notes
+        if: github.event_name == 'release' && steps.find-notes.outputs.run_id != ''
+        uses: actions/download-artifact@v4
+        with:
+          name: play-store-notes-${{ github.event.release.tag_name }}
+          run-id: ${{ steps.find-notes.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: /tmp/play-notes/
+
+      - name: Write whatsnew file
+        if: github.event_name == 'release' && steps.find-notes.outputs.run_id != ''
+        run: |
+          cp /tmp/play-notes/play-store-notes.txt whatsnew/whatsnew-en-US
+          echo "Play Store notes:"
+          cat whatsnew/whatsnew-en-US
+
+      - name: Upload to Play Store (alpha)
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_STORE_JSON_KEY }}
           packageName: com.quki.quki_notes
           releaseFiles: build/app/outputs/bundle/release/app-release.aab
-          track: alpha
-          status: draft
+          tracks: alpha
+          status: completed
+          whatsNewDirectory: whatsnew
