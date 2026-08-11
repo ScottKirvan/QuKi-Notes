@@ -197,15 +197,37 @@ void main() {
       expect(m.textSpan.toPlainText(), '**x**');
     });
 
-    test('h1 revealed at element.end: delimiter chars visible', () {
-      // source = '# A', h1(0,3), cursorOffset = 3 (= source.length = element.end)
-      // With cursorOffset <= element.end, the element is still revealed.
+    test('h1 revealed at the marker\'s own end boundary (inclusive) — ADR-37',
+        () {
+      // source = '# A', h1(0,3), openDelimLen = 2 ('# '), so the marker's own
+      // narrow reveal end is 2 (the boundary between '# ' and 'A'). Per the
+      // existing >=/<= inclusive-end convention (already used for every
+      // other element's reveal check), cursorOffset == 2 still reveals the
+      // marker.
+      const source = '# A';
+      final elements = MdParser.parse(source);
+      final m = _build(source, elements, cursorOffset: 2);
+
+      expect(m.renderedLength, 3);
+      expect(m.textSpan.toPlainText(), '# A');
+    });
+
+    test(
+        'h1 with cursor past the marker (at element.end, inside heading '
+        'text): marker stays collapsed — regression test for #345/ADR-37', () {
+      // source = '# A', h1(0,3). Before ADR-37 the whole line (marker
+      // included) was the reveal unit, so cursorOffset == element.end (3)
+      // used to reveal the raw '# ' prefix too, even though the cursor is
+      // actually past the marker, inside the heading TEXT. This is exactly
+      // the bug #345 reports: cursor anywhere on the line snapped the whole
+      // line to raw source. Now only the marker's own span ([0, 2]) reveals
+      // it; 'A' renders with normal h1 styling, no marker in sight.
       const source = '# A';
       final elements = MdParser.parse(source);
       final m = _build(source, elements, cursorOffset: 3);
 
-      expect(m.renderedLength, 3);
-      expect(m.textSpan.toPlainText(), '# A');
+      expect(m.renderedLength, 1); // just 'A' — '# ' stays collapsed
+      expect(m.textSpan.toPlainText(), 'A');
     });
   });
 

@@ -554,14 +554,27 @@ class RenderModel {
       }
       active.removeWhere((e) => e.end <= si);
 
-      // Reveal unit = the outermost element under the cursor. A block always
-      // encloses its line's inline children, so it is the outermost when
-      // present; otherwise it is the outermost inline covering si.
+      // Reveal unit = the outermost element under the cursor (ADR-37 / #345).
+      // For a marker-scoped block kind (list/checkbox/heading/blockquote —
+      // see _isMarkerScopedBlock), the block counts as "covering" si only
+      // while si is within its own marker span (si < _blockRevealEnd(block),
+      // i.e. block.start + openDelimLen) — past the marker, the block plays
+      // no further role and content defers entirely to whichever inline
+      // element (if any) covers si, exactly as an unadorned paragraph line
+      // already does. This is what stops the marker from dragging the whole
+      // line's reveal boundary along with it. image/hr are unaffected: their
+      // "marker" already spans openDelimLen == the entire line by design, so
+      // _blockRevealEnd degenerates to the old block.end for them.
+      final MdElement? effectiveBlock =
+          (block != null && si < _blockRevealEnd(block)) ? block : null;
       final MdElement? topLevel =
-          block ?? (active.isEmpty ? null : active.first);
+          effectiveBlock ?? (active.isEmpty ? null : active.first);
+      final int topLevelEnd = effectiveBlock != null
+          ? _blockRevealEnd(effectiveBlock)
+          : (topLevel == null ? 0 : topLevel.end);
       final revealed = topLevel != null &&
           cursorOffset >= topLevel.start &&
-          cursorOffset <= topLevel.end;
+          cursorOffset <= topLevelEnd;
 
       // -----------------------------------------------------------------------
       // Collapsed block special cases (image / hr / blockquote / list marker).
@@ -737,7 +750,12 @@ class RenderModel {
     // line) shows raw source and gets no slot, matching every other
     // element's reveal rule.
     for (final b in blocks) {
-      final revealed = cursorOffset >= b.start && cursorOffset <= b.end;
+      // Narrowed to the marker's own span (ADR-37 / #345) — every kind
+      // reaching this switch (blockquote/ul/ol/checkbox) is marker-scoped,
+      // so this always resolves to b.start + b.openDelimLen, not b.end. See
+      // _blockRevealEnd's doc for the full rationale.
+      final revealed =
+          cursorOffset >= b.start && cursorOffset <= _blockRevealEnd(b);
       if (revealed) continue;
       switch (b.kind) {
         case MdElKind.blockquote:
@@ -848,8 +866,13 @@ class RenderModel {
       var level = 0;
       var listMarker = false;
       if (block != null) {
-        final revealed =
-            cursorOffset >= block.start && cursorOffset <= block.end;
+        // Narrowed to the marker's own span (ADR-37 / #345) — see
+        // _blockRevealEnd's doc. Only matters functionally for blockquote/
+        // ul/ol/checkbox (the only kinds that ever set indentLevel); headings
+        // always report indentLevel 0 regardless, so this narrowing is a
+        // no-op for them.
+        final revealed = cursorOffset >= block.start &&
+            cursorOffset <= _blockRevealEnd(block);
         if (!revealed) {
           level = block.indentLevel;
           listMarker = block.kind == MdElKind.ul ||
@@ -918,6 +941,64 @@ class _PendingLink {
 /// single space glyph at the active font size. See the substitution site in
 /// [RenderModel.build] for the full rationale.
 const String _tabSubstitute = '    ';
+
+// ---------------------------------------------------------------------------
+// Marker-scoped reveal (ADR-37 / #345) — file-private.
+// ---------------------------------------------------------------------------
+
+/// True for block kinds whose reveal is scoped to just the marker's own
+/// source range rather than the whole line (ADR-37 / #345): list items,
+/// checkboxes, headings, and blockquotes all have inline content sharing the
+/// line with their marker, so only the marker itself should snap to raw
+/// source when the cursor lands on it — the content should behave exactly
+/// like an unadorned paragraph (deferring to whichever inline element, if
+/// any, actually covers the cursor).
+///
+/// False for [MdElKind.image] and [MdElKind.hr]: neither has inline content
+/// sharing the line with its marker — [MdElement.openDelimLen] is already
+/// `end - start` (the entire line) for both — so the pre-ADR-37 whole-block
+/// reveal is already correct for them and deliberately left unchanged.
+bool _isMarkerScopedBlock(MdElKind kind) => switch (kind) {
+      MdElKind.ul ||
+      MdElKind.ol ||
+      MdElKind.checkboxUnchecked ||
+      MdElKind.checkboxChecked ||
+      MdElKind.h1 ||
+      MdElKind.h2 ||
+      MdElKind.h3 ||
+      MdElKind.h4 ||
+      MdElKind.h5 ||
+      MdElKind.h6 ||
+      MdElKind.blockquote =>
+        true,
+      MdElKind.image ||
+      MdElKind.hr ||
+      MdElKind.bold ||
+      MdElKind.italic ||
+      MdElKind.strikethrough ||
+      MdElKind.inlineCode ||
+      MdElKind.link ||
+      MdElKind.autolink ||
+      MdElKind.escape =>
+        false,
+    };
+
+/// The source offset up to which [block] itself counts as "covering" a
+/// character for reveal purposes (ADR-37 / #345).
+///
+/// For a marker-scoped kind (see [_isMarkerScopedBlock]) this is just past
+/// the marker's own characters — `block.start + block.openDelimLen`, which
+/// [MdElement.openDelimLen] already computes correctly for every in-scope
+/// kind, including the variable-length list/ol/checkbox/blockquote markers
+/// (ADR-34's `srcMarkerLen` mechanism). Content past this point defers
+/// entirely to inline elements for reveal, exactly like a plain paragraph.
+///
+/// For every other block kind (image, hr) this is simply [MdElement.end] —
+/// unchanged pre-ADR-37 whole-line reveal, since neither has inline content
+/// sharing the line with its marker in the first place.
+int _blockRevealEnd(MdElement block) => _isMarkerScopedBlock(block.kind)
+    ? block.start + block.openDelimLen
+    : block.end;
 
 // ---------------------------------------------------------------------------
 // Content style helper — file-private.

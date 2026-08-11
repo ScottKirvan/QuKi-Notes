@@ -793,11 +793,19 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
-  // Whole-chain reveal inside a list item: cursor anywhere in a nested run
-  // reveals the ENTIRE line as raw source (the block is the outermost element),
-  // same rule as headings/paragraphs (ADR-33).
+  // Marker-scoped reveal inside a list item (ADR-37 / #345). Superseded
+  // behavior: the block used to be the outermost reveal unit for the whole
+  // line, so a cursor anywhere on the line — including deep inside a nested
+  // inline run — snapped the ENTIRE line (marker included) to raw source.
+  // ADR-37 narrows the '- ' marker's own reveal to just its own source range
+  // (openDelimLen); past the marker, content behaves exactly like an
+  // unadorned paragraph — the covering inline chain (if any) reveals on its
+  // own, and the marker stays collapsed (bullet slot still painted) the
+  // whole time, matching the identically-shaped assertions in the top-level
+  // 'RenderModel — whole-chain reveal' group above (same content string,
+  // same cursor offsets shifted by the 2-char '- ' prefix).
   // -------------------------------------------------------------------------
-  group('RenderModel — whole-chain reveal inside a list item', () {
+  group('RenderModel — marker-scoped reveal inside a list item (ADR-37)', () {
     const src = '- a **b *c* d** e';
 
     test(
@@ -807,17 +815,57 @@ void main() {
       expect(m.textSpan.toPlainText(), 'a b c d e');
     });
 
-    test('cursor inside the inner italic reveals the WHOLE line raw', () {
-      // 'c' is at source offset 9 (after '- a **b *').
+    test(
+        'cursor inside the inner italic reveals only the enclosing bold '
+        'chain — the "- " marker stays collapsed', () {
+      // 'c' is at source offset 9 (after '- a **b *'). Only the covering
+      // bold span reveals raw (matching the unprefixed top-level group's
+      // identical assertion at cursorOffset 7); the '- ' marker is
+      // unaffected — no whole-line snap, and the bullet slot is still
+      // painted.
       final m = _build(src, cursorOffset: 9);
-      expect(m.textSpan.toPlainText(), src);
+      expect(m.textSpan.toPlainText(), 'a **b *c* d** e');
+      expect(m.listMarkerSlots, hasLength(1),
+          reason: 'marker must stay collapsed — only the inline chain '
+              'reveals, not the whole line (regression test for #345)');
     });
 
-    test('cursor inside the bold-but-not-italic region reveals the whole line',
-        () {
+    test(
+        'cursor inside the bold-but-not-italic region reveals only the '
+        'bold chain — the "- " marker stays collapsed', () {
       // 'b' at source offset 6.
       final m = _build(src, cursorOffset: 6);
-      expect(m.textSpan.toPlainText(), src);
+      expect(m.textSpan.toPlainText(), 'a **b *c* d** e');
+      expect(m.listMarkerSlots, hasLength(1));
+    });
+
+    test(
+        'cursor directly on the marker reveals the raw "- " prefix; content '
+        'stays fully collapsed (marker-scoped boundary)', () {
+      final m = _build(src, cursorOffset: 1);
+      expect(m.textSpan.toPlainText(), '- a b c d e');
+      expect(m.listMarkerSlots, isEmpty,
+          reason: 'a revealed marker is raw source text, not a slot');
+    });
+
+    test(
+        'cursor at the marker\'s own end boundary (inclusive) still reveals '
+        'the marker', () {
+      // markerEnd = block.start + openDelimLen = 0 + 2 = 2, the boundary
+      // between '- ' and 'a'. The existing >=/<= inclusive-end convention
+      // (already used for every other element's reveal check) applies here
+      // too.
+      final m = _build(src, cursorOffset: 2);
+      expect(m.textSpan.toPlainText(), '- a b c d e');
+      expect(m.listMarkerSlots, isEmpty);
+    });
+
+    test(
+        'cursor one past the marker\'s end boundary no longer reveals the '
+        'marker', () {
+      final m = _build(src, cursorOffset: 3);
+      expect(m.textSpan.toPlainText(), 'a b c d e');
+      expect(m.listMarkerSlots, hasLength(1));
     });
   });
 
@@ -1152,36 +1200,71 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
-  // Whole-chain reveal inside a blockquote: cursor anywhere in a nested run
-  // reveals the ENTIRE line as raw source (the block is the outermost element),
-  // same rule as headings/paragraphs/list items (ADR-33).
+  // Marker-scoped reveal inside a blockquote (ADR-37 / #345). Superseded
+  // behavior: the block used to be the outermost reveal unit for the whole
+  // line, so a cursor anywhere on the line — including deep inside a nested
+  // inline run — snapped the ENTIRE line (the '> ' marker included) to raw
+  // source. ADR-37 narrows the marker's own reveal to just its own source
+  // range (openDelimLen); past the marker, content behaves exactly like an
+  // unadorned paragraph — the covering inline chain (if any) reveals on its
+  // own, and the marker stays collapsed (border stripe still painted) the
+  // whole time.
   // -------------------------------------------------------------------------
-  group('RenderModel — whole-chain reveal inside a blockquote', () {
+  group('RenderModel — marker-scoped reveal inside a blockquote (ADR-37)', () {
     const src = '> a **b *c* d** e';
 
     test('cursor outside collapses to rendered content (no raw markers)', () {
       final m = _build(src, cursorOffset: -1);
-      // Collapsed: reserved blockquote indent + the rendered content.
+      // Collapsed: reserved blockquote indent (now empty, ADR-34) + content.
       expect(m.textSpan.toPlainText(), '${_bqIndent}a b c d e');
     });
 
-    test('cursor inside the inner italic reveals the WHOLE line raw', () {
+    test(
+        'cursor inside the inner italic reveals only the enclosing bold '
+        'chain — the "> " marker stays collapsed', () {
       // 'c' is at source offset 9 (after '> a **b *').
       final m = _build(src, cursorOffset: 9);
-      expect(m.textSpan.toPlainText(), src);
+      expect(m.textSpan.toPlainText(), 'a **b *c* d** e');
+      expect(m.blockquoteSlots, hasLength(1),
+          reason: 'marker must stay collapsed — only the inline chain '
+              'reveals, not the whole line (regression test for #345)');
     });
 
-    test('cursor inside the bold-but-not-italic region reveals the whole line',
-        () {
+    test(
+        'cursor inside the bold-but-not-italic region reveals only the '
+        'bold chain — the "> " marker stays collapsed', () {
       // 'b' at source offset 6.
       final m = _build(src, cursorOffset: 6);
-      expect(m.textSpan.toPlainText(), src);
+      expect(m.textSpan.toPlainText(), 'a **b *c* d** e');
+      expect(m.blockquoteSlots, hasLength(1));
     });
 
-    test('revealed blockquote emits no border-stripe slot (whole line raw)',
-        () {
-      final m = _build(src, cursorOffset: 9);
+    test(
+        'cursor directly on the marker reveals the raw "> " prefix; the '
+        'border-stripe slot disappears while it does', () {
+      final m = _build(src, cursorOffset: 1);
+      expect(m.textSpan.toPlainText(), '> a b c d e');
+      expect(m.blockquoteSlots, isEmpty,
+          reason: 'a revealed marker is raw source text, not a slot');
+    });
+
+    test(
+        'cursor at the marker\'s own end boundary (inclusive) still reveals '
+        'the marker', () {
+      // markerEnd = block.start + openDelimLen = 0 + 2 = 2, the boundary
+      // between '> ' and 'a'. Same inclusive >=/<= boundary convention as
+      // every other element's reveal check.
+      final m = _build(src, cursorOffset: 2);
+      expect(m.textSpan.toPlainText(), '> a b c d e');
       expect(m.blockquoteSlots, isEmpty);
+    });
+
+    test(
+        'cursor one past the marker\'s end boundary no longer reveals the '
+        'marker', () {
+      final m = _build(src, cursorOffset: 3);
+      expect(m.textSpan.toPlainText(), 'a b c d e');
+      expect(m.blockquoteSlots, hasLength(1));
     });
   });
 }

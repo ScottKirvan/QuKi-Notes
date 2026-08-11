@@ -852,12 +852,16 @@ class QuikiRenderEditor extends RenderBox {
     // the removed inline blank-character marker reservation (ADR-34 Fix 2),
     // so it now correctly tracks a nested (indented) checkbox's run just like
     // the bullet/ol-number labels below.
+    //
+    // No reveal re-check here: _renderModel.checkboxSlots is already built
+    // from this exact cursor position (RenderModel.build's marker-scoped
+    // post-pass, ADR-37 / #345) and never contains a slot for a checkbox
+    // whose marker is currently revealed — mirroring how the blockquote
+    // stripe loop above needs no such check either. A stale re-check against
+    // the element's full [start, end) (its whole *line*, not just the
+    // marker) would incorrectly suppress the glyph whenever the cursor is
+    // elsewhere in that line's content, which is now a normal, common case.
     for (final cb in _renderModel.checkboxSlots) {
-      final el = cb.element;
-      final cursorSrc = sel.isValid ? sel.baseOffset : -1;
-      final revealed = cursorSrc >= el.start && cursorSrc <= el.end;
-      if (revealed) continue;
-
       final boxRect = _checkboxLocalRect(cb).shift(textOrigin);
       final rrect = RRect.fromRectAndRadius(
           boxRect, Radius.circular(boxRect.width * 0.2));
@@ -896,12 +900,11 @@ class QuikiRenderEditor extends RenderBox {
     // (ADR-34 Fix 2): inline characters only reserve width on a line's first
     // visual row, so a wrapped item's continuation rows snapped back to the
     // un-indented margin.
+    //
+    // No reveal re-check here — same reasoning as the checkbox loop above:
+    // _renderModel.listMarkerSlots already excludes a marker whose own span
+    // currently contains the cursor (ADR-37 / #345).
     for (final marker in _renderModel.listMarkerSlots) {
-      final el = marker.element;
-      final cursorSrc = sel.isValid ? sel.baseOffset : -1;
-      final revealed = cursorSrc >= el.start && cursorSrc <= el.end;
-      if (revealed) continue;
-
       final labelPainter = TextPainter(
         text: TextSpan(text: marker.label, style: marker.style),
         textDirection: ui.TextDirection.ltr,
