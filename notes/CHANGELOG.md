@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.21.1](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.21.0...v0.21.1) (2026-08-11)
+
+
+### Bug Fixes
+
+* add Play Store alpha/draft upload to Android build workflow ([bc0b9b8](https://github.com/ScottKirvan/QuKi-Notes/commit/bc0b9b82e2d28ffee80cbaf2ef5243e5c81fb9a1))
+* add Play Store notes from staging and publish directly to alpha ([d876c98](https://github.com/ScottKirvan/QuKi-Notes/commit/d876c9810fd035bf6aaa64b1f00c3d3b2fa7d73c))
+* read play-store-notes directly from staging branch ([a13aefc](https://github.com/ScottKirvan/QuKi-Notes/commit/a13aefc6a5ed59539a41c0e107f91d64119d8581))
+* scope block-marker reveal to the marker itself, not the whole line ([#345](https://github.com/ScottKirvan/QuKi-Notes/issues/345), ADR-37) ([c03b4dd](https://github.com/ScottKirvan/QuKi-Notes/commit/c03b4ddcd6cdff9238187a31ee54ed1a52556fb7))
+* set versionCode to yydddHHMM timestamp at build time ([26f3583](https://github.com/ScottKirvan/QuKi-Notes/commit/26f35834f3098ae095192fbcfa66d6d32942a746))
+
 ## [0.21.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.20.0...v0.21.0) (2026-08-10)
 
 
