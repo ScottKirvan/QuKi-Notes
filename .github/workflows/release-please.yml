@@ -54,6 +54,8 @@ jobs:
             --jq '.content' | base64 -d)
           BLURB=$(gh api "repos/$REPO/contents/.github/tmp/pre-release-staging/discord-blurb.txt?ref=$STAGING_BRANCH" \
             --jq '.content' | base64 -d 2>/dev/null || echo "")
+          PLAY_NOTES=$(gh api "repos/$REPO/contents/.github/tmp/pre-release-staging/play-store-notes.txt?ref=$STAGING_BRANCH" \
+            --jq '.content' | base64 -d 2>/dev/null || echo "")
 
           printf '%s' "$NOTES" > /tmp/staged-release-notes.md
           gh release edit "$TAG" --repo "$REPO" --notes-file /tmp/staged-release-notes.md
@@ -68,10 +70,6 @@ jobs:
             echo 'BLURB_EOF'
           } >> "$GITHUB_OUTPUT"
 
-          PLAY_NOTES=$(printf '%s' "$BLURB" | \
-            sed 's/\*\*//g; s/\*//g; s/__//g; s/_//g; s/`//g' | \
-            sed 's/\[([^]]*)\]([^)]*)/\1/g' | \
-            cut -c1-500)
           { echo 'play_store_notes<<NOTES_EOF'
             printf '%s\n' "$PLAY_NOTES"
             echo 'NOTES_EOF'
