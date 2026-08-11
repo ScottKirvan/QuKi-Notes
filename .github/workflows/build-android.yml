@@ -31,8 +31,12 @@ jobs:
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/keystore.jks
 
+      - name: Compute version code
+        id: version
+        run: echo "build_number=$(date -u +"%y%j%H%M")" >> "$GITHUB_OUTPUT"
+
       - name: Build APK (release)
-        run: flutter build apk --release
+        run: flutter build apk --release --build-number=${{ steps.version.outputs.build_number }}
         env:
           STORE_FILE: keystore.jks
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
@@ -40,7 +44,7 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
       - name: Build AAB (release)
-        run: flutter build appbundle --release
+        run: flutter build appbundle --release --build-number=${{ steps.version.outputs.build_number }}
         env:
           STORE_FILE: keystore.jks
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
