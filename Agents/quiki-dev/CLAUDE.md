@@ -52,7 +52,36 @@ Read in this order — do not skip:
 
 > Written and maintained by the Spec session.
 
-No task currently in progress. Trash auto-purge (ADR-38) is locked but explicitly **deferred** — tracked as [#368](https://github.com/ScottKirvan/QuKi-Notes/issues/368), not to be picked up until the project owner says so. The full brief is kept below for whenever it's revived — no need to re-derive it.
+### Feature: Editor delete button + snackbar changes (no Undo, shorter duration)
+
+**Branch**: `feat/editor-delete-button`
+**Commit type**: `feat:` — the editor trash button is a genuinely new capability; the coupled snackbar changes (remove Undo, shorten duration) are a direct, explicit UX instruction from the project owner covering both delete entry points, not a bug fix.
+
+**What to build**, in three parts:
+
+**1. A Trash icon button on the Editor screen**, with the same delete behavior as the QuKis list screen's existing swipe-to-delete (`lib/features/stream/stream_screen.dart`'s `_delete()`): soft-deletes the currently-open QuKi to `.trash/` immediately on tap, no confirmation dialog (matching the list screen, which also has no confirmation step before its swipe-delete takes effect).
+
+- Icon: `LucideIcons.trash2` (same icon already used for the delete affordance on the list screen), in `EditorScreen`'s `AppBar.actions`, positioned as the **last** action (after Settings) — deliberately placed away from the Send button so a mistaken tap can't land on a destructive action instead of the primary one.
+- Disabled (`onPressed: null`) whenever there is no saved QuKi yet to delete — a brand-new, never-saved note (`_autoSave.savedId == null`). This mirrors the existing `hasQukis`-gated disable already used for the QuKis-list `leading` icon in this same file.
+- On tap: soft-delete via `QuKiStorage.softDelete()`, remove the entry from `quKiIndexProvider` (`removeMeta`), then reset the editor to a blank new note — the same end state as tapping the existing "+New" button. `EditorScreen` already has a `ref.listen<String?>(activeQukiIdProvider, ...)` → `_onActiveQukiChanged` pathway that performs exactly this reset when the *currently-open* QuKi gets deleted from elsewhere (see `stream_screen.dart`'s own `_delete()`, which sets `activeQukiIdProvider` to `null` when the deleted QuKi is the one currently open) — since this button always deletes the currently-open QuKi, that existing pathway is very likely the natural mechanism to reuse here too; verify it produces the right result rather than building a second, separate reset path.
+- **Race to guard against**: `AutoSaveController` has both a 2s idle debounce and a 30s periodic timer (ADR-6) that can independently fire and attempt to write the current body back to the QuKi's id. The delete flow must not let a pending/in-flight autosave write to (or resurrect) the file that was just soft-deleted — cancel/reset the autosave controller's tracking of this QuKi's id as part of the delete sequence, not as an afterthought. `AutoSaveController.resetForQuki()` already exists and is used for the equivalent "switching away from this QuKi" case elsewhere in this file — check whether it's sufficient here, in the right order relative to the actual file-system delete.
+- Show the same snackbar as the list screen ("QuKi moved to Trash.") after deleting — text, duration, and no-action must all match between the two screens exactly (see part 3).
+
+**2. Remove the Undo action from the delete snackbar on both screens.** In `stream_screen.dart`'s `_delete()`, delete the `SnackBarAction(label: 'Undo', ...)` and its `onPressed` restore logic entirely — the snackbar becomes plain informational text with no action, on both the list screen and the new Editor button from part 1. Recovery still exists via the separate Recently Deleted screen (unaffected, not touched by this brief) — this only removes the *inline* one-tap undo.
+
+**3. Shorten the snackbar's dismiss duration to 1500ms on both screens**, replacing the current 4-second (`Duration(seconds: 4)`) value. 1500ms is Android's own Material Snackbar `LENGTH_SHORT` default duration (`SnackbarManager.SHORT_DURATION_MS = 1500` in Android's Material Components library) — this is the "Android default" the project owner asked to use if one exists, so use it rather than inventing a different value. Apply it to both the `SnackBar.duration` field and the existing explicit-`Timer`-driven forced-dismissal (the code comment above it explains this app drives dismissal manually because Flutter 3.44 + Material 3's built-in auto-dismiss is unreliable *when a `SnackBarAction` is present*). Since part 2 removes the action, it's plausible Flutter's own built-in duration-based dismissal becomes reliable again without the manual `Timer` — if you can verify that with a widget test, simplify by removing the manual `Timer`; if you're not confident either way, keep the manual `Timer` defensively, just updated to 1500ms so both mechanisms agree.
+
+**Explicitly out of scope**: the Recently Deleted screen and its own separate hard-delete confirmation dialog — that flow doesn't use a snackbar at all today and isn't part of this change. Any confirmation dialog before soft-delete on either screen (explicitly not being added — "same behavior as the list page" means no confirmation, matching how swipe-delete already works there). Trash auto-purge / ADR-38 (separate, deferred, see below) — unrelated to this brief.
+
+**Required test coverage**:
+- Editor: tapping the Trash button soft-deletes the active QuKi, removes it from the index, and the editor lands on a blank new note afterward (same observable end state as tapping "+New").
+- Editor: the Trash button is disabled on a brand-new, never-yet-saved note, and becomes enabled once the note has been saved at least once.
+- Editor: a pending/in-flight autosave does not resurrect or write to the just-deleted QuKi's id after the delete button is tapped.
+- Both screens: the delete snackbar has no action/button of any kind, and asserts the shown text.
+- Both screens: snackbar duration is 1500ms (assert the configured value directly rather than timing a real 1.5s wait in the test).
+- Update or remove the existing Stream screen test that currently asserts "undo delete restores the QuKi file" — it will no longer be valid once the Undo action is removed; replace it with equivalent coverage of the new no-action behavior, don't just delete it silently.
+
+**Checklist**: `dart format`, `flutter analyze`, root tests (`flutter test` from repo root) — note before/after counts. This touches `lib/features/editor/`, `lib/features/stream/`, and their tests only, not the `markdown_live_editor` package. Report back: which reset/race-guard mechanism you used and why it's safe, whether you kept or removed the manual `Timer` dismissal workaround and what you verified to decide that, and test evidence for every item above.
 
 ---
 
