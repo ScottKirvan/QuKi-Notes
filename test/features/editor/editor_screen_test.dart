@@ -16,6 +16,7 @@ import 'package:path/path.dart' as p;
 // exercise EditorScreen._onCheckboxToggle (#354) as production code, rather
 // than calling it directly (it's private).
 import 'package:markdown_live_editor/src/quiki_render_editor.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:quki_notes/app.dart';
 import 'package:quki_notes/core/storage/quki_index.dart';
@@ -305,6 +306,32 @@ Future<String> _toggleAndReadDisk(
 }
 
 void main() {
+  // EditorScreen unconditionally watches enabledTransportsProvider, which
+  // (via transportSettingsProvider -> TransportSettingsNotifier.build())
+  // calls SharedPreferences.getInstance(). Without a mock, that throws
+  // MissingPluginException in this Dart-VM test environment (no platform
+  // channel implementation registered) — Riverpod's AsyncNotifier catches
+  // it silently and schedules its own automatic retry via a real
+  // FakeAsync-zone Timer (confirmed via a temporary stack-trace capture:
+  // ProviderElement.triggerRetry -> FakeAsync._createTimer). Under a single
+  // rebuild that retry timer is usually cancelled cleanly by this test's own
+  // cleanup()/container disposal before it matters, but any test that
+  // rebuilds EditorScreen more than once re-enters the same throw/retry
+  // cycle at a later point in the timeline — including via
+  // _onActiveQukiChanged's own now-necessary setState() call — and can
+  // occasionally leave a fresh 200ms retry Timer pending right as this
+  // test's teardown runs, tripping flutter_test's "Timer still pending"
+  // invariant check on whatever test happens to be executing at that exact
+  // moment (confirmed root cause of a full-suite-only flake reported
+  // against #post-96/this file, not reproducible when running this file
+  // alone). Mocking SharedPreferences here — the same idiom already used in
+  // transport_settings_notifier_test.dart, settings_screen_test.dart, and
+  // storage_setup_screen_test.dart — makes the first build succeed, so the
+  // error/retry path is never entered at all.
+  setUpAll(() {
+    SharedPreferences.setMockInitialValues({});
+  });
+
   group('EditorScreen renders', () {
     testWidgets('shows MarkdownEditor on launch with QuikiEditor',
         (tester) async {
