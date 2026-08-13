@@ -52,35 +52,44 @@ Read in this order — do not skip:
 
 > Written and maintained by the Spec session.
 
-### Fix: block-marker reveal must be scoped to the marker itself, not the whole line (#345, ADR-37)
+### Feature: trash auto-purge — fixed 30-day retention (ADR-38)
 
-**Branch**: `fix/marker-scoped-reveal`
-**Commit type**: `fix:` — closing a confirmed-wrong design decision (see ADR-37, `notes/dev/decisions.md`), not new UX.
+**Branch**: `feat/trash-auto-purge`
+**Commit type**: `feat:` — genuinely new capability (reverses the prior "no timer" decision), not closing a gap in previously-declared behavior.
 
-Read #345 in full on GitHub first (including the 2026-08-10 comment with the confirmed root cause) and read ADR-37 in `notes/dev/decisions.md` before starting.
+Read `notes/dev/decisions.md` → ADR-38 in full before starting. It is already locked by the project owner — the "what" is not open for renegotiation, only your implementation approach.
 
-**Confirmed symptom**: today, whenever the cursor lands *anywhere* on a list-item, heading, or blockquote line, the entire line reveals as raw markdown source — marker, indentation, and all inline content — even though only the marker itself needs to be raw for editing. This causes a visible left-snap/jump on every such line the cursor touches, which the project owner has confirmed leads to real typing mistakes in daily use, not just a visual annoyance.
+**What to build**: items sitting in `.trash/` are automatically, permanently purged 30 days after the date they were moved there. Fixed at exactly 30 days — no settings, no configurability, no UI countdown or expiry display anywhere. The existing Recently Deleted screen's tap-to-restore / swipe-to-hard-delete behavior for anything not yet expired is completely unchanged.
 
-**Confirmed root cause** (already traced by spec — verify yourself against the current code before proceeding, don't just trust this restatement): `RenderModel.build()` in `packages/markdown_live_editor/lib/src/render_model.dart` computes the "reveal unit" as `topLevel = block ?? (active.isEmpty ? null : active.first)` (~line 560), and the block-level `MdElement` for list/checkbox/heading/blockquote kinds spans the *entire line* (`block.start` to `block.end`), not just the marker. The code's own existing comment states this is deliberate: "a block always encloses its line's inline children, so it is the outermost [reveal unit] when present." `revealed = cursorOffset >= topLevel.start && cursorOffset <= topLevel.end` then evaluates true for the cursor anywhere in that whole span.
+**Correctness invariants** (mechanism is yours to design — not prescribed):
 
-**The target, restated precisely by the project owner**: "I want everything fully rendered until you're actually inside some formatted markdown text, then only reveal that portion for editing — same behavior as regular line editing." I.e., the block marker should be treated as *just another revealable element* with its own narrow range — exactly like bold/italic/links/inline-code already are — not as something whose reveal boundary drags the whole line along with it.
+1. **Record deletion time.** `QuKiStorage.softDelete()` (`lib/core/storage/quki_storage.dart`) currently moves `{uuid}.md` + `.meta/{uuid}.json` into `.trash/` unchanged — nothing in the sidecar marks when that move happened. A `deletedAt` timestamp must be recorded at the moment of soft-delete. Where it lives (extend the existing meta sidecar schema, a new field, a new file) is your call.
 
-**Correctness invariants** (not a prescribed mechanism — you decide how to wire this into `RenderModel`):
-- A list-item (`ul`/`ol`/`checkboxUnchecked`/`checkboxChecked`), heading (`h1`–`h6`), or blockquote (`blockquote`) line's marker reveals as raw source **only** when the cursor is positioned within the marker's own source character range — not merely somewhere else on the same line.
-- `MdElement.openDelimLen` (already exists, already computes the exact marker length for every one of these kinds, including the variable-length list/ol/checkbox/blockquote cases via the existing `srcMarkerLen` mechanism from ADR-34) is very likely the right building block for the marker's own narrow end (`block.start + block.openDelimLen`) — verify this is actually correct for every kind in scope before relying on it, don't just assume the field means what its doc comment implies.
-- Inline content elsewhere in that same line (bold, italic, links, inline code, nested emphasis) must keep its **exact existing** per-element reveal behavior, completely unaffected by this change — this fix only changes how the block-level marker portion participates in reveal computation, nothing about the inline-scanning/nesting machinery (ADR-33) should need to change.
-- When the marker is *not* revealed, it must render exactly as it already does today in the collapsed/off-cursor case (bullet glyph, checkbox box, heading type-scale, blockquote stripe) — this is purely about *when* reveal triggers, not a visual redesign of either state.
-- Scope is `ul`/`ol`/`checkboxUnchecked`/`checkboxChecked`/`h1`-`h6`/`blockquote` — **not** `image` or `hr`. Those two kinds have no inline content sharing the line with their marker (the "marker" effectively *is* the whole line already, by design — `openDelimLen` for both is `end - start`), so they're not affected by this bug and should be left alone; don't extend the fix to them speculatively.
-- Must not regress the just-shipped checkbox reading-mode-safety behavior (PR #350, #335/#266/#352/#354) — a checkbox *tap* (not a cursor placement) still must not move the cursor into the marker's range or trigger a reveal. Since checkbox-toggle already returns early before any cursor placement (`_onTapDown`'s checkbox branch), this should be naturally unaffected — confirm this with a test rather than assuming it.
-- Cursor-boundary behavior (exactly at the transition between the marker's own range and the first inline character) should resolve consistently with how other element boundaries already resolve in this codebase (the existing `>=`/`<=` inclusive-end convention) — get this right, don't introduce a new, different boundary rule just for markers.
+2. **Grandfather existing trash on first contact.** Any item already sitting in `.trash/` when this ships has no real `deletedAt`. The first time the sweep examines such an item, it must assign it a fresh `deletedAt` (the current time) — not backdate it, not treat it as pre-expired — and that assignment must persist (write it back), so the item isn't re-grandfathered on every subsequent launch. Net invariant: nothing already in trash before this feature ships is ever purged as a side effect of the app updating; it gets a full fresh 30-day window starting from whenever the app first checks it.
 
-**Explicitly out of scope**: `image`/`hr` kinds (see above). Any change to how markers are *painted* when collapsed. Any change to checkbox tap-to-toggle logic itself. #340/#328 (separate, unrelated keyboard-detection issue).
+3. **Purge reuses the existing hard-delete path.** Sweeping is not a new deletion mechanism — for any trash item whose `deletedAt` is ≥30 days in the past, call the same `hardDelete()` (or equivalent) the Recently Deleted screen's swipe-to-hard-delete gesture already uses.
 
-**Required test coverage**: real cursor-position/interaction tests (not just `RenderModel` data assertions in isolation, though those are useful too) confirming: (a) placing the cursor inside a list item's/heading's/blockquote's inline text content does **not** reveal or shift the marker; (b) placing the cursor directly within the marker's own characters **does** reveal it as raw, editable source; (c) existing inline reveal behavior (bold/italic/links/nested emphasis) inside list items, headings, and blockquotes continues working exactly as before, unchanged; (d) this holds for at least one nested/indented list case (ADR-34), not just a top-level list; (e) a checkbox tap-to-toggle still does not trigger the marker's reveal (non-regression against PR #350).
+4. **Runs once per app startup** — a single check at launch, not on every Recently Deleted screen open or `TrashIndex` rebuild.
 
-**Checklist**: `dart format`, `flutter analyze`, both package tests (`cd packages/markdown_live_editor && flutter test`) and root tests (`flutter test` from repo root) — both suites, every time, note before/after counts. Report back: how you exposed/computed the marker's own narrow reveal range, confirmation `openDelimLen` was actually correct for every in-scope kind (or what you found instead if it wasn't), test evidence for each invariant above, and whether headings/blockquotes needed anything different from list items or all fell out of the same fix uniformly.
+5. **Must not block or visibly delay cold launch.** This app has a repeated, project-owner-confirmed history of broken cold-launch work (auto-focus shipped as "Complete" three separate times without ever functioning — see root `CLAUDE.md`'s Known bugs and `notes/dev/decisions.md`). The sweep must not become a fourth entry in that pattern: it must run without holding up first-frame render or making the app feel slower to open (fire-and-forget after first frame, a separate isolate, or another approach — you decide). **If you cannot make it fully invisible/non-blocking**, the fallback is an explicit, non-modal, transient loading indicator — e.g. a snackbar reading something like "Cleaning up trash…" — shown only while the sweep is actively running, auto-dismissing when it finishes. Do not silently block startup and hope it isn't noticed; either make it invisible, or tell the user what's happening while it runs. This snackbar (only if actually needed) is the *only* new UI this feature is allowed to add.
+
+6. **No settings, no per-item countdown/expiry UI anywhere** — this is a silent background rule, not a feature to expose to the user.
+
+**Explicitly out of scope**: any UI for viewing/adjusting the retention period; any per-item "expires in N days" display on the Recently Deleted list; any change to the existing tap-to-restore / swipe-to-hard-delete flow for unexpired items; any change to soft-delete's behavior beyond adding `deletedAt`.
+
+**Required test coverage**:
+- An item past the 30-day mark gets hard-deleted by the sweep; an item not yet past does not.
+- Boundary case: exactly at 30 days — decide and test which side of the boundary is authoritative, and document your choice in your report.
+- Grandfathering: an item with no `deletedAt` (simulating pre-existing trash) is NOT purged on the sweep that first encounters it, gets a `deletedAt` assigned, and that assignment persists (a second sweep shortly after neither re-grandfathers nor purges it early).
+- The sweep never touches active (non-trashed) QuKis.
+- The sweep runs once at startup, not repeatedly on every trash-related screen visit.
+- If you implement the fallback snackbar: cover that it only appears while the sweep is actually running, and does not appear when the sweep is fast/invisible. If this specific behavior isn't practically testable, explain why in your report and how you verified it manually instead.
+
+**Checklist**: `dart format`, `flutter analyze`, root tests (`flutter test` from repo root). This touches `lib/core/storage/` and app bootstrap, not the `markdown_live_editor` package — skip package tests unless you end up touching that package, in which case run those too. Report back: where you stored `deletedAt`, how the startup sweep is triggered/scheduled, whether you achieved a fully invisible sweep or needed the fallback snackbar (and how you verified startup isn't perceptibly slower either way), and test evidence for every invariant above.
 
 ---
+
+The list-toggle-unify fix (PR #365) and the block-marker-scoped-reveal fix (PR #358, ADR-37, closes #345) are both fully shipped and merged. See root `CLAUDE.md` → Phase 3.61/3.62 for the full record.
 
 The checkbox/selection reading-mode-safety effort is fully shipped: PR #350 (merged 2026-08-10) closed **#335**, **#266**, **#336**, **#352**, and **#354** across four device-tested rounds. See root `CLAUDE.md` → Phase 3.60 and `notes/dev/decisions.md` for the full record.
 
