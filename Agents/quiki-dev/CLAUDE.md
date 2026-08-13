@@ -52,7 +52,13 @@ Read in this order — do not skip:
 
 > Written and maintained by the Spec session.
 
-### Feature: trash auto-purge — fixed 30-day retention (ADR-38)
+No task currently in progress. Trash auto-purge (ADR-38) is locked but explicitly **deferred** — tracked as [#368](https://github.com/ScottKirvan/QuKi-Notes/issues/368), not to be picked up until the project owner says so. The full brief is kept below for whenever it's revived — no need to re-derive it.
+
+---
+
+### DEFERRED — Feature: trash auto-purge — fixed 30-day retention (ADR-38, #368)
+
+**Do not start this without explicit go-ahead from the project owner.** Kept here ready-to-launch, not as an active assignment.
 
 **Branch**: `feat/trash-auto-purge`
 **Commit type**: `feat:` — genuinely new capability (reverses the prior "no timer" decision), not closing a gap in previously-declared behavior.
