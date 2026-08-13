@@ -28,7 +28,7 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
   String _query = '';
   List<QuKiMeta>? _searchResults;
   bool _searching = false;
-  Timer? _undoTimer;
+  Timer? _dismissTimer;
 
   @override
   void initState() {
@@ -65,7 +65,7 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
 
   @override
   void dispose() {
-    _undoTimer?.cancel();
+    _dismissTimer?.cancel();
     _searchController.removeListener(_onSearchChanged);
     _searchController.dispose();
     super.dispose();
@@ -99,28 +99,23 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
       ref.read(activeQukiIdProvider.notifier).setId(null);
     }
     if (!mounted) return;
-    _undoTimer?.cancel();
+    _dismissTimer?.cancel();
     messenger.clearSnackBars();
     final controller = messenger.showSnackBar(
-      SnackBar(
-        content: const Text('QuKi moved to Trash.'),
-        duration: const Duration(seconds: 4),
-        action: SnackBarAction(
-          label: 'Undo',
-          onPressed: () {
-            _undoTimer?.cancel();
-            _undoTimer = null;
-            storage.restore(meta.id);
-            ref.read(quKiIndexProvider.notifier).addMeta(meta);
-          },
-        ),
+      const SnackBar(
+        content: Text('QuKi moved to Trash.'),
+        duration: Duration(milliseconds: 1500),
       ),
     );
-    // Flutter 3.44 + Material 3: SnackBar with SnackBarAction does not reliably
-    // auto-dismiss via the internal timer when an action is present. Drive
-    // dismissal with an explicit Timer to guarantee the 4s timeout.
-    _undoTimer = Timer(const Duration(seconds: 4), () {
-      _undoTimer = null;
+    // No SnackBarAction anymore (inline Undo removed — recovery is via the
+    // separate Recently Deleted screen only), but Flutter 3.44 + Material 3's
+    // built-in auto-dismiss was only confirmed unreliable when an action was
+    // present; without one to re-verify against on a real device, keep
+    // driving dismissal with this explicit Timer defensively so both
+    // mechanisms agree on the same 1500ms duration (Android's own Material
+    // Snackbar LENGTH_SHORT default).
+    _dismissTimer = Timer(const Duration(milliseconds: 1500), () {
+      _dismissTimer = null;
       controller.close();
     });
   }
