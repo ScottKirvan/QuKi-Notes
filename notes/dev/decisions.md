@@ -12,6 +12,28 @@ Normative framing in `manifesto.md` — read that first.
 
 ---
 
+## ADR-38: Trash auto-purge — fixed 30-day retention, grandfathered on rollout
+
+**Date**: 2026-08-13
+
+**Status**: Locked, briefed — not yet implemented. Partially supersedes ADR-5's "no timer, no auto-sweep" clause.
+
+**What**: Items in `.trash/` are now permanently purged automatically 30 days after the date they were moved to trash. Fixed at 30 days — no settings toggle, no user-configurable interval — and no UI countdown/expiry indicator anywhere (Recently Deleted keeps its current tap-to-restore / swipe-to-hard-delete behavior for anything not yet expired; this just adds an automatic version of the swipe-to-hard-delete action).
+
+Correctness invariants for the implementation:
+- A `deletedAt` timestamp must be recorded at the moment an item is soft-deleted — `QuKiStorage.softDelete()` and the trash sidecar (`.trash/.meta/{uuid}.json`) currently carry no such field (only the pre-existing `createdAt`/`modifiedAt`, unchanged from before deletion).
+- **Grandfathering**: items already sitting in `.trash/` before this feature ships have no real `deletedAt` to check against. They must not be purged as a side effect of the app updating — each gets a fresh `deletedAt` (now) assigned the first time the sweep ever runs on it, not backdated and not treated as pre-expired.
+- The purge check runs once at app startup and reuses the existing `hardDelete()` path for anything ≥30 days past its `deletedAt` — this is not a new deletion mechanism, it's the same operation swipe-to-hard-delete already performs, just triggered automatically instead of by a tap.
+- Must not block or visibly delay cold launch. This app has a repeatedly-broken history with cold-launch reliability (auto-focus removed after shipping as "Complete" three separate times without ever actually working; #342 splash screen still pending) — the sweep must not become a fourth entry in that pattern. If it can't be made invisible/non-blocking, show a transient, non-modal indicator (e.g. a snackbar) while it runs rather than silently freezing the UI.
+
+**Why**: The project owner reversed ADR-5's "no timer" decision directly. 30-day auto-purge is standard trash/recycle-bin behavior (OS trash, Gmail) — and the project owner asking for it now satisfies the exact condition ADR-5 cited for rejecting it originally ("nothing has asked for this complexity since"). Kept fixed rather than configurable specifically to preserve ADR-5's original "resist vault-like feature creep" reasoning — one predictable rule, not a new settings surface.
+
+**Rejected**: user-configurable retention period (explicitly re-rejected, consistent with ADR-5). Immediately sweeping pre-existing trash items with no real `deletedAt` on first launch after this ships (rejected — defeats the purpose of grandfathering; an item already in trash must not evaporate as a surprise side effect of an app update). Any UI display of days-remaining (rejected — silent, no-ritual, matching how deletion already works everywhere else in this app).
+
+**Scope**: `lib/core/storage/` (`QuKiStorage.softDelete()`, sidecar schema, a new sweep entry point) + app bootstrap (where it's triggered at startup). No change to the Recently Deleted screen's existing restore/hard-delete UI. See `Agents/quiki-dev/CLAUDE.md` for the implementation brief.
+
+---
+
 ## ADR-37: Block-marker reveal scoped to the marker itself, not the whole line
 
 **Date**: 2026-08-10
@@ -415,7 +437,9 @@ Superseded by ADR-14 (transport plugins replace the JSON workflow DSL) and ADR-1
 
 ## ADR-5: Deletion model — Recently Deleted, user-managed restore/delete
 
-**Mechanism corrected for ADR-25.** The original entry described a SQLite `deletedAt` column and a configurable-retention background sweep — storage moved to files (ADR-25), so the actual mechanism is a `.trash/` subfolder (`{uuid}.md` + `.meta/{uuid}.json`, same shape as the live folder). **The retention-period auto-sweep was never built and is not planned** — deletion is user-managed only, no timer (see root `CLAUDE.md` Key Decisions table). What still holds: Recently Deleted is a data-recovery screen, not an organization feature — tap restores, swipe hard-deletes with confirmation, no sort/filter/filing within it.
+**Mechanism corrected for ADR-25.** The original entry described a SQLite `deletedAt` column and a configurable-retention background sweep — storage moved to files (ADR-25), so the actual mechanism is a `.trash/` subfolder (`{uuid}.md` + `.meta/{uuid}.json`, same shape as the live folder). What still holds: Recently Deleted is a data-recovery screen, not an organization feature — tap restores, swipe hard-deletes with confirmation, no sort/filter/filing within it.
+
+**Superseded in part by ADR-38 (2026-08-13)**: the "no timer, user-managed only" clause below no longer holds — the project owner reversed it directly, adding a fixed (non-configurable) 30-day auto-purge. See ADR-38 for the current mechanism; the restore/hard-delete UI described here is otherwise unchanged.
 
 **Why**: the friction of organizing is what makes vaults heavy; Recently Deleted must resist feature creep toward vault-like behavior. A configurable timer sounded useful at design time but added complexity nothing has asked for since — user-managed deletion is simpler and matches how QuKi-Notes treats deletion everywhere else (explicit, not automatic).
 
