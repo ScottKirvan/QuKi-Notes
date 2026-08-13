@@ -455,7 +455,10 @@ void main() {
       expect(controller.currentValue, 'plain item');
     });
 
-    testWidgets('strips full task list prefix when toggling off',
+    testWidgets(
+        'converts a task-list marker to a bullet, not a full strip'
+        ' — regression: toggleUnorderedList previously treated checkbox as'
+        ' "same family" and stripped it entirely instead of converting',
         (tester) async {
       final controller =
           await pumpEditor(tester, initialValue: '- [ ] task item');
@@ -467,7 +470,7 @@ void main() {
       controller.toggleUnorderedList();
       await tester.pump();
 
-      expect(controller.currentValue, 'task item');
+      expect(controller.currentValue, '- task item');
     });
 
     testWidgets('removes "* " prefix when present', (tester) async {

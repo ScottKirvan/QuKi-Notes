@@ -78,7 +78,7 @@ class FormattingToolbar extends StatelessWidget {
                     IconButton(
                       icon: const Icon(LucideIcons.listChecks),
                       tooltip: 'Task list',
-                      onPressed: () => controller.toggleLinePrefix('- [ ] '),
+                      onPressed: controller.toggleCheckboxList,
                     ),
                     IconButton(
                       icon: const Icon(LucideIcons.indentIncrease),

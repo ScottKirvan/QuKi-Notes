@@ -38,18 +38,18 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "media/QuKiNotes_v2_Rainbow.png"
+  image_path: "assets/media/QuKiNotes_v2_Rainbow.png"
   adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "media/QuKiNotes_v2_Rainbow.png"
+  adaptive_icon_foreground: "assets/media/QuKiNotes_v2_Rainbow.png"
   windows:
     generate: true
-    image_path: "media/QuKiNotes_v2_Rainbow_transparent.png"
+    image_path: "assets/media/QuKiNotes_v2_Rainbow_transparent.png"
     icon_size: 48
   linux:
     generate: true
-    image_path: "media/QuKiNotes_v2_Rainbow_transparent.png"
+    image_path: "assets/media/QuKiNotes_v2_Rainbow_transparent.png"
 
 flutter:
   uses-material-design: true
   assets:
-    - media/QuKiNotes_v2_Rainbow_transparent.png
+    - assets/media/QuKiNotes_v2_Rainbow_transparent.png
