@@ -68,7 +68,7 @@ class _HelpDialog extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: Image.asset(
-                'media/QuKiNotes_v2_Rainbow_transparent.png',
+                'assets/media/QuKiNotes_v2_Rainbow_transparent.png',
                 width: 64,
                 height: 64,
               ),
