@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io' show File, Platform;
 
 import 'package:url_launcher/url_launcher.dart';
@@ -61,6 +62,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     with WidgetsBindingObserver {
   late final MarkdownEditorController _editorController;
   late final AutoSaveController _autoSave;
+  Timer? _dismissTimer;
 
   @override
   void initState() {
@@ -89,6 +91,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
   @override
   void dispose() {
+    _dismissTimer?.cancel();
     _editorController.onFocusChanged = null;
     WidgetsBinding.instance.removeObserver(this);
     _autoSave.dispose();
@@ -216,6 +219,16 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     _editorController.setValue(body);
 
     _autoSave.resetForQuki(id: qukiId, initialBody: body);
+    // AppBar state that reads _autoSave.savedId directly (e.g. the Trash
+    // button's enabled/disabled gate) otherwise has no reliable rebuild
+    // trigger here: unfocus()/requestFocus() below only rebuilds via
+    // onFocusChanged when they actually change the focus state, and
+    // switching to an existing QuKi is a no-op call to unfocus() whenever
+    // the editor was already unfocused (e.g. immediately after returning
+    // from the QuKis list, which already unfocuses the underlying editor
+    // route on push) — silently leaving that AppBar state stale until some
+    // unrelated rebuild happens to occur.
+    if (mounted) setState(() {});
     if (qukiId == null) {
       _editorController.requestFocus();
     } else {
@@ -233,6 +246,73 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     } else {
       ref.read(activeQukiIdProvider.notifier).setId(null);
     }
+  }
+
+  /// Soft-deletes the currently-open QuKi (no confirmation — matches the
+  /// QuKis list screen's own swipe-to-delete) and resets the editor to a
+  /// blank new note, the same end state as tapping "+New" (see [_newQuKi]).
+  ///
+  /// Only reachable when [AutoSaveController.savedId] is non-null — the
+  /// Trash button is disabled (`onPressed: null`) on a brand-new, never-
+  /// saved note, since there is nothing on disk yet to delete.
+  ///
+  /// The editor content and [_autoSave]'s id tracking are both cleared
+  /// *before* the filesystem delete, and before any `await` — not after.
+  /// [AutoSaveController] has an independent 2s debounce and 30s periodic
+  /// timer (ADR-6) that could otherwise fire mid-delete and write the
+  /// still-displayed (now-stale) body back under this QuKi's id, recreating
+  /// the very file [QuKiStorage.softDelete] just moved to `.trash/`.
+  /// Clearing the body to '' makes any such write a no-op regardless of
+  /// timing, since [AutoSaveController.save] already skips empty bodies.
+  Future<void> _deleteCurrentQuki() async {
+    final id = _autoSave.savedId;
+    if (id == null) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final storage = ref.read(quKiStorageProvider);
+
+    _editorController.setValue('');
+    _autoSave.resetForQuki(id: null);
+
+    await storage.softDelete(id);
+    if (!mounted) return;
+
+    ref.read(quKiIndexProvider.notifier).removeMeta(id);
+
+    if (ref.read(activeQukiIdProvider) == id) {
+      // activeQukiIdProvider was pointing at this QuKi (it was opened via
+      // the QuKis list) — setting it to null triggers the existing
+      // ref.listen -> _onActiveQukiChanged(null) reset path, the same one
+      // StreamScreen's own delete already relies on when the deleted QuKi
+      // is the one currently open. Safe to let its flush() run: the editor
+      // and _autoSave were already cleared above, so it's a no-op.
+      ref.read(activeQukiIdProvider.notifier).setId(null);
+    } else {
+      // activeQukiIdProvider never pointed at this QuKi in the first place
+      // — e.g. a brand-new note that autosaved once but was never opened
+      // via the QuKis list, so nothing ever routed its id into that
+      // provider (the identical asymmetry _newQuKi's `id == null` branch
+      // already handles). setId(null) would be a no-op here (already
+      // null), so the listener above won't fire — land on the same "+New"
+      // end state directly instead.
+      _editorController.requestFocus();
+    }
+
+    if (!mounted) return;
+    _dismissTimer?.cancel();
+    messenger.clearSnackBars();
+    final controller = messenger.showSnackBar(
+      const SnackBar(
+        content: Text('QuKi moved to Trash.'),
+        duration: Duration(milliseconds: 1500),
+      ),
+    );
+    // See stream_screen.dart's _delete() for why this app drives dismissal
+    // with an explicit Timer alongside SnackBar's own duration.
+    _dismissTimer = Timer(const Duration(milliseconds: 1500), () {
+      _dismissTimer = null;
+      controller.close();
+    });
   }
 
   Future<void> _openQuKisList() async {
@@ -386,6 +466,14 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
             icon: const Icon(LucideIcons.settings),
             tooltip: 'Settings',
             onPressed: _openSettings,
+          ),
+          IconButton(
+            icon: const Icon(LucideIcons.trash2),
+            tooltip: 'Delete',
+            // Deliberately last and separated from Send by every other
+            // action — a mistaken tap should not be able to land on this
+            // destructive action instead of the primary one.
+            onPressed: _autoSave.savedId != null ? _deleteCurrentQuki : null,
           ),
         ],
       ),

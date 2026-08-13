@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:markdown_live_editor/markdown_live_editor.dart';
+import 'package:path/path.dart' as p;
 // Reaches into the package's implementation library rather than its public
 // barrel — the same convention the package's own tests already use (see
 // e.g. packages/markdown_live_editor/test/checkbox_hit_target_test.dart) to
@@ -29,6 +30,17 @@ class _FakeQuKiStorage extends QuKiStorage {
   _FakeQuKiStorage() : super(Directory.systemTemp);
 
   final saves = <({String? id, String body})>[];
+  final softDeleted = <String>[];
+
+  // Not overridden by default: QuKiStorage.softDelete() does real dart:io
+  // (File.exists()/rename()) against Directory.systemTemp, which — unlike
+  // the create/update overrides below — would hit real I/O from inside a
+  // FakeAsync testWidgets zone. Override it the same way create/update
+  // already are, tracking calls instead of touching the filesystem.
+  @override
+  Future<void> softDelete(String id) async {
+    softDeleted.add(id);
+  }
 
   @override
   Future<QuKiMeta> create(String body) async {
@@ -690,6 +702,297 @@ void main() {
           reason: 'a nested checkbox must toggle — and persist via the '
               'unchanged auto-save path — exactly like a non-nested one, '
               'regardless of leading whitespace length (#354)');
+    });
+  });
+
+  group('EditorScreen delete button', () {
+    testWidgets(
+        'disabled on a brand-new, never-saved note — enabled once the '
+        'first autosave lands', (tester) async {
+      final storage = _FakeQuKiStorage();
+      await tester.pumpWidget(_buildEditor(storage: storage));
+      await tester.pump();
+      await tester.pump(Duration.zero);
+
+      IconButton trashButton() => tester.widget<IconButton>(
+            find.ancestor(
+                of: find.byIcon(LucideIcons.trash2),
+                matching: find.byType(IconButton)),
+          );
+
+      expect(
+        trashButton().onPressed,
+        isNull,
+        reason: 'Trash button must be disabled before the note is ever saved',
+      );
+
+      // Focus, type, and wait past the 2s debounce to trigger the first
+      // autosave. See the identical pattern in the auto-save group above
+      // for why the initial pump is longer than kDoubleTapTimeout.
+      await tester.tap(find.byType(MarkdownEditor));
+      await tester.pump(const Duration(milliseconds: 400));
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: 'hello',
+          selection: TextSelection.collapsed(offset: 5),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pump();
+
+      expect(
+        trashButton().onPressed,
+        isNotNull,
+        reason: 'Trash button must enable once the note has been saved once '
+            '— the same quKiIndexProvider rebuild trigger already used to '
+            'gate the QuKis-list icon (#86)',
+      );
+
+      await cleanup(tester);
+    });
+
+    testWidgets(
+        'tapping Trash soft-deletes the active QuKi, removes it from the '
+        'index, and lands on a blank new note (same end state as +New)',
+        (tester) async {
+      late Directory tmpDir;
+      late QuKiStorage storage;
+      late QuKiMeta meta;
+
+      await tester.runAsync(() async {
+        tmpDir = await Directory.systemTemp.createTemp('quki_editor_delete_');
+        storage = QuKiStorage(tmpDir);
+        meta = await storage.create('delete me');
+      });
+      addTearDown(() => tmpDir.delete(recursive: true));
+
+      final container = ProviderContainer(
+        overrides: [
+          quKiStorageProvider.overrideWithValue(storage),
+          quKiIndexProvider.overrideWith(() => _FakeQuKiIndex([meta])),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: EditorScreen()),
+        ),
+      );
+      await tester.pump();
+
+      // Open the note via activeQukiIdProvider, same as tapping it from the
+      // QuKis list — this is the branch where activeQukiIdProvider ==
+      // AutoSaveController.savedId, so deleting it must also clear
+      // activeQukiIdProvider back to null via the existing ref.listen path.
+      await tester.runAsync(() async {
+        container.read(activeQukiIdProvider.notifier).setId(meta.id);
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+      });
+      await tester.pump();
+      await tester.pump();
+
+      // The Trash button's onPressed calls storage.softDelete(), a real
+      // dart:io rename — run the tap itself inside runAsync so the real
+      // write actually gets a chance to complete against the real event
+      // loop rather than being left dangling in FakeAsync's zone.
+      await tester.runAsync(() async {
+        await tester.tap(find.byIcon(LucideIcons.trash2));
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+      });
+      await tester.pump();
+      await tester.pump();
+
+      final stillAtActivePath =
+          await tester.runAsync(() => File(meta.filePath).exists());
+
+      expect(
+        stillAtActivePath,
+        isFalse,
+        reason: 'the active file must be moved to trash on delete',
+      );
+
+      expect(
+        container.read(quKiIndexProvider).value,
+        isEmpty,
+        reason: 'the deleted QuKi must be removed from the index',
+      );
+      expect(
+        container.read(activeQukiIdProvider),
+        isNull,
+        reason: 'activeQukiIdProvider must reset to null, same as +New',
+      );
+
+      final trashButton = tester.widget<IconButton>(
+        find.ancestor(
+            of: find.byIcon(LucideIcons.trash2),
+            matching: find.byType(IconButton)),
+      );
+      expect(
+        trashButton.onPressed,
+        isNull,
+        reason: 'Trash button must disable again — AutoSaveController.'
+            'savedId must reset to null, same as landing on a brand-new '
+            'note via +New',
+      );
+
+      await cleanup(tester);
+    });
+
+    testWidgets('a pending autosave does not resurrect the just-deleted QuKi',
+        (tester) async {
+      late Directory tmpDir;
+      late QuKiStorage storage;
+      late QuKiMeta meta;
+
+      await tester.runAsync(() async {
+        tmpDir =
+            await Directory.systemTemp.createTemp('quki_editor_delete_race_');
+        storage = QuKiStorage(tmpDir);
+        meta = await storage.create('original content');
+      });
+      addTearDown(() => tmpDir.delete(recursive: true));
+
+      final container = ProviderContainer(
+        overrides: [
+          quKiStorageProvider.overrideWithValue(storage),
+          quKiIndexProvider.overrideWith(() => _FakeQuKiIndex([meta])),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: EditorScreen()),
+        ),
+      );
+      await tester.pump();
+
+      await tester.runAsync(() async {
+        container.read(activeQukiIdProvider.notifier).setId(meta.id);
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+      });
+      await tester.pump();
+      await tester.pump();
+
+      // Focus (an existing note loads into reading mode) and type, leaving
+      // a 2s debounce Timer scheduled but NOT yet fired.
+      await tester.tap(find.byType(MarkdownEditor));
+      await tester.pump(const Duration(milliseconds: 400));
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: 'unsaved edit',
+          selection: TextSelection.collapsed(offset: 12),
+        ),
+      );
+      await tester.pump();
+
+      // Tap Trash before that debounce ever fires. The Trash button's
+      // onPressed calls storage.softDelete(), a real dart:io rename — run
+      // the tap itself inside runAsync so that real I/O actually gets to
+      // complete against the real event loop, rather than being left
+      // dangling in FakeAsync's zone.
+      await tester.runAsync(() async {
+        await tester.tap(find.byIcon(LucideIcons.trash2));
+        await Future<void>.delayed(const Duration(milliseconds: 300));
+      });
+      await tester.pump();
+      await tester.pump();
+
+      // Advance well past both the 2s debounce and the 30s periodic
+      // interval. Neither can reach real dart:io here even if still
+      // pending: AutoSaveController.save() bails out on an empty body
+      // before ever calling the write callback, and _deleteCurrentQuki
+      // clears the editor to '' before the delete even starts — so this is
+      // safe to pump through directly, without tester.runAsync, exactly
+      // because the guard being tested makes it a no-op.
+      await tester.pump(const Duration(seconds: 31));
+      await tester.pump();
+
+      final activeExists =
+          await tester.runAsync(() => File(meta.filePath).exists());
+      expect(
+        activeExists,
+        isFalse,
+        reason: 'a pending autosave must not resurrect the deleted QuKi at '
+            'its original active path',
+      );
+
+      final trashPath = p.join(tmpDir.path, '.trash', '${meta.id}.md');
+      final trashedContent =
+          await tester.runAsync(() => File(trashPath).readAsString());
+      expect(
+        trashedContent,
+        'original content',
+        reason: 'the trashed file must retain its original content — a '
+            'stale pending autosave must not overwrite it after the fact',
+      );
+
+      await cleanup(tester);
+    });
+
+    testWidgets('delete snackbar has no action and shows the expected text',
+        (tester) async {
+      final storage = _FakeQuKiStorage();
+      await tester.pumpWidget(_buildEditor(storage: storage));
+      await tester.pump();
+
+      await tester.tap(find.byType(MarkdownEditor));
+      await tester.pump(const Duration(milliseconds: 400));
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: 'to delete',
+          selection: TextSelection.collapsed(offset: 9),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pump();
+
+      await tester.tap(find.byIcon(LucideIcons.trash2));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('QuKi moved to Trash.'), findsOneWidget);
+      expect(
+        find.byType(SnackBarAction),
+        findsNothing,
+        reason: 'inline Undo action removed — recovery is via the separate '
+            'Recently Deleted screen only',
+      );
+
+      await cleanup(tester);
+    });
+
+    testWidgets('delete snackbar duration is 1500ms (Android LENGTH_SHORT)',
+        (tester) async {
+      final storage = _FakeQuKiStorage();
+      await tester.pumpWidget(_buildEditor(storage: storage));
+      await tester.pump();
+
+      await tester.tap(find.byType(MarkdownEditor));
+      await tester.pump(const Duration(milliseconds: 400));
+      tester.testTextInput.updateEditingValue(
+        const TextEditingValue(
+          text: 'to delete',
+          selection: TextSelection.collapsed(offset: 9),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pump();
+
+      await tester.tap(find.byIcon(LucideIcons.trash2));
+      await tester.pump();
+      await tester.pump();
+
+      final snackBar = tester.widget<SnackBar>(find.byType(SnackBar));
+      expect(snackBar.duration, const Duration(milliseconds: 1500));
+
+      await cleanup(tester);
     });
   });
 }

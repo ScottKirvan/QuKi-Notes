@@ -39,6 +39,27 @@ class _FakeQuKiIndex extends QuKiIndexNotifier {
   Future<void> refresh() async {}
 }
 
+/// No-dart:io [QuKiStorage] stub — avoids the real-file-I/O-inside-a-
+/// FakeAsync-widget-callback deadlock documented on the (skipped) tests
+/// below: `_QuKiTile.initState()` calls `storage.read()` synchronously as
+/// part of its own widget lifecycle, and real dart:io there hangs a
+/// FakeAsync `testWidgets` zone. Used only by the delete-snackbar tests,
+/// which don't need real file content — just that `softDelete()`/`read()`
+/// resolve without touching the filesystem.
+class _FakeQuKiStorage extends QuKiStorage {
+  _FakeQuKiStorage() : super(Directory.systemTemp);
+
+  final softDeleted = <String>[];
+
+  @override
+  Future<void> softDelete(String id) async {
+    softDeleted.add(id);
+  }
+
+  @override
+  Future<String> read(String id) async => '';
+}
+
 void main() {
   late Directory tmpDir;
   late QuKiStorage storage;
@@ -178,50 +199,6 @@ void main() {
         await File(meta.filePath).exists(),
         isFalse,
         reason: 'Active file must be moved to trash on soft delete',
-      );
-      await cleanup(tester);
-    });
-
-    testWidgets('undo snackbar has duration ≥ 3s',
-        skip:
-            true, // dart:io in widget callbacks deadlocks FakeAsync — needs QuKiStorage interface for mocking
-        (tester) async {
-      await insertQuki(body: 'Snackbar target');
-      await tester.pumpWidget(buildUnderTest());
-      await tester.pump();
-      await tester.pump(Duration.zero);
-      await tester.pump(Duration.zero);
-
-      await tester.drag(find.text('Snackbar target'), const Offset(-500, 0));
-      await tester.pumpAndSettle();
-
-      final snackBar = tester.widget<SnackBar>(find.byType(SnackBar));
-      expect(snackBar.duration.inSeconds, greaterThanOrEqualTo(3));
-      await cleanup(tester);
-    });
-
-    testWidgets('undo delete restores the QuKi file',
-        skip:
-            true, // dart:io in widget callbacks deadlocks FakeAsync — needs QuKiStorage interface for mocking
-        (tester) async {
-      final meta = await insertQuki(body: 'Undo me');
-      await tester.pumpWidget(buildUnderTest());
-      await tester.pump();
-      await tester.pump(Duration.zero);
-      await tester.pump(Duration.zero);
-
-      await tester.drag(find.text('Undo me'), const Offset(-500, 0));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.text('Undo'));
-      await tester.pump();
-      await tester.pump(Duration.zero);
-
-      // File should be back in the active location.
-      expect(
-        await File(meta.filePath).exists(),
-        isTrue,
-        reason: 'Undo must restore the file from trash',
       );
       await cleanup(tester);
     });
@@ -449,6 +426,72 @@ void main() {
 
       expect(find.byType(StreamScreen), findsNothing);
       expect(container.read(activeQukiIdProvider), isNull);
+
+      await cleanup(tester);
+    });
+  });
+
+  group('StreamScreen delete snackbar', () {
+    // Replaces the former (skipped) "undo snackbar has duration >= 3s" and
+    // "undo delete restores the QuKi file" tests — both asserted behavior
+    // of the inline Undo action, which no longer exists. Uses
+    // _FakeQuKiStorage (no real dart:io) rather than the shared
+    // buildUnderTest()/real-QuKiStorage setup above, so these run for real
+    // instead of joining the skipped group.
+    Widget buildWithFakeStorage(QuKiStorage fakeStorage, List<QuKiMeta> index) {
+      return ProviderScope(
+        overrides: [
+          quKiStorageProvider.overrideWithValue(fakeStorage),
+          quKiIndexProvider.overrideWith(() => _FakeQuKiIndex(index)),
+        ],
+        child: const MaterialApp(home: StreamScreen()),
+      );
+    }
+
+    QuKiMeta fakeMeta(String id) => QuKiMeta(
+          id: id,
+          filePath: '/fake/$id.md',
+          createdAt: DateTime.now(),
+          modifiedAt: DateTime.now(),
+        );
+
+    testWidgets('delete snackbar has no action and shows the expected text',
+        (tester) async {
+      final fakeStorage = _FakeQuKiStorage();
+      final meta = fakeMeta('del-no-action');
+
+      await tester.pumpWidget(buildWithFakeStorage(fakeStorage, [meta]));
+      await tester.pump();
+      await tester.pump(Duration.zero);
+
+      await tester.drag(find.byType(Dismissible), const Offset(-500, 0));
+      await tester.pumpAndSettle();
+
+      expect(find.text('QuKi moved to Trash.'), findsOneWidget);
+      expect(
+        find.byType(SnackBarAction),
+        findsNothing,
+        reason: 'inline Undo action removed — recovery is via the separate '
+            'Recently Deleted screen only',
+      );
+
+      await cleanup(tester);
+    });
+
+    testWidgets('delete snackbar duration is 1500ms (Android LENGTH_SHORT)',
+        (tester) async {
+      final fakeStorage = _FakeQuKiStorage();
+      final meta = fakeMeta('del-duration');
+
+      await tester.pumpWidget(buildWithFakeStorage(fakeStorage, [meta]));
+      await tester.pump();
+      await tester.pump(Duration.zero);
+
+      await tester.drag(find.byType(Dismissible), const Offset(-500, 0));
+      await tester.pumpAndSettle();
+
+      final snackBar = tester.widget<SnackBar>(find.byType(SnackBar));
+      expect(snackBar.duration, const Duration(milliseconds: 1500));
 
       await cleanup(tester);
     });
