@@ -16,6 +16,125 @@ import 'quiki_editor.dart';
 // calls buildTextSpan — and were removed with ADR-33.)
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Shared list-marker detection — used by both the toggleUnorderedList /
+// toggleOrderedList / toggleCheckboxList toolbar buttons below and the list
+// auto-continue logic in _MarkdownEditorState._onTextChanged, so both stay
+// consistent about what counts as "this line already has a list marker."
+//
+// Leading whitespace is always treated as belonging to the line, not the
+// marker (matching MdParser._listIndent / MdParser's wsLen > 0 branch on the
+// parsing/rendering side, ADR-34) — a marker is only recognized once any
+// leading spaces/tabs have been skipped, so nested list items are detected
+// the same way at any indentation depth.
+// ---------------------------------------------------------------------------
+
+final RegExp _leadingWsRe = RegExp(r'^([ \t]*)');
+final RegExp _taskPrefixRe = RegExp(r'^(- \[[ xX]\] )');
+final RegExp _unorderedPrefixRe = RegExp(r'^([-*] )');
+final RegExp _orderedPrefixRe = RegExp(r'^\d+\. ');
+
+String _leadingWs(String line) => _leadingWsRe.firstMatch(line)!.group(1)!;
+
+enum _ListMarkerType { unordered, ordered, checkbox }
+
+/// The marker text each type produces when adding a marker to a line with
+/// none, or converting a line from a different type. Ordered always uses a
+/// literal '1. ' — RenderModel computes block-relative sequential numbers at
+/// display time (ADR-31 Stage 4), so the literal stored digit doesn't need
+/// to be correct.
+const Map<_ListMarkerType, String> _newListMarkerText = {
+  _ListMarkerType.unordered: '- ',
+  _ListMarkerType.ordered: '1. ',
+  _ListMarkerType.checkbox: '- [ ] ',
+};
+
+/// An existing list marker found on a line: its type, the length of the
+/// line's leading whitespace, and the length of the marker itself
+/// (excluding that leading whitespace).
+class _ListMarkerMatch {
+  const _ListMarkerMatch(this.type, this.wsLen, this.markerLen);
+  final _ListMarkerType type;
+  final int wsLen;
+  final int markerLen;
+}
+
+/// Detects whether [line] already carries one of the three list-marker types
+/// immediately after its leading indentation. Checked in this priority order
+/// — checkbox before unordered — because a checkbox marker ('- [ ] ') would
+/// otherwise also match the plain unordered pattern ('- ') on its leading
+/// "- ".
+_ListMarkerMatch? _detectListMarker(String line) {
+  final ws = _leadingWs(line);
+  final rest = line.substring(ws.length);
+  final task = _taskPrefixRe.firstMatch(rest);
+  if (task != null) {
+    return _ListMarkerMatch(_ListMarkerType.checkbox, ws.length, task.end);
+  }
+  final unordered = _unorderedPrefixRe.firstMatch(rest);
+  if (unordered != null) {
+    return _ListMarkerMatch(
+        _ListMarkerType.unordered, ws.length, unordered.end);
+  }
+  final ordered = _orderedPrefixRe.firstMatch(rest);
+  if (ordered != null) {
+    return _ListMarkerMatch(_ListMarkerType.ordered, ws.length, ordered.end);
+  }
+  return null;
+}
+
+/// Line boundaries containing [offset]: `(lineStart, lineEnd)`, `lineEnd`
+/// exclusive of the '\n' separator (or text.length for the last line).
+(int, int) _lineBoundsAt(String text, int offset) {
+  final lineStart = offset > 0 ? text.lastIndexOf('\n', offset - 1) + 1 : 0;
+  final rawEnd = text.indexOf('\n', offset);
+  final lineEnd = rawEnd == -1 ? text.length : rawEnd;
+  return (lineStart, lineEnd);
+}
+
+/// Applies one list-toggle button's action to the single line containing
+/// [selection]'s base offset:
+///  - the line already has a marker of [targetType] → remove it entirely,
+///    leaving leading indentation and content unchanged.
+///  - the line already has a marker of a different type → replace it with
+///    [targetType]'s marker, preserving indentation and content.
+///  - the line has no marker → insert [targetType]'s marker immediately
+///    after any leading indentation.
+///
+/// The resulting cursor offset shifts by the difference between the old and
+/// new marker lengths (leading whitespace is never touched, so it never
+/// contributes to the shift), then clamps to the edited line — the same
+/// clamp-based convention toggleLinePrefix already uses.
+TextEditingValue _applyListMarkerToggle(
+  String text,
+  TextSelection selection,
+  _ListMarkerType targetType,
+) {
+  final offset = selection.baseOffset.clamp(0, text.length);
+  final (lineStart, lineEnd) = _lineBoundsAt(text, offset);
+  final line = text.substring(lineStart, lineEnd);
+
+  final match = _detectListMarker(line);
+  final wsLen = match?.wsLen ?? _leadingWs(line).length;
+  final ws = line.substring(0, wsLen);
+  final oldMarkerLen = match?.markerLen ?? 0;
+  final content = line.substring(wsLen + oldMarkerLen);
+
+  final removing = match?.type == targetType;
+  final newMarker = removing ? '' : _newListMarkerText[targetType]!;
+  final newLine = '$ws$newMarker$content';
+
+  final delta = newMarker.length - oldMarkerLen;
+  final newOffset =
+      (offset + delta).clamp(lineStart, lineStart + newLine.length);
+
+  final newText = text.replaceRange(lineStart, lineEnd, newLine);
+  return TextEditingValue(
+    text: newText,
+    selection: TextSelection.collapsed(offset: newOffset),
+  );
+}
+
 class MarkdownEditorController {
   _MarkdownEditorState? _state;
 
@@ -145,64 +264,27 @@ class MarkdownEditorController {
     _state?.widget.onChanged?.call(newText);
   }
 
-  void toggleUnorderedList() {
-    final tc = _state?._textController;
-    if (tc == null) return;
-    final text = tc.text;
-    final offset = _effectiveSelection.baseOffset.clamp(0, text.length);
-    final lineStart = offset > 0 ? text.lastIndexOf('\n', offset - 1) + 1 : 0;
-    final rawEnd = text.indexOf('\n', offset);
-    final lineEnd = rawEnd == -1 ? text.length : rawEnd;
-    final line = text.substring(lineStart, lineEnd);
-    final existingMatch = RegExp(r'^(- \[[ x]\] |[-*] )').firstMatch(line);
-    final String newLine;
-    final int newOffset;
-    if (existingMatch != null) {
-      final prefixLen = existingMatch.group(1)!.length;
-      newLine = line.substring(prefixLen);
-      newOffset =
-          (offset - prefixLen).clamp(lineStart, lineStart + newLine.length);
-    } else {
-      newLine = '- $line';
-      newOffset = offset + 2;
-    }
-    final newText = text.replaceRange(lineStart, lineEnd, newLine);
-    tc.value = TextEditingValue(
-      text: newText,
-      selection: TextSelection.collapsed(offset: newOffset),
-    );
-    _state?._focusNode.requestFocus();
-    _state?.widget.onChanged?.call(newText);
-  }
+  void toggleUnorderedList() => _applyListToggle(_ListMarkerType.unordered);
 
-  void toggleOrderedList() {
+  void toggleOrderedList() => _applyListToggle(_ListMarkerType.ordered);
+
+  /// Toggles a checkbox ('- [ ] ') marker on the current line. Deliberately
+  /// a dedicated method rather than routing through [toggleLinePrefix] (as
+  /// it did previously) — toggleLinePrefix matches only an exact literal
+  /// prefix, so it can't detect/convert-from unordered or ordered markers,
+  /// and unifying it with the other two list-toggle buttons here would have
+  /// changed the heading button's behavior too, since both shared that one
+  /// generic method.
+  void toggleCheckboxList() => _applyListToggle(_ListMarkerType.checkbox);
+
+  void _applyListToggle(_ListMarkerType targetType) {
     final tc = _state?._textController;
     if (tc == null) return;
-    final text = tc.text;
-    final offset = _effectiveSelection.baseOffset.clamp(0, text.length);
-    final lineStart = offset > 0 ? text.lastIndexOf('\n', offset - 1) + 1 : 0;
-    final rawEnd = text.indexOf('\n', offset);
-    final lineEnd = rawEnd == -1 ? text.length : rawEnd;
-    final line = text.substring(lineStart, lineEnd);
-    final orderedMatch = RegExp(r'^(\d+\. )').firstMatch(line);
-    final String newLine;
-    final int newOffset;
-    if (orderedMatch != null) {
-      final prefixLen = orderedMatch.group(1)!.length;
-      newLine = line.substring(prefixLen);
-      newOffset =
-          (offset - prefixLen).clamp(lineStart, lineStart + newLine.length);
-    } else {
-      newLine = '1. $line';
-      newOffset = offset + 3;
-    }
-    final newText = text.replaceRange(lineStart, lineEnd, newLine);
-    tc.value = TextEditingValue(
-      text: newText,
-      selection: TextSelection.collapsed(offset: newOffset),
-    );
+    final result =
+        _applyListMarkerToggle(tc.text, _effectiveSelection, targetType);
+    tc.value = result;
     _state?._focusNode.requestFocus();
-    _state?.widget.onChanged?.call(newText);
+    _state?.widget.onChanged?.call(result.text);
   }
 
   /// Increases indentation for the line(s) touched by the current selection
@@ -382,28 +464,20 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
     _suppressListener = false;
   }
 
-  static final _leadingWsRe = RegExp(r'^([ \t]*)');
-  static final _taskPrefixRe = RegExp(r'^(- \[[ x]\] )');
-  static final _unorderedPrefixRe = RegExp(r'^([-*] )');
-  static final _orderedRe = RegExp(r'^(\d+)\. ');
-
-  /// The literal leading-whitespace prefix of [line] (spaces/tabs only).
-  ///
-  /// Used so list auto-continue preserves a nested item's own indentation
-  /// (ADR-34 Stage 2+3) — the marker-matching regexes below run against the
-  /// remainder *after* this prefix, and the prefix is then re-prepended to
-  /// whatever continuation marker they produce, so continuing a `  - ` item
-  /// inserts `  - ` again, not `- ` reset to the left margin.
-  static String _leadingWs(String line) =>
-      _leadingWsRe.firstMatch(line)!.group(1)!;
+  // Leading-whitespace and marker-detection regexes/helpers are shared at
+  // file scope (_leadingWs, _taskPrefixRe, _unorderedPrefixRe,
+  // _orderedPrefixRe, _detectListMarker) with the toggleUnorderedList /
+  // toggleOrderedList / toggleCheckboxList toolbar-button logic above, so
+  // list auto-continue and the toolbar buttons agree on what counts as an
+  // existing list marker.
 
   static String? _listContinuation(String line) {
     final ws = _leadingWs(line);
     final rest = line.substring(ws.length);
     if (_taskPrefixRe.hasMatch(rest)) return '$ws- [ ] ';
     final unordered = _unorderedPrefixRe.firstMatch(rest);
-    if (unordered != null) return '$ws${unordered.group(1)!}';
-    final ordered = _orderedRe.firstMatch(rest);
+    if (unordered != null) return '$ws${unordered[0]!}';
+    final ordered = RegExp(r'^(\d+)\. ').firstMatch(rest);
     if (ordered != null) {
       final n = int.parse(ordered.group(1)!);
       return '$ws${n + 1}. ';
@@ -412,15 +486,9 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   }
 
   static int _listPrefixLength(String line) {
-    final ws = _leadingWs(line);
-    final rest = line.substring(ws.length);
-    final task = _taskPrefixRe.firstMatch(rest);
-    if (task != null) return ws.length + task.group(1)!.length;
-    final unordered = _unorderedPrefixRe.firstMatch(rest);
-    if (unordered != null) return ws.length + unordered.group(1)!.length;
-    final ordered = RegExp(r'^(\d+\. )').firstMatch(rest);
-    if (ordered != null) return ws.length + ordered.group(1)!.length;
-    return 0;
+    final match = _detectListMarker(line);
+    if (match == null) return 0;
+    return match.wsLen + match.markerLen;
   }
 
   void _setValue(String value) {

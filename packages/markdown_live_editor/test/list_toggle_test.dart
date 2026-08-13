@@ -41,8 +41,8 @@ Future<MarkdownEditorController> _pump(
 ) async {
   final controller = MarkdownEditorController();
   await tester.pumpWidget(_buildEditor(initialValue, controller));
-  controller.setSelectionForTesting(
-      TextSelection.collapsed(offset: selectionOffset));
+  controller
+      .setSelectionForTesting(TextSelection.collapsed(offset: selectionOffset));
   await tester.pump();
   return controller;
 }
@@ -69,8 +69,7 @@ void main() {
           const TextSelection.collapsed(offset: 2));
     });
 
-    testWidgets('converts ordered to unordered (non-indented)',
-        (tester) async {
+    testWidgets('converts ordered to unordered (non-indented)', (tester) async {
       final controller = await _pump(tester, '3. item', 3);
       controller.toggleUnorderedList();
       await tester.pump();
@@ -149,8 +148,7 @@ void main() {
           const TextSelection.collapsed(offset: 2));
     });
 
-    testWidgets('converts unordered to ordered (non-indented)',
-        (tester) async {
+    testWidgets('converts unordered to ordered (non-indented)', (tester) async {
       final controller = await _pump(tester, '- item', 2);
       controller.toggleOrderedList();
       await tester.pump();
@@ -305,7 +303,8 @@ void main() {
   });
 
   group('heading toggle unaffected by list-toggle unification', () {
-    testWidgets('toggleLinePrefix("# ") still adds/removes heading exactly as before',
+    testWidgets(
+        'toggleLinePrefix("# ") still adds/removes heading exactly as before',
         (tester) async {
       final controller = await _pump(tester, 'my heading', 5);
       controller.toggleLinePrefix('# ');
