@@ -325,4 +325,49 @@ void main() {
       expect(controller.currentValue, '# - item');
     });
   });
+
+  // Corrected behavior (see multi-line list-toggle work): a heading line is
+  // never treated as a bare/no-marker line by these three buttons, on
+  // either the collapsed-selection path here or the multi-line-selection
+  // path (list_toggle_multiline_test.dart). Prior to this fix, the
+  // collapsed-selection path had no heading exclusion at all and
+  // toggleUnorderedList() on a lone "# Heading" line produced
+  // "- # Heading" — silently breaking the heading. These three buttons are
+  // list-marker buttons, not general-purpose line-prefix buttons (contrast
+  // with the "heading toggle unaffected" group above, which is specifically
+  // about toggleLinePrefix, the heading button itself, staying untouched by
+  // this unification).
+  group(
+      'heading lines are a no-op for the list-toggle buttons '
+      '(collapsed selection) — regression: previously prepended a marker', () {
+    testWidgets('toggleUnorderedList on a heading line changes nothing',
+        (tester) async {
+      final controller = await _pump(tester, '# my heading', 5);
+      controller.toggleUnorderedList();
+      await tester.pump();
+      expect(controller.currentValue, '# my heading');
+      expect(controller.selectionForTesting,
+          const TextSelection.collapsed(offset: 5));
+    });
+
+    testWidgets('toggleOrderedList on a heading line changes nothing',
+        (tester) async {
+      final controller = await _pump(tester, '## my heading', 6);
+      controller.toggleOrderedList();
+      await tester.pump();
+      expect(controller.currentValue, '## my heading');
+      expect(controller.selectionForTesting,
+          const TextSelection.collapsed(offset: 6));
+    });
+
+    testWidgets('toggleCheckboxList on a heading line changes nothing',
+        (tester) async {
+      final controller = await _pump(tester, '### my heading', 0);
+      controller.toggleCheckboxList();
+      await tester.pump();
+      expect(controller.currentValue, '### my heading');
+      expect(controller.selectionForTesting,
+          const TextSelection.collapsed(offset: 0));
+    });
+  });
 }
