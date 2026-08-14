@@ -140,7 +140,7 @@ void handleCheckboxToggle(
   }
   final newText =
       current.replaceRange(markerStart, markerStart + 6, replacement);
-  controller.setValuePreservingSelection(newText);
+  controller.setValuePreservingSelection(newText, scrollToCaret: false);
 }
 
 /// The widened checkbox hit-test zone's bounds for [slot], in LOCAL
