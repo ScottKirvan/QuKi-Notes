@@ -31,12 +31,20 @@ jobs:
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/keystore.jks
 
-      - name: Compute version code
+      - name: Compute version code and build name
         id: version
-        run: echo "build_number=$(date -u +"%y%j%H%M")" >> "$GITHUB_OUTPUT"
+        run: |
+          BUILD_NUMBER=$(date -u +"%y%j%H%M")
+          BASE_VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //' | sed 's/+.*//' | tr -d '[:space:]')
+          echo "build_number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "build_name=${BASE_VERSION}.${BUILD_NUMBER}" >> "$GITHUB_OUTPUT"
+          else
+            echo "build_name=${BASE_VERSION}" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Build APK (release)
-        run: flutter build apk --release --build-number=${{ steps.version.outputs.build_number }}
+        run: flutter build apk --release --build-name=${{ steps.version.outputs.build_name }} --build-number=${{ steps.version.outputs.build_number }}
         env:
           STORE_FILE: keystore.jks
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
@@ -44,7 +52,7 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
       - name: Build AAB (release)
-        run: flutter build appbundle --release --build-number=${{ steps.version.outputs.build_number }}
+        run: flutter build appbundle --release --build-name=${{ steps.version.outputs.build_name }} --build-number=${{ steps.version.outputs.build_number }}
         env:
           STORE_FILE: keystore.jks
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
