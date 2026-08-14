@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 
-import 'plugins/clipboard_transport.dart';
 import 'plugins/share_sheet_transport.dart';
 import 'registry.dart';
 import 'transport_plugin.dart';
@@ -10,8 +9,7 @@ import 'transport_settings_notifier.dart';
 final _log = Logger('TransportRegistry');
 
 final transportRegistryProvider = Provider<TransportRegistry>(
-  (ref) => const TransportRegistry(
-      plugins: [ClipboardTransport(), ShareSheetTransport()]),
+  (ref) => const TransportRegistry(plugins: [ShareSheetTransport()]),
 );
 
 // Plugins the user has enabled — use this for the transport picker.

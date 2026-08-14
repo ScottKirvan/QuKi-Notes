@@ -162,4 +162,20 @@ void main() {
       await cleanup(tester);
     });
   });
+
+  group('SettingsScreen — Transports section removed', () {
+    testWidgets(
+        'Transports section header is not rendered, and Storage/Notes '
+        'sections around it still render correctly', (tester) async {
+      final svc = await _appStorageSvc();
+      await tester.pumpWidget(_buildSettings(svc));
+      await tester.pump();
+
+      expect(find.text('TRANSPORTS'), findsNothing);
+      expect(find.text('STORAGE'), findsOneWidget);
+      expect(find.text('NOTES'), findsOneWidget);
+      expect(find.text('Trash'), findsOneWidget);
+      await cleanup(tester);
+    });
+  });
 }

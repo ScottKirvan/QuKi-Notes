@@ -6,8 +6,6 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../../core/app_info.dart';
 import '../../core/storage/quki_index.dart';
 import '../../core/storage/storage_location_service.dart';
-import '../../core/transports/registry_provider.dart';
-import '../../core/transports/transport_settings_notifier.dart';
 import '../recently_deleted/recently_deleted_screen.dart';
 import '../setup/storage_setup_screen.dart';
 
@@ -25,10 +23,6 @@ class SettingsScreen extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
           child: Text(title.toUpperCase(), style: labelStyle),
         );
-
-    final registry = ref.watch(transportRegistryProvider);
-    final settings = ref.watch(transportSettingsProvider);
-    final notifier = ref.read(transportSettingsProvider.notifier);
 
     final locationSvc = ref.watch(storageLocationServiceProvider);
     final isAppStorage = locationSvc.isAppStorage;
@@ -81,28 +75,6 @@ class SettingsScreen extends ConsumerWidget {
               }
             }),
           ),
-          const Divider(indent: 16, endIndent: 16),
-          sectionHeader('Transports'),
-          if (registry.plugins.isEmpty)
-            const ListTile(
-              title: Text('No transports installed'),
-              subtitle: Text('Transport plugins land in Phase 2.'),
-              enabled: false,
-            )
-          else
-            ...registry.plugins.map((p) {
-              final enabled = settings.when(
-                data: (map) => map[p.id] ?? true,
-                loading: () => true,
-                error: (_, __) => true,
-              );
-              return SwitchListTile(
-                title: Text(p.displayName),
-                subtitle: Text(p.description),
-                value: enabled,
-                onChanged: (v) => notifier.setEnabled(p.id, v),
-              );
-            }),
           const Divider(indent: 16, endIndent: 16),
           sectionHeader('Notes'),
           ListTile(
