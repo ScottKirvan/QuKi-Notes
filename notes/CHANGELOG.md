@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.22.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.21.1...v0.22.0) (2026-08-14)
+
+
+### Features
+
+* editor Trash button + snackbar Undo removal, shorter duration ([230e11b](https://github.com/ScottKirvan/QuKi-Notes/commit/230e11befd3e33ba4115cbad4e965bad8e209f7e))
+
+
+### Bug Fixes
+
+* add failing regression test for list-toggle-button unification ([d51f251](https://github.com/ScottKirvan/QuKi-Notes/commit/d51f2511e52a9890a4b7d35d6fc5c77f451da349))
+* append version code to build name on manual dispatch only ([122f3ba](https://github.com/ScottKirvan/QuKi-Notes/commit/122f3ba15c6124724947451d46f4b0ccace36c27))
+* mock SharedPreferences in editor_screen_test.dart to stop a full-suite-only flake ([5266881](https://github.com/ScottKirvan/QuKi-Notes/commit/52668813eb5bd9e55e7cfa28bfdae46add25a801))
+* retry QuKiStorage.softDelete()'s rename on transient Windows file races ([a9f80dd](https://github.com/ScottKirvan/QuKi-Notes/commit/a9f80dd1354581dca6560f8ea089ad89eb18f0bb))
+* rewrite delete-button tests to use fake storage, not real dart:io ([7f53dc8](https://github.com/ScottKirvan/QuKi-Notes/commit/7f53dc80d1db37c9486f012b8911beb94685a737))
+* unify list-toggle-button detection across ul/ol/checkbox (ADR-34) ([dc22349](https://github.com/ScottKirvan/QuKi-Notes/commit/dc22349b89564723db701f4c1c068aef74206d3c))
+
 ## [0.21.1](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.21.0...v0.21.1) (2026-08-11)
 
 
