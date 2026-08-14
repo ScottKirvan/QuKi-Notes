@@ -686,7 +686,32 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     _value = newValue;
     _connection?.setEditingState(_value);
     if (mounted) setState(() {});
-    _scheduleScrollToCaret();
+    if (_suppressNextScrollToCaret) {
+      _suppressNextScrollToCaret = false;
+    } else {
+      _scheduleScrollToCaret();
+    }
+  }
+
+  /// One-shot flag consumed by the very next [_onControllerChanged] call,
+  /// suppressing the scroll-to-caret pass it would otherwise schedule.
+  ///
+  /// Exists for [MarkdownEditorController.setValuePreservingSelection]'s
+  /// `scrollToCaret: false` path (checkbox toggle): that update never
+  /// moves the caret, so scrolling to "wherever the selection happens to be
+  /// left over from whatever editing happened before" jumped the viewport
+  /// for a reason unrelated to the checkbox that was actually tapped. Set via
+  /// [suppressNextScrollToCaret] immediately before the controller value is
+  /// mutated (see markdown_editor.dart), so it is consumed synchronously by
+  /// the very listener call that mutation triggers. Every other value-change
+  /// path — typing, IME edits, indent/dedent, paste, a programmatic QuKi
+  /// switch — goes through [_updateValue] instead, which is untouched by
+  /// this flag and keeps scheduling scroll-to-caret exactly as before.
+  bool _suppressNextScrollToCaret = false;
+
+  /// See [_suppressNextScrollToCaret].
+  void suppressNextScrollToCaret() {
+    _suppressNextScrollToCaret = true;
   }
 
   // -------------------------------------------------------------------------

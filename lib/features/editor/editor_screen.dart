@@ -168,6 +168,11 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   /// would jump the cursor away from wherever it actually was, and if reset
   /// to offset 0 happened to land inside a still-collapsed markdown element,
   /// reveal that line as raw source too.
+  ///
+  /// Passes `scrollToCaret: false` — a checkbox tap never moves the
+  /// selection, so scrolling to keep the (unmoved) caret in view had no
+  /// connection to the checkbox that was actually tapped and only produced
+  /// an unwanted viewport jump.
   void _onCheckboxToggle(int sourceOffset) {
     final current = _editorController.currentValue;
     if (sourceOffset < 0 || sourceOffset > current.length) return;
@@ -188,7 +193,8 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     }
     final newText =
         current.replaceRange(markerStart, markerStart + 6, replacement);
-    _editorController.setValuePreservingSelection(newText);
+    _editorController.setValuePreservingSelection(newText,
+        scrollToCaret: false);
     _autoSave.notifyChanged();
   }
 

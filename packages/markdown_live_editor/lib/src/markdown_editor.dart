@@ -173,8 +173,17 @@ class MarkdownEditorController {
   /// The selection is clamped to the new text's length so a same-length edit
   /// (the checkbox marker swap is always 6-for-6 chars) is a pure no-op on
   /// the selection, while a length-changing edit still leaves it valid.
-  void setValuePreservingSelection(String value) =>
-      _state?._setValuePreservingSelection(value);
+  ///
+  /// [scrollToCaret] defaults to true (matches this method's prior,
+  /// unconditional behavior). Pass false for an edit that is known not to
+  /// move the caret and where scroll-to-caret's "keep the caret in view"
+  /// purpose therefore doesn't apply — the checkbox-toggle caller
+  /// does this, since a checkbox tap never moves the selection, but the old
+  /// unconditional scroll still fired off wherever the selection happened to
+  /// be left over from prior editing, jumping the viewport for no reason
+  /// connected to the checkbox that was actually tapped.
+  void setValuePreservingSelection(String value, {bool scrollToCaret = true}) =>
+      _state?._setValuePreservingSelection(value, scrollToCaret: scrollToCaret);
 
   bool get plainTextMode => _state?._plainTextMode ?? false;
   void togglePlainTextMode() => _state?._togglePlainTextMode();
@@ -373,6 +382,11 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   bool _suppressListener = false;
   TextEditingValue _previousValue = TextEditingValue.empty;
 
+  /// Reaches the underlying [QuikiEditorState] to arm its one-shot
+  /// scroll-to-caret suppression flag (see [_setValuePreservingSelection]).
+  final GlobalKey<QuikiEditorState> _quikiEditorKey =
+      GlobalKey<QuikiEditorState>();
+
   /// Last valid selection captured before focus leaves the TextField.
   /// Toolbar methods read this when [_textController.selection] is invalid.
   TextSelection _savedSelection = const TextSelection.collapsed(offset: 0);
@@ -502,7 +516,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   }
 
   /// See [MarkdownEditorController.setValuePreservingSelection].
-  void _setValuePreservingSelection(String value) {
+  void _setValuePreservingSelection(String value, {bool scrollToCaret = true}) {
     _suppressListener = true;
     final current = _textController.selection;
     final preserved = current.isValid
@@ -511,6 +525,12 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
             extentOffset: current.extentOffset.clamp(0, value.length),
           )
         : current;
+    // Must be armed before the controller value is mutated below — setting
+    // .value fires QuikiEditorState's listener synchronously, and that
+    // listener is what consumes this flag.
+    if (!scrollToCaret) {
+      _quikiEditorKey.currentState?.suppressNextScrollToCaret();
+    }
     _textController.value = TextEditingValue(text: value, selection: preserved);
     _previousValue = _textController.value;
     _suppressListener = false;
@@ -525,6 +545,7 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
   @override
   Widget build(BuildContext context) {
     return QuikiEditor(
+      key: _quikiEditorKey,
       controller: _textController,
       focusNode: _focusNode,
       autofocus: widget.autofocus,
