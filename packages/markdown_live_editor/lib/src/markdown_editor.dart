@@ -110,6 +110,19 @@ class _LineToggleEdit {
 }
 
 /// Applies [targetType]'s remove/convert/add decision to a single [line]:
+///  - the line is a heading → left completely untouched (a zero-length,
+///    no-op edit). These three buttons are list-marker buttons, not
+///    general-purpose line-prefix buttons, and prepending a list marker
+///    before a heading's leading '#' would silently stop it being
+///    recognized as a heading — so a heading is never treated as a bare/
+///    no-marker line to add a marker to, on either the collapsed-selection
+///    path ([_applyListMarkerToggle]) or the multi-line path
+///    ([_applyListMarkerToggleMultiLine]) that call this function. (The
+///    multi-line path also independently filters heading lines out before
+///    ever reaching this function — see its `eligibleLines` construction —
+///    so this check is what actually does the work for the collapsed path,
+///    and is simply never exercised by an already-filtered heading line
+///    coming from the multi-line path.)
 ///  - the line already has a marker of [targetType] → remove it entirely,
 ///    leaving leading indentation and content unchanged.
 ///  - the line already has a marker of a different type → replace it with
@@ -117,6 +130,9 @@ class _LineToggleEdit {
 ///  - the line has no marker → insert [targetType]'s marker immediately
 ///    after any leading indentation.
 _LineToggleEdit _toggleLine(String line, _ListMarkerType targetType) {
+  if (_isHeadingLine(line)) {
+    return _LineToggleEdit(line, 0, 0, 0);
+  }
   final match = _detectListMarker(line);
   final wsLen = match?.wsLen ?? _leadingWs(line).length;
   final ws = line.substring(0, wsLen);
@@ -131,12 +147,16 @@ _LineToggleEdit _toggleLine(String line, _ListMarkerType targetType) {
 
 /// Applies one list-toggle button's action to the single line containing
 /// [selection]'s base offset — i.e. the collapsed-selection case. See
-/// [_toggleLine] for the per-line remove/convert/add rule.
+/// [_toggleLine] for the per-line remove/convert/add rule, including its
+/// heading no-op case (a collapsed selection on a heading line leaves both
+/// the text and the cursor position completely unchanged).
 ///
 /// The resulting cursor offset shifts by the difference between the old and
 /// new marker lengths (leading whitespace is never touched, so it never
 /// contributes to the shift), then clamps to the edited line — the same
-/// clamp-based convention toggleLinePrefix already uses.
+/// clamp-based convention toggleLinePrefix already uses. For a heading line
+/// this shift is always 0, since [_toggleLine] reports zero-length old/new
+/// markers for that case.
 TextEditingValue _applyListMarkerToggle(
   String text,
   TextSelection selection,
@@ -171,14 +191,14 @@ TextEditingValue _applyListMarkerToggle(
 /// bare/no-marker line to add a marker to. These three buttons are
 /// list-marker buttons, not general-purpose line-prefix buttons, and
 /// prepending a list marker before a heading's leading '#' would silently
-/// stop it being recognized as a heading. This exclusion applies ONLY to
-/// this multi-line path — the single-line/collapsed-selection path above
-/// ([_applyListMarkerToggle]) is deliberately left exactly as it already
-/// behaved (it has no heading exclusion today; see markdown_editor_test.dart
-/// / list_toggle_test.dart, neither of which exercises a heading line
-/// against these buttons) — this generalization only changes how many lines
-/// participate in a genuine multi-line selection, never the pre-existing
-/// single-line rule itself.
+/// stop it being recognized as a heading. This applies identically on the
+/// single-line/collapsed-selection path above ([_applyListMarkerToggle]) —
+/// [_toggleLine]'s own heading check is what makes that path a no-op for a
+/// heading line, so it does not need a separate `eligibleLines`-style filter
+/// the way this function does. The filter below is still needed here (rather
+/// than relying solely on [_toggleLine]'s internal check) so a selection
+/// touching ONLY heading lines can early-return as a whole-selection no-op
+/// instead of doing a real no-op edit per line.
 TextEditingValue _applyListMarkerToggleMultiLine(
   String text,
   TextSelection selection,
@@ -262,8 +282,10 @@ TextEditingValue _applyListMarkerToggleMultiLine(
 /// True if [line] starts with a recognized heading prefix ('#' through
 /// '######', each followed by a space) at column 0 — no leading whitespace.
 /// Duplicated from indent_dedent.dart's own duplicate of MdParser's heading
-/// check (Dart privacy is per-file); used here only to exclude heading lines
-/// from the list-toggle buttons' multi-line application above.
+/// check (Dart privacy is per-file); used to exclude heading lines from the
+/// list-toggle buttons — both via [_toggleLine]'s own no-op check (the
+/// collapsed-selection path) and via the eligibility filter in
+/// [_applyListMarkerToggleMultiLine] (the multi-line path).
 bool _isHeadingLine(String line) =>
     line.startsWith('# ') ||
     line.startsWith('## ') ||

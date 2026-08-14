@@ -20,14 +20,17 @@ import 'package:markdown_live_editor/markdown_live_editor.dart';
 // Heading lines are a deliberate, explicit exception: these are list-marker
 // buttons, not general-purpose line-prefix buttons, and a heading line
 // inside a multi-line selection is left completely untouched rather than
-// treated as a bare/no-marker line to add a marker to. This is a real
-// divergence from the pre-existing COLLAPSED-selection/single-line
-// behavior of these same buttons, which has no such exclusion (verified
-// directly against current `main` before writing these tests: placing the
-// cursor on a lone "# Heading" line and calling toggleUnorderedList()
-// produces "- # Heading", i.e. treats it as a bare line) — that single-line
-// behavior is explicitly out of scope to change and is left exactly as-is;
-// only the new multi-line path gets the heading exclusion.
+// treated as a bare/no-marker line to add a marker to.
+//
+// This was originally implemented as a multi-line-only exclusion, on the
+// (incorrect) assumption that the pre-existing collapsed-selection/
+// single-line path already left headings alone. It didn't — verified
+// directly against `main` at the time: placing the cursor on a lone
+// "# Heading" line and calling toggleUnorderedList() produced
+// "- # Heading", silently breaking the heading. That gap was corrected in
+// the same PR rather than shipped alongside the new, now-consistent
+// multi-line behavior — see list_toggle_test.dart's "heading lines are a
+// no-op..." group for the collapsed-selection coverage.
 
 Widget _buildEditor(String initialValue, MarkdownEditorController controller) {
   return MaterialApp(
