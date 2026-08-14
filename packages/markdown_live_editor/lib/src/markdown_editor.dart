@@ -92,28 +92,47 @@ _ListMarkerMatch? _detectListMarker(String line) {
   return (lineStart, lineEnd);
 }
 
-/// Applies one list-toggle button's action to the single line containing
-/// [selection]'s base offset:
+/// The result of applying one list-toggle button's remove/convert/add
+/// decision to a single line: the new line text, plus enough of the old
+/// line's marker geometry ([wsLen], [oldMarkerLen], [newMarkerLen]) to
+/// precisely remap an offset that fell anywhere in the old line into the new
+/// line's coordinates. Shared by both the single-line/collapsed-selection
+/// path ([_applyListMarkerToggle]) and the multi-line-selection path
+/// ([_applyListMarkerToggleMultiLine]) below — the decision logic itself is
+/// identical in both; only how many lines it's applied to differs.
+class _LineToggleEdit {
+  const _LineToggleEdit(
+      this.newLine, this.wsLen, this.oldMarkerLen, this.newMarkerLen);
+  final String newLine;
+  final int wsLen;
+  final int oldMarkerLen;
+  final int newMarkerLen;
+}
+
+/// Applies [targetType]'s remove/convert/add decision to a single [line]:
+///  - the line is a heading → left completely untouched (a zero-length,
+///    no-op edit). These three buttons are list-marker buttons, not
+///    general-purpose line-prefix buttons, and prepending a list marker
+///    before a heading's leading '#' would silently stop it being
+///    recognized as a heading — so a heading is never treated as a bare/
+///    no-marker line to add a marker to, on either the collapsed-selection
+///    path ([_applyListMarkerToggle]) or the multi-line path
+///    ([_applyListMarkerToggleMultiLine]) that call this function. (The
+///    multi-line path also independently filters heading lines out before
+///    ever reaching this function — see its `eligibleLines` construction —
+///    so this check is what actually does the work for the collapsed path,
+///    and is simply never exercised by an already-filtered heading line
+///    coming from the multi-line path.)
 ///  - the line already has a marker of [targetType] → remove it entirely,
 ///    leaving leading indentation and content unchanged.
 ///  - the line already has a marker of a different type → replace it with
 ///    [targetType]'s marker, preserving indentation and content.
 ///  - the line has no marker → insert [targetType]'s marker immediately
 ///    after any leading indentation.
-///
-/// The resulting cursor offset shifts by the difference between the old and
-/// new marker lengths (leading whitespace is never touched, so it never
-/// contributes to the shift), then clamps to the edited line — the same
-/// clamp-based convention toggleLinePrefix already uses.
-TextEditingValue _applyListMarkerToggle(
-  String text,
-  TextSelection selection,
-  _ListMarkerType targetType,
-) {
-  final offset = selection.baseOffset.clamp(0, text.length);
-  final (lineStart, lineEnd) = _lineBoundsAt(text, offset);
-  final line = text.substring(lineStart, lineEnd);
-
+_LineToggleEdit _toggleLine(String line, _ListMarkerType targetType) {
+  if (_isHeadingLine(line)) {
+    return _LineToggleEdit(line, 0, 0, 0);
+  }
   final match = _detectListMarker(line);
   final wsLen = match?.wsLen ?? _leadingWs(line).length;
   final ws = line.substring(0, wsLen);
@@ -123,17 +142,157 @@ TextEditingValue _applyListMarkerToggle(
   final removing = match?.type == targetType;
   final newMarker = removing ? '' : _newListMarkerText[targetType]!;
   final newLine = '$ws$newMarker$content';
+  return _LineToggleEdit(newLine, wsLen, oldMarkerLen, newMarker.length);
+}
 
-  final delta = newMarker.length - oldMarkerLen;
+/// Applies one list-toggle button's action to the single line containing
+/// [selection]'s base offset — i.e. the collapsed-selection case. See
+/// [_toggleLine] for the per-line remove/convert/add rule, including its
+/// heading no-op case (a collapsed selection on a heading line leaves both
+/// the text and the cursor position completely unchanged).
+///
+/// The resulting cursor offset shifts by the difference between the old and
+/// new marker lengths (leading whitespace is never touched, so it never
+/// contributes to the shift), then clamps to the edited line — the same
+/// clamp-based convention toggleLinePrefix already uses. For a heading line
+/// this shift is always 0, since [_toggleLine] reports zero-length old/new
+/// markers for that case.
+TextEditingValue _applyListMarkerToggle(
+  String text,
+  TextSelection selection,
+  _ListMarkerType targetType,
+) {
+  final offset = selection.baseOffset.clamp(0, text.length);
+  final (lineStart, lineEnd) = _lineBoundsAt(text, offset);
+  final line = text.substring(lineStart, lineEnd);
+
+  final edit = _toggleLine(line, targetType);
+  final delta = edit.newMarkerLen - edit.oldMarkerLen;
   final newOffset =
-      (offset + delta).clamp(lineStart, lineStart + newLine.length);
+      (offset + delta).clamp(lineStart, lineStart + edit.newLine.length);
 
-  final newText = text.replaceRange(lineStart, lineEnd, newLine);
+  final newText = text.replaceRange(lineStart, lineEnd, edit.newLine);
   return TextEditingValue(
     text: newText,
     selection: TextSelection.collapsed(offset: newOffset),
   );
 }
+
+/// Applies [targetType]'s remove/convert/add decision independently to every
+/// line touched by a genuine (non-collapsed) multi-line [selection] —
+/// mirrors indent_dedent.dart's `_indentOrDedentSelection` technique:
+/// enumerate every touched line, edit each one from last to first so earlier
+/// lines' absolute offsets stay valid while later ones mutate, then remap the
+/// selection's endpoints through the accumulated per-line splice deltas so
+/// the result still spans the same logical content rather than collapsing to
+/// a point.
+///
+/// Heading lines are excluded entirely — left untouched, never treated as a
+/// bare/no-marker line to add a marker to. These three buttons are
+/// list-marker buttons, not general-purpose line-prefix buttons, and
+/// prepending a list marker before a heading's leading '#' would silently
+/// stop it being recognized as a heading. This applies identically on the
+/// single-line/collapsed-selection path above ([_applyListMarkerToggle]) —
+/// [_toggleLine]'s own heading check is what makes that path a no-op for a
+/// heading line, so it does not need a separate `eligibleLines`-style filter
+/// the way this function does. The filter below is still needed here (rather
+/// than relying solely on [_toggleLine]'s internal check) so a selection
+/// touching ONLY heading lines can early-return as a whole-selection no-op
+/// instead of doing a real no-op edit per line.
+TextEditingValue _applyListMarkerToggleMultiLine(
+  String text,
+  TextSelection selection,
+  _ListMarkerType targetType,
+) {
+  final start = selection.start;
+  final end = selection.end;
+
+  // A selection ending exactly at the start of a line does not "touch" that
+  // line (mirrors indent_dedent.dart's _indentOrDedentSelection).
+  final anchorEnd = end > start ? end - 1 : end;
+
+  final lineStarts = <int>[];
+  var pos = _lineBoundsAt(text, start).$1;
+  while (true) {
+    lineStarts.add(pos);
+    final lineEnd = _lineBoundsAt(text, pos).$2;
+    if (lineEnd >= anchorEnd || lineEnd >= text.length) break;
+    pos = lineEnd + 1;
+  }
+
+  final eligibleLines = <int>[
+    for (final ls in lineStarts)
+      if (!_isHeadingLine(text.substring(ls, _lineBoundsAt(text, ls).$2))) ls,
+  ];
+
+  if (eligibleLines.isEmpty) {
+    // Every touched line is a heading — nothing to do.
+    return TextEditingValue(text: text, selection: selection);
+  }
+
+  // Compute each eligible line's edit against the ORIGINAL text before any
+  // mutation, so the remap below stays correct regardless of the order lines
+  // are actually mutated in.
+  final edits = <int, _LineToggleEdit>{
+    for (final ls in eligibleLines)
+      ls: _toggleLine(
+          text.substring(ls, _lineBoundsAt(text, ls).$2), targetType),
+  };
+
+  // Apply from last to first so earlier lines' offsets stay valid absolute
+  // positions in the mutating text.
+  var newText = text;
+  for (final ls in eligibleLines.reversed) {
+    final lineEnd = _lineBoundsAt(newText, ls).$2;
+    newText = newText.replaceRange(ls, lineEnd, edits[ls]!.newLine);
+  }
+
+  // Remap one offset by walking every eligible line in ascending order and
+  // accumulating each one's contribution: an offset strictly before that
+  // line's marker is unaffected by it; an offset at/after the marker's old
+  // end shifts by that line's full delta; an offset inside the old marker
+  // itself clamps to the marker's (fixed) start position, matching the
+  // single-line path's own clamp-to-boundary convention.
+  int remap(int offset) {
+    var shift = 0;
+    for (final ls in eligibleLines) {
+      final edit = edits[ls]!;
+      final spliceStart = ls + edit.wsLen;
+      final spliceOldEnd = spliceStart + edit.oldMarkerLen;
+      if (offset <= spliceStart) {
+        continue;
+      } else if (offset >= spliceOldEnd) {
+        shift += edit.newMarkerLen - edit.oldMarkerLen;
+      } else {
+        shift += spliceStart - offset;
+      }
+    }
+    return offset + shift;
+  }
+
+  return TextEditingValue(
+    text: newText,
+    selection: TextSelection(
+      baseOffset: remap(selection.baseOffset),
+      extentOffset: remap(selection.extentOffset),
+    ),
+  );
+}
+
+/// True if [line] starts with a recognized heading prefix ('#' through
+/// '######', each followed by a space) at column 0 — no leading whitespace.
+/// Duplicated from indent_dedent.dart's own duplicate of MdParser's heading
+/// check (Dart privacy is per-file); used to exclude heading lines from the
+/// list-toggle buttons — both via [_toggleLine]'s own no-op check (the
+/// collapsed-selection path) and via the eligibility filter in
+/// [_applyListMarkerToggleMultiLine] (the multi-line path).
+bool _isHeadingLine(String line) =>
+    line.startsWith('# ') ||
+    line.startsWith('## ') ||
+    line.startsWith('### ') ||
+    line.startsWith('#### ') ||
+    line.startsWith('##### ') ||
+    line.startsWith('###### ');
 
 class MarkdownEditorController {
   _MarkdownEditorState? _state;
@@ -289,8 +448,10 @@ class MarkdownEditorController {
   void _applyListToggle(_ListMarkerType targetType) {
     final tc = _state?._textController;
     if (tc == null) return;
-    final result =
-        _applyListMarkerToggle(tc.text, _effectiveSelection, targetType);
+    final sel = _effectiveSelection;
+    final result = sel.isCollapsed
+        ? _applyListMarkerToggle(tc.text, sel, targetType)
+        : _applyListMarkerToggleMultiLine(tc.text, sel, targetType);
     tc.value = result;
     _state?._focusNode.requestFocus();
     _state?.widget.onChanged?.call(result.text);
