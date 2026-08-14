@@ -440,6 +440,115 @@ void main() {
     });
 
     // -------------------------------------------------------------------------
+    // checkboxChecked strikethrough (style only — the underlying source never
+    // gains ~~...~~ delimiters; toggling the checkbox back to unchecked
+    // restores unstyled content).
+    // -------------------------------------------------------------------------
+    test('checkboxChecked collapsed: content span has line-through decoration',
+        () {
+      const source = '- [x] done';
+      final els = MdParser.parse(source);
+      final m = _build(source, els, cursorOffset: -1);
+
+      final children = m.textSpan.children!;
+      expect(children, hasLength(1));
+      final contentSpan = children[0] as TextSpan;
+      expect(contentSpan.text, 'done');
+      expect(contentSpan.style?.decoration, TextDecoration.lineThrough);
+    });
+
+    test(
+        'checkboxUnchecked collapsed: content span has no decoration '
+        '(unaffected by the checked-item strikethrough)', () {
+      const source = '- [ ] todo';
+      final els = MdParser.parse(source);
+      final m = _build(source, els, cursorOffset: -1);
+
+      final children = m.textSpan.children!;
+      expect(children, hasLength(1));
+      final contentSpan = children[0] as TextSpan;
+      expect(contentSpan.text, 'todo');
+      expect(contentSpan.style?.decoration, isNot(TextDecoration.lineThrough));
+    });
+
+    test(
+        'nested/indented checkboxChecked also renders content with '
+        'line-through — the strikethrough is not special-cased to top-level '
+        'items', () {
+      const source = '  - [x] Nested task';
+      final els = MdParser.parse(source);
+      final m = _build(source, els, cursorOffset: -1);
+
+      final children = m.textSpan.children!;
+      expect(children, hasLength(1));
+      final contentSpan = children[0] as TextSpan;
+      expect(contentSpan.text, 'Nested task');
+      expect(contentSpan.style?.decoration, TextDecoration.lineThrough);
+    });
+
+    test(
+        'checkboxChecked with inline bold content: bold weight and '
+        'strikethrough both apply to the bold span', () {
+      const source = '- [x] **urgent** call back';
+      final els = MdParser.parse(source);
+      final m = _build(source, els, cursorOffset: -1);
+
+      expect(m.textSpan.toPlainText(), 'urgent call back');
+
+      final children = m.textSpan.children!;
+      // First span is the bold ('urgent'), rest is plain content.
+      final boldSpan = children.first as TextSpan;
+      expect(boldSpan.text, 'urgent');
+      expect(boldSpan.style?.fontWeight, FontWeight.bold);
+      expect(boldSpan.style?.decoration, TextDecoration.lineThrough,
+          reason: 'the block-level checkbox strikethrough must survive '
+              'combination with an inline element that does not itself '
+              'contribute a decoration');
+
+      final restSpan = children.last as TextSpan;
+      expect(restSpan.text, ' call back');
+      expect(restSpan.style?.decoration, TextDecoration.lineThrough);
+    });
+
+    test(
+        'checkboxChecked with an inline link: link underline and the '
+        'block-level strikethrough combine rather than the link overwriting '
+        'it', () {
+      // Regression: _combinedInlineStyle used to seed its `decorations` list
+      // from scratch, so an inline element contributing its own decoration
+      // (link underline) would replace — not combine with — a decoration
+      // already present on the block content style (checkbox strikethrough).
+      const source = '- [x] see [docs](https://example.com)';
+      final els = MdParser.parse(source);
+      final m = _build(source, els, cursorOffset: -1);
+
+      final children = m.textSpan.children!;
+      final linkSpanIndex =
+          children.indexWhere((s) => (s as TextSpan).text == 'docs');
+      expect(linkSpanIndex, greaterThanOrEqualTo(0));
+      final linkSpan = children[linkSpanIndex] as TextSpan;
+      final decoration = linkSpan.style?.decoration;
+      expect(decoration, isNotNull);
+      expect(decoration!.contains(TextDecoration.underline), isTrue);
+      expect(decoration.contains(TextDecoration.lineThrough), isTrue);
+    });
+
+    test(
+        'plain-text mode (no elements at all) leaves a literal "- [x]" line '
+        'completely unstyled — the checkbox strikethrough only applies when '
+        'MdParser actually produced a checkboxChecked element', () {
+      const source = '- [x] done';
+      final m = _build(source, const [], cursorOffset: -1);
+
+      expect(m.textSpan.toPlainText(), source);
+      final children = m.textSpan.children!;
+      expect(children, hasLength(1));
+      final onlySpan = children[0] as TextSpan;
+      expect(onlySpan.text, source);
+      expect(onlySpan.style?.decoration, isNot(TextDecoration.lineThrough));
+    });
+
+    // -------------------------------------------------------------------------
     // ol — position-computed sequence number
     // -------------------------------------------------------------------------
     test('ol collapsed: "1. item" → rendered "item" (no marker text inline)',
