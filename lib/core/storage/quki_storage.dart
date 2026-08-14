@@ -107,8 +107,45 @@ class QuKiStorage {
     await _ensureDirs();
     final md = _mdFile(id);
     final meta = _metaFile(id);
-    if (await md.exists()) await md.rename(_trashMdFile(id).path);
-    if (await meta.exists()) await meta.rename(_trashMetaFile(id).path);
+    await _renameIfExists(md, _trashMdFile(id).path);
+    await _renameIfExists(meta, _trashMetaFile(id).path);
+  }
+
+  /// Renames [source] to [destPath] if [source] currently exists, retrying
+  /// briefly on a transient rename failure.
+  ///
+  /// `exists()` then `rename()` is inherently check-then-act, not atomic —
+  /// on Windows a freshly-written file can be transiently grabbed (by
+  /// antivirus/search-indexing scanning `Directory.systemTemp`, in
+  /// particular) for a few milliseconds right after creation, long enough
+  /// for [source] to have existed at the `exists()` check but no longer be
+  /// renameable moments later (observed directly: a real
+  /// `PathNotFoundException` from [File.rename] on a file [File.exists]
+  /// had just confirmed present, under full-suite test load — the same
+  /// class of Windows transient-file-access issue already documented
+  /// elsewhere in this codebase for `write-temp-then-rename`). Retrying the
+  /// rename itself (not re-checking `exists()`, which would just reproduce
+  /// the identical race) gives that kind of momentary external interference
+  /// a chance to clear. If every retry exhausts and [source] is confirmed
+  /// gone by then, there's nothing left to move — return normally rather
+  /// than throwing, since the caller (delete) only cares that [source] no
+  /// longer exists once this returns, not which path removed it. Any other,
+  /// non-transient failure (e.g. permissions) still exhausts retries and is
+  /// left in its original location — a real but rare gap (an orphaned file
+  /// no longer reachable from the index, matching the already-tracked #272
+  /// class of issue) rather than a crash on every delete attempt.
+  Future<void> _renameIfExists(File source, String destPath) async {
+    if (!await source.exists()) return;
+    const maxAttempts = 5;
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        await source.rename(destPath);
+        return;
+      } on FileSystemException {
+        if (attempt == maxAttempts) return;
+        await Future<void>.delayed(Duration(milliseconds: 20 * attempt));
+      }
+    }
   }
 
   Future<void> restore(String id) async {
