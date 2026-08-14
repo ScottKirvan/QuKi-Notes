@@ -715,9 +715,10 @@ void main() {
       // Flush left, same as the pre-fix bare Row — no leading padding
       // introduced by the new scroll container. Compared against the
       // *button's* own position, not the icon glyph's — IconButton has an
-      // inherent ~12px inset between its tap-target box and the glyph
-      // inside it, unrelated to this fix, so comparing the glyph directly
-      // to the toolbar's edge would fail even with zero added padding.
+      // inherent inset between its tap-target box and the glyph inside it
+      // (6px per side as of fix/tighten-button-spacing), unrelated to this
+      // fix, so comparing the glyph directly to the toolbar's edge would
+      // fail even with zero added padding.
       final firstButton = find.ancestor(
         of: find.byIcon(LucideIcons.bold),
         matching: find.byType(IconButton),
@@ -769,6 +770,51 @@ void main() {
       await tester.pump();
 
       expect(controller.currentValue, 'hello world');
+    });
+  });
+
+  group('FormattingToolbar button spacing (density tightening)', () {
+    testWidgets(
+        'toolbar IconButtons render tighter than the Material default '
+        '(48x48) — fix/tighten-button-spacing', (tester) async {
+      await pumpEditor(tester);
+
+      final boldButton = find.ancestor(
+        of: find.byIcon(LucideIcons.bold),
+        matching: find.byType(IconButton),
+      );
+      final size = tester.getSize(boldButton);
+
+      // Asserts the actual value, not just "smaller than something", so a
+      // future accidental revert to the untouched Material default (48
+      // wide on the android test platform) is caught rather than silently
+      // passing.
+      expect(size, const Size(36, 36));
+
+      await tester.pump();
+    });
+
+    testWidgets(
+        'adjacent toolbar buttons sit exactly one tightened button-width '
+        'apart', (tester) async {
+      await pumpEditor(tester);
+
+      final boldLeft = tester
+          .getTopLeft(find.ancestor(
+            of: find.byIcon(LucideIcons.bold),
+            matching: find.byType(IconButton),
+          ))
+          .dx;
+      final italicLeft = tester
+          .getTopLeft(find.ancestor(
+            of: find.byIcon(LucideIcons.italic),
+            matching: find.byType(IconButton),
+          ))
+          .dx;
+
+      // Was 48 before this fix (the Material default tap-target width);
+      // now exactly one tightened button's width.
+      expect(italicLeft - boldLeft, 36);
     });
   });
 }

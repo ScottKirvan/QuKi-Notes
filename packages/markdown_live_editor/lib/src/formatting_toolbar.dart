@@ -3,6 +3,20 @@ import 'package:lucide_flutter/lucide_flutter.dart';
 
 import 'markdown_editor.dart';
 
+// Tightens the default Material IconButton footprint (48x48 on mobile via
+// its invisible tap-target padding, 40x40 on desktop) down to a smaller,
+// still-comfortably-tappable size, so adjacent toolbar buttons read as one
+// dense group instead of having a large visible gap between them.
+// `tapTargetSize: shrinkWrap` removes the mobile-only invisible minimum
+// (Android/iOS default to `padded`, which otherwise wins over the smaller
+// content-driven size); `minimumSize`/`padding` then set the actual visible
+// footprint uniformly across all platforms.
+const _tightIconButtonStyle = ButtonStyle(
+  padding: WidgetStatePropertyAll(EdgeInsets.all(6)),
+  minimumSize: WidgetStatePropertyAll(Size(36, 36)),
+  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+);
+
 class FormattingToolbar extends StatelessWidget {
   const FormattingToolbar({super.key, required this.controller});
 
@@ -41,51 +55,61 @@ class FormattingToolbar extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     IconButton(
+                      style: _tightIconButtonStyle,
                       icon: const Icon(LucideIcons.bold),
                       tooltip: 'Bold',
                       onPressed: () => controller.wrapSelection('**', '**'),
                     ),
                     IconButton(
+                      style: _tightIconButtonStyle,
                       icon: const Icon(LucideIcons.italic),
                       tooltip: 'Italic',
                       onPressed: () => controller.wrapSelection('_', '_'),
                     ),
                     IconButton(
+                      style: _tightIconButtonStyle,
                       icon: const Icon(LucideIcons.strikethrough),
                       tooltip: 'Strikethrough',
                       onPressed: () => controller.wrapSelection('~~', '~~'),
                     ),
                     IconButton(
+                      style: _tightIconButtonStyle,
                       icon: const Icon(LucideIcons.code),
                       tooltip: 'Inline code',
                       onPressed: () => controller.wrapSelection('`', '`'),
                     ),
                     IconButton(
+                      style: _tightIconButtonStyle,
                       icon: const Icon(LucideIcons.heading1),
                       tooltip: 'Heading',
                       onPressed: () => controller.toggleLinePrefix('# '),
                     ),
                     IconButton(
+                      style: _tightIconButtonStyle,
                       icon: const Icon(LucideIcons.list),
                       tooltip: 'Unordered list',
                       onPressed: controller.toggleUnorderedList,
                     ),
                     IconButton(
+                      style: _tightIconButtonStyle,
                       icon: const Icon(LucideIcons.listOrdered),
                       tooltip: 'Ordered list',
                       onPressed: controller.toggleOrderedList,
                     ),
                     IconButton(
+                      style: _tightIconButtonStyle,
                       icon: const Icon(LucideIcons.listChecks),
                       tooltip: 'Task list',
                       onPressed: controller.toggleCheckboxList,
                     ),
                     IconButton(
+                      style: _tightIconButtonStyle,
                       icon: const Icon(LucideIcons.indentIncrease),
                       tooltip: 'Indent',
                       onPressed: controller.indent,
                     ),
                     IconButton(
+                      style: _tightIconButtonStyle,
                       icon: const Icon(LucideIcons.indentDecrease),
                       tooltip: 'Dedent',
                       onPressed: controller.dedent,

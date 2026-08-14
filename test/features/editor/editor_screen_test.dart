@@ -378,6 +378,80 @@ void main() {
     });
   });
 
+  group('EditorScreen AppBar action button spacing (density tightening)', () {
+    testWidgets(
+        'action IconButtons render tighter than the Material default '
+        '(48x48) — fix/tighten-button-spacing', (tester) async {
+      await tester.pumpWidget(_buildEditor());
+      await tester.pump();
+
+      final sendButton = find.ancestor(
+        of: find.byIcon(LucideIcons.send),
+        matching: find.byType(IconButton),
+      );
+      final size = tester.getSize(sendButton);
+
+      // Default Material IconButton in this test host (platform: android)
+      // is 48x48 — asserting the actual value, not just "smaller than
+      // something", so a future accidental revert to the untouched default
+      // is caught.
+      expect(size, isNot(const Size(48, 48)));
+      expect(size.width, lessThan(48));
+      expect(size.height, lessThanOrEqualTo(48));
+      // Still comfortably tappable — nowhere near a drastic reduction.
+      expect(size.width, greaterThanOrEqualTo(32));
+
+      await cleanup(tester);
+    });
+
+    testWidgets(
+        'adjacent action IconButtons sit closer together than the default '
+        '48px-per-button spacing', (tester) async {
+      await tester.pumpWidget(_buildEditor());
+      await tester.pump();
+
+      final sendLeft = tester
+          .getTopLeft(find.ancestor(
+            of: find.byIcon(LucideIcons.send),
+            matching: find.byType(IconButton),
+          ))
+          .dx;
+      final settingsLeft = tester
+          .getTopLeft(find.ancestor(
+            of: find.byIcon(LucideIcons.settings),
+            matching: find.byType(IconButton),
+          ))
+          .dx;
+
+      // Adjacent action buttons in the actions list — the gap between their
+      // left edges is exactly one button's tightened width.
+      expect(settingsLeft - sendLeft, lessThan(48));
+
+      await cleanup(tester);
+    });
+
+    testWidgets(
+        'the Trash action IconButton is tightened too, including while '
+        'disabled on a never-saved note', (tester) async {
+      await tester.pumpWidget(_buildEditor());
+      await tester.pump();
+
+      // A brand-new, never-saved note disables the Trash button
+      // (AutoSaveController.savedId == null) — the tightened style must
+      // still apply regardless of enabled state, since this is a pure
+      // layout/spacing change with zero functional effect.
+      final trashButton = find.ancestor(
+        of: find.byIcon(LucideIcons.trash2),
+        matching: find.byType(IconButton),
+      );
+      final size = tester.getSize(trashButton);
+      expect(size, isNot(const Size(48, 48)));
+      expect(size.width, lessThan(48));
+
+      await cleanup(tester);
+    });
+  });
+
   group('EditorScreen navigation', () {
     testWidgets(
         'no back button even when navigator-pushed — EditorScreen is always root',
