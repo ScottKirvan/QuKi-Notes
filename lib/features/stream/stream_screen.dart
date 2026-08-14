@@ -15,6 +15,20 @@ import '../../shared/relative_time.dart';
 import '../settings/help_dialog.dart';
 import '../settings/settings_screen.dart';
 
+// Tightens the default Material IconButton footprint (48x48 on mobile via
+// its invisible tap-target padding, 40x40 on desktop) down to a smaller,
+// still-comfortably-tappable size, so the AppBar's action buttons read as
+// one dense group instead of having a large visible gap between them.
+// `tapTargetSize: shrinkWrap` removes the mobile-only invisible minimum
+// (Android/iOS default to `padded`, which otherwise wins over the smaller
+// content-driven size); `minimumSize`/`padding` then set the actual visible
+// footprint uniformly across all platforms.
+const _tightIconButtonStyle = ButtonStyle(
+  padding: WidgetStatePropertyAll(EdgeInsets.all(6)),
+  minimumSize: WidgetStatePropertyAll(Size(36, 36)),
+  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+);
+
 class StreamScreen extends ConsumerStatefulWidget {
   const StreamScreen({super.key});
 
@@ -142,16 +156,19 @@ class _StreamScreenState extends ConsumerState<StreamScreen> {
         title: const Text('QuKis'),
         actions: [
           IconButton(
+            style: _tightIconButtonStyle,
             icon: const Icon(LucideIcons.plus),
             tooltip: 'New QuKi',
             onPressed: _openNew,
           ),
           IconButton(
+            style: _tightIconButtonStyle,
             icon: const Icon(LucideIcons.circleHelp),
             tooltip: 'Help',
             onPressed: () => showHelpDialog(context),
           ),
           IconButton(
+            style: _tightIconButtonStyle,
             icon: const Icon(LucideIcons.settings),
             tooltip: 'Settings',
             onPressed: _openSettings,

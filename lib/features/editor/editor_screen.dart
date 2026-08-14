@@ -25,6 +25,20 @@ import '../stream/stream_screen.dart';
 
 final _log = Logger('EditorScreen');
 
+// Tightens the default Material IconButton footprint (48x48 on mobile via
+// its invisible tap-target padding, 40x40 on desktop) down to a smaller,
+// still-comfortably-tappable size, so the AppBar's action buttons read as
+// one dense group instead of having a large visible gap between them.
+// `tapTargetSize: shrinkWrap` removes the mobile-only invisible minimum
+// (Android/iOS default to `padded`, which otherwise wins over the smaller
+// content-driven size); `minimumSize`/`padding` then set the actual visible
+// footprint uniformly across all platforms.
+const _tightIconButtonStyle = ButtonStyle(
+  padding: WidgetStatePropertyAll(EdgeInsets.all(6)),
+  minimumSize: WidgetStatePropertyAll(Size(36, 36)),
+  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+);
+
 PageRouteBuilder<void> _slideFromLeft(Widget screen) {
   return PageRouteBuilder<void>(
     pageBuilder: (_, __, ___) => screen,
@@ -437,6 +451,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         ),
         actions: [
           IconButton(
+            style: _tightIconButtonStyle,
             icon: _tButtonWidget(),
             tooltip: _editorController.plainTextMode
                 ? 'Rendered mode'
@@ -449,25 +464,30 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
             },
           ),
           IconButton(
+              style: _tightIconButtonStyle,
               icon: const Icon(LucideIcons.plus),
               tooltip: 'New QuKi',
               onPressed: _newQuKi),
           IconButton(
+            style: _tightIconButtonStyle,
             icon: const Icon(LucideIcons.circleHelp),
             tooltip: 'Help',
             onPressed: () => showHelpDialog(context),
           ),
           IconButton(
+            style: _tightIconButtonStyle,
             icon: const Icon(LucideIcons.send),
             tooltip: 'Send',
             onPressed: _onTransport,
           ),
           IconButton(
+            style: _tightIconButtonStyle,
             icon: const Icon(LucideIcons.settings),
             tooltip: 'Settings',
             onPressed: _openSettings,
           ),
           IconButton(
+            style: _tightIconButtonStyle,
             icon: const Icon(LucideIcons.trash2),
             tooltip: 'Delete',
             // Deliberately last and separated from Send by every other
