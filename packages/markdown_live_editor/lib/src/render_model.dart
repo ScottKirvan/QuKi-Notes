@@ -1073,6 +1073,14 @@ TextStyle _contentStyle(MdElKind kind, TextStyle base) => switch (kind) {
       // as text.  This case is reached only in revealed mode (cursor inside hr),
       // where the raw source '---' etc. shows in base style.
       MdElKind.hr => base,
+      // Checked checkbox: content renders with strikethrough, mirroring the
+      // literal ~~text~~ MdElKind.strikethrough case above. This is a pure
+      // rendering affordance — the underlying '- [x] ' source is untouched;
+      // toggling the checkbox back to unchecked (checkboxUnchecked, below)
+      // restores unstyled content.
+      MdElKind.checkboxChecked => base.copyWith(
+          decoration: TextDecoration.lineThrough,
+        ),
       // List kinds: content in baseStyle (marker substituted separately).
       // Image: revealed mode shows raw source in baseStyle.
       // Escape: the escaped character renders literally in the surrounding
@@ -1080,7 +1088,6 @@ TextStyle _contentStyle(MdElKind kind, TextStyle base) => switch (kind) {
       MdElKind.ul ||
       MdElKind.ol ||
       MdElKind.checkboxUnchecked ||
-      MdElKind.checkboxChecked ||
       MdElKind.image ||
       MdElKind.escape =>
         base,
@@ -1103,7 +1110,15 @@ TextStyle _contentStyle(MdElKind kind, TextStyle base) => switch (kind) {
 TextStyle _combinedInlineStyle(TextStyle base, List<MdElement> covering) {
   if (covering.isEmpty) return base;
   var s = base;
-  final decorations = <TextDecoration>[];
+  // Seed with any decoration [base] already carries (e.g. a checked
+  // checkbox's block-level strikethrough, see _contentStyle) so a covering
+  // inline element that also contributes a decoration (link underline,
+  // nested ~~strikethrough~~) combines with it below instead of the final
+  // copyWith silently discarding it.
+  final decorations = <TextDecoration>[
+    if (base.decoration != null && base.decoration != TextDecoration.none)
+      base.decoration!,
+  ];
   for (final e in covering) {
     switch (e.kind) {
       case MdElKind.bold:
