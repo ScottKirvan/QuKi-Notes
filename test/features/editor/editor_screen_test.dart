@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:markdown_live_editor/markdown_live_editor.dart';
-import 'package:path/path.dart' as p;
 // Reaches into the package's implementation library rather than its public
 // barrel — the same convention the package's own tests already use (see
 // e.g. packages/markdown_live_editor/test/checkbox_hit_target_test.dart) to
@@ -32,6 +31,11 @@ class _FakeQuKiStorage extends QuKiStorage {
 
   final saves = <({String? id, String body})>[];
   final softDeleted = <String>[];
+
+  // Canned content for read(id) — see the read() override below. Lets a
+  // test load a pre-existing QuKi (via activeQukiIdProvider) with known
+  // content, without ever touching a real filesystem.
+  final bodies = <String, String>{};
 
   // Not overridden by default: QuKiStorage.softDelete() does real dart:io
   // (File.exists()/rename()) against Directory.systemTemp, which — unlike
@@ -62,7 +66,7 @@ class _FakeQuKiStorage extends QuKiStorage {
   }
 
   @override
-  Future<String> read(String id) async => '';
+  Future<String> read(String id) async => bodies[id] ?? '';
 
   @override
   Future<List<QuKiMeta>> scanActive() async => [];
@@ -783,16 +787,29 @@ void main() {
         'tapping Trash soft-deletes the active QuKi, removes it from the '
         'index, and lands on a blank new note (same end state as +New)',
         (tester) async {
-      late Directory tmpDir;
-      late QuKiStorage storage;
-      late QuKiMeta meta;
-
-      await tester.runAsync(() async {
-        tmpDir = await Directory.systemTemp.createTemp('quki_editor_delete_');
-        storage = QuKiStorage(tmpDir);
-        meta = await storage.create('delete me');
-      });
-      addTearDown(() => tmpDir.delete(recursive: true));
+      // Uses _FakeQuKiStorage (no real dart:io) rather than a real
+      // QuKiStorage(tmpDir) + tester.runAsync, the same pattern already
+      // used successfully by the "delete snackbar" tests below. This test
+      // originally used real storage and was the source of a genuine,
+      // hard-to-pin-down full-suite-only flake (a real PathNotFoundException
+      // race inside QuKiStorage.softDelete's rename, plus a second flake
+      // traced to a Riverpod SharedPreferences retry Timer, plus knock-on
+      // effects on unrelated tests elsewhere in the suite from the added
+      // real filesystem I/O pressure) — see quki_storage.dart's
+      // _renameIfExists for the production-side hardening that came out of
+      // that investigation, which real on-disk softDelete behavior is
+      // covered by directly at the unit level in quki_storage_test.dart.
+      // This test's own job is verifying EditorScreen's behavior — that the
+      // Trash button calls softDelete with the right id, updates the index,
+      // resets activeQukiIdProvider, and disables itself again — none of
+      // which requires touching a filesystem at all.
+      final meta = QuKiMeta(
+        id: 'existing-id',
+        filePath: '/fake/existing-id.md',
+        createdAt: DateTime.now(),
+        modifiedAt: DateTime.now(),
+      );
+      final storage = _FakeQuKiStorage()..bodies[meta.id] = 'delete me';
 
       final container = ProviderContainer(
         overrides: [
@@ -814,31 +831,22 @@ void main() {
       // QuKis list — this is the branch where activeQukiIdProvider ==
       // AutoSaveController.savedId, so deleting it must also clear
       // activeQukiIdProvider back to null via the existing ref.listen path.
-      await tester.runAsync(() async {
-        container.read(activeQukiIdProvider.notifier).setId(meta.id);
-        await Future<void>.delayed(const Duration(milliseconds: 300));
-      });
+      // No real dart:io anywhere in this fake, so plain pumps are enough to
+      // settle _onActiveQukiChanged's async chain — no tester.runAsync or
+      // real delay needed.
+      container.read(activeQukiIdProvider.notifier).setId(meta.id);
       await tester.pump();
       await tester.pump();
 
-      // The Trash button's onPressed calls storage.softDelete(), a real
-      // dart:io rename — run the tap itself inside runAsync so the real
-      // write actually gets a chance to complete against the real event
-      // loop rather than being left dangling in FakeAsync's zone.
-      await tester.runAsync(() async {
-        await tester.tap(find.byIcon(LucideIcons.trash2));
-        await Future<void>.delayed(const Duration(milliseconds: 300));
-      });
+      await tester.tap(find.byIcon(LucideIcons.trash2));
       await tester.pump();
       await tester.pump();
-
-      final stillAtActivePath =
-          await tester.runAsync(() => File(meta.filePath).exists());
 
       expect(
-        stillAtActivePath,
-        isFalse,
-        reason: 'the active file must be moved to trash on delete',
+        storage.softDeleted,
+        [meta.id],
+        reason: 'softDelete must be called exactly once, with the active '
+            "QuKi's id",
       );
 
       expect(
@@ -870,17 +878,21 @@ void main() {
 
     testWidgets('a pending autosave does not resurrect the just-deleted QuKi',
         (tester) async {
-      late Directory tmpDir;
-      late QuKiStorage storage;
-      late QuKiMeta meta;
-
-      await tester.runAsync(() async {
-        tmpDir =
-            await Directory.systemTemp.createTemp('quki_editor_delete_race_');
-        storage = QuKiStorage(tmpDir);
-        meta = await storage.create('original content');
-      });
-      addTearDown(() => tmpDir.delete(recursive: true));
+      // Uses _FakeQuKiStorage (no real dart:io) for the same reason as the
+      // test above — see its comment for the full explanation of the
+      // full-suite-only flakiness this replaces. Asserting directly against
+      // storage.saves (every create/update call, tracked in-memory) is
+      // actually a stronger check of the exact invariant this test cares
+      // about than the original file-content read was: it proves NO write
+      // of any kind happened after delete, not just that one specific file
+      // path came back empty-handed.
+      final meta = QuKiMeta(
+        id: 'existing-id',
+        filePath: '/fake/existing-id.md',
+        createdAt: DateTime.now(),
+        modifiedAt: DateTime.now(),
+      );
+      final storage = _FakeQuKiStorage()..bodies[meta.id] = 'original content';
 
       final container = ProviderContainer(
         overrides: [
@@ -898,10 +910,7 @@ void main() {
       );
       await tester.pump();
 
-      await tester.runAsync(() async {
-        container.read(activeQukiIdProvider.notifier).setId(meta.id);
-        await Future<void>.delayed(const Duration(milliseconds: 300));
-      });
+      container.read(activeQukiIdProvider.notifier).setId(meta.id);
       await tester.pump();
       await tester.pump();
 
@@ -917,45 +926,32 @@ void main() {
       );
       await tester.pump();
 
-      // Tap Trash before that debounce ever fires. The Trash button's
-      // onPressed calls storage.softDelete(), a real dart:io rename — run
-      // the tap itself inside runAsync so that real I/O actually gets to
-      // complete against the real event loop, rather than being left
-      // dangling in FakeAsync's zone.
-      await tester.runAsync(() async {
-        await tester.tap(find.byIcon(LucideIcons.trash2));
-        await Future<void>.delayed(const Duration(milliseconds: 300));
-      });
+      // Tap Trash before that debounce ever fires.
+      await tester.tap(find.byIcon(LucideIcons.trash2));
       await tester.pump();
       await tester.pump();
 
       // Advance well past both the 2s debounce and the 30s periodic
-      // interval. Neither can reach real dart:io here even if still
-      // pending: AutoSaveController.save() bails out on an empty body
-      // before ever calling the write callback, and _deleteCurrentQuki
-      // clears the editor to '' before the delete even starts — so this is
-      // safe to pump through directly, without tester.runAsync, exactly
-      // because the guard being tested makes it a no-op.
+      // interval — both are ordinary FakeAsync-zone Timers here (nothing
+      // in this test ever leaves that zone), so a plain pump(duration)
+      // reliably fires (or confirms the cancellation of) either one.
       await tester.pump(const Duration(seconds: 31));
       await tester.pump();
 
-      final activeExists =
-          await tester.runAsync(() => File(meta.filePath).exists());
       expect(
-        activeExists,
-        isFalse,
-        reason: 'a pending autosave must not resurrect the deleted QuKi at '
-            'its original active path',
+        storage.saves,
+        isEmpty,
+        reason: 'a pending autosave must not write anything after delete — '
+            'AutoSaveController.save() bails out on the empty body '
+            '_deleteCurrentQuki clears the editor to before the delete '
+            'even starts, and the debounce Timer that would have fired '
+            'from the earlier typing is cancelled by resetForQuki()',
       );
-
-      final trashPath = p.join(tmpDir.path, '.trash', '${meta.id}.md');
-      final trashedContent =
-          await tester.runAsync(() => File(trashPath).readAsString());
       expect(
-        trashedContent,
-        'original content',
-        reason: 'the trashed file must retain its original content — a '
-            'stale pending autosave must not overwrite it after the fact',
+        storage.softDeleted,
+        [meta.id],
+        reason: 'softDelete must still have been called exactly once, with '
+            "the QuKi's original id",
       );
 
       await cleanup(tester);
