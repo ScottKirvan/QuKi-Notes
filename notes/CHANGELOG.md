@@ -17,6 +17,8 @@
 * rewrite delete-button tests to use fake storage, not real dart:io ([7f53dc8](https://github.com/ScottKirvan/QuKi-Notes/commit/7f53dc80d1db37c9486f012b8911beb94685a737))
 * unify list-toggle-button detection across ul/ol/checkbox (ADR-34) ([dc22349](https://github.com/ScottKirvan/QuKi-Notes/commit/dc22349b89564723db701f4c1c068aef74206d3c))
 
+Includes PRs: [#363](https://github.com/ScottKirvan/QuKi-Notes/pull/363), [#364](https://github.com/ScottKirvan/QuKi-Notes/pull/364), [#365](https://github.com/ScottKirvan/QuKi-Notes/pull/365), [#366](https://github.com/ScottKirvan/QuKi-Notes/pull/366), [#367](https://github.com/ScottKirvan/QuKi-Notes/pull/367), [#369](https://github.com/ScottKirvan/QuKi-Notes/pull/369), [#370](https://github.com/ScottKirvan/QuKi-Notes/pull/370), [#372](https://github.com/ScottKirvan/QuKi-Notes/pull/372)
+
 ## [0.21.1](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.21.0...v0.21.1) (2026-08-11)
 
 
