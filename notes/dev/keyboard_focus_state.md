@@ -1,6 +1,6 @@
 # Keyboard/focus state — design
 
-**Status**: design locked with the project owner, 2026-08-15. Not yet implemented.
+**Status**: Round 1 (`focusNode.hasFocus`-driven visibility + the `connectionClosed()` fix) implemented (PR #376) and **device-tested; its core hypothesis was disproven by the counters it shipped with**. Pivoting to Round 2 (`MediaQuery.viewInsets.bottom`-driven visibility) — see that section at the end. Round 1's `connectionClosed()` fix is kept (still correct on its own terms), the visibility-source change is what's being replaced.
 
 **Origin**: a real device-testing pass through `notes/dev/keyboard_state_testing.md` against issues #340, #263, #235, #265, #328, #177, #239, #234 found the reading/edit-mode mechanism itself broken — existing notes rarely land in reading mode, dismissing the keyboard doesn't clear the toolbar/cursor, and backgrounding the app with the keyboard open causes a visible black-area glitch and the keyboard failing to return (unlike every other app tested — confirmed by the project owner directly, not assumed). This is not a fix for any one of those issues individually; it replaces the mechanism all of them were breaking against.
 
@@ -97,3 +97,57 @@ Rationale: mirrors stock's own actual behavior on Android — connection teardow
 ## Diagnostic aid for the verification round
 
 A temporary, persistent on-screen counter — not a flash, since the backgrounding scenario's event of interest happens while the app isn't visible to react to a flash — showing call counts and last-fired timestamps for `connectionClosed()`, `unfocus()`, and `requestFocus()`, in a small corner overlay. Same pattern already used successfully for the selection-handle investigation (temporary, clearly marked, fully reverted once the round is done) — chosen because the project owner's build/install workflow (GitHub Actions → sideload) has no attached console for log-based diagnostics.
+
+---
+
+## Round 1 device-test results, 2026-08-15 — the hypothesis was disproven
+
+PR #376 shipped with the diagnostic overlay above. Real device results (`connClosed / focusLost / focusGained` counters, project owner's own test pass):
+
+1. Background/foreground with keyboard open: **keyboard did not come back**. Counters: `0/0/1` (the `1` is the original tap-in; nothing changed across the whole background→foreground cycle).
+2. Android's own keyboard-dismiss icon: **keyboard gone, toolbar and cursor still visible**. `0/0/1` — unchanged from baseline.
+3. Back gesture while editing: **keyboard gone, toolbar and cursor still visible**. `0/0/1` — unchanged from baseline.
+4. Existing note reopen: **worked correctly** — no keyboard, no toolbar, no cursor, reliably. (Separately surfaced a real, unrelated bug: an H1 line's `#` marker stays visible even with zero cursor in the document — filed as #377, not part of this investigation.)
+5. Rapid dismiss/reopen cycling: not run (verification instructions were unclear; superseded by findings from 2/3 below).
+6. New note creation: worked as expected, `0/0/1`.
+
+**What this proves**: `connClosed` stayed at `0` in every scenario. `connectionClosed()` never fired once — not for backgrounding, not for the keyboard's own dismiss icon, not for the back gesture. The fix shipped in PR #376 (removing that callback's `unfocus()` call) was therefore a correct change on its own terms, but a no-op for all six of these symptoms, since the code path it touches was never reached.
+
+More importantly: in scenarios 2 and 3, `focusLost` also stayed at `0` even though the keyboard visibly disappeared. `FocusNode.hasFocus` never became `false`. The design's core rule (`toolbar/cursor visible ⟺ hasFocus`) executed exactly as specified — the toolbar and cursor stayed visible *because* `hasFocus` genuinely never changed, not because the rule was implemented wrong. The rule was built on a signal that doesn't reliably track real keyboard visibility on Android **in either direction**: Round 1's research already established it can be forced *false* for non-deliberate reasons (over-triggering, the `connectionClosed()` problem); the device round now shows it also fails to go `false` at all when the keyboard is genuinely dismissed via native means (under-triggering). Both failure modes stem from the same root issue: `FocusNode.hasFocus` is Flutter's own bookkeeping about *focus*, not the platform's report of actual keyboard visibility, and on Android those two things are not reliably the same thing in either direction.
+
+---
+
+## Round 2: pivot to `MediaQuery.viewInsets.bottom`
+
+**New rule**:
+
+```
+cursor visible, keyboard visible, FormattingToolbar visible  ⟺  MediaQuery.viewInsets.bottom > 0
+```
+
+`viewInsets.bottom` is the OS's own live-reported keyboard height — driven by the platform's window-inset system, completely independent of `FocusNode`/`TextInputConnection` bookkeeping. This is also the standard, widely-used Flutter community workaround for exactly this class of problem (`FocusNode` being an unreliable proxy for real keyboard visibility on Android is a well-known limitation across the ecosystem, not unique to this app).
+
+### What stays, what changes
+
+- **Focus-driven connection/keyboard-request plumbing is unaffected.** Tapping into a note still calls `requestFocus()`, which still attaches the `TextInputConnection` and requests the keyboard show. That mechanical layer is correct and untouched by this pivot.
+- **Only the *visibility* decision changes.** Wherever cursor-paint and `FormattingToolbar` visibility currently derive from `hasActiveBlock`/`focusNode.hasFocus` (`markdown_editor.dart:148`, `editor_screen.dart`'s toolbar-rendering condition, and wherever the cursor's own paint logic checks focus in `quiki_render_editor.dart`), the source becomes `viewInsets.bottom > 0` instead.
+- **Round 1's `connectionClosed()` fix is kept as-is** — still a correct improvement in its own right (connection teardown and focus loss shouldn't be forced together for non-deliberate reasons), just not sufficient alone. Not being reverted.
+
+### A known risk with this signal, from this app's own prior history
+
+`#340`'s original black-bar finding on `StreamScreen` was traced to a *stale* `viewInsets.bottom` value being used by a `Scaffold`'s `resizeToAvoidBottomInset` — i.e., this app has direct prior evidence that `viewInsets.bottom` is not perfectly instantaneous/glitch-free either. That was a different screen and a different consumer of the value (layout reservation, not a simple visibility boolean), but it's reason enough to test staleness specifically in this round rather than assume `viewInsets` is a silver bullet just because it's the more standard approach.
+
+### Required device verification (Round 2)
+
+Same six scenarios as Round 1's list, retested against the new signal:
+
+1. Background/foreground with keyboard open — keyboard should return, and cursor/toolbar visibility should track it correctly with no stale/stuck state.
+2. Android's keyboard-dismiss icon — cursor/toolbar should now correctly hide (this was the direct failure in Round 1).
+3. Back gesture while editing — same.
+4. Existing note reopen — must keep working (already correct in Round 1, confirm no regression from the signal change).
+5. Rapid dismiss/reopen cycling — watch specifically for `viewInsets`-transition lag or staleness, given the `#340` precedent above.
+6. New note creation — confirm no regression.
+
+### Diagnostic overlay, extended
+
+Add a live `viewInsets.bottom` value display (not just an event count — the actual current number, updating in real time) to the existing corner overlay from Round 1, alongside the existing counters. This is the direct signal the new rule depends on; seeing its live value during each test scenario is what will confirm or disprove this round, the same way the event counters did for Round 1.
