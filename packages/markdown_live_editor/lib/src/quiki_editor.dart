@@ -132,7 +132,9 @@ class QuikiEditor extends StatefulWidget {
   QuikiEditorState createState() => QuikiEditorState();
 }
 
-class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
+class QuikiEditorState extends State<QuikiEditor>
+    with WidgetsBindingObserver
+    implements TextInputClient {
   TextInputConnection? _connection;
   TextEditingValue _value = TextEditingValue.empty;
   final ScrollController _scrollController = ScrollController();
@@ -641,6 +643,10 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     widget.controller.addListener(_onControllerChanged);
     widget.focusNode.addListener(_onFocusChanged);
     _scrollController.addListener(_onScrollChangedForHandles);
+    // Mobile-only: see didChangeMetrics()'s doc comment for why _showCursor
+    // needs an explicit metrics observer rather than reading MediaQuery
+    // directly in build().
+    WidgetsBinding.instance.addObserver(this);
     if (widget.autofocus) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) widget.focusNode.requestFocus();
@@ -671,11 +677,44 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     widget.controller.removeListener(_onControllerChanged);
     widget.focusNode.removeListener(_onFocusChanged);
     _scrollController.removeListener(_onScrollChangedForHandles);
+    WidgetsBinding.instance.removeObserver(this);
     _connection?.close();
     _scrollController.dispose();
     _handleOverlayTick.dispose();
     _magnifierInfo.dispose();
     super.dispose();
+  }
+
+  // -------------------------------------------------------------------------
+  // WidgetsBindingObserver — mobile keyboard-visible signal for _showCursor.
+  // -------------------------------------------------------------------------
+
+  /// Fires whenever any view metric changes, including
+  /// [FlutterView.viewInsets] (the keyboard showing/hiding).
+  ///
+  /// Reading `MediaQuery.viewInsetsOf(context)` directly in build() would be
+  /// simpler and would rebuild on its own without this observer — but it
+  /// gives the WRONG value here: [QuikiEditor] is always nested inside a
+  /// [Scaffold]'s body in this app, and Scaffold's default
+  /// `resizeToAvoidBottomInset: true` deliberately ZEROES viewInsets.bottom
+  /// for its body's descendants once it has already resized to accommodate
+  /// the keyboard (Scaffold._MediaQueryFromView / `removeViewInsets`, see
+  /// scaffold.dart) — it has already "spent" that inset on its own layout,
+  /// so passing the same inset down again would double-count it. A widget
+  /// this deep would therefore always read 0, permanently hiding the caret.
+  /// `View.of(context).viewInsets` reads the FlutterView directly, bypassing
+  /// Scaffold's MediaQuery rewrite entirely — but View.of's own doc comment
+  /// is explicit that it does NOT rebuild its dependents when the view's
+  /// property values change (only when the FlutterView identity itself
+  /// changes) — so it must be paired with an explicit trigger. This observer
+  /// is that trigger.
+  @override
+  void didChangeMetrics() {
+    // Only mobile's _showCursor branch depends on this; skip the rebuild on
+    // desktop, which has no software keyboard and would otherwise repaint
+    // for every unrelated metrics change (e.g. a window resize).
+    if (!_isMobile) return;
+    if (mounted) setState(() {});
   }
 
   // -------------------------------------------------------------------------
@@ -855,6 +894,15 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
   /// Exposed for widget tests only — do not use in production code.
   @visibleForTesting
   bool get hasConnectionForTesting => _connection != null;
+
+  /// Whether the caret is currently being painted — the live result of
+  /// [_showCursor], read from the actual [QuikiRenderEditor] rather than
+  /// recomputed here, so a test genuinely exercises the same value production
+  /// paint uses instead of a parallel calculation that could drift from it.
+  ///
+  /// Exposed for widget tests only — do not use in production code.
+  @visibleForTesting
+  bool get showsCursorForTesting => _renderEditor?.showCursor ?? false;
 
   /// Forces the selection toolbar to appear regardless of platform.
   ///
@@ -2013,6 +2061,44 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
   // Build
   // -------------------------------------------------------------------------
 
+  /// Ground truth for caret visibility (notes/dev/keyboard_focus_state.md's
+  /// Round 2 pivot).
+  ///
+  /// `FocusNode.hasFocus` is not a reliable proxy for whether a software
+  /// keyboard is actually on screen — Round 1's on-device diagnostics proved
+  /// it stays `true` even after the Android keyboard visibly disappears (via
+  /// its own dismiss icon or the system back gesture). The OS's own live
+  /// `viewInsets.bottom` — nonzero exactly when the keyboard is occupying
+  /// screen space — is the ground truth instead.
+  ///
+  /// Reads `View.of(context).viewInsets` (the raw [FlutterView] property),
+  /// NOT `MediaQuery.viewInsetsOf(context)` — this widget is always nested
+  /// inside a [Scaffold]'s body in this app, and Scaffold's default
+  /// `resizeToAvoidBottomInset: true` zeroes viewInsets.bottom in the
+  /// MediaQuery it hands to its body once it has already resized around the
+  /// keyboard itself; reading MediaQuery here would always see 0. See
+  /// [didChangeMetrics] for why a separate observer is needed to still get a
+  /// rebuild on change, since View.of does not provide one on its own.
+  ///
+  /// This does NOT change how the keyboard is requested — requestFocus()
+  /// still attaches the TextInputConnection and calls .show() exactly as
+  /// before. viewInsets.bottom only becomes nonzero after the OS actually
+  /// raises a keyboard in response to that, so there is an inherent one-step
+  /// ordering: focus request → connection attach → (async) OS shows keyboard
+  /// → viewInsets changes → caret appears. That gap is expected, not a bug.
+  ///
+  /// Desktop has no software keyboard, so viewInsets.bottom is always 0
+  /// there — falling back to it unconditionally would make the caret (and,
+  /// at the app layer, the FormattingToolbar/T-button "edit mode" state)
+  /// permanently invisible on Windows/Linux. This whole investigation
+  /// (notes/dev/keyboard_state_testing.md) was scoped to Android/mobile
+  /// only, so desktop keeps the pre-pivot FocusNode.hasFocus signal, which
+  /// was never the broken part of this.
+  bool _showCursor(BuildContext context) {
+    if (!_isMobile) return widget.focusNode.hasFocus;
+    return View.of(context).viewInsets.bottom > 0;
+  }
+
   @override
   Widget build(BuildContext context) {
     final textStyle =
@@ -2061,7 +2147,7 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
       renderModel: renderModel,
       selection: _value.selection,
       padding: padding,
-      focused: widget.focusNode.hasFocus,
+      showCursor: _showCursor(context),
       cursorColor: cursorColor,
       selectionColor: selectionColor,
       imageCache: _imageCache,

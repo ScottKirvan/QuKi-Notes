@@ -207,8 +207,42 @@ void main() {
       expect(find.textContaining('connClosed 0'), findsOneWidget);
       expect(find.textContaining('focusLost 0'), findsOneWidget);
       expect(find.textContaining('focusGained 0'), findsOneWidget);
+      expect(find.textContaining('viewInsets.bottom 0.0'), findsOneWidget,
+          reason: 'Round 2 addition — the overlay must also show the live '
+              'viewInsets.bottom value, starting at 0 with no keyboard '
+              'inset simulated');
 
       await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets(
+        'shows the live viewInsets.bottom value and updates when it changes '
+        '— regression: this overlay sits inside editor_screen.dart\'s '
+        'Scaffold body, the exact position where MediaQuery.viewInsetsOf '
+        'would always read 0 (Scaffold.resizeToAvoidBottomInset zeroes it '
+        'for body descendants) — View.of(context).viewInsets must be used '
+        'instead, confirmed here via a real simulated inset change, not '
+        'just reasoned about', (tester) async {
+      await tester.pumpWidget(const MaterialApp(
+        home: Scaffold(body: KeyboardFocusDebugOverlay()),
+      ));
+      await tester.pump();
+
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      await tester.pump();
+
+      expect(find.textContaining('viewInsets.bottom 0.0'), findsNothing,
+          reason: 'must reflect the nonzero simulated inset, not the '
+              'always-0 value MediaQuery would give at this tree position');
+
+      tester.view.viewInsets = FakeViewPadding.zero;
+      await tester.pump();
+
+      expect(find.textContaining('viewInsets.bottom 0.0'), findsOneWidget,
+          reason: 'must also reflect the inset returning to 0');
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      tester.view.resetViewInsets();
     });
 
     testWidgets('connectionClosed count increments and is reflected on screen',

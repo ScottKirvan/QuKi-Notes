@@ -302,14 +302,27 @@ class MarkdownEditorController {
 
   /// Whether the editor FocusNode currently has focus.
   ///
-  /// Semantically equivalent to the old "a block is in edit mode" for
-  /// FormattingToolbar enable/disable purposes.
+  /// On mobile this is NOT the signal the host app uses to decide
+  /// FormattingToolbar visibility or the T-button's edit-vs-reading-mode
+  /// icon as of notes/dev/keyboard_focus_state.md's Round 2 pivot —
+  /// FocusNode.hasFocus proved unreliable as a proxy for whether a software
+  /// keyboard is actually showing (it can stay true after the keyboard
+  /// visibly disappears). The host app now reads `MediaQuery.viewInsets`
+  /// directly for that decision on mobile, falling back to this getter only
+  /// on desktop, which has no software keyboard. This getter itself is
+  /// unchanged — still a plain `FocusNode.hasFocus` read — and is still used
+  /// as-is for the desktop fallback and for the temporary keyboard-focus
+  /// diagnostic overlay's counters.
   bool get hasActiveBlock => _state?._focusNode.hasFocus ?? false;
 
   /// Called each time the editor's FocusNode gains or loses focus.
   ///
   /// Set in the host widget's [initState] so host UI (toolbar visibility,
-  /// AppBar icons) rebuilds on keyboard show/hide without polling.
+  /// AppBar icons) rebuilds on keyboard show/hide without polling. Note this
+  /// only fires on a real focus transition — on mobile, keyboard-visibility
+  /// changes that don't also change focus (see [hasActiveBlock]'s doc
+  /// comment) do NOT go through this callback; the host app relies on its
+  /// own MediaQuery dependency for those instead.
   VoidCallback? onFocusChanged;
 
   void unfocus() => _state?._focusNode.unfocus();

@@ -12,6 +12,20 @@
 //      and its onFocusChanged closure records a focus gained/lost event.
 //      Remove the Stack wrapper, the overlay widget, and that one line.
 //
+// Round 2 addition: KeyboardFocusDebugOverlay also shows the LIVE current
+// value of the platform's keyboard-inset signal — the new ground-truth
+// signal cursor/toolbar visibility is now driven by on mobile (see
+// quiki_editor.dart's _showCursor() and editor_screen.dart's
+// `keyboardVisible`). Read via View.of(context).viewInsets, NOT
+// MediaQuery.viewInsetsOf(context) — this overlay sits inside
+// editor_screen.dart's Scaffold body, same as the editor itself, so
+// MediaQuery would always read 0 there (Scaffold's own
+// resizeToAvoidBottomInset zeroes it for body descendants); confirmed
+// empirically, not just reasoned about, before shipping this. This is read
+// directly in the overlay's own build(), not routed through
+// KeyboardFocusDebugCounters — it's a live value, not a count/timestamp
+// event, so the existing counter-recording mechanism doesn't fit it.
+//
 // Counts and timestamps only — never logs, transmits, or persists QuKi
 // content. Nothing here touches shared_preferences or any other persistence;
 // state lives only in memory for the current app session.
@@ -106,22 +120,38 @@ class KeyboardFocusDebugOverlay extends StatefulWidget {
       _KeyboardFocusDebugOverlayState();
 }
 
-class _KeyboardFocusDebugOverlayState extends State<KeyboardFocusDebugOverlay> {
+class _KeyboardFocusDebugOverlayState extends State<KeyboardFocusDebugOverlay>
+    with WidgetsBindingObserver {
   final _counters = KeyboardFocusDebugCounters.instance;
 
   @override
   void initState() {
     super.initState();
     _counters.tick.addListener(_onTick);
+    // Mirrors QuikiEditorState's own didChangeMetrics() observer (see its
+    // doc comment for the full explanation): this overlay is wired into
+    // editor_screen.dart's Scaffold body, same as the editor itself, so
+    // MediaQuery.viewInsetsOf(context) would always read 0 here too —
+    // Scaffold's default resizeToAvoidBottomInset zeroes viewInsets.bottom
+    // for its body's descendants. Reading View.of(context).viewInsets
+    // instead bypasses that, but doesn't rebuild on its own, hence this
+    // observer.
+    WidgetsBinding.instance.addObserver(this);
   }
 
   @override
   void dispose() {
     _counters.tick.removeListener(_onTick);
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
   void _onTick() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void didChangeMetrics() {
     if (mounted) setState(() {});
   }
 
@@ -142,6 +172,24 @@ class _KeyboardFocusDebugOverlayState extends State<KeyboardFocusDebugOverlay> {
 
   @override
   Widget build(BuildContext context) {
+    // Read directly here (not via KeyboardFocusDebugCounters) so this is the
+    // actual live value, not a count/timestamp snapshot. View.of(context),
+    // NOT MediaQuery.viewInsetsOf(context) — see this file's header comment
+    // for why MediaQuery would always read 0 at this exact position in the
+    // tree. View.of doesn't rebuild its dependents on its own, which is why
+    // this State mixes in WidgetsBindingObserver / didChangeMetrics(). This
+    // line is what the Round 2 device-verification pass needs to watch —
+    // it's the new ground truth quiki_editor.dart's _showCursor() and
+    // editor_screen.dart's `keyboardVisible` make their real decisions from.
+    //
+    // View.viewInsets is in PHYSICAL pixels (unlike MediaQuery's logical-
+    // pixel EdgeInsets) — divided by devicePixelRatio below so the displayed
+    // number is directly comparable to every other logical-pixel measurement
+    // in this codebase (contentPadding, etc.), even though only its sign
+    // (>0 or ==0) actually drives _showCursor()'s decision.
+    final view = View.of(context);
+    final viewInsetsBottom = view.viewInsets.bottom / view.devicePixelRatio;
+
     return IgnorePointer(
       child: Align(
         alignment: Alignment.topRight,
@@ -157,6 +205,10 @@ class _KeyboardFocusDebugOverlayState extends State<KeyboardFocusDebugOverlay> {
               crossAxisAlignment: CrossAxisAlignment.end,
               mainAxisSize: MainAxisSize.min,
               children: [
+                Text(
+                  'viewInsets.bottom ${viewInsetsBottom.toStringAsFixed(1)}',
+                  style: _textStyle,
+                ),
                 Text(
                   'connClosed ${_counters.connectionClosedCount} '
                   '@ ${_fmt(_counters.lastConnectionClosed)}',

@@ -17,7 +17,7 @@ class QuikiRenderWidget extends LeafRenderObjectWidget {
     required this.renderModel,
     required this.selection,
     required this.padding,
-    required this.focused,
+    required this.showCursor,
     required this.cursorColor,
     required this.selectionColor,
     this.imageCache = const {},
@@ -26,7 +26,17 @@ class QuikiRenderWidget extends LeafRenderObjectWidget {
   final RenderModel renderModel;
   final TextSelection selection;
   final EdgeInsets padding;
-  final bool focused;
+
+  /// Ground truth for caret paint — NOT the same thing as "the editor's
+  /// FocusNode has focus" (renamed from `focused` for this reason; see
+  /// notes/dev/keyboard_focus_state.md's Round 2 pivot). On mobile this is
+  /// the OS's own live keyboard-visible signal (`viewInsets.bottom > 0`);
+  /// on desktop, which has no software keyboard, it stays
+  /// `FocusNode.hasFocus`. See `QuikiEditorState._showCursor()` for exactly
+  /// how the mobile value is read and why. The caller
+  /// (`QuikiEditorState.build()`) decides which — this widget just paints
+  /// whatever it's given.
+  final bool showCursor;
   final Color cursorColor;
   final Color selectionColor;
 
@@ -40,7 +50,7 @@ class QuikiRenderWidget extends LeafRenderObjectWidget {
       renderModel: renderModel,
       selection: selection,
       padding: padding,
-      focused: focused,
+      showCursor: showCursor,
       cursorColor: cursorColor,
       selectionColor: selectionColor,
       imageCache: imageCache,
@@ -56,7 +66,7 @@ class QuikiRenderWidget extends LeafRenderObjectWidget {
       ..renderModel = renderModel
       ..selection = selection
       ..padding = padding
-      ..focused = focused
+      ..showCursor = showCursor
       ..cursorColor = cursorColor
       ..selectionColor = selectionColor
       ..imageCache = imageCache;
@@ -121,14 +131,14 @@ class QuikiRenderEditor extends RenderBox {
     required RenderModel renderModel,
     required TextSelection selection,
     required EdgeInsets padding,
-    required bool focused,
+    required bool showCursor,
     required Color cursorColor,
     required Color selectionColor,
     Map<String, ui.Image?> imageCache = const {},
   })  : _renderModel = renderModel,
         _selection = selection,
         _padding = padding,
-        _focused = focused,
+        _showCursor = showCursor,
         _cursorColor = cursorColor,
         _selectionColor = selectionColor,
         _imageCache = imageCache;
@@ -136,7 +146,7 @@ class QuikiRenderEditor extends RenderBox {
   RenderModel _renderModel;
   TextSelection _selection;
   EdgeInsets _padding;
-  bool _focused;
+  bool _showCursor;
   Color _cursorColor;
   Color _selectionColor;
 
@@ -176,9 +186,12 @@ class QuikiRenderEditor extends RenderBox {
     markNeedsLayout();
   }
 
-  set focused(bool f) {
-    if (_focused == f) return;
-    _focused = f;
+  /// See [QuikiRenderWidget.showCursor].
+  bool get showCursor => _showCursor;
+
+  set showCursor(bool v) {
+    if (_showCursor == v) return;
+    _showCursor = v;
     markNeedsPaint();
   }
 
@@ -980,8 +993,8 @@ class QuikiRenderEditor extends RenderBox {
       imageYOffset += imgHeight;
     }
 
-    // Draw caret when focused and selection is collapsed.
-    if (_focused && sel.isValid && sel.isCollapsed) {
+    // Draw caret when showCursor is true and selection is collapsed.
+    if (_showCursor && sel.isValid && sel.isCollapsed) {
       final rOff = _renderModel.renderedForSource(sel.baseOffset);
       final r = _runForRendered(rOff);
       final localOff = rOff - r.run.start;

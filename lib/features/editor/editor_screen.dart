@@ -21,6 +21,7 @@ import 'auto_save_controller.dart';
 import 'transport_picker_sheet.dart';
 import '../settings/help_dialog.dart';
 import '../settings/settings_screen.dart';
+import '../share_in/share_handler.dart' show isMobileProvider;
 import '../stream/stream_screen.dart';
 
 final _log = Logger('EditorScreen');
@@ -431,9 +432,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     );
   }
 
-  Widget _tButtonWidget() {
+  Widget _tButtonWidget(bool keyboardVisible) {
     if (_editorController.plainTextMode) return const Icon(LucideIcons.codeXml);
-    if (_editorController.hasActiveBlock) return const _MarkdownMarkIcon();
+    if (keyboardVisible) return const _MarkdownMarkIcon();
     return const Icon(LucideIcons.bookOpen);
   }
 
@@ -455,6 +456,23 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         .watch(quKiIndexProvider)
         .maybeWhen(data: (list) => list.isNotEmpty, orElse: () => false);
 
+    // Ground truth for FormattingToolbar visibility and the T-button's
+    // edit-vs-reading-mode icon variant (notes/dev/keyboard_focus_state.md's
+    // Round 2 pivot). On mobile this follows the OS's own live keyboard-
+    // visible signal (MediaQuery.viewInsets.bottom > 0), not
+    // FocusNode.hasFocus — Round 1's on-device diagnostics proved focus
+    // stays true even after the Android keyboard visibly disappears. Desktop
+    // has no software keyboard (viewInsets.bottom is always 0 there), so it
+    // keeps the pre-pivot FocusNode.hasFocus-driven behavior via
+    // hasActiveBlock — this whole investigation was scoped to Android/mobile
+    // only (notes/dev/keyboard_state_testing.md), and unconditionally
+    // switching to viewInsets would make the toolbar/T-button permanently
+    // read as "reading mode" on Windows/Linux.
+    final isMobile = ref.watch(isMobileProvider);
+    final keyboardVisible = isMobile
+        ? MediaQuery.viewInsetsOf(context).bottom > 0
+        : _editorController.hasActiveBlock;
+
     final Widget scaffold = Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
@@ -466,7 +484,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         actions: [
           IconButton(
             style: _tightIconButtonStyle,
-            icon: _tButtonWidget(),
+            icon: _tButtonWidget(keyboardVisible),
             tooltip: _editorController.plainTextMode
                 ? 'Rendered mode'
                 : 'Plain text',
@@ -538,7 +556,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
                     onCheckboxToggle: _onCheckboxToggle,
                   ),
                 ),
-                if (_editorController.hasActiveBlock)
+                if (keyboardVisible)
                   FormattingToolbar(controller: _editorController),
               ],
             ),
