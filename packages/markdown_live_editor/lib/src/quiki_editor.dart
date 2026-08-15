@@ -9,6 +9,8 @@ import 'package:flutter/services.dart';
 import 'editor_config.dart';
 import 'html_paste.dart';
 import 'indent_dedent.dart';
+// TEMP DEBUG (keyboard_focus_debug.dart) — see that file's header comment.
+import 'keyboard_focus_debug.dart';
 import 'md_parser.dart';
 import 'quiki_render_editor.dart';
 import 'render_model.dart';
@@ -789,11 +791,22 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
 
   @override
   void connectionClosed() {
-    // Bug 3: when Android dismisses the keyboard, the connection is gone but
-    // the FocusNode stays focused. Unfocus so the cursor disappears and a
-    // subsequent tap re-enters edit mode cleanly via _onFocusChanged.
+    // notes/dev/keyboard_focus_state.md: connection teardown and focus loss
+    // are two independently-triggerable events in this app's prior code, but
+    // are the SAME event in stock Flutter on Android (confirmed against the
+    // Flutter SDK source — backgrounding never calls this at all on Android,
+    // and nothing else should either once focus/reading-mode state relies
+    // only on focusNode.hasFocus). Calling unfocus() here forced every
+    // connection-teardown reason — including ones that aren't a deliberate
+    // user dismissal — into a visible reading-mode transition. If focus is
+    // still true but the connection is gone, _onTapDown's existing
+    // "connection null, reconnect on tap" branch already recovers cleanly on
+    // the next tap — no separate unfocus round-trip is needed.
     _connection = null;
-    widget.focusNode.unfocus();
+    // TEMP DEBUG (keyboard_focus_debug.dart) — remove this line + the import
+    // above once the notes/dev/keyboard_focus_state.md verification round
+    // is done.
+    KeyboardFocusDebugCounters.instance.recordConnectionClosed();
     if (mounted) setState(() {});
   }
 
@@ -828,6 +841,20 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
   /// Exposed for widget tests only — do not use in production code.
   @visibleForTesting
   bool get isToolbarShown => _toolbarController.isShown;
+
+  /// Whether an active [TextInputConnection] is currently held.
+  ///
+  /// notes/dev/keyboard_focus_state.md: exposed so a test can assert the
+  /// real invariant ("focus true, connection null, in between a platform-
+  /// initiated connectionClosed() and the next tap reopening it") directly,
+  /// rather than inferring it from [TestTextInput]'s own bookkeeping, which
+  /// does not clear its notion of "has a client" on a platform-initiated
+  /// close (only on an explicit `TextInput.clearClient` call, which this
+  /// app's fixed connectionClosed() deliberately no longer makes).
+  ///
+  /// Exposed for widget tests only — do not use in production code.
+  @visibleForTesting
+  bool get hasConnectionForTesting => _connection != null;
 
   /// Forces the selection toolbar to appear regardless of platform.
   ///
