@@ -19,8 +19,11 @@
 //      calls. Remove the Stack wrapper, the overlay widget, the channel
 //      handler, and those lines.
 //   3. android/app/src/main/kotlin/com/quki/quki_notes/MainActivity.kt —
-//      the lifecycleDebugChannel field and its onNewIntent() override.
-//      Remove both.
+//      the lifecycleDebugChannel field, its onNewIntent() override, its
+//      onStop()/onStart() overrides, the onCreate() override that registers
+//      the ViewTreeObserver.OnGlobalFocusChangeListener, and the
+//      findFlutterView() helper (Round 4 additions — see below). Remove all
+//      of it.
 //
 // Round 2 addition: KeyboardFocusDebugOverlay also shows the LIVE current
 // value of the platform's keyboard-inset signal — the new ground-truth
@@ -76,6 +79,63 @@
 //     plugin code. This counter is what lets the next real device test
 //     confirm or rule out whether onNewIntent() fires at all during the
 //     scenario, which the app currently cannot observe any other way.
+//
+// Round 4 addition (the switcher-reselect investigation): a controlled,
+// apples-to-apples repro (tap into a note to open the keyboard, swipe to the
+// Recents/app-switcher overview, immediately re-select QuKi-Notes again —
+// never actually leaving to a different app) shows the keyboard visibly and
+// genuinely closing (viewInsets.bottom really drops to 0, confirmed, not a
+// rendering artifact) and not returning — while every one of the six signals
+// Rounds 1-3 already track (connClosed, focusLost, focusGained, connOpen,
+// explicitClose, onNewIntent) stayed completely unchanged during the
+// reproduction. That rules out everything on the Dart<->engine TextInputClient
+// boundary this file already watches — whatever is happening is invisible to
+// all of it, so it must be happening at the native Android View layer, below
+// where any of those six signals would ever fire.
+//
+// A newly-found, evidence-backed lead: read directly from the Flutter engine
+// source (`D:/bin/flutter/engine/src/flutter/shell/platform/android/io/
+// flutter/embedding/android/FlutterActivityAndFragmentDelegate.java`,
+// confirmed present in Flutter 3.44.0, this project's exact SDK version) —
+// `onStop()` (fired on every Activity#onStop(), which real Recents-overview
+// backgrounding always triggers) unconditionally calls
+// `flutterView.setVisibility(View.GONE)` as a documented workaround for a
+// OnePlus black-screen bug (flutter/flutter#93276), restoring the prior
+// visibility in the matching `onStart()`. This is STOCK Flutter engine code,
+// not anything QuKi-Notes added, and it runs unconditionally on every device
+// (no OnePlus-specific gating in the source) every time the Activity
+// stops/starts. FlutterView is the View that holds Android's native input
+// focus while the keyboard is up (see FlutterView.java: "FlutterView needs
+// to be focusable so that the InputMethodManager can interact with it").
+// Setting the currently-focused View to GONE is a well-documented trigger for
+// Android to clear that View's focus, which can cause the IME bound to it to
+// be torn down — entirely at the native View/InputMethodManager layer, with
+// no Dart-side TextInputClient callback required to fire, and restoring
+// visibility afterward does not, on its own, re-request focus or re-show the
+// keyboard. This would explain both why the six existing signals stayed
+// silent AND why comparison apps that aren't Flutter apps (i.e. don't share
+// this exact engine code path) don't exhibit it. This is NOT confirmed — it
+// is a plausible, source-verified mechanism, not a proven cause; the six new
+// counters below exist specifically to let the next real device test confirm
+// or rule it out, the same way Round 3's counters were added to test its own
+// hypothesis rather than assumed correct outright.
+//   - activityStop / activityStart: MainActivity.kt's Activity#onStop() and
+//     Activity#onStart() overrides (new — this app had neither before Round
+//     4), each reporting the FlutterView's `View.getVisibility()` value
+//     (found by walking the decor view tree for a view whose class name
+//     contains "FlutterView") at the moment of the call, confirming whether
+//     the GONE/restore cycle actually happens during the repro and exactly
+//     when relative to the keyboard visibly closing.
+//   - nativeFocusChange: a `ViewTreeObserver.OnGlobalFocusChangeListener`
+//     registered on the window's decor view in `onCreate()`, reporting the
+//     simple class name of the view focus moves FROM and TO (or "null" for
+//     either) on every native Android focus change — this is Android's own
+//     View-level focus, a different, lower-level signal than Flutter's
+//     `FocusNode`/`hasFocus` (which Rounds 1-3 already track via
+//     focusGained/focusLost and which stayed unchanged during the repro).
+//     If FlutterView loses native focus (moves to "null" or another view)
+//     during the switcher-reselect window, that is the direct confirmation
+//     this hypothesis needs.
 //
 // Counts and timestamps only — never logs, transmits, or persists QuKi
 // content. Nothing here touches shared_preferences or any other persistence;
@@ -142,6 +202,33 @@ class KeyboardFocusDebugCounters {
   int onNewIntentCount = 0;
   DateTime? lastOnNewIntent;
 
+  /// Round 4: Activity#onStop(), reported from MainActivity.kt, paired with
+  /// the FlutterView's `View.getVisibility()` at that moment. See this
+  /// file's header comment (Round 4 addition) for the hypothesis this tests
+  /// — stock Flutter's `FlutterActivityAndFragmentDelegate.onStop()` sets
+  /// FlutterView to `View.GONE` unconditionally.
+  int activityStopCount = 0;
+  DateTime? lastActivityStop;
+  String? lastFlutterViewVisibilityAtStop;
+
+  /// Round 4: Activity#onStart(), reported from MainActivity.kt, paired with
+  /// the FlutterView's `View.getVisibility()` at that moment (after stock
+  /// Flutter's own visibility-restore in the same method). See this file's
+  /// header comment (Round 4 addition).
+  int activityStartCount = 0;
+  DateTime? lastActivityStart;
+  String? lastFlutterViewVisibilityAtStart;
+
+  /// Round 4: a native Android `ViewTreeObserver.OnGlobalFocusChangeListener`
+  /// firing, reported from MainActivity.kt as "from -> to" simple class
+  /// names ("null" for either side). This is Android's own View-level focus,
+  /// distinct from Flutter's `FocusNode.hasFocus` (tracked separately above
+  /// as focusGained/focusLost). See this file's header comment (Round 4
+  /// addition).
+  int nativeFocusChangeCount = 0;
+  DateTime? lastNativeFocusChangeTime;
+  String? lastNativeFocusChange;
+
   /// Ticks on every recorded event so [KeyboardFocusDebugOverlay] can
   /// rebuild without polling.
   final ValueNotifier<int> tick = ValueNotifier<int>(0);
@@ -181,6 +268,30 @@ class KeyboardFocusDebugCounters {
     tick.value++;
   }
 
+  /// Round 4: see this file's header comment (Round 4 addition).
+  void recordActivityStop({required String flutterViewVisibility}) {
+    activityStopCount++;
+    lastActivityStop = DateTime.now();
+    lastFlutterViewVisibilityAtStop = flutterViewVisibility;
+    tick.value++;
+  }
+
+  /// Round 4: see this file's header comment (Round 4 addition).
+  void recordActivityStart({required String flutterViewVisibility}) {
+    activityStartCount++;
+    lastActivityStart = DateTime.now();
+    lastFlutterViewVisibilityAtStart = flutterViewVisibility;
+    tick.value++;
+  }
+
+  /// Round 4: see this file's header comment (Round 4 addition).
+  void recordNativeFocusChange({required String from, required String to}) {
+    nativeFocusChangeCount++;
+    lastNativeFocusChangeTime = DateTime.now();
+    lastNativeFocusChange = '$from -> $to';
+    tick.value++;
+  }
+
   /// Test-only: resets all counters so widget tests get a clean slate
   /// regardless of test execution order (this is a process-wide singleton).
   @visibleForTesting
@@ -197,6 +308,15 @@ class KeyboardFocusDebugCounters {
     lastExplicitClose = null;
     onNewIntentCount = 0;
     lastOnNewIntent = null;
+    activityStopCount = 0;
+    lastActivityStop = null;
+    lastFlutterViewVisibilityAtStop = null;
+    activityStartCount = 0;
+    lastActivityStart = null;
+    lastFlutterViewVisibilityAtStart = null;
+    nativeFocusChangeCount = 0;
+    lastNativeFocusChangeTime = null;
+    lastNativeFocusChange = null;
   }
 }
 
@@ -334,6 +454,24 @@ class _KeyboardFocusDebugOverlayState extends State<KeyboardFocusDebugOverlay>
                 Text(
                   'onNewIntent ${_counters.onNewIntentCount} '
                   '@ ${_fmt(_counters.lastOnNewIntent)}',
+                  style: _textStyle,
+                ),
+                Text(
+                  'activityStop ${_counters.activityStopCount} '
+                  '(${_counters.lastFlutterViewVisibilityAtStop ?? '--'}) '
+                  '@ ${_fmt(_counters.lastActivityStop)}',
+                  style: _textStyle,
+                ),
+                Text(
+                  'activityStart ${_counters.activityStartCount} '
+                  '(${_counters.lastFlutterViewVisibilityAtStart ?? '--'}) '
+                  '@ ${_fmt(_counters.lastActivityStart)}',
+                  style: _textStyle,
+                ),
+                Text(
+                  'nativeFocus ${_counters.nativeFocusChangeCount} '
+                  '(${_counters.lastNativeFocusChange ?? '--'}) '
+                  '@ ${_fmt(_counters.lastNativeFocusChangeTime)}',
                   style: _textStyle,
                 ),
               ],

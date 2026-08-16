@@ -115,10 +115,34 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     // launchMode="singleTask" (set for #188) is implicated in the
     // keyboard-dismissed-on-resume bug. Harmless on platforms where the
     // native side never calls it (nothing ever invokes this handler).
+    //
+    // Round 4 additions (onActivityStop/onActivityStart/onNativeFocusChanged)
+    // — see keyboard_focus_debug.dart's header comment (Round 4 addition) for
+    // the hypothesis these test: stock Flutter's own
+    // FlutterActivityAndFragmentDelegate.onStop() sets FlutterView to
+    // View.GONE unconditionally on every Activity#onStop(), which could tear
+    // down native View focus (and with it the IME) below the level any of
+    // this file's existing signals would ever observe.
     const MethodChannel(_lifecycleDebugChannelName)
         .setMethodCallHandler((call) async {
       if (call.method == 'onNewIntent') {
         KeyboardFocusDebugCounters.instance.recordOnNewIntent();
+      } else if (call.method == 'onActivityStop') {
+        KeyboardFocusDebugCounters.instance.recordActivityStop(
+          flutterViewVisibility:
+              (call.arguments as Map)['flutterViewVisibility'] as String,
+        );
+      } else if (call.method == 'onActivityStart') {
+        KeyboardFocusDebugCounters.instance.recordActivityStart(
+          flutterViewVisibility:
+              (call.arguments as Map)['flutterViewVisibility'] as String,
+        );
+      } else if (call.method == 'onNativeFocusChanged') {
+        final args = call.arguments as Map;
+        KeyboardFocusDebugCounters.instance.recordNativeFocusChange(
+          from: args['from'] as String,
+          to: args['to'] as String,
+        );
       }
     });
 

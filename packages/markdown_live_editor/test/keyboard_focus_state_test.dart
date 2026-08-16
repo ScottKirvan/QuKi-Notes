@@ -217,6 +217,12 @@ void main() {
           reason: 'Round 3 addition');
       expect(find.textContaining('onNewIntent 0'), findsOneWidget,
           reason: 'Round 3 addition');
+      expect(find.textContaining('activityStop 0'), findsOneWidget,
+          reason: 'Round 4 addition');
+      expect(find.textContaining('activityStart 0'), findsOneWidget,
+          reason: 'Round 4 addition');
+      expect(find.textContaining('nativeFocus 0'), findsOneWidget,
+          reason: 'Round 4 addition');
 
       await tester.pumpWidget(const SizedBox.shrink());
     });
@@ -371,6 +377,37 @@ void main() {
       expect(find.textContaining('connClosed 0'), findsOneWidget,
           reason: 'this is an app-driven close, not a platform-driven one — '
               'connectionClosed() must not also have fired');
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets(
+        'activityStop/activityStart/nativeFocus counters increment and are '
+        'reflected on screen — Round 4 addition (these are driven from '
+        'MainActivity.kt over the lifecycle_debug MethodChannel in '
+        'production; this test exercises the counters + overlay directly, '
+        'since the native side cannot be exercised from a widget test)',
+        (tester) async {
+      await tester.pumpWidget(const MaterialApp(
+        home: Scaffold(body: KeyboardFocusDebugOverlay()),
+      ));
+      await tester.pump();
+
+      KeyboardFocusDebugCounters.instance
+          .recordActivityStop(flutterViewVisibility: 'GONE');
+      await tester.pump();
+      expect(find.textContaining('activityStop 1 (GONE)'), findsOneWidget);
+
+      KeyboardFocusDebugCounters.instance
+          .recordActivityStart(flutterViewVisibility: 'VISIBLE');
+      await tester.pump();
+      expect(find.textContaining('activityStart 1 (VISIBLE)'), findsOneWidget);
+
+      KeyboardFocusDebugCounters.instance
+          .recordNativeFocusChange(from: 'FlutterView', to: 'null');
+      await tester.pump();
+      expect(find.textContaining('nativeFocus 1 (FlutterView -> null)'),
+          findsOneWidget);
 
       await tester.pumpWidget(const SizedBox.shrink());
     });
