@@ -1,7 +1,7 @@
 name: quki_notes
 description: "QuKi-Notes — capture and send ephemeral notes."
 publish_to: 'none'
-version: 0.22.0+52
+version: 0.23.0+53
 
 environment:
   sdk: '>=3.5.0 <4.0.0'
