@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.23.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.22.0...v0.23.0) (2026-08-16)
+
+
+### Features
+
+* extend list-toggle buttons to multi-line selections ([1cc4464](https://github.com/ScottKirvan/QuKi-Notes/commit/1cc4464c7f298206f35acb363485a8456a54fed4))
+* strikethrough on checked checkbox text in rendered mode ([2788e54](https://github.com/ScottKirvan/QuKi-Notes/commit/2788e5469884f57aeadc6a8b3f9fc789301a8258))
+
+
+### Bug Fixes
+
+* checkbox toggle no longer scrolls the viewport ([d2958a6](https://github.com/ScottKirvan/QuKi-Notes/commit/d2958a643ec9692d101953208c71f1c9d2504bbb))
+* deduplicate Discord notifications in notify.yml ([dfba6dc](https://github.com/ScottKirvan/QuKi-Notes/commit/dfba6dca16bce4949c7ddea83870ffd9e5afd12d))
+* list-toggle buttons no longer corrupt heading lines on a collapsed selection ([7205cc3](https://github.com/ScottKirvan/QuKi-Notes/commit/7205cc3e90c30662f70f1eccb59408d3192802de))
+* tighten icon-button spacing in toolbars and AppBars ([ea0214c](https://github.com/ScottKirvan/QuKi-Notes/commit/ea0214c5f9dc151f435fd287fd15eeeb7b681cf5))
+
 ## [0.22.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.21.1...v0.22.0) (2026-08-14)
 
 
