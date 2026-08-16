@@ -84,6 +84,19 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   late final AutoSaveController _autoSave;
   Timer? _dismissTimer;
 
+  // Round 5 fix (notes/dev/keyboard_focus_state.md, resume-after-
+  // interruption) — set when a native onWindowFocusChanged(false) arrives
+  // while the editor genuinely held focus, and consumed by the matching
+  // onWindowFocusChanged(true). See the MethodChannel handler in initState()
+  // below and MarkdownEditorController.restoreFocusAfterInterruption() in
+  // the markdown_live_editor package for the full mechanism and evidence.
+  // Deliberately requires a false->true PAIR (not just "hasActiveBlock is
+  // true whenever a true arrives") so this never fires on the very first
+  // onWindowFocusChanged(true) of a cold launch (no preceding false), and
+  // self-clears the instant it's consumed so a stray extra `true` event
+  // can't trigger a second, redundant restore.
+  bool _pendingFocusRestore = false;
+
   @override
   void initState() {
     super.initState();
@@ -123,6 +136,10 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     // View.GONE unconditionally on every Activity#onStop(), which could tear
     // down native View focus (and with it the IME) below the level any of
     // this file's existing signals would ever observe.
+    //
+    // Round 5 addition (onWindowFocusChanged) — NOT purely diagnostic like
+    // the above: see keyboard_focus_debug.dart's header comment (Round 5
+    // addition) for the full evidence. This is the real fix's trigger.
     const MethodChannel(_lifecycleDebugChannelName)
         .setMethodCallHandler((call) async {
       if (call.method == 'onNewIntent') {
@@ -143,6 +160,21 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           from: args['from'] as String,
           to: args['to'] as String,
         );
+      } else if (call.method == 'onWindowFocusChanged') {
+        final hasFocus = (call.arguments as Map)['hasFocus'] as bool;
+        KeyboardFocusDebugCounters.instance
+            .recordWindowFocusChanged(hasFocus: hasFocus);
+        // Round 5 fix — see _pendingFocusRestore's doc comment and
+        // MarkdownEditorController.restoreFocusAfterInterruption() (package
+        // markdown_editor.dart) for the full mechanism and evidence this is
+        // built on.
+        if (!hasFocus) {
+          _pendingFocusRestore = _editorController.hasActiveBlock;
+        } else if (_pendingFocusRestore) {
+          _pendingFocusRestore = false;
+          _editorController.restoreFocusAfterInterruption();
+          KeyboardFocusDebugCounters.instance.recordFocusRestoreAttempted();
+        }
       }
     });
 

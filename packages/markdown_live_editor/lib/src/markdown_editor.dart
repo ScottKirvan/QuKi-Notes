@@ -365,6 +365,62 @@ class MarkdownEditorController {
   /// Alias for [requestFocus] — kept for API stability.
   void focusFirstBlock() => _state?._focusNode.requestFocus();
 
+  /// Forces a genuine focus transition — an unfocus immediately followed by
+  /// a request-focus, each forced to actually commit rather than left
+  /// pending — to re-establish real native platform focus and the IME
+  /// connection after an interruption (e.g. the app being backgrounded and
+  /// resumed) that cleared them at the OS level without this editor's own
+  /// [FocusNode] ever registering a change. See
+  /// notes/dev/keyboard_focus_state.md, the resume-after-interruption round:
+  /// device diagnostics showed native Android View-level focus getting
+  /// cleared and never restored on resume, while this editor's own
+  /// `FocusNode.hasFocus` stayed `true` throughout — Flutter's own
+  /// bookkeeping never noticed anything happened.
+  ///
+  /// A bare [requestFocus] call on a node [FocusManager] already believes is
+  /// the primary focus is a no-op — traced directly against the Flutter SDK
+  /// source (`FocusManager._markNextFocus`, `focus_manager.dart`): when the
+  /// requested node already equals `_primaryFocus`, the manager just resets
+  /// its own pending-focus-request field back to null and returns, since as
+  /// far as its bookkeeping is concerned nothing needs to change — no
+  /// notification is ever scheduled or fired.
+  ///
+  /// Calling [unfocus] immediately followed by [requestFocus] in one
+  /// synchronous burst doesn't help either: [FocusManager] only applies a
+  /// pending focus change inside a scheduled microtask
+  /// (`applyFocusChangesIfNeeded`), so without forcing that to run in
+  /// between the two calls, the second call's `_markNextFocus` sees the
+  /// requested node still equals `_primaryFocus` (nothing has been applied
+  /// yet) and cancels the first call's pending change before either is ever
+  /// applied — net effect, verified by tracing the source: zero
+  /// notifications, zero connection reopen.
+  ///
+  /// Calling [FocusManager.applyFocusChangesIfNeeded] directly after each of
+  /// the two calls forces each one to genuinely commit: the unfocus really
+  /// does transition primary focus away — notifying every listener on this
+  /// editor's [FocusNode], including [QuikiEditorState]'s own, which tears
+  /// down its now-stale [TextInputConnection] — before the requestFocus call
+  /// asks for it back, which this time is a real transition that opens a
+  /// brand new connection and calls `.show()` on it. That fresh `.show()`
+  /// call is what ultimately reaches Android's own
+  /// `TextInputPlugin.showTextInput()`, which calls the hosting View's own
+  /// `requestFocus()` — confirmed by reading the Flutter engine's Android
+  /// embedding source (`TextInputPlugin.java`) directly — the actual
+  /// native-layer call that re-establishes the View-level focus signal the
+  /// device diagnostics showed getting stuck cleared and never restored.
+  ///
+  /// A no-op if the editor doesn't currently believe it has focus — this
+  /// method restores a focus state that was genuinely active before an
+  /// interruption; it must never grant focus the editor didn't have.
+  void restoreFocusAfterInterruption() {
+    final node = _state?._focusNode;
+    if (node == null || !node.hasFocus) return;
+    node.unfocus();
+    FocusManager.instance.applyFocusChangesIfNeeded();
+    node.requestFocus();
+    FocusManager.instance.applyFocusChangesIfNeeded();
+  }
+
   /// Sets the current selection on the underlying text controller.
   ///
   /// Intended for widget tests that need to position the cursor or establish a

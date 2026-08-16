@@ -103,6 +103,29 @@ class MainActivity : FlutterActivity() {
         return null
     }
 
+    // Round 5 (notes/dev/keyboard_focus_state.md, the resume-after-
+    // interruption fix) — see keyboard_focus_debug.dart's header comment
+    // (Round 5 addition) for the full evidence and reasoning. Unlike the
+    // Round 3/4 additions above, this override is NOT purely diagnostic:
+    // Activity#onWindowFocusChanged() is the standard, documented Android
+    // signal for this window gaining/losing focus, and — confirmed by two
+    // real device tests — is the only signal available (of everything
+    // tracked through Round 4) that has a chance of firing during a fast
+    // "swipe to Recents, immediately re-select this app" peek, which never
+    // triggers a full onStop()/onStart() cycle at all. editor_screen.dart's
+    // MethodChannel handler uses the false->true pair this reports as the
+    // actual trigger for forcing the editor to re-establish real native
+    // focus (MarkdownEditorController.restoreFocusAfterInterruption() in
+    // markdown_editor.dart) — do not remove this override as part of a
+    // future diagnostics-only cleanup pass.
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        lifecycleDebugChannel?.invokeMethod(
+            "onWindowFocusChanged",
+            mapOf("hasFocus" to hasFocus)
+        )
+    }
+
     // TEMP DEBUG (Round 4, see onCreate() above for the full explanation).
     private fun visibilityName(view: View?): String {
         if (view == null) return "not-found"

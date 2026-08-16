@@ -223,6 +223,10 @@ void main() {
           reason: 'Round 4 addition');
       expect(find.textContaining('nativeFocus 0'), findsOneWidget,
           reason: 'Round 4 addition');
+      expect(find.textContaining('windowFocus 0'), findsOneWidget,
+          reason: 'Round 5 addition');
+      expect(find.textContaining('restoreAttempted 0'), findsOneWidget,
+          reason: 'Round 5 addition');
 
       await tester.pumpWidget(const SizedBox.shrink());
     });
@@ -408,6 +412,207 @@ void main() {
       await tester.pump();
       expect(find.textContaining('nativeFocus 1 (FlutterView -> null)'),
           findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets(
+        'windowFocus/restoreAttempted counters increment and are reflected '
+        'on screen — Round 5 addition (windowFocus is driven from '
+        'MainActivity.kt over the lifecycle_debug MethodChannel, and '
+        'restoreAttempted from editor_screen.dart\'s handler for it, in '
+        'production; this test exercises the counters + overlay directly, '
+        'since neither the native side nor the app-level MethodChannel '
+        'dispatch can be exercised from a widget test — see the '
+        'restoreFocusAfterInterruption() group below for coverage of the '
+        'actual fix mechanism)', (tester) async {
+      await tester.pumpWidget(const MaterialApp(
+        home: Scaffold(body: KeyboardFocusDebugOverlay()),
+      ));
+      await tester.pump();
+
+      KeyboardFocusDebugCounters.instance
+          .recordWindowFocusChanged(hasFocus: false);
+      await tester.pump();
+      expect(find.textContaining('windowFocus 1 (false)'), findsOneWidget);
+
+      KeyboardFocusDebugCounters.instance
+          .recordWindowFocusChanged(hasFocus: true);
+      await tester.pump();
+      expect(find.textContaining('windowFocus 2 (true)'), findsOneWidget);
+
+      KeyboardFocusDebugCounters.instance.recordFocusRestoreAttempted();
+      await tester.pump();
+      expect(find.textContaining('restoreAttempted 1'), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  });
+
+  group(
+      'MarkdownEditorController.restoreFocusAfterInterruption() — Round 5 '
+      'fix (notes/dev/keyboard_focus_state.md, resume-after-interruption)', () {
+    testWidgets(
+        'is a no-op when the editor does not currently hold focus — must '
+        'never grant focus the editor did not have before an interruption',
+        (tester) async {
+      final focusNode = FocusNode();
+      final controller = MarkdownEditorController();
+      await tester.pumpWidget(_buildEditor(
+        initialValue: 'hello',
+        focusNode: focusNode,
+        controller: controller,
+      ));
+      await tester.pump();
+
+      expect(focusNode.hasFocus, isFalse, reason: 'sanity: starts unfocused');
+
+      controller.restoreFocusAfterInterruption();
+      await tester.pump();
+      await tester.pump();
+
+      expect(focusNode.hasFocus, isFalse,
+          reason: 'must not grant focus the editor never had');
+      expect(_quikiStateOf(tester).hasConnectionForTesting, isFalse);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets(
+        'a bare requestFocus() call on an already-"focused" node is a '
+        'no-op — control case proving the naive fix this method avoids '
+        'really is insufficient, not just assumed to be', (tester) async {
+      final focusNode = FocusNode();
+      final controller = MarkdownEditorController();
+      await tester.pumpWidget(_buildEditor(
+        initialValue: 'hello',
+        focusNode: focusNode,
+        controller: controller,
+      ));
+      await tester.pump();
+
+      focusNode.requestFocus();
+      await tester.pump();
+      await tester.pump();
+      expect(_quikiStateOf(tester).hasConnectionForTesting, isTrue,
+          reason: 'sanity: focus granted a real connection');
+
+      // Construct "connection gone, focus still true" the same way the
+      // connectionClosed()-no-longer-unfocuses tests above do (platform
+      // closes the connection; FocusNode.hasFocus is untouched by design —
+      // see notes/dev/keyboard_focus_state.md's root fix). This is not
+      // itself a simulation of the resume-after-interruption bug this round
+      // fixes — confirmed device evidence for THAT bug is that
+      // connectionClosed() never fires at all during a real backgrounding
+      // interruption (see keyboard_focus_debug.dart's header comment) — but
+      // it's a real, independently-confirmed reachable state (e.g. the
+      // Android keyboard's own dismiss control) that happens to share the
+      // exact "focus true, connection gone" shape this control case needs to
+      // demonstrate the general FocusManager no-op claim.
+      tester.testTextInput.closeConnection();
+      await tester.pump();
+      expect(focusNode.hasFocus, isTrue,
+          reason: 'sanity: FocusNode is untouched by a platform-driven '
+              'connection close');
+      expect(_quikiStateOf(tester).hasConnectionForTesting, isFalse,
+          reason: 'sanity: the connection is genuinely gone');
+
+      // The naive fix: a bare requestFocus() on a node the manager still
+      // believes is already the primary focus.
+      focusNode.requestFocus();
+      await tester.pump();
+      await tester.pump();
+
+      expect(_quikiStateOf(tester).hasConnectionForTesting, isFalse,
+          reason: 'a bare requestFocus() on an already-"focused" node must '
+              'NOT reopen the connection — FocusManager treats the request '
+              'as a no-op since nothing in its own bookkeeping believes '
+              'focus ever changed, so no notification is ever fired '
+              '(confirmed by tracing FocusManager._markNextFocus in the '
+              'Flutter SDK source, not assumed)');
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets(
+        'forces a genuine unfocus->refocus transition and reopens the '
+        'connection, when the editor held focus before an interruption '
+        'that left FocusNode.hasFocus untouched', (tester) async {
+      final focusNode = FocusNode();
+      final controller = MarkdownEditorController();
+      controller.onFocusChanged = () {
+        KeyboardFocusDebugCounters.instance
+            .recordFocusChange(hasFocus: controller.hasActiveBlock);
+      };
+      await tester.pumpWidget(_buildEditor(
+        initialValue: 'hello',
+        focusNode: focusNode,
+        controller: controller,
+      ));
+      await tester.pump();
+
+      controller.requestFocus();
+      await tester.pump();
+      await tester.pump();
+      expect(_quikiStateOf(tester).hasConnectionForTesting, isTrue,
+          reason: 'sanity: focus granted a real connection');
+
+      final counters = KeyboardFocusDebugCounters.instance;
+      final connOpenBefore = counters.connectionOpenedCount;
+      final explicitCloseBefore = counters.explicitCloseCount;
+      final connClosedBefore = counters.connectionClosedCount;
+      final focusLostBefore = counters.focusLostCount;
+      final focusGainedBefore = counters.focusGainedCount;
+
+      // Deliberately NOT simulating tester.testTextInput.closeConnection()
+      // here — the confirmed device evidence for the actual bug this fixes
+      // is that NONE of the TextInputClient-level signals change during a
+      // real backgrounding interruption (connectionClosed() itself never
+      // fires — see keyboard_focus_debug.dart's header comment). The only
+      // thing that silently breaks is native View-level focus, underneath
+      // where any Dart-level API can observe or simulate it directly. So the
+      // accurate starting state to exercise restoreFocusAfterInterruption()
+      // against is exactly what's already true after the requestFocus()
+      // above: focus true, connection still open and (as far as Flutter's
+      // own bookkeeping is concerned) still attached — restoreFocusAfterInterruption()
+      // must force a genuine close+reopen regardless, without needing a
+      // prior real close to react to.
+      controller.restoreFocusAfterInterruption();
+      await tester.pump();
+      await tester.pump();
+
+      expect(focusNode.hasFocus, isTrue,
+          reason: 'ends focused — this restores a focus state that was '
+              'genuinely active, it does not leave the editor unfocused');
+      expect(_quikiStateOf(tester).hasConnectionForTesting, isTrue,
+          reason: 'a brand new IME connection must have been opened — this '
+              'is the actual fix: a fresh TextInputConnection.show() call '
+              'reaches Android\'s TextInputPlugin.showTextInput(), which '
+              'calls the hosting View\'s requestFocus() (confirmed by '
+              'reading the Flutter engine source directly), re-establishing '
+              'the native focus signal device diagnostics showed getting '
+              'stuck cleared');
+      expect(counters.explicitCloseCount, explicitCloseBefore + 1,
+          reason: 'the forced unfocus() must have genuinely committed — '
+              'closing the still-open connection via the real '
+              '_onFocusChanged -> _closeConnection path');
+      expect(counters.connectionOpenedCount, connOpenBefore + 1,
+          reason: 'the forced requestFocus() must have genuinely committed '
+              'too — opening a brand new connection via the real '
+              '_onFocusChanged -> _openConnection path, not silently no-op '
+              "the way a bare requestFocus() alone does (see the control "
+              'case test above)');
+      expect(counters.connectionClosedCount, connClosedBefore,
+          reason: 'connectionClosed() (the platform-driven TextInputClient '
+              'callback) must NOT have fired — this whole mechanism is '
+              "driven by this app's own _onFocusChanged listener, matching "
+              'the real device evidence that connectionClosed() never fires '
+              'during the actual bug being fixed');
+      expect(counters.focusLostCount, focusLostBefore + 1,
+          reason: 'the host app\'s onFocusChanged callback must see the '
+              'transient unfocus too, not just this package\'s internal '
+              'connection bookkeeping');
+      expect(counters.focusGainedCount, focusGainedBefore + 1);
 
       await tester.pumpWidget(const SizedBox.shrink());
     });

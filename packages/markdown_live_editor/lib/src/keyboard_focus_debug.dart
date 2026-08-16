@@ -24,6 +24,16 @@
 //      the ViewTreeObserver.OnGlobalFocusChangeListener, and the
 //      findFlutterView() helper (Round 4 additions — see below). Remove all
 //      of it.
+//   4. Round 5 addition — this one is NOT purely diagnostic, unlike 1-3
+//      above: MainActivity.kt's onWindowFocusChanged() override is also the
+//      real fix's trigger, not just telemetry. Do not remove it (or
+//      editor_screen.dart's windowFocusChanged handling /
+//      MarkdownEditorController.restoreFocusAfterInterruption() in
+//      markdown_editor.dart) as part of any future diagnostics cleanup pass
+//      unless the fix itself is being removed/replaced. Only the COUNTER
+//      recording calls (recordWindowFocusChanged/recordFocusRestoreAttempted
+//      below, and the corresponding overlay rows) are temporary and safe to
+//      delete once verification is complete.
 //
 // Round 2 addition: KeyboardFocusDebugOverlay also shows the LIVE current
 // value of the platform's keyboard-inset signal — the new ground-truth
@@ -137,6 +147,56 @@
 //     during the switcher-reselect window, that is the direct confirmation
 //     this hypothesis needs.
 //
+// Round 5 addition (the resume-after-interruption FIX, not just more
+// diagnosis): two device tests captured real, confirmed evidence rather than
+// a hypothesis. Test A (full switch to another app, then back): activityStop
+// and nativeFocus (r -> null) fired together, but the matching
+// activityStart had NO paired nativeFocus entry — native focus never came
+// back, viewInsets.bottom stayed stuck nonzero with no real keyboard behind
+// it. Test B (a fast "swipe to Recents, immediately re-select this app"
+// peek that never actually leaves): activityStop stayed at 0 — no full
+// Activity#onStop()/onStart() cycle happened at all — yet the keyboard still
+// visibly and genuinely closed (viewInsets.bottom correctly dropped to 0)
+// and none of the nine signals tracked through Round 4 moved even slightly.
+//
+// This confirms the app never re-establishes native View focus after ANY
+// interruption that cleared it, and that a fix keyed only to
+// activityStop/activityStart (or Flutter's own AppLifecycleState.resumed,
+// driven by the same underlying signal) would miss Test B entirely.
+// Android's Activity#onWindowFocusChanged(hasFocus) — the standard,
+// documented signal for a window gaining/losing focus, which fires even for
+// a transient system-UI overlay like the Recents overview without
+// necessarily triggering a full onPause()/onStop() — had not been checked in
+// any prior round. New wiring (MainActivity.kt's onWindowFocusChanged()
+// override, over the same lifecycle_debug channel) both reports every
+// occurrence here AND — no longer just a diagnostic — is what
+// editor_screen.dart now hooks its actual remediation to: a false→true pair
+// where the editor held real Flutter focus at the false is now what
+// triggers MarkdownEditorController.restoreFocusAfterInterruption() (see
+// markdown_editor.dart for the fix mechanism itself and why a bare
+// requestFocus() call was traced and confirmed, not assumed, to be
+// insufficient). onWindowFocusChanged(true) was chosen over
+// activityStart/AppLifecycleState.resumed as the SINGLE trigger for this
+// (not an additional one) because it is standard Android behavior for it to
+// also fire after a full app-switch resume, so one signal should cover both
+// Test A and Test B without a second, potentially-duplicate-firing path —
+// this unification is reasoned from documented Android lifecycle behavior,
+// not yet confirmed against this app's exact real-device timing; the next
+// device round should confirm windowFocus's false→true pair actually
+// brackets both reproductions correctly.
+//   - windowFocusChanged: every onWindowFocusChanged() call, with the
+//     hasFocus value it reported. Lets the next device round directly see
+//     whether (and when, relative to nativeFocus/activityStop/activityStart)
+//     this fires during both Test A and Test B.
+//   - focusRestoreAttempted: increments each time
+//     editor_screen.dart's windowFocusChanged handler actually calls
+//     restoreFocusAfterInterruption() (i.e. the false→true pair fired AND
+//     the editor held focus at the false) — distinguishes "the remediation
+//     logic ran" from a coincidental focusGained/focusLost bump from
+//     ordinary user interaction, so the next device round can confirm this
+//     specific new code path fired, and — paired with the existing
+//     connOpen/nativeFocus readings afterward — whether it actually worked.
+//
 // Counts and timestamps only — never logs, transmits, or persists QuKi
 // content. Nothing here touches shared_preferences or any other persistence;
 // state lives only in memory for the current app session.
@@ -229,6 +289,22 @@ class KeyboardFocusDebugCounters {
   DateTime? lastNativeFocusChangeTime;
   String? lastNativeFocusChange;
 
+  /// Round 5: Activity#onWindowFocusChanged(hasFocus), reported from
+  /// MainActivity.kt. See this file's header comment (Round 5 addition) for
+  /// why this was added and why it now also drives the real fix, not just
+  /// diagnosis.
+  int windowFocusChangedCount = 0;
+  DateTime? lastWindowFocusChangedTime;
+  bool? lastWindowFocusChangedValue;
+
+  /// Round 5: increments each time editor_screen.dart's windowFocusChanged
+  /// handler actually calls
+  /// [MarkdownEditorController.restoreFocusAfterInterruption] — i.e. a
+  /// false→true window-focus pair fired AND the editor held real focus at
+  /// the false. See this file's header comment (Round 5 addition).
+  int focusRestoreAttemptedCount = 0;
+  DateTime? lastFocusRestoreAttempted;
+
   /// Ticks on every recorded event so [KeyboardFocusDebugOverlay] can
   /// rebuild without polling.
   final ValueNotifier<int> tick = ValueNotifier<int>(0);
@@ -292,6 +368,21 @@ class KeyboardFocusDebugCounters {
     tick.value++;
   }
 
+  /// Round 5: see this file's header comment (Round 5 addition).
+  void recordWindowFocusChanged({required bool hasFocus}) {
+    windowFocusChangedCount++;
+    lastWindowFocusChangedTime = DateTime.now();
+    lastWindowFocusChangedValue = hasFocus;
+    tick.value++;
+  }
+
+  /// Round 5: see this file's header comment (Round 5 addition).
+  void recordFocusRestoreAttempted() {
+    focusRestoreAttemptedCount++;
+    lastFocusRestoreAttempted = DateTime.now();
+    tick.value++;
+  }
+
   /// Test-only: resets all counters so widget tests get a clean slate
   /// regardless of test execution order (this is a process-wide singleton).
   @visibleForTesting
@@ -317,6 +408,11 @@ class KeyboardFocusDebugCounters {
     nativeFocusChangeCount = 0;
     lastNativeFocusChangeTime = null;
     lastNativeFocusChange = null;
+    windowFocusChangedCount = 0;
+    lastWindowFocusChangedTime = null;
+    lastWindowFocusChangedValue = null;
+    focusRestoreAttemptedCount = 0;
+    lastFocusRestoreAttempted = null;
   }
 }
 
@@ -472,6 +568,17 @@ class _KeyboardFocusDebugOverlayState extends State<KeyboardFocusDebugOverlay>
                   'nativeFocus ${_counters.nativeFocusChangeCount} '
                   '(${_counters.lastNativeFocusChange ?? '--'}) '
                   '@ ${_fmt(_counters.lastNativeFocusChangeTime)}',
+                  style: _textStyle,
+                ),
+                Text(
+                  'windowFocus ${_counters.windowFocusChangedCount} '
+                  '(${_counters.lastWindowFocusChangedValue ?? '--'}) '
+                  '@ ${_fmt(_counters.lastWindowFocusChangedTime)}',
+                  style: _textStyle,
+                ),
+                Text(
+                  'restoreAttempted ${_counters.focusRestoreAttemptedCount} '
+                  '@ ${_fmt(_counters.lastFocusRestoreAttempted)}',
                   style: _textStyle,
                 ),
               ],
