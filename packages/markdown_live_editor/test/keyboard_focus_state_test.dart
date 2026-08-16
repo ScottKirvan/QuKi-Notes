@@ -211,6 +211,12 @@ void main() {
           reason: 'Round 2 addition — the overlay must also show the live '
               'viewInsets.bottom value, starting at 0 with no keyboard '
               'inset simulated');
+      expect(find.textContaining('connOpen 0'), findsOneWidget,
+          reason: 'Round 3 addition');
+      expect(find.textContaining('explicitClose 0'), findsOneWidget,
+          reason: 'Round 3 addition');
+      expect(find.textContaining('onNewIntent 0'), findsOneWidget,
+          reason: 'Round 3 addition');
 
       await tester.pumpWidget(const SizedBox.shrink());
     });
@@ -300,6 +306,71 @@ void main() {
       await tester.pump();
       await tester.pump();
       expect(find.textContaining('focusLost 1'), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets(
+        'connOpen increments on a genuine new attach, not on a redundant '
+        'open of an already-attached connection — Round 3 addition',
+        (tester) async {
+      final focusNode = FocusNode();
+      final controller = MarkdownEditorController();
+      await tester.pumpWidget(_buildEditorWithOverlay(
+        initialValue: '',
+        focusNode: focusNode,
+        controller: controller,
+      ));
+      await tester.pump();
+
+      // Focus changes apply via a scheduled microtask (see the focus
+      // gained/lost test above for the full explanation) — a second pump is
+      // needed for the overlay's setState to flush into a rebuilt frame.
+      focusNode.requestFocus();
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.textContaining('connOpen 1'), findsOneWidget,
+          reason: 'requesting focus attaches a new IME connection');
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets(
+        'explicitClose increments when this app\'s own code closes an '
+        'existing connection (a real unfocus via _onFocusChanged -> '
+        '_closeConnection), matching focusLost — Round 3 addition',
+        (tester) async {
+      final focusNode = FocusNode();
+      final controller = MarkdownEditorController();
+      controller.onFocusChanged = () {
+        KeyboardFocusDebugCounters.instance
+            .recordFocusChange(hasFocus: controller.hasActiveBlock);
+      };
+      await tester.pumpWidget(_buildEditorWithOverlay(
+        initialValue: '',
+        focusNode: focusNode,
+        controller: controller,
+      ));
+      await tester.pump();
+
+      controller.requestFocus();
+      await tester.pump();
+      await tester.pump();
+      expect(find.textContaining('connOpen 1'), findsOneWidget);
+
+      controller.unfocus();
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.textContaining('explicitClose 1'), findsOneWidget,
+          reason: '_closeConnection() is only reached from _onFocusChanged() '
+              'on a real focus loss, so it must fire exactly once alongside '
+              'focusLost here');
+      expect(find.textContaining('focusLost 1'), findsOneWidget);
+      expect(find.textContaining('connClosed 0'), findsOneWidget,
+          reason: 'this is an app-driven close, not a platform-driven one — '
+              'connectionClosed() must not also have fired');
 
       await tester.pumpWidget(const SizedBox.shrink());
     });

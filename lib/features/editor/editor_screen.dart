@@ -26,6 +26,11 @@ import '../stream/stream_screen.dart';
 
 final _log = Logger('EditorScreen');
 
+// TEMP DEBUG (notes/dev/keyboard_focus_state.md verification round, Round 3)
+// — see keyboard_focus_debug.dart's header comment for the full removal
+// list. Must match MainActivity.kt's channel name exactly.
+const _lifecycleDebugChannelName = 'com.quki.quki_notes/lifecycle_debug';
+
 // Tightens the default Material IconButton footprint (48x48 on mobile via
 // its invisible tap-target padding, 40x40 on desktop) down to a smaller,
 // still-comfortably-tappable size, so the AppBar's action buttons read as
@@ -103,6 +108,20 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
     WidgetsBinding.instance.addObserver(this);
 
+    // TEMP DEBUG (notes/dev/keyboard_focus_state.md verification round,
+    // Round 3) — see keyboard_focus_debug.dart's header comment for the full
+    // removal list, and MainActivity.kt for the native side of this channel.
+    // Records Activity.onNewIntent() firing, to test the hypothesis that
+    // launchMode="singleTask" (set for #188) is implicated in the
+    // keyboard-dismissed-on-resume bug. Harmless on platforms where the
+    // native side never calls it (nothing ever invokes this handler).
+    const MethodChannel(_lifecycleDebugChannelName)
+        .setMethodCallHandler((call) async {
+      if (call.method == 'onNewIntent') {
+        KeyboardFocusDebugCounters.instance.recordOnNewIntent();
+      }
+    });
+
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final prefs = await SharedPreferences.getInstance();
       if (!mounted) return;
@@ -117,6 +136,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     _dismissTimer?.cancel();
     _editorController.onFocusChanged = null;
     WidgetsBinding.instance.removeObserver(this);
+    // TEMP DEBUG (notes/dev/keyboard_focus_state.md verification round,
+    // Round 3) — remove alongside the handler registration in initState().
+    const MethodChannel(_lifecycleDebugChannelName).setMethodCallHandler(null);
     _autoSave.dispose();
     super.dispose();
   }

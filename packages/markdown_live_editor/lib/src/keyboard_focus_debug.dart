@@ -2,15 +2,25 @@
 // TEMPORARY DEBUG-ONLY INSTRUMENTATION
 // notes/dev/keyboard_focus_state.md — device-verification round only.
 //
-// Delete this whole file, plus its two wiring points, once that doc's
+// Delete this whole file, plus its wiring points, once that doc's
 // "Required device verification" checklist is complete:
 //   1. packages/markdown_live_editor/lib/src/quiki_editor.dart —
 //      connectionClosed() calls KeyboardFocusDebugCounters.instance
-//      .recordConnectionClosed(). Remove that one line + the import.
+//      .recordConnectionClosed(); _openConnection() calls
+//      .recordConnectionOpened() on a genuine new attach; _closeConnection()
+//      and dispose() each call .recordExplicitClose() when an app-code path
+//      (not the platform) tears down an existing connection. Remove those
+//      lines + the import.
 //   2. lib/features/editor/editor_screen.dart — _EditorScreenState wraps its
 //      Scaffold in a Stack with a KeyboardFocusDebugOverlay() in a corner,
-//      and its onFocusChanged closure records a focus gained/lost event.
-//      Remove the Stack wrapper, the overlay widget, and that one line.
+//      its onFocusChanged closure records a focus gained/lost event, and
+//      initState() registers a MethodChannel handler for
+//      'com.quki.quki_notes/lifecycle_debug' that records onNewIntent()
+//      calls. Remove the Stack wrapper, the overlay widget, the channel
+//      handler, and those lines.
+//   3. android/app/src/main/kotlin/com/quki/quki_notes/MainActivity.kt —
+//      the lifecycleDebugChannel field and its onNewIntent() override.
+//      Remove both.
 //
 // Round 2 addition: KeyboardFocusDebugOverlay also shows the LIVE current
 // value of the platform's keyboard-inset signal — the new ground-truth
@@ -25,6 +35,47 @@
 // directly in the overlay's own build(), not routed through
 // KeyboardFocusDebugCounters — it's a live value, not a count/timestamp
 // event, so the existing counter-recording mechanism doesn't fit it.
+//
+// Round 3 addition (the black-screen-on-resume investigation): the newest
+// device-test evidence showed connClosed/focusLost/focusGained all
+// unchanged across a backgrounding cycle where the keyboard nonetheless
+// reappeared then vanished again — i.e. every event this overlay already
+// tracked was invisible to whatever is actually happening. Three new
+// signals were added to widen the net rather than guess a fix:
+//   - connOpen: a genuine new TextInputConnection attach (_openConnection()
+//     actually creating one, not an early-return on an already-attached
+//     connection). If a connection is silently being torn down and
+//     reopened around the resume moment, this — paired with connClosed and
+//     explicitClose — is what would surface it.
+//   - explicitClose: this app's OWN code calling _connection?.close()
+//     (_closeConnection(), reached only from _onFocusChanged() on a real
+//     focus loss — so this should track focusLost 1:1 if that is really
+//     the only path — and dispose()). If explicitClose fires without a
+//     matching focusLost, that is a real, currently-invisible finding.
+//   - onNewIntent: Android's Activity.onNewIntent(), wired from
+//     MainActivity.kt over a dedicated MethodChannel. Tests a specific,
+//     evidence-backed hypothesis: MainActivity's launchMode="singleTask"
+//     (android/app/src/main/AndroidManifest.xml, added in PR #259 for
+//     #188 — see `git log` on that file) means Android can route an
+//     intent to the already-running activity via onNewIntent() instead of
+//     a plain onResume(), on at least one common way of "returning" to a
+//     backgrounded app (re-tapping the launcher icon, as distinct from
+//     switching back via the Recents/overview UI, which does not deliver a
+//     new Intent). singleTask is unusual — most apps use the default
+//     `standard` launchMode — which would explain why this app's own
+//     comparison ("every other app I tested doesn't do this") points at
+//     something specific to this app rather than a general Flutter/Android
+//     timing quirk. This is NOT confirmed — onNewIntent() itself does
+//     nothing IME-related in Flutter's own embedding (verified by reading
+//     FlutterActivityAndFragmentDelegate.onNewIntent() directly), and
+//     receive_sharing_intent's onNewIntent handler is a no-op for a
+//     non-SEND intent (verified by reading its Kotlin source) — so if this
+//     is implicated at all, it would be via a lower-level Android
+//     window/IME rebind that happens purely as a side effect of the
+//     platform routing a fresh Intent to the activity, not via any Dart or
+//     plugin code. This counter is what lets the next real device test
+//     confirm or rule out whether onNewIntent() fires at all during the
+//     scenario, which the app currently cannot observe any other way.
 //
 // Counts and timestamps only — never logs, transmits, or persists QuKi
 // content. Nothing here touches shared_preferences or any other persistence;
@@ -69,6 +120,28 @@ class KeyboardFocusDebugCounters {
   int focusLostCount = 0;
   DateTime? lastFocusLost;
 
+  /// Round 3: a genuine new [TextInputConnection] attach —
+  /// QuikiEditorState._openConnection() actually creating one, not an
+  /// early-return on an already-attached connection. See this file's header
+  /// comment for why this was added.
+  int connectionOpenedCount = 0;
+  DateTime? lastConnectionOpened;
+
+  /// Round 3: this app's OWN code closing an existing [TextInputConnection]
+  /// (QuikiEditorState._closeConnection() or .dispose()), as opposed to the
+  /// platform closing it (which fires connectionClosed() instead — recorded
+  /// separately above). See this file's header comment for why this was
+  /// added.
+  int explicitCloseCount = 0;
+  DateTime? lastExplicitClose;
+
+  /// Round 3: Android's Activity.onNewIntent(), reported over a MethodChannel
+  /// from MainActivity.kt. See this file's header comment for why this was
+  /// added — tests the hypothesis that launchMode="singleTask" causes
+  /// onNewIntent() to fire on some app-resume paths.
+  int onNewIntentCount = 0;
+  DateTime? lastOnNewIntent;
+
   /// Ticks on every recorded event so [KeyboardFocusDebugOverlay] can
   /// rebuild without polling.
   final ValueNotifier<int> tick = ValueNotifier<int>(0);
@@ -90,6 +163,24 @@ class KeyboardFocusDebugCounters {
     tick.value++;
   }
 
+  void recordConnectionOpened() {
+    connectionOpenedCount++;
+    lastConnectionOpened = DateTime.now();
+    tick.value++;
+  }
+
+  void recordExplicitClose() {
+    explicitCloseCount++;
+    lastExplicitClose = DateTime.now();
+    tick.value++;
+  }
+
+  void recordOnNewIntent() {
+    onNewIntentCount++;
+    lastOnNewIntent = DateTime.now();
+    tick.value++;
+  }
+
   /// Test-only: resets all counters so widget tests get a clean slate
   /// regardless of test execution order (this is a process-wide singleton).
   @visibleForTesting
@@ -100,6 +191,12 @@ class KeyboardFocusDebugCounters {
     lastFocusGained = null;
     focusLostCount = 0;
     lastFocusLost = null;
+    connectionOpenedCount = 0;
+    lastConnectionOpened = null;
+    explicitCloseCount = 0;
+    lastExplicitClose = null;
+    onNewIntentCount = 0;
+    lastOnNewIntent = null;
   }
 }
 
@@ -222,6 +319,21 @@ class _KeyboardFocusDebugOverlayState extends State<KeyboardFocusDebugOverlay>
                 Text(
                   'focusGained ${_counters.focusGainedCount} '
                   '@ ${_fmt(_counters.lastFocusGained)}',
+                  style: _textStyle,
+                ),
+                Text(
+                  'connOpen ${_counters.connectionOpenedCount} '
+                  '@ ${_fmt(_counters.lastConnectionOpened)}',
+                  style: _textStyle,
+                ),
+                Text(
+                  'explicitClose ${_counters.explicitCloseCount} '
+                  '@ ${_fmt(_counters.lastExplicitClose)}',
+                  style: _textStyle,
+                ),
+                Text(
+                  'onNewIntent ${_counters.onNewIntentCount} '
+                  '@ ${_fmt(_counters.lastOnNewIntent)}',
                   style: _textStyle,
                 ),
               ],
