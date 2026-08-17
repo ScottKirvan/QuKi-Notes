@@ -26,9 +26,8 @@ import '../stream/stream_screen.dart';
 
 final _log = Logger('EditorScreen');
 
-// TEMP DEBUG (notes/dev/keyboard_focus_state.md verification round, Round 3)
-// — see keyboard_focus_debug.dart's header comment for the full removal
-// list. Must match MainActivity.kt's channel name exactly.
+// notes/dev/keyboard_focus_state.md, Round 5 — the resume-after-interruption
+// fix. Must match MainActivity.kt's channel name exactly.
 const _lifecycleDebugChannelName = 'com.quki.quki_notes/lifecycle_debug';
 
 // Tightens the default Material IconButton footprint (48x48 on mobile via
@@ -102,14 +101,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     super.initState();
     _editorController = MarkdownEditorController();
     _editorController.onFocusChanged = () {
-      // TEMP DEBUG (notes/dev/keyboard_focus_state.md verification round) —
-      // remove this one line (see keyboard_focus_debug.dart's header
-      // comment for the full removal list). Records a focus gained/lost
-      // transition as a proxy for requestFocus()/unfocus() taking effect —
-      // see KeyboardFocusDebugCounters' own doc comment for why a proxy is
-      // used instead of instrumenting every call site.
-      KeyboardFocusDebugCounters.instance
-          .recordFocusChange(hasFocus: _editorController.hasActiveBlock);
       if (mounted) setState(() {});
     };
 
@@ -121,76 +112,21 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
     WidgetsBinding.instance.addObserver(this);
 
-    // TEMP DEBUG (notes/dev/keyboard_focus_state.md verification round,
-    // Round 3) — see keyboard_focus_debug.dart's header comment for the full
-    // removal list, and MainActivity.kt for the native side of this channel.
-    // Records Activity.onNewIntent() firing, to test the hypothesis that
-    // launchMode="singleTask" (set for #188) is implicated in the
-    // keyboard-dismissed-on-resume bug. Harmless on platforms where the
-    // native side never calls it (nothing ever invokes this handler).
-    //
-    // Round 4 additions (onActivityStop/onActivityStart/onNativeFocusChanged)
-    // — see keyboard_focus_debug.dart's header comment (Round 4 addition) for
-    // the hypothesis these test: stock Flutter's own
-    // FlutterActivityAndFragmentDelegate.onStop() sets FlutterView to
-    // View.GONE unconditionally on every Activity#onStop(), which could tear
-    // down native View focus (and with it the IME) below the level any of
-    // this file's existing signals would ever observe.
-    //
-    // Round 5 addition (onWindowFocusChanged) — NOT purely diagnostic like
-    // the above: see keyboard_focus_debug.dart's header comment (Round 5
-    // addition) for the full evidence. This is the real fix's trigger.
-    //
-    // Round 7 addition (onNativeInsetsChanged) — purely diagnostic, like
-    // Rounds 3/4: reports Android's own raw WindowInsets (IME visibility +
-    // bottom inset) from MainActivity.kt's
-    // ViewCompat.setOnApplyWindowInsetsListener. See keyboard_focus_debug
-    // .dart's header comment (Round 7 addition) for the full rationale.
+    // notes/dev/keyboard_focus_state.md, Round 5 — see _pendingFocusRestore's
+    // doc comment and MarkdownEditorController.restoreFocusAfterInterruption()
+    // (package markdown_editor.dart) for the full mechanism and evidence
+    // this is built on. MainActivity.kt's onWindowFocusChanged() override
+    // is the native side of this channel.
     const MethodChannel(_lifecycleDebugChannelName)
         .setMethodCallHandler((call) async {
-      if (call.method == 'onNewIntent') {
-        KeyboardFocusDebugCounters.instance.recordOnNewIntent();
-      } else if (call.method == 'onActivityStop') {
-        KeyboardFocusDebugCounters.instance.recordActivityStop(
-          flutterViewVisibility:
-              (call.arguments as Map)['flutterViewVisibility'] as String,
-        );
-      } else if (call.method == 'onActivityStart') {
-        KeyboardFocusDebugCounters.instance.recordActivityStart(
-          flutterViewVisibility:
-              (call.arguments as Map)['flutterViewVisibility'] as String,
-        );
-      } else if (call.method == 'onNativeFocusChanged') {
-        final args = call.arguments as Map;
-        KeyboardFocusDebugCounters.instance.recordNativeFocusChange(
-          from: args['from'] as String,
-          to: args['to'] as String,
-        );
-      } else if (call.method == 'onWindowFocusChanged') {
+      if (call.method == 'onWindowFocusChanged') {
         final hasFocus = (call.arguments as Map)['hasFocus'] as bool;
-        KeyboardFocusDebugCounters.instance
-            .recordWindowFocusChanged(hasFocus: hasFocus);
-        // Round 5 fix — see _pendingFocusRestore's doc comment and
-        // MarkdownEditorController.restoreFocusAfterInterruption() (package
-        // markdown_editor.dart) for the full mechanism and evidence this is
-        // built on.
         if (!hasFocus) {
           _pendingFocusRestore = _editorController.hasActiveBlock;
         } else if (_pendingFocusRestore) {
           _pendingFocusRestore = false;
           _editorController.restoreFocusAfterInterruption();
-          KeyboardFocusDebugCounters.instance.recordFocusRestoreAttempted();
         }
-      } else if (call.method == 'onNativeInsetsChanged') {
-        // TEMP DEBUG (notes/dev/keyboard_focus_state.md verification round,
-        // Round 7) — see keyboard_focus_debug.dart's header comment (Round 7
-        // addition) for the full rationale. Read-only: this only records the
-        // signal for the overlay, it never drives any app behavior.
-        final args = call.arguments as Map;
-        KeyboardFocusDebugCounters.instance.recordNativeInsetsChanged(
-          imeVisible: args['imeVisible'] as bool,
-          imeBottomPx: (args['imeBottomPx'] as num).toInt(),
-        );
       }
     });
 
@@ -208,8 +144,6 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     _dismissTimer?.cancel();
     _editorController.onFocusChanged = null;
     WidgetsBinding.instance.removeObserver(this);
-    // TEMP DEBUG (notes/dev/keyboard_focus_state.md verification round,
-    // Round 3) — remove alongside the handler registration in initState().
     const MethodChannel(_lifecycleDebugChannelName).setMethodCallHandler(null);
     _autoSave.dispose();
     super.dispose();
@@ -624,37 +558,25 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         ],
       ),
       body: SafeArea(
-        // TEMP DEBUG (notes/dev/keyboard_focus_state.md verification round)
-        // — the Stack + KeyboardFocusDebugOverlay() below is the whole
-        // wiring point for the on-screen counter badge. Remove the Stack
-        // wrapper (restoring the plain Column as SafeArea's direct child)
-        // once that doc's device-verification checklist is done — see
-        // keyboard_focus_debug.dart's header comment for the full removal
-        // list.
-        child: Stack(
+        child: Column(
           children: [
-            Column(
-              children: [
-                Expanded(
-                  child: MarkdownEditor(
-                    initialValue: '',
-                    onChanged: (_) => _autoSave.notifyChanged(),
-                    controller: _editorController,
-                    config: MarkdownEditorConfig(
-                      textStyle: TextStyle(
-                          color: scheme.onSurface, fontSize: 16, height: 1.4),
-                      contentPadding: const EdgeInsets.fromLTRB(12, 12, 12, 36),
-                    ),
-                    imageLoader: _loadImage,
-                    onLinkTap: _onLinkTap,
-                    onCheckboxToggle: _onCheckboxToggle,
-                  ),
+            Expanded(
+              child: MarkdownEditor(
+                initialValue: '',
+                onChanged: (_) => _autoSave.notifyChanged(),
+                controller: _editorController,
+                config: MarkdownEditorConfig(
+                  textStyle: TextStyle(
+                      color: scheme.onSurface, fontSize: 16, height: 1.4),
+                  contentPadding: const EdgeInsets.fromLTRB(12, 12, 12, 36),
                 ),
-                if (keyboardVisible)
-                  FormattingToolbar(controller: _editorController),
-              ],
+                imageLoader: _loadImage,
+                onLinkTap: _onLinkTap,
+                onCheckboxToggle: _onCheckboxToggle,
+              ),
             ),
-            const KeyboardFocusDebugOverlay(),
+            if (keyboardVisible)
+              FormattingToolbar(controller: _editorController),
           ],
         ),
       ),

@@ -9,8 +9,6 @@ import 'package:flutter/services.dart';
 import 'editor_config.dart';
 import 'html_paste.dart';
 import 'indent_dedent.dart';
-// TEMP DEBUG (keyboard_focus_debug.dart) — see that file's header comment.
-import 'keyboard_focus_debug.dart';
 import 'md_parser.dart';
 import 'quiki_render_editor.dart';
 import 'render_model.dart';
@@ -678,14 +676,6 @@ class QuikiEditorState extends State<QuikiEditor>
     widget.focusNode.removeListener(_onFocusChanged);
     _scrollController.removeListener(_onScrollChangedForHandles);
     WidgetsBinding.instance.removeObserver(this);
-    // TEMP DEBUG (keyboard_focus_debug.dart) — remove this block + the
-    // import above once the notes/dev/keyboard_focus_state.md verification
-    // round is done. Records this app's own code explicitly tearing down an
-    // existing connection, as opposed to the platform doing so (which fires
-    // connectionClosed() instead).
-    if (_connection != null) {
-      KeyboardFocusDebugCounters.instance.recordExplicitClose();
-    }
     _connection?.close();
     _scrollController.dispose();
     _handleOverlayTick.dispose();
@@ -788,24 +778,9 @@ class QuikiEditorState extends State<QuikiEditor>
     );
     _connection!.show();
     _connection!.setEditingState(_value);
-    // TEMP DEBUG (keyboard_focus_debug.dart) — remove this line + the import
-    // above once the notes/dev/keyboard_focus_state.md verification round is
-    // done. Only reached past the early-return above, so this fires on a
-    // genuine new attach, never a no-op call into an already-attached
-    // connection.
-    KeyboardFocusDebugCounters.instance.recordConnectionOpened();
   }
 
   void _closeConnection() {
-    // TEMP DEBUG (keyboard_focus_debug.dart) — remove this block once the
-    // notes/dev/keyboard_focus_state.md verification round is done. Records
-    // this app's own code explicitly tearing down an existing connection
-    // (this method is only reached from _onFocusChanged() on a real focus
-    // loss), as opposed to the platform doing so (which fires
-    // connectionClosed() instead).
-    if (_connection != null) {
-      KeyboardFocusDebugCounters.instance.recordExplicitClose();
-    }
     _connection?.close();
     _connection = null;
   }
@@ -865,10 +840,6 @@ class QuikiEditorState extends State<QuikiEditor>
     // "connection null, reconnect on tap" branch already recovers cleanly on
     // the next tap — no separate unfocus round-trip is needed.
     _connection = null;
-    // TEMP DEBUG (keyboard_focus_debug.dart) — remove this line + the import
-    // above once the notes/dev/keyboard_focus_state.md verification round
-    // is done.
-    KeyboardFocusDebugCounters.instance.recordConnectionClosed();
     if (mounted) setState(() {});
   }
 
