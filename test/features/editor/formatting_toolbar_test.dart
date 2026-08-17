@@ -5,6 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:markdown_live_editor/markdown_live_editor.dart';
+// Reaches into the package's implementation library for
+// QuikiEditorState.debugForceMobile — see the mobile-visibility group's own
+// setUp/tearDown below for why this is needed as of
+// fix/toolbar-visibility-suppression-gap.
+import 'package:markdown_live_editor/src/quiki_editor.dart';
 
 import 'package:quki_notes/core/storage/quki_index.dart';
 import 'package:quki_notes/core/storage/quki_meta.dart';
@@ -169,6 +174,25 @@ void main() {
       'FormattingToolbar / T-button visibility on mobile — driven by '
       'viewInsets.bottom, not FocusNode.hasFocus '
       '(notes/dev/keyboard_focus_state.md Round 2 pivot)', () {
+    // fix/toolbar-visibility-suppression-gap: editor_screen.dart's mobile
+    // branch now reads MarkdownEditorController.isKeyboardVisible, which
+    // forwards to QuikiEditorState.isKeyboardVisible (_showCursor()) — and
+    // that getter gates on the PACKAGE's own _isMobile (Platform.isAndroid
+    // || Platform.isIOS || debugForceMobile), independent of this app's
+    // isMobileProvider override used by _pumpEditorMobile above. Without
+    // also forcing the package's own mobile gate here, _showCursor() would
+    // silently take its desktop fallback (FocusNode.hasFocus) on this
+    // desktop/CI test host — which never goes false just because
+    // viewInsets.bottom does — defeating the exact scenario these three
+    // tests exist to catch.
+    setUp(() {
+      QuikiEditorState.debugForceMobile = true;
+    });
+
+    tearDown(() {
+      QuikiEditorState.debugForceMobile = false;
+    });
+
     testWidgets(
         'toolbar stays hidden and T-button shows the reading-mode icon '
         'after focusing if viewInsets.bottom is still 0 — the exact '

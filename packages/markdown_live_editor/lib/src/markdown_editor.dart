@@ -321,9 +321,37 @@ class MarkdownEditorController {
   /// AppBar icons) rebuilds on keyboard show/hide without polling. Note this
   /// only fires on a real focus transition — on mobile, keyboard-visibility
   /// changes that don't also change focus (see [hasActiveBlock]'s doc
-  /// comment) do NOT go through this callback; the host app relies on its
-  /// own MediaQuery dependency for those instead.
+  /// comment) do NOT go through this callback; the host app instead reads
+  /// [isKeyboardVisible] and listens for [onKeyboardVisibilityChanged] for
+  /// those.
   VoidCallback? onFocusChanged;
+
+  /// Whether the keyboard is currently considered visible on mobile — the
+  /// single, suppression-aware source of truth
+  /// (notes/dev/keyboard_focus_state.md) that also decides the editor's own
+  /// caret paint visibility. Forwards to
+  /// [QuikiEditorState.isKeyboardVisible]; see that getter's doc comment
+  /// for the full mechanism and for why this replaced a host-side
+  /// `MediaQuery.viewInsetsOf(context).bottom > 0` read (the toolbar could
+  /// disagree with the caret, since that raw read had no way to know about
+  /// Round 11's (#394) stale-post-resume suppression window).
+  ///
+  /// Desktop has no software keyboard — hosts should keep using
+  /// [hasActiveBlock] there, as before; this getter is meaningful on mobile
+  /// only (see [QuikiEditorState.isKeyboardVisible]'s own desktop
+  /// fallback, which mirrors [hasActiveBlock] exactly for that platform).
+  bool get isKeyboardVisible =>
+      _state?._quikiEditorKey.currentState?.isKeyboardVisible ?? false;
+
+  /// Called whenever [isKeyboardVisible]'s computed value changes.
+  ///
+  /// Set in the host widget's [initState] alongside [onFocusChanged], for
+  /// the same reason — so host UI rebuilds without polling — but fires on
+  /// every visibility transition, not only a genuine FocusNode change,
+  /// since mobile keyboard visibility can change independently of focus
+  /// (Round 2's whole reason for existing; see
+  /// notes/dev/keyboard_focus_state.md).
+  VoidCallback? onKeyboardVisibilityChanged;
 
   void unfocus() => _state?._focusNode.unfocus();
 
@@ -785,6 +813,8 @@ class _MarkdownEditorState extends State<MarkdownEditor> {
       imageLoader: widget.imageLoader,
       onLinkTap: widget.onLinkTap,
       onCheckboxToggle: widget.onCheckboxToggle,
+      onKeyboardVisibilityChanged: () =>
+          widget.controller?.onKeyboardVisibilityChanged?.call(),
     );
   }
 }

@@ -102,6 +102,7 @@ class QuikiEditor extends StatefulWidget {
     this.imageLoader,
     this.onLinkTap,
     this.onCheckboxToggle,
+    this.onKeyboardVisibilityChanged,
   });
 
   final TextEditingController controller;
@@ -130,6 +131,15 @@ class QuikiEditor extends StatefulWidget {
   /// can swap the 6-char marker ('- [ ] ' ↔ '- [x] ') and trigger auto-save.
   /// If null, tapping a collapsed checkbox is a no-op (cursor does not move).
   final void Function(int sourceOffset)? onCheckboxToggle;
+
+  /// Called whenever [QuikiEditorState.isKeyboardVisible]'s computed value
+  /// changes — see that getter's doc comment for the full context
+  /// (notes/dev/keyboard_focus_state.md, the toolbar/cursor unification
+  /// round). Threaded from [MarkdownEditor] through
+  /// [MarkdownEditorController.onKeyboardVisibilityChanged] so the host app
+  /// can rebuild whenever the single source of truth for mobile keyboard
+  /// visibility changes, without polling.
+  final VoidCallback? onKeyboardVisibilityChanged;
 
   @override
   QuikiEditorState createState() => QuikiEditorState();
@@ -753,6 +763,51 @@ class QuikiEditorState extends State<QuikiEditor>
   Timer? _staleMetricsGraceTimer;
   bool _suppressingStaleResumeMetrics = false;
 
+  // ---------------------------------------------------------------------
+  // Toolbar/cursor visibility unification (notes/dev/keyboard_focus_state.md)
+  // ---------------------------------------------------------------------
+  //
+  // The host app (editor_screen.dart) previously computed its own,
+  // independent "is the keyboard visible" signal by reading
+  // MediaQuery.viewInsetsOf(context).bottom directly — a second, parallel
+  // consumer of the same underlying platform inset that [_showCursor]
+  // already turns into the caret's paint visibility. Round 11's (#394)
+  // stale-post-resume suppression window is only applied inside
+  // [_showCursor]; the host's separate raw read never saw it, so the
+  // FormattingToolbar could pop back up over a keyboard the cursor
+  // correctly kept hidden. [isKeyboardVisible] below is now the one public
+  // signal both the caret and the host read, and
+  // [widget.onKeyboardVisibilityChanged] is how the host learns to rebuild
+  // when it changes — mirroring [_onFocusChanged]'s existing
+  // widget.controller?.onFocusChanged pattern, but firing on every
+  // visibility transition rather than only a genuine FocusNode change,
+  // since mobile keyboard visibility can change without focus changing at
+  // all (that is the entire premise of Round 2's pivot away from
+  // FocusNode.hasFocus).
+
+  /// The last value [widget.onKeyboardVisibilityChanged] was fired for —
+  /// so repeated calls that don't actually change the answer (e.g. two
+  /// [didChangeMetrics] readings that both resolve to "hidden") don't
+  /// trigger redundant host rebuilds.
+  bool? _lastNotifiedKeyboardVisible;
+
+  /// Recomputes [isKeyboardVisible] and calls
+  /// [widget.onKeyboardVisibilityChanged] iff it changed since the last
+  /// call. Invoked from every site that can change [_showCursor]'s result
+  /// without necessarily also changing [widget.focusNode]'s own
+  /// hasFocus/onFocusChanged notification: [didChangeMetrics] (a fresh
+  /// platform inset reading), [_onFocusChanged] (focus-gain cancels the
+  /// #394 suppression window), and [_onTapDown]'s already-focused branches
+  /// (also cancels the suppression window, without a focus transition to
+  /// notify through).
+  void _notifyKeyboardVisibilityIfChanged() {
+    if (!mounted) return;
+    final visible = _showCursor(context);
+    if (visible == _lastNotifiedKeyboardVisible) return;
+    _lastNotifiedKeyboardVisible = visible;
+    widget.onKeyboardVisibilityChanged?.call();
+  }
+
   /// See [AppLifecycleState.resumed] handling above — records only "when,"
   /// never "what." Does NOT touch focus, matching Round 2's hard rule that
   /// app-lifecycle transitions must never call requestFocus()/unfocus()
@@ -828,6 +883,13 @@ class QuikiEditorState extends State<QuikiEditor>
           viewInsetsBottom: viewInsetsBottom,
         );
       }
+
+      // Toolbar/cursor unification — a fresh inset reading (or a
+      // suppression window arming/detecting above) is exactly the kind of
+      // event that can change _showCursor()'s result without any
+      // FocusNode transition to notify the host through. See
+      // _notifyKeyboardVisibilityIfChanged's doc comment.
+      _notifyKeyboardVisibilityIfChanged();
     }
     if (mounted) setState(() {});
   }
@@ -886,6 +948,11 @@ class QuikiEditorState extends State<QuikiEditor>
     } else {
       _closeConnection();
     }
+    // Toolbar/cursor unification — a genuine focus transition (including
+    // the suppression cancel above) can change _showCursor()'s result;
+    // notify the host so it stays in sync. See
+    // _notifyKeyboardVisibilityIfChanged's doc comment.
+    _notifyKeyboardVisibilityIfChanged();
     if (mounted) setState(() {});
   }
 
@@ -1030,6 +1097,25 @@ class QuikiEditorState extends State<QuikiEditor>
   /// Exposed for widget tests only — do not use in production code.
   @visibleForTesting
   bool get showsCursorForTesting => _renderEditor?.showCursor ?? false;
+
+  /// The single, suppression-aware source of truth for "is the keyboard
+  /// considered visible right now" (notes/dev/keyboard_focus_state.md) —
+  /// this is the real, production-facing counterpart to
+  /// [showsCursorForTesting]'s test-only render-object read. Recomputes
+  /// [_showCursor] directly rather than reading it back off the render
+  /// object, since this getter is called from the host app (via
+  /// [MarkdownEditorController.isKeyboardVisible]) and must return a
+  /// correct answer even before the next frame has painted with the
+  /// latest value.
+  ///
+  /// The host app (editor_screen.dart) uses this — not its own
+  /// `MediaQuery.viewInsetsOf(context).bottom > 0` read — to drive
+  /// FormattingToolbar visibility and the T-button's edit-vs-reading-mode
+  /// icon on mobile, so the toolbar and the caret can never disagree: both
+  /// are now driven by this exact same computation, including Round 11's
+  /// (#394) stale-post-resume suppression window, which a raw MediaQuery
+  /// read in the host would have no way to know about.
+  bool get isKeyboardVisible => mounted ? _showCursor(context) : false;
 
   /// Forces the selection toolbar to appear regardless of platform.
   ///
@@ -1584,6 +1670,14 @@ class QuikiEditorState extends State<QuikiEditor>
       // Connection open but keyboard may be hidden — re-show.
       _connection!.show();
     }
+
+    // Toolbar/cursor unification — the suppression cancel above can change
+    // _showCursor()'s result even in the "already focused" branches, which
+    // never fire a FocusNode change / _onFocusChanged for the host to learn
+    // about it through. See _notifyKeyboardVisibilityIfChanged's doc
+    // comment for why this call site specifically is needed in addition to
+    // _onFocusChanged and didChangeMetrics.
+    _notifyKeyboardVisibilityIfChanged();
 
     if (re == null || localPos == null) return;
 
@@ -2240,6 +2334,11 @@ class QuikiEditorState extends State<QuikiEditor>
   /// viewInsets value once delivered — so the override must hold for any
   /// rebuild that lands inside the window, not just the one that receives
   /// the stale event itself.
+  ///
+  /// Also exposed publicly as [isKeyboardVisible] (and, from there, via
+  /// [MarkdownEditorController.isKeyboardVisible]) so the host app reads
+  /// this exact computation instead of re-deriving its own — see that
+  /// getter's doc comment.
   bool _showCursor(BuildContext context) {
     if (!_isMobile) return widget.focusNode.hasFocus;
     final liveKeyboardVisible = View.of(context).viewInsets.bottom > 0;

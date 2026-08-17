@@ -112,6 +112,15 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     _editorController.onFocusChanged = () {
       if (mounted) setState(() {});
     };
+    // notes/dev/keyboard_focus_state.md — toolbar/cursor unification round:
+    // this is the one place FormattingToolbar visibility and the T-button's
+    // edit-vs-reading-mode icon (both computed from `keyboardVisible` in
+    // build() below) learn about a keyboard-visibility change that isn't
+    // also a focus change (the common mobile case — see
+    // MarkdownEditorController.isKeyboardVisible's doc comment).
+    _editorController.onKeyboardVisibilityChanged = () {
+      if (mounted) setState(() {});
+    };
 
     _autoSave = AutoSaveController(
       onSave: _writeQuKi,
@@ -163,6 +172,7 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   void dispose() {
     _dismissTimer?.cancel();
     _editorController.onFocusChanged = null;
+    _editorController.onKeyboardVisibilityChanged = null;
     WidgetsBinding.instance.removeObserver(this);
     const MethodChannel(_lifecycleDebugChannelName).setMethodCallHandler(null);
     _autoSave.dispose();
@@ -506,19 +516,25 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
     // Ground truth for FormattingToolbar visibility and the T-button's
     // edit-vs-reading-mode icon variant (notes/dev/keyboard_focus_state.md's
-    // Round 2 pivot). On mobile this follows the OS's own live keyboard-
-    // visible signal (MediaQuery.viewInsets.bottom > 0), not
-    // FocusNode.hasFocus — Round 1's on-device diagnostics proved focus
-    // stays true even after the Android keyboard visibly disappears. Desktop
-    // has no software keyboard (viewInsets.bottom is always 0 there), so it
-    // keeps the pre-pivot FocusNode.hasFocus-driven behavior via
-    // hasActiveBlock — this whole investigation was scoped to Android/mobile
-    // only (notes/dev/keyboard_state_testing.md), and unconditionally
-    // switching to viewInsets would make the toolbar/T-button permanently
-    // read as "reading mode" on Windows/Linux.
+    // Round 2 pivot, unified with the caret's own signal in the toolbar/
+    // cursor-suppression-gap round). On mobile this reads
+    // MarkdownEditorController.isKeyboardVisible — the exact same
+    // suppression-aware computation QuikiEditorState uses to decide caret
+    // paint visibility — rather than a separate, independent
+    // `MediaQuery.viewInsetsOf(context).bottom > 0` read. That raw read used
+    // to be a second, parallel consumer of the same underlying platform
+    // inset: it agreed with the caret most of the time, but had no way to
+    // know about Round 11's (#394) stale-post-resume suppression window, so
+    // the toolbar could pop back up over a keyboard the caret correctly kept
+    // hidden. Desktop has no software keyboard, so it keeps the pre-pivot
+    // FocusNode.hasFocus-driven behavior via hasActiveBlock, untouched —
+    // this whole investigation was scoped to Android/mobile only
+    // (notes/dev/keyboard_state_testing.md), and unconditionally switching
+    // to the keyboard-visibility signal would make the toolbar/T-button
+    // permanently read as "reading mode" on Windows/Linux.
     final isMobile = ref.watch(isMobileProvider);
     final keyboardVisible = isMobile
-        ? MediaQuery.viewInsetsOf(context).bottom > 0
+        ? _editorController.isKeyboardVisible
         : _editorController.hasActiveBlock;
 
     final Widget scaffold = Scaffold(

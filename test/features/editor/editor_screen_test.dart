@@ -16,6 +16,12 @@ import 'package:markdown_live_editor/markdown_live_editor.dart';
 // exercise EditorScreen._onCheckboxToggle (#354) as production code, rather
 // than calling it directly (it's private).
 import 'package:markdown_live_editor/src/quiki_render_editor.dart';
+// Reaches into the package's implementation library for
+// QuikiEditorState.debugForceMobile — the same convention as above — needed
+// so the fix/toolbar-visibility-suppression-gap tests below can exercise the
+// mobile-only viewInsets-driven branch on this desktop/CI test host, where
+// Platform.isAndroid is always false.
+import 'package:markdown_live_editor/src/quiki_editor.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:quki_notes/app.dart';
@@ -25,6 +31,8 @@ import 'package:quki_notes/core/storage/quki_storage.dart';
 import 'package:quki_notes/core/transports/registry_provider.dart';
 import 'package:quki_notes/core/transports/transport_plugin.dart';
 import 'package:quki_notes/features/editor/editor_screen.dart';
+import 'package:quki_notes/features/share_in/share_handler.dart'
+    show isMobileProvider;
 
 // In-memory storage: no dart:io, safe inside FakeAsync.
 class _FakeQuKiStorage extends QuKiStorage {
@@ -1163,6 +1171,133 @@ void main() {
               'it');
 
       await cleanup(tester);
+    });
+  });
+
+  group(
+      'EditorScreen toolbar/cursor keyboard-visibility unification '
+      '(fix/toolbar-visibility-suppression-gap, notes/dev/'
+      'keyboard_focus_state.md)', () {
+    // isMobileProvider defaults to the real Platform.isAndroid ||
+    // Platform.isIOS check, which is always false on this desktop/CI test
+    // host — override it so `keyboardVisible`'s mobile branch (the one this
+    // round actually changed) is the branch under test, not the untouched
+    // desktop `hasActiveBlock` fallback. debugForceMobile does the matching
+    // job one layer down, inside the package's own `_isMobile` gate that
+    // _showCursor()/didChangeMetrics() depend on.
+    Widget buildMobileEditor() => ProviderScope(
+          overrides: [
+            quKiStorageProvider.overrideWithValue(_FakeQuKiStorage()),
+            quKiIndexProvider.overrideWith(() => _FakeQuKiIndex(const [])),
+            isMobileProvider.overrideWithValue(true),
+          ],
+          child: const MaterialApp(home: EditorScreen()),
+        );
+
+    setUp(() {
+      QuikiEditorState.debugForceMobile = true;
+    });
+
+    tearDown(() {
+      QuikiEditorState.debugForceMobile = false;
+    });
+
+    testWidgets(
+        'FormattingToolbar stays hidden through the exact #394 stale-post-'
+        'resume suppression window, and reopens on a genuine tap outside '
+        'one', (tester) async {
+      await tester.pumpWidget(buildMobileEditor());
+      await tester.pump();
+
+      // Focus the note and open the keyboard — the #394 repro's starting
+      // state: a note open with the keyboard visible before the
+      // interruption.
+      await tester.tap(find.byType(MarkdownEditor));
+      await _settleSingleTap(tester);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 370);
+      await tester.pump();
+      expect(find.byType(FormattingToolbar), findsOneWidget,
+          reason: 'sanity: toolbar visible with the keyboard up before the '
+              'interruption');
+
+      // App backgrounds and resumes.
+      WidgetsBinding.instance
+          .handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+
+      // The genuine, correct post-resume reading (#394's "6ms" call): the
+      // keyboard really did close.
+      tester.view.viewInsets = FakeViewPadding.zero;
+      await tester.pump();
+      expect(find.byType(FormattingToolbar), findsNothing,
+          reason: 'sanity: the confirmed-correct zero reading hides the '
+              'toolbar, same as the cursor');
+
+      // 328ms later — #394's measured gap — the stale call arrives,
+      // reporting the exact pre-interruption open height.
+      await tester.pump(const Duration(milliseconds: 328));
+      tester.view.viewInsets = const FakeViewPadding(bottom: 370);
+      await tester.pump();
+
+      expect(find.byType(FormattingToolbar), findsNothing,
+          reason: 'THE GAP THIS ROUND CLOSES: the toolbar must not pop back '
+              'up for the stale reading. Before this round, '
+              'editor_screen.dart computed keyboardVisible from its own '
+              'independent MediaQuery.viewInsetsOf(context).bottom > 0 '
+              "read — a second, parallel consumer of the same platform "
+              "inset that Round 11's suppression window (armed just above) "
+              'never touched — so the toolbar would reappear here even '
+              'though the cursor (driven by the same underlying signal) '
+              'correctly stayed hidden');
+
+      // A genuine, deliberate tap while the suppression window is still
+      // open must win immediately — mirrors the package-level guarantee in
+      // keyboard_stale_resume_metrics_test.dart's "genuine user tap" case.
+      await tester.tap(find.byType(MarkdownEditor));
+      await _settleSingleTap(tester);
+      expect(find.byType(FormattingToolbar), findsOneWidget,
+          reason: 'a deliberate reopen must show the toolbar immediately, '
+              'not be held hidden by the still-open grace window');
+
+      await cleanup(tester);
+      tester.view.resetViewInsets();
+    });
+
+    testWidgets(
+        'ordinary keyboard show/hide with no resume involved still drives '
+        'the toolbar exactly as before — typing, the dismiss icon, and the '
+        'back gesture are unaffected by the signal-unification change',
+        (tester) async {
+      await tester.pumpWidget(buildMobileEditor());
+      await tester.pump();
+
+      expect(find.byType(FormattingToolbar), findsNothing,
+          reason: 'no keyboard visible yet — cold-launch auto-focus was '
+              'removed (#342), so a fresh EditorScreen starts unfocused');
+
+      // A tap opens the keyboard (simulated — there is no real IME in this
+      // test environment, matching every other test in this suite).
+      await tester.tap(find.byType(MarkdownEditor));
+      await _settleSingleTap(tester);
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      await tester.pump();
+      expect(find.byType(FormattingToolbar), findsOneWidget);
+
+      // The keyboard's own dismiss icon / the back gesture: viewInsets
+      // drops back to zero with no app-lifecycle transition involved at
+      // all — ordinary same-session dismissal, never eligible to arm the
+      // #394 suppression window in the first place.
+      tester.view.viewInsets = FakeViewPadding.zero;
+      await tester.pump();
+      expect(find.byType(FormattingToolbar), findsNothing);
+
+      // Reopens normally.
+      tester.view.viewInsets = const FakeViewPadding(bottom: 300);
+      await tester.pump();
+      expect(find.byType(FormattingToolbar), findsOneWidget);
+
+      await cleanup(tester);
+      tester.view.resetViewInsets();
     });
   });
 }
