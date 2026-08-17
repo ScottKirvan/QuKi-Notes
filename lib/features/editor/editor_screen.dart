@@ -132,6 +132,13 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         .setMethodCallHandler((call) async {
       if (call.method == 'onWindowFocusChanged') {
         final hasFocus = (call.arguments as Map)['hasFocus'] as bool;
+        // Round 10 diagnostic (notes/dev/keyboard_focus_state.md) — records
+        // this dispatch's value/timestamp so it can be correlated against
+        // QuikiEditorState.didChangeMetrics()'s own telemetry in the
+        // combined sequence log. Read-only; the _pendingFocusRestore logic
+        // below is unchanged from Round 9.
+        KeyboardFocusDebugCounters.instance
+            .recordWindowFocusChanged(hasFocus: hasFocus);
         if (!hasFocus) {
           _pendingFocusRestore = _editorController.hasActiveBlock;
         } else if (_pendingFocusRestore) {
@@ -571,25 +578,37 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
         ],
       ),
       body: SafeArea(
-        child: Column(
+        // Round 10 diagnostic (notes/dev/keyboard_focus_state.md) — the
+        // Stack + KeyboardFocusDebugOverlay() below is the whole wiring
+        // point for the on-screen counter badge. Remove the Stack wrapper
+        // (restoring the plain Column as SafeArea's direct child) once that
+        // doc's still-open question is answered — see
+        // keyboard_focus_debug.dart's header comment for the full removal
+        // list.
+        child: Stack(
           children: [
-            Expanded(
-              child: MarkdownEditor(
-                initialValue: '',
-                onChanged: (_) => _autoSave.notifyChanged(),
-                controller: _editorController,
-                config: MarkdownEditorConfig(
-                  textStyle: TextStyle(
-                      color: scheme.onSurface, fontSize: 16, height: 1.4),
-                  contentPadding: const EdgeInsets.fromLTRB(12, 12, 12, 36),
+            Column(
+              children: [
+                Expanded(
+                  child: MarkdownEditor(
+                    initialValue: '',
+                    onChanged: (_) => _autoSave.notifyChanged(),
+                    controller: _editorController,
+                    config: MarkdownEditorConfig(
+                      textStyle: TextStyle(
+                          color: scheme.onSurface, fontSize: 16, height: 1.4),
+                      contentPadding: const EdgeInsets.fromLTRB(12, 12, 12, 36),
+                    ),
+                    imageLoader: _loadImage,
+                    onLinkTap: _onLinkTap,
+                    onCheckboxToggle: _onCheckboxToggle,
+                  ),
                 ),
-                imageLoader: _loadImage,
-                onLinkTap: _onLinkTap,
-                onCheckboxToggle: _onCheckboxToggle,
-              ),
+                if (keyboardVisible)
+                  FormattingToolbar(controller: _editorController),
+              ],
             ),
-            if (keyboardVisible)
-              FormattingToolbar(controller: _editorController),
+            const KeyboardFocusDebugOverlay(),
           ],
         ),
       ),

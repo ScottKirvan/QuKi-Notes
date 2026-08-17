@@ -9,6 +9,9 @@ import 'package:flutter/services.dart';
 import 'editor_config.dart';
 import 'html_paste.dart';
 import 'indent_dedent.dart';
+// Round 10 diagnostic (notes/dev/keyboard_focus_state.md) — temporary, see
+// keyboard_focus_debug.dart's own header comment for removal instructions.
+import 'keyboard_focus_debug.dart';
 import 'md_parser.dart';
 import 'quiki_render_editor.dart';
 import 'render_model.dart';
@@ -712,6 +715,21 @@ class QuikiEditorState extends State<QuikiEditor>
     // desktop, which has no software keyboard and would otherwise repaint
     // for every unrelated metrics change (e.g. a window resize).
     if (!_isMobile) return;
+    // Round 10 diagnostic (notes/dev/keyboard_focus_state.md) — records this
+    // invocation and the exact viewInsets.bottom value read at this moment.
+    // Read-only; does not change what happens below. This is the core new
+    // signal this round exists to capture — see keyboard_focus_debug.dart's
+    // header comment for why: Round 9's device test still showed stuck
+    // toolbar/cursor chrome even after removing the forced-show call that
+    // was racing (and losing to) Android's own automatic hide-on-resume, so
+    // the open question is whether this observer fires at all after that
+    // resume sequence, and if so, with what inset value.
+    if (mounted) {
+      final view = View.of(context);
+      KeyboardFocusDebugCounters.instance.recordDidChangeMetrics(
+        viewInsetsBottom: view.viewInsets.bottom / view.devicePixelRatio,
+      );
+    }
     if (mounted) setState(() {});
   }
 
