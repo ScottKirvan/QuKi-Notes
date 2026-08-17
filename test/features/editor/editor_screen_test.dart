@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
@@ -185,6 +186,25 @@ Offset _checkboxTapPoint(
 /// with no second tap.
 Future<void> _settleSingleTap(WidgetTester tester) =>
     tester.pump(kDoubleTapTimeout + const Duration(milliseconds: 50));
+
+// Mirrors editor_screen.dart's private `_lifecycleDebugChannelName` constant
+// — must match MainActivity.kt's native channel name exactly (see that
+// file's own doc comment for the round-5/9 mechanism this drives).
+const _lifecycleDebugChannelName = 'com.quki.quki_notes/lifecycle_debug';
+
+/// Simulates the native side (`MainActivity.kt`'s `onWindowFocusChanged()`
+/// override) dispatching an `onWindowFocusChanged` call to
+/// `EditorScreen`'s own `MethodChannel` handler — the same incoming-platform-
+/// message path a real device exercises, driven here via
+/// [TestDefaultBinaryMessenger.handlePlatformMessage] rather than calling any
+/// EditorScreen internals directly (which are private).
+Future<void> _sendWindowFocusChanged(WidgetTester tester, bool hasFocus) async {
+  final data = const StandardMethodCodec().encodeMethodCall(
+    MethodCall('onWindowFocusChanged', {'hasFocus': hasFocus}),
+  );
+  await tester.binding.defaultBinaryMessenger
+      .handlePlatformMessage(_lifecycleDebugChannelName, data, null);
+}
 
 /// Loads [body] into a fresh [EditorScreen], taps its single checkbox
 /// (assumed to be the only one in [body]), waits past the auto-save
@@ -1088,6 +1108,59 @@ void main() {
 
       final snackBar = tester.widget<SnackBar>(find.byType(SnackBar));
       expect(snackBar.duration, const Duration(milliseconds: 1500));
+
+      await cleanup(tester);
+    });
+  });
+
+  group(
+      'EditorScreen resume-focus-restore (Round 9, '
+      'notes/dev/keyboard_focus_state.md)', () {
+    testWidgets(
+        'onWindowFocusChanged(true), after a preceding false, no longer '
+        'forces an unfocus/refocus cycle — regression: Round 5\'s '
+        'restoreFocusAfterInterruption() call on this path always lost the '
+        'resume race against Android\'s automatic hide-on-resume (Round 8\'s '
+        'adb logcat capture) and is no longer invoked from this trigger',
+        (tester) async {
+      await tester.pumpWidget(_buildEditor());
+      await tester.pump();
+
+      // Focus the editor for real, opening a genuine TextInputConnection —
+      // the same starting state the false->true pair is meant to react to.
+      // The pump here is deliberately longer than kDoubleTapTimeout — see
+      // the identical pattern used throughout this file for why.
+      await tester.tap(find.byType(MarkdownEditor));
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(tester.testTextInput.log.map((c) => c.method),
+          contains('TextInput.setClient'),
+          reason: 'sanity: focusing the editor must have opened a real '
+              'connection, or this test would not actually exercise the '
+              'restore path');
+
+      // Clear the log so only what happens as a RESULT of the
+      // false->true pair below is observed.
+      tester.testTextInput.log.clear();
+
+      await _sendWindowFocusChanged(tester, false);
+      await tester.pump();
+      await _sendWindowFocusChanged(tester, true);
+      await tester.pump();
+      await tester.pump();
+
+      // Before Round 9, the `true` branch called
+      // MarkdownEditorController.restoreFocusAfterInterruption(), which
+      // forces a genuine unfocus() -> requestFocus() cycle — observable as
+      // a TextInput.clearClient followed by a fresh TextInput.setClient
+      // (see keyboard_focus_state_test.dart's Round 5 tests for the same
+      // observation technique). After Round 9, nothing on this path touches
+      // focus or the connection at all, so the log must stay empty.
+      expect(tester.testTextInput.log, isEmpty,
+          reason: 'onWindowFocusChanged(true) must not force any focus or '
+              'IME-connection transition anymore — Round 9 stops racing '
+              "Android's automatic hide-on-resume rather than trying to win "
+              'it');
 
       await cleanup(tester);
     });

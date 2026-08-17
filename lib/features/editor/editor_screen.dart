@@ -83,17 +83,26 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
   late final AutoSaveController _autoSave;
   Timer? _dismissTimer;
 
-  // Round 5 fix (notes/dev/keyboard_focus_state.md, resume-after-
+  // Round 5-8 fix (notes/dev/keyboard_focus_state.md, resume-after-
   // interruption) — set when a native onWindowFocusChanged(false) arrives
   // while the editor genuinely held focus, and consumed by the matching
   // onWindowFocusChanged(true). See the MethodChannel handler in initState()
-  // below and MarkdownEditorController.restoreFocusAfterInterruption() in
-  // the markdown_live_editor package for the full mechanism and evidence.
-  // Deliberately requires a false->true PAIR (not just "hasActiveBlock is
-  // true whenever a true arrives") so this never fires on the very first
+  // below. Deliberately requires a false->true PAIR (not just "hasActiveBlock
+  // is true whenever a true arrives") so this never fires on the very first
   // onWindowFocusChanged(true) of a cold launch (no preceding false), and
   // self-clears the instant it's consumed so a stray extra `true` event
-  // can't trigger a second, redundant restore.
+  // can't trigger a second, redundant consumption.
+  //
+  // Round 9: this flag is still tracked (false->true pairing kept intact as
+  // plumbing a future round may reuse), but reaching the true branch no
+  // longer calls MarkdownEditorController.restoreFocusAfterInterruption().
+  // Round 8's adb logcat capture proved that forced-show call always loses a
+  // ~1ms race against Android's own automatic hide-on-resume request, which
+  // always completes (onHidden, confirmed — not an ambiguous or stuck native
+  // state). Per the project owner's explicit direction, this round stops
+  // racing that automatic hide rather than trying to out-time it. See
+  // "Round 9" in notes/dev/keyboard_focus_state.md for the full reasoning,
+  // including why this also makes issue #387's gating-signal finding moot.
   bool _pendingFocusRestore = false;
 
   @override
@@ -112,11 +121,13 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
     WidgetsBinding.instance.addObserver(this);
 
-    // notes/dev/keyboard_focus_state.md, Round 5 — see _pendingFocusRestore's
-    // doc comment and MarkdownEditorController.restoreFocusAfterInterruption()
-    // (package markdown_editor.dart) for the full mechanism and evidence
-    // this is built on. MainActivity.kt's onWindowFocusChanged() override
-    // is the native side of this channel.
+    // notes/dev/keyboard_focus_state.md, Round 5/9 — see _pendingFocusRestore's
+    // doc comment above for the full mechanism and evidence this is built on.
+    // MainActivity.kt's onWindowFocusChanged() override is the native side of
+    // this channel. The plumbing (channel, false->true pairing) is kept
+    // intact per Round 9 even though nothing forces a show on the true branch
+    // anymore — a future round attempting a hide-aware retry (Round 8's
+    // "direction (b)") can build on this without re-wiring the native side.
     const MethodChannel(_lifecycleDebugChannelName)
         .setMethodCallHandler((call) async {
       if (call.method == 'onWindowFocusChanged') {
@@ -125,7 +136,9 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           _pendingFocusRestore = _editorController.hasActiveBlock;
         } else if (_pendingFocusRestore) {
           _pendingFocusRestore = false;
-          _editorController.restoreFocusAfterInterruption();
+          // Round 9: deliberately NOT calling
+          // _editorController.restoreFocusAfterInterruption() here anymore —
+          // see the doc comment on _pendingFocusRestore above.
         }
       }
     });
