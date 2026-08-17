@@ -1,8 +1,10 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:quki_notes/core/storage/quki_index.dart';
@@ -175,6 +177,54 @@ void main() {
       expect(find.text('STORAGE'), findsOneWidget);
       expect(find.text('NOTES'), findsOneWidget);
       expect(find.text('Trash'), findsOneWidget);
+      await cleanup(tester);
+    });
+  });
+
+  group('SettingsScreen — About version copy', () {
+    testWidgets(
+        'tapping the version tile copies "v<version>" to the clipboard '
+        'and shows a confirming snackbar', (tester) async {
+      PackageInfo.setMockInitialValues(
+        appName: 'QuKi Notes',
+        packageName: 'com.example.quki_notes',
+        version: '0.23.0',
+        buildNumber: '1',
+        buildSignature: '',
+      );
+
+      final calls = <MethodCall>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        calls.add(call);
+        return null;
+      });
+      addTearDown(() {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(SystemChannels.platform, null);
+      });
+
+      final svc = await _appStorageSvc();
+      await tester.pumpWidget(_buildSettings(svc));
+      await tester.pump();
+      await tester.pump();
+
+      // The About section sits below the fold in the ListView; scroll it
+      // into view before searching for it.
+      await tester.scrollUntilVisible(find.text('v0.23.0'), 200);
+      await tester.pump();
+
+      expect(find.text('v0.23.0'), findsOneWidget);
+
+      await tester.tap(find.text('v0.23.0'));
+      await tester.pump();
+
+      final setDataCall = calls.singleWhere(
+        (c) => c.method == 'Clipboard.setData',
+      );
+      expect(setDataCall.arguments, {'text': 'v0.23.0'});
+
+      expect(find.text('Copied to clipboard.'), findsOneWidget);
       await cleanup(tester);
     });
   });

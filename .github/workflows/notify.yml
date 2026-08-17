@@ -5,6 +5,14 @@ on:
     workflows: ["Build Android", "Build Windows", "Build Linux"]
     types: [completed]
 
+# Serialize runs per commit SHA so only one instance can be active at a time.
+# cancel-in-progress: false means newer runs queue rather than cancelling the
+# active run — the active run sends and uploads a marker; the queued run finds
+# the marker and exits without a second send.
+concurrency:
+  group: discord-notify-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+
 permissions:
   contents: read
   actions: read
@@ -40,6 +48,16 @@ jobs:
 
           if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
             echo "No release found, skipping"
+            echo "all_done=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Guard against duplicate sends: if a marker artifact already exists
+          # for this tag, a previous run already sent the notification.
+          ALREADY_SENT=$(gh api "repos/$REPO/actions/artifacts?name=discord-sent-$TAG&per_page=1" \
+            --jq '.total_count')
+          if [ "$ALREADY_SENT" -gt "0" ]; then
+            echo "Already sent Discord notification for $TAG — skipping"
             echo "all_done=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -94,3 +112,18 @@ jobs:
       emoji: "🪽"
       discord_blurb: ${{ needs.get-blurb.outputs.discord_blurb }}
     secrets: inherit
+
+  mark-sent:
+    needs: [check, notify]
+    if: needs.check.outputs.all_done == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create sent marker
+        run: echo "sent" > /tmp/sent.txt
+
+      - name: Upload sent marker artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: discord-sent-${{ needs.check.outputs.tag_name }}
+          path: /tmp/sent.txt
+          retention-days: 90
