@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -100,9 +101,21 @@ class SettingsScreen extends ConsumerWidget {
             future: PackageInfo.fromPlatform(),
             builder: (context, snapshot) {
               final version = snapshot.data?.version ?? '…';
+              final versionText = 'v$version';
               return ListTile(
                 title: const Text(kAppName),
-                trailing: Text('v$version'),
+                trailing: Text(versionText),
+                onTap: () async {
+                  await Clipboard.setData(ClipboardData(text: versionText));
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Copied to clipboard.'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                  }
+                },
               );
             },
           ),

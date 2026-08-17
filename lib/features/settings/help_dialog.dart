@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:lucide_flutter/lucide_flutter.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -78,12 +79,31 @@ class _HelpDialog extends StatelessWidget {
             const SizedBox(height: 4),
             FutureBuilder<PackageInfo>(
               future: PackageInfo.fromPlatform(),
-              builder: (context, snap) => Text(
-                'v${snap.data?.version ?? '…'}',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: scheme.onSurfaceVariant,
-                    ),
-              ),
+              builder: (context, snap) {
+                final versionText = 'v${snap.data?.version ?? '…'}';
+                return InkWell(
+                  borderRadius: BorderRadius.circular(4),
+                  onTap: () async {
+                    await Clipboard.setData(
+                      ClipboardData(text: versionText),
+                    );
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Copied to clipboard.'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    }
+                  },
+                  child: Text(
+                    versionText,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: scheme.onSurfaceVariant,
+                        ),
+                  ),
+                );
+              },
             ),
             const SizedBox(height: 24),
             _LinkRow(
