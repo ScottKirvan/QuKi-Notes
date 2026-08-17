@@ -9,8 +9,10 @@ import 'package:flutter/services.dart';
 import 'editor_config.dart';
 import 'html_paste.dart';
 import 'indent_dedent.dart';
-// Round 10 diagnostic (notes/dev/keyboard_focus_state.md) — temporary, see
-// keyboard_focus_debug.dart's own header comment for removal instructions.
+// Rounds 10-11 diagnostic (notes/dev/keyboard_focus_state.md, #394) — kept
+// alongside the Round 11 suppression workaround below, not just temporary;
+// see keyboard_focus_debug.dart's own header comment for why and for
+// removal instructions.
 import 'keyboard_focus_debug.dart';
 import 'md_parser.dart';
 import 'quiki_render_editor.dart';
@@ -675,6 +677,8 @@ class QuikiEditorState extends State<QuikiEditor>
     _toolbarController.remove();
     _hideMagnifier();
     _autoScrollTimer?.cancel();
+    _resumeConfirmationTimer?.cancel();
+    _staleMetricsGraceTimer?.cancel();
     widget.controller.removeListener(_onControllerChanged);
     widget.focusNode.removeListener(_onFocusChanged);
     _scrollController.removeListener(_onScrollChangedForHandles);
@@ -689,6 +693,80 @@ class QuikiEditorState extends State<QuikiEditor>
   // -------------------------------------------------------------------------
   // WidgetsBindingObserver — mobile keyboard-visible signal for _showCursor.
   // -------------------------------------------------------------------------
+
+  // Round 11 (notes/dev/keyboard_focus_state.md, #394) — pragmatic
+  // workaround for a still-unexplained stale didChangeMetrics() reading.
+  //
+  // #394's device evidence: after the app resumes from the cross-app-IME-
+  // contention scenario, didChangeMetrics() fires twice — first correctly
+  // (viewInsets.bottom=0.0, 6ms after resume), then again 328ms later with
+  // a WRONG value that exactly matches the pre-interruption open height.
+  // _showCursor() reflects whichever reading is most recent, so the second,
+  // stale-looking call is what wins, leaving the toolbar/cursor stuck
+  // visible over a keyboard that is genuinely, confirmedly closed. The root
+  // cause of that second call is NOT understood (#394) — this is a
+  // deliberate workaround for the visible symptom, not a fix for it.
+  //
+  // Mechanism: once a didChangeMetrics() reading of exactly 0 arrives
+  // shortly after an AppLifecycleState.resumed transition (the "genuine,
+  // correct" reading), a short grace window opens during which any
+  // FURTHER nonzero reading is presumed to be #394's stale redelivery and
+  // is not allowed to make _showCursor() report visible. The grace window
+  // is cancelled immediately by any genuine focus-gain (_onFocusChanged,
+  // _onTapDown) — a deliberate tap/programmatic request to show the
+  // keyboard must never be blocked by this.
+  //
+  // Timer-based (not DateTime.now() delta comparisons) so the grace window
+  // is deterministically drivable from a widget test via tester.pump(
+  // duration) — the same reasoning already documented for the Stage 3
+  // auto-scroll Timer.periodic above.
+
+  /// How recently an [AppLifecycleState.resumed] transition must have
+  /// happened for a following viewInsets.bottom == 0 [didChangeMetrics]
+  /// reading to count as the "genuine, correct" post-resume confirmation
+  /// that arms [_staleMetricsGraceTimer] below. Generous relative to the
+  /// single measured data point (the correct reading arrived 6ms after
+  /// resume) — arming alone is a no-op unless a stale nonzero reading
+  /// actually follows within [_kStaleMetricsGraceWindow], so a wide window
+  /// here carries little risk.
+  static const Duration _kResumeConfirmationWindow = Duration(seconds: 2);
+
+  /// How long after the confirmed-good post-resume reading a subsequent
+  /// nonzero [didChangeMetrics] reading is treated as suspicious and
+  /// suppressed (#394). The only measured data point for the stale call is
+  /// 328ms after the correct one; this is roughly 2.4x that — enough
+  /// margin for device-to-device jitter while staying short enough that it
+  /// cannot be mistaken for a general dampening of [_showCursor].
+  static const Duration _kStaleMetricsGraceWindow = Duration(milliseconds: 800);
+
+  /// Non-null while [_kResumeConfirmationWindow] is open — i.e. recently
+  /// enough past an [AppLifecycleState.resumed] transition that a zero
+  /// [didChangeMetrics] reading should be treated as the genuine
+  /// post-resume confirmation. Cancelled/reset on every resume.
+  Timer? _resumeConfirmationTimer;
+  bool _withinResumeConfirmationWindow = false;
+
+  /// Non-null while [_kStaleMetricsGraceWindow] is open — i.e. a confirmed
+  /// post-resume zero reading has armed the suppression and a following
+  /// nonzero reading should be distrusted. Cancelled on genuine focus-gain
+  /// (see [_onFocusChanged], [_onTapDown]) or once the window elapses.
+  Timer? _staleMetricsGraceTimer;
+  bool _suppressingStaleResumeMetrics = false;
+
+  /// See [AppLifecycleState.resumed] handling above — records only "when,"
+  /// never "what." Does NOT touch focus, matching Round 2's hard rule that
+  /// app-lifecycle transitions must never call requestFocus()/unfocus()
+  /// themselves (notes/dev/keyboard_focus_state.md).
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!_isMobile) return;
+    if (state != AppLifecycleState.resumed) return;
+    _resumeConfirmationTimer?.cancel();
+    _withinResumeConfirmationWindow = true;
+    _resumeConfirmationTimer = Timer(_kResumeConfirmationWindow, () {
+      _withinResumeConfirmationWindow = false;
+    });
+  }
 
   /// Fires whenever any view metric changes, including
   /// [FlutterView.viewInsets] (the keyboard showing/hiding).
@@ -726,9 +804,30 @@ class QuikiEditorState extends State<QuikiEditor>
     // resume sequence, and if so, with what inset value.
     if (mounted) {
       final view = View.of(context);
+      final viewInsetsBottom = view.viewInsets.bottom / view.devicePixelRatio;
       KeyboardFocusDebugCounters.instance.recordDidChangeMetrics(
-        viewInsetsBottom: view.viewInsets.bottom / view.devicePixelRatio,
+        viewInsetsBottom: viewInsetsBottom,
       );
+
+      // Round 11 (#394) — see the doc comment on _kStaleMetricsGraceWindow
+      // above for the full mechanism this arms/detects.
+      if (viewInsetsBottom == 0 && _withinResumeConfirmationWindow) {
+        // The genuine, correct post-resume reading — arm the grace window
+        // so a following stale reading gets ignored rather than shown.
+        _staleMetricsGraceTimer?.cancel();
+        _suppressingStaleResumeMetrics = true;
+        _staleMetricsGraceTimer = Timer(_kStaleMetricsGraceWindow, () {
+          _suppressingStaleResumeMetrics = false;
+        });
+      } else if (viewInsetsBottom > 0 && _suppressingStaleResumeMetrics) {
+        // #394's stale call, arriving inside the grace window — recorded so
+        // its continued presence (or eventual disappearance, if some other
+        // change ever fixes the root cause) stays visible on-device rather
+        // than silently vanishing behind this workaround.
+        KeyboardFocusDebugCounters.instance.recordSuppressedStaleMetrics(
+          viewInsetsBottom: viewInsetsBottom,
+        );
+      }
     }
     if (mounted) setState(() {});
   }
@@ -777,11 +876,27 @@ class QuikiEditorState extends State<QuikiEditor>
 
   void _onFocusChanged() {
     if (widget.focusNode.hasFocus) {
+      // Round 11 (#394): a genuine focus gain — a user tap, new-note
+      // autofocus, or any other real requestFocus() call — means the
+      // keyboard is deliberately wanted back. Never let the post-resume
+      // stale-metrics suppression window (see _kStaleMetricsGraceWindow)
+      // hold the cursor/toolbar hidden through this.
+      _cancelStaleMetricsSuppression();
       _openConnection();
     } else {
       _closeConnection();
     }
     if (mounted) setState(() {});
+  }
+
+  /// Round 11 (#394): cancels the post-resume stale-metrics suppression
+  /// window immediately, so a genuine, deliberate reopen of the keyboard is
+  /// never delayed by it. See [_onFocusChanged] and [_onTapDown]'s call
+  /// sites, and the doc comment on [_kStaleMetricsGraceWindow].
+  void _cancelStaleMetricsSuppression() {
+    _staleMetricsGraceTimer?.cancel();
+    _staleMetricsGraceTimer = null;
+    _suppressingStaleResumeMetrics = false;
   }
 
   void _openConnection() {
@@ -1450,6 +1565,15 @@ class QuikiEditorState extends State<QuikiEditor>
 
     // Bug 3: handle all focus/connection states so the keyboard is always
     // shown after a tap regardless of how the previous session ended.
+    //
+    // Round 11 (#394): cancel any active post-resume stale-metrics
+    // suppression window unconditionally, before branching. If focus was
+    // never lost across the resume (the confirmed common case — see #394's
+    // linked round in notes/dev/keyboard_focus_state.md), this tap takes
+    // the "already focused" branches below and would never otherwise pass
+    // through _onFocusChanged's own cancellation — a deliberate tap must
+    // still win immediately regardless of which branch it takes.
+    _cancelStaleMetricsSuppression();
     if (!widget.focusNode.hasFocus) {
       // _onFocusChanged fires → _openConnection → show().
       widget.focusNode.requestFocus();
@@ -2106,9 +2230,21 @@ class QuikiEditorState extends State<QuikiEditor>
   /// (notes/dev/keyboard_state_testing.md) was scoped to Android/mobile
   /// only, so desktop keeps the pre-pivot FocusNode.hasFocus signal, which
   /// was never the broken part of this.
+  ///
+  /// Round 11 (#394): a nonzero live reading is additionally distrusted for
+  /// the duration of [_suppressingStaleResumeMetrics]'s grace window — see
+  /// the doc comment on [_kStaleMetricsGraceWindow] above. This is a
+  /// time-scoped override of the live value, not a cached one: [_showCursor]
+  /// is re-evaluated on every build, not only on a [didChangeMetrics]-driven
+  /// one, and #394's stale reading becomes the [FlutterView]'s live
+  /// viewInsets value once delivered — so the override must hold for any
+  /// rebuild that lands inside the window, not just the one that receives
+  /// the stale event itself.
   bool _showCursor(BuildContext context) {
     if (!_isMobile) return widget.focusNode.hasFocus;
-    return View.of(context).viewInsets.bottom > 0;
+    final liveKeyboardVisible = View.of(context).viewInsets.bottom > 0;
+    if (liveKeyboardVisible && _suppressingStaleResumeMetrics) return false;
+    return liveKeyboardVisible;
   }
 
   @override

@@ -227,4 +227,45 @@ Rounds 1, 2, and 6 are untouched: `connectionClosed()` still doesn't force an un
 
 **Correctness invariants held.** This is a read-only diagnostic tap, no behavior change: Round 1 (`connectionClosed()` doesn't force an unfocus), Round 2 (`viewInsets.bottom`-driven visibility, including the `_isMobile` guard and the `setState(())` call, both untouched), Round 6 (`MainActivity.kt`'s deferred `window.decorView.post {}` dispatch), and Round 9 (no forced-show call on the `onWindowFocusChanged(true)` branch, `_pendingFocusRestore` false→true pairing logic unchanged) are all unmodified — verified by re-reading each touched method after editing, not just by intent. No QuKi content is logged or transmitted; only counts, timestamps, and the bare numeric inset value, matching every prior round's discipline.
 
-**Not yet device-tested.** Awaiting the next device test against the same cross-app resume repro (Rounds 5/6/8/9). The result will directly distinguish the two remaining possibilities Round 9 already named: (a) `didChangeMetrics()` never fires after this resume sequence at all (an Android/Flutter-engine-level propagation gap this app cannot see any other way), or (b) it does fire, but with a stale or otherwise-wrong `viewInsets.bottom` value (a different, narrower bug in what value is actually being read/propagated at that moment).
+**Device-tested — result captured and acted on in Round 11 below.** The overlay resolved the question in favor of possibility (b): `didChangeMetrics()` does fire — twice — the first time with a correct value, the second time with a stale one. See Round 11 for the exact captured sequence, the issue filed for the still-unexplained root cause (#394), and the pragmatic workaround shipped on top of this telemetry.
+
+---
+
+## Round 11 — suppress the stale post-resume `didChangeMetrics()` reading (issue #394) (2026-08-17)
+
+**This is a workaround, not a root-cause fix.** Round 10's telemetry answered its own open question but raised a new one this round does not attempt to answer: *why* does `didChangeMetrics()` fire a second time, 328ms after a correct reading, with a value that exactly matches the pre-interruption open keyboard height? That mechanism is filed as [issue #394](https://github.com/ScottKirvan/QuKi-Notes/issues/394) and remains genuinely unknown — not guessed at, not assumed benign. This round exists only to stop the *visible symptom* (toolbar/cursor stuck over a keyboard that's confirmedly closed) without losing sight of the fact that the underlying cause is still open. The project owner's explicit direction going into this round: "do not lose the knowledge that this errant call is firing — we need this to be clean eventually."
+
+**The captured evidence this round works from** (Round 10's overlay, real device):
+
+```
+17:54:14.073  windowFocus(false)                              — app backgrounded
+17:54:21.396  windowFocus(true)                                — app resumed
+17:54:21.402  didChangeMetrics(viewInsets.bottom=0.0)           — CORRECT, 6ms after resume
+17:54:21.730  didChangeMetrics(viewInsets.bottom=370.0)         — WRONG, 328ms later
+```
+
+### The mechanism
+
+In `QuikiEditorState` (`packages/markdown_live_editor/lib/src/quiki_editor.dart`):
+
+- A new `didChangeAppLifecycleState()` override (added to the same `WidgetsBindingObserver` this class already mixes in for `didChangeMetrics()`) records only *when* an `AppLifecycleState.resumed` transition happened — a 2-second `_kResumeConfirmationWindow` during which a following `viewInsets.bottom == 0` reading counts as the "genuine, correct" post-resume confirmation. This does **not** touch focus in any way, holding the existing hard rule below intact.
+- When `didChangeMetrics()` observes exactly that — a zero reading inside the resume-confirmation window — it arms an 800ms `_kStaleMetricsGraceWindow` (`_suppressingStaleResumeMetrics = true`, backed by a `Timer`, not a `DateTime.now()` delta comparison, so the window is deterministically drivable from a widget test via `tester.pump(duration)` — the same reasoning already used for the Stage 3 selection auto-scroll `Timer.periodic`). 328ms is the only measured data point for the stale call; 800ms is roughly 2.4x that, chosen as a safety margin for device-to-device jitter while staying short enough that it cannot be mistaken for a general dampening of `_showCursor()`.
+- While that window is open, `_showCursor()` distrusts a live nonzero `viewInsets.bottom` reading and reports `false` (hidden) instead — this has to be an active override of the *live* value, not just skipping a `setState()` at the moment the stale reading arrives, since `_showCursor()` is re-evaluated on every rebuild and the stale value becomes the `FlutterView`'s actual live `viewInsets` once delivered.
+- The grace window is cancelled immediately — not just left to expire — by any genuine, deliberate focus-gain: `_onFocusChanged`'s focus-gained branch (covers new-note autofocus and any other real `requestFocus()` call) and `_onTapDown`'s focus/connection-handling block (covers a tap while focus was never actually lost across the resume — the confirmed-common case per Round 1's evidence, where `FocusNode.hasFocus` never changes during a real backgrounding interruption at all, so `_onTapDown` takes its "already focused, re-show the connection" branch rather than the "request focus" branch, and would never pass through `_onFocusChanged`'s own cancellation otherwise). Both call sites share one `_cancelStaleMetricsSuppression()` helper.
+- A reading arriving *after* the grace window has naturally elapsed is trusted normally, with no special handling — this app has no way to distinguish a late-arriving stale call from a genuine one, and the design deliberately does not try to (a wider, unbounded suppression would stop being "a short grace window" and start being a general dampening of `_showCursor()`, which the brief for this round explicitly ruled out).
+
+### Telemetry — the evidence must stay visible, not vanish behind the fix
+
+Round 10's overlay (`keyboard_focus_debug.dart`) is **kept**, not removed — its job changed: it is no longer just a one-question diagnostic to retire once Round 10's question was answered, it is now the only on-device way (GitHub Actions → sideload, no attached console) to confirm the suppression is actually triggering, and to notice if #394's root cause ever silently disappears on its own. A third counter was added, following the same pattern as the existing two: `suppressedStaleMetricsCount` / `lastSuppressedStaleMetrics` (timestamp) / `lastSuppressedStaleMetricsValue` (the actual suspicious `viewInsets.bottom` value), recorded via `KeyboardFocusDebugCounters.recordSuppressedStaleMetrics()` every time the suppression actually engages, fed into the same `sequenceLog` the other two signals use, and shown on the overlay as a third line. `keyboard_focus_debug.dart`'s own header comment now says explicitly: do not delete this file (or the Round 11 suppression logic in `quiki_editor.dart`) until #394 itself is closed — root cause identified, and either fixed at the source or confirmed permanently gone.
+
+### Correctness invariants held
+
+Rounds 1, 2, 6, and 9 are untouched: `connectionClosed()` still doesn't force an unfocus; visibility is still fundamentally driven by `viewInsets.bottom`, not `FocusNode.hasFocus` (this round only adds a time-scoped override on top of that mechanism, it doesn't replace it); `MainActivity.kt`'s deferred dispatch and the removed forced-show call are unmodified. `didChangeAppLifecycleState()` is a new override but follows the same hard rule Round 9 restated: app-lifecycle transitions must never call `requestFocus()`/`unfocus()` themselves — it records a timestamp only.
+
+### Tests
+
+`packages/markdown_live_editor/test/keyboard_stale_resume_metrics_test.dart` (new) — `AppLifecycleState.resumed` simulated via `WidgetsBinding.instance.handleAppLifecycleStateChanged(...)` (the same pattern already used in `test/features/setup/storage_setup_screen_test.dart`), `viewInsets` changes simulated via `tester.view.viewInsets = FakeViewPadding(...)` (matching `keyboard_viewinsets_test.dart`'s established convention). Five cases: the exact #394 repro (stale reading ~328ms after a confirmed zero reading is suppressed, and recorded), a genuine tap immediately after resume is never blocked (exercises `_onTapDown`'s "already focused" branch specifically, not `_onFocusChanged`), ordinary same-session keyboard open/close with no resume ever occurring is completely unaffected, suppression naturally expires once the grace window elapses, and a nonzero reading with no preceding confirmed-zero reading is never suppressed (arming requires the genuine reading, not resume alone).
+
+### What remains open
+
+Issue #394 itself — the actual root cause of the second, stale `didChangeMetrics()` call. Candidate directions logged on the issue: Android's `ViewRootImpl`/`InsetsController` redelivering a cached `WindowInsets` object during resume-related relayout, or a Flutter-engine-side metrics-caching gap. Needs either device console access (not currently available) or a further targeted on-screen diagnostic pass — not attempted this round.
