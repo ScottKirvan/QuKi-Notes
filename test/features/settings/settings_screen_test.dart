@@ -194,8 +194,7 @@ void main() {
       );
 
       final calls = <MethodCall>[];
-      TestDefaultBinaryMessengerBinding
-          .instance.defaultBinaryMessenger
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMethodCallHandler(SystemChannels.platform, (call) async {
         calls.add(call);
         return null;
