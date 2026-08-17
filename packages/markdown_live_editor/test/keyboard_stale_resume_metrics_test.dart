@@ -260,8 +260,7 @@ void main() {
 
   testWidgets(
       'suppression naturally expires once the grace window elapses — a '
-      'reading arriving after the window is trusted normally',
-      (tester) async {
+      'reading arriving after the window is trusted normally', (tester) async {
     final focusNode = FocusNode();
     await tester.pumpWidget(_buildEditor(
       initialValue: 'hello',

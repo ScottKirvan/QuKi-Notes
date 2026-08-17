@@ -227,8 +227,7 @@ class KeyboardFocusDebugOverlay extends StatefulWidget {
       _KeyboardFocusDebugOverlayState();
 }
 
-class _KeyboardFocusDebugOverlayState
-    extends State<KeyboardFocusDebugOverlay> {
+class _KeyboardFocusDebugOverlayState extends State<KeyboardFocusDebugOverlay> {
   final _counters = KeyboardFocusDebugCounters.instance;
 
   @override
