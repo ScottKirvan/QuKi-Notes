@@ -3,7 +3,6 @@ package com.quki.quki_notes
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
-import android.view.ViewGroup
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -69,7 +68,7 @@ class MainActivity : FlutterActivity() {
         super.onStop()
         lifecycleDebugChannel?.invokeMethod(
             "onActivityStop",
-            mapOf("flutterViewVisibility" to visibilityName(findFlutterView(window.decorView)))
+            mapOf("flutterViewVisibility" to visibilityName(findFlutterView()))
         )
     }
 
@@ -82,26 +81,45 @@ class MainActivity : FlutterActivity() {
         super.onStart()
         lifecycleDebugChannel?.invokeMethod(
             "onActivityStart",
-            mapOf("flutterViewVisibility" to visibilityName(findFlutterView(window.decorView)))
+            mapOf("flutterViewVisibility" to visibilityName(findFlutterView()))
         )
     }
 
     // TEMP DEBUG (Round 4, see onCreate() above for the full explanation).
-    // Recursively finds the descendant View whose class simple name contains
-    // "FlutterView" — there is no public getter for it from MainActivity,
-    // and its exact wrapping (whether it's the decor view's direct child or
-    // nested under a splash-screen container) is an internal embedding
-    // detail not worth depending on more precisely than this.
-    private fun findFlutterView(view: View): View? {
-        if (view.javaClass.simpleName.contains("FlutterView")) return view
-        if (view is ViewGroup) {
-            for (i in 0 until view.childCount) {
-                val found = findFlutterView(view.getChildAt(i))
-                if (found != null) return found
-            }
-        }
-        return null
-    }
+    // Round 7 fix (notes/dev/keyboard_focus_state.md) — this previously
+    // walked the decor view tree by hand looking for a descendant View whose
+    // class simple name contains "FlutterView". Two fresh Round 6 device
+    // tests (see keyboard_focus_debug.dart's header comment, Round 6/7
+    // additions) both reported "(not-found)" here on a full-stop scenario
+    // that Round 4's own device testing had previously found successfully
+    // (real GONE/VISIBLE values) — a genuine regression in this diagnostic,
+    // blinding exactly the check the next device test needs.
+    //
+    // The exact mechanism of that regression is NOT confirmed — it could not
+    // be reproduced or root-caused from source alone (there is no code-level
+    // reason this recursive walk should fail to find a view that
+    // `FlutterActivity.onCreate()` sets as this Activity's own content view
+    // via `setContentView(createFlutterView())`, confirmed by reading
+    // FlutterActivity.java directly), and this round has no device access to
+    // test it further. Rather than guess at the cause, this replaces the
+    // fragile mechanism outright with the one Flutter's own source
+    // documents as the intended way to do this exact lookup:
+    // `FlutterActivity.FLUTTER_VIEW_ID`, a public constant whose doc comment
+    // reads verbatim "This ID can be used to lookup FlutterView in the
+    // Android view hierarchy" (FlutterActivity.java, confirmed present in
+    // this project's exact Flutter 3.44.0 engine source) — set on the
+    // FlutterView via `flutterView.setId(flutterViewId)` in
+    // FlutterActivityAndFragmentDelegate.onCreateView(), also confirmed by
+    // reading that source directly, not assumed from the constant's name
+    // alone. `findViewById()` is Android's own cached, ID-based view lookup
+    // rather than a hand-rolled string-matching tree walk, so this is a
+    // genuine robustness improvement regardless of the previous mechanism's
+    // exact failure cause — the same "real, independently-correct
+    // improvement, not yet confirmed as fixing the specific symptom"
+    // framing this investigation has used before (see Round 1's
+    // connectionClosed() fix). The next device test will show directly
+    // whether this reports a real value again.
+    private fun findFlutterView(): View? = findViewById(FlutterActivity.FLUTTER_VIEW_ID)
 
     // Round 5 (notes/dev/keyboard_focus_state.md, the resume-after-
     // interruption fix) — see keyboard_focus_debug.dart's header comment
