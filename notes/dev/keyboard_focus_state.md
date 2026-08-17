@@ -1,6 +1,6 @@
 # Keyboard/focus state — design
 
-**Status**: design locked 2026-08-15; implementation carried through 9 rounds (8 device-tested, Round 9 not yet device-tested) on `fix/keyboard-focus-connection-closed` / `fix/stop-racing-automatic-hide-on-resume` (PR #376, unmerged — **do not merge until a real device test confirms the fix fully holds**, per the project owner's explicit standing instruction). The bug is **not yet confirmed fixed**, but as of Round 8 (2026-08-17, native `adb logcat` capture — see that section near the bottom) the root mechanism was directly evidenced, not just hypothesized: the app's own forced-show fix collides with and loses to Android's automatic hide-on-resume behavior. Round 9 (below, same date) acted on that evidence per the project owner's chosen direction — the forced show is removed outright rather than retimed, a deliberate, accepted tradeoff that gives up Round 5's auto-restore-after-interruption goal in exchange for no longer visibly fighting a race the app was always going to lose. See "Round 9" near the bottom of this file for exactly what changed and what remains unverified without a device. All temporary Dart-side diagnostic instrumentation was removed after Round 7 so the project owner could continue the investigation directly via ADB — Round 8 confirms that native `adb logcat`/`ImeTracker` observation (no app rebuild needed) was the right next tool, exactly as intended. This file's original design-doc content (below, "Root cause"/"The design"/"Explicitly unaffected"/"Required device verification") predates implementation and is kept as-is for the reasoning it documents; see "Investigation rounds" below for what actually happened once device testing started, which is the current source of truth for what's fixed, what isn't, and why. **Process note**: rounds 1-5 were tracked only in PR #376's own body text (edited after each round via `gh pr edit`), not written back into this file — a real gap in the "sync docs after every round" discipline this project otherwise tries to hold to. This section reconstructs that history as of Round 6 so it isn't lost if the PR is ever closed.
+**Status**: design locked 2026-08-15; implementation carried through 12 rounds on `fix/keyboard-focus-connection-closed` (PR #376, unmerged — **do not merge until a real device test confirms the fix fully holds**, per the project owner's explicit standing instruction). The bug's root mechanism is understood at the millisecond level (Round 10: `didChangeMetrics()` fires twice after resume, once correctly then once with a stale value) and a deliberate, explicitly-labeled workaround is in place (Round 11) — but Round 11's own device test found a real gap in its coverage (the toolbar and cursor were driven by two independent signals, only one of which the workaround touched), closed by Round 12 (not yet device-tested). The workaround's own root cause is still tracked separately and unresolved as [issue #394](https://github.com/ScottKirvan/QuKi-Notes/issues/394). See "Round 12" near the bottom of this file for the current state. All temporary Dart-side diagnostic instrumentation was removed after Round 7, then a narrower version reintroduced for Round 10 — see that section for why, and "Instrumentation removed (post-Round 7)" / Round 10-11's own notes for what's kept and why it must stay until #394 closes. This file's original design-doc content (below, "Root cause"/"The design"/"Explicitly unaffected"/"Required device verification") predates implementation and is kept as-is for the reasoning it documents; see "Investigation rounds" below for what actually happened once device testing started, which is the current source of truth for what's fixed, what isn't, and why. **Process note**: rounds 1-5 were tracked only in PR #376's own body text (edited after each round via `gh pr edit`), not written back into this file — a real gap in the "sync docs after every round" discipline this project otherwise tries to hold to. This section reconstructs that history as of Round 6 so it isn't lost if the PR is ever closed.
 
 **Origin**: a real device-testing pass through `notes/dev/keyboard_state_testing.md` against issues #340, #263, #235, #265, #328, #177, #239, #234 found the reading/edit-mode mechanism itself broken — existing notes rarely land in reading mode, dismissing the keyboard doesn't clear the toolbar/cursor, and backgrounding the app with the keyboard open causes a visible black-area glitch and the keyboard failing to return (unlike every other app tested — confirmed by the project owner directly, not assumed). This is not a fix for any one of those issues individually; it replaces the mechanism all of them were breaking against.
 
@@ -269,3 +269,42 @@ Rounds 1, 2, 6, and 9 are untouched: `connectionClosed()` still doesn't force an
 ### What remains open
 
 Issue #394 itself — the actual root cause of the second, stale `didChangeMetrics()` call. Candidate directions logged on the issue: Android's `ViewRootImpl`/`InsetsController` redelivering a cached `WindowInsets` object during resume-related relayout, or a Flutter-engine-side metrics-caching gap. Needs either device console access (not currently available) or a further targeted on-screen diagnostic pass — not attempted this round.
+
+---
+
+## Round 12 — unify the toolbar's visibility signal with the cursor's (2026-08-17)
+
+**Round 11, device-tested — the suppression mechanism fired exactly as designed, and the visible bug was still there.** The overlay confirmed: `suppressedStaleMetrics` incremented 1ms after a stale `370.0` reading that arrived 317ms after a confirmed `0.0` reading (matching Round 10's original 328ms capture almost exactly) — proof the workaround genuinely triggered. And yet the toolbar (and, per the project owner's report, the general "stuck" feel) was still there.
+
+**The reason, found directly, not via more diagnostics**: Round 11's suppression lives entirely inside `QuikiEditorState._showCursor()` (`packages/markdown_live_editor/lib/src/quiki_editor.dart`), which governs the *cursor's* paint visibility. `lib/features/editor/editor_screen.dart` has always computed the *FormattingToolbar's* visibility (and the T-button's icon) independently:
+
+```dart
+final keyboardVisible = isMobile
+    ? MediaQuery.viewInsetsOf(context).bottom > 0
+    : _editorController.hasActiveBlock;
+```
+
+This reads the same underlying platform inset directly via `MediaQuery`, with zero knowledge of Round 11's suppression window. So the cursor correctly stayed hidden — the fix works — while the toolbar, driven by a second, parallel, unpatched consumer of the same raw signal, popped back up anyway.
+
+### The fix
+
+A single source of truth now exists for "is the keyboard considered visible right now" on mobile, and both the caret and the host app read it:
+
+- New `QuikiEditorState.isKeyboardVisible` getter — recomputes `_showCursor(context)` directly (the exact same computation, including the suppression window), distinct from the pre-existing test-only `showsCursorForTesting` (which reads back off the render object instead — not suitable for a production call site that needs a correct answer before the next frame paints).
+- New `QuikiEditor.onKeyboardVisibilityChanged` callback, fired via a new `_notifyKeyboardVisibilityIfChanged()` helper called from every site that can change the computed value without necessarily firing a `FocusNode` transition: `didChangeMetrics()` (a fresh inset reading), `_onFocusChanged()` (focus-gain cancels the suppression), and `_onTapDown()`'s already-focused branches (same cancellation, but with no focus transition to notify through otherwise).
+- Threaded up through `MarkdownEditorController` as `isKeyboardVisible` / `onKeyboardVisibilityChanged`, mirroring the existing `hasActiveBlock` / `onFocusChanged` pattern exactly.
+- `editor_screen.dart`'s mobile branch now reads `_editorController.isKeyboardVisible` instead of its own `MediaQuery.viewInsetsOf(context).bottom > 0`. **Desktop's branch (`hasActiveBlock`) is untouched** — this investigation has always been scoped to Android/mobile; desktop has no software keyboard.
+
+A real, separate correctness gap was caught and fixed in the existing `formatting_toolbar_test.dart` mobile-visibility tests along the way: they drove `tester.view.viewInsets` directly but never set `QuikiEditorState.debugForceMobile`, which the new `isKeyboardVisible` path depends on — the package's own `_isMobile` gate is a separate switch from the app's `isMobileProvider` override those tests already used. Without forcing both, `_showCursor()` would silently take its desktop fallback (`FocusNode.hasFocus`) on the desktop/CI test host, defeating the exact scenario those tests exist to catch. Fixed with matching `setUp`/`tearDown`.
+
+### Tests
+
+New group in `test/features/editor/editor_screen_test.dart` — one test reproduces the exact #394 sequence end-to-end (focus → keyboard up → resume → confirmed-zero reading → stale reading 328ms later) and asserts `find.byType(FormattingToolbar)` — not just the cursor — stays hidden through the suppression window, then reopens on a genuine tap; a second confirms ordinary (non-resume) show/hide via typing/dismiss-icon/back-gesture is completely unaffected by the signal-unification change.
+
+### Correctness invariants held
+
+Rounds 1, 2, 6, 9, and 11's existing logic inside `quiki_editor.dart` is unmodified — this round exposes what already existed more broadly (a new getter/callback plus three call sites to the new notify helper), it doesn't change the suppression mechanism itself.
+
+### What remains open
+
+Issue #394's actual root cause is still unknown — this round closes a real gap in Round 11's *coverage*, it is not a step toward explaining *why* the stale `didChangeMetrics()` call happens in the first place. Not yet device-tested.
