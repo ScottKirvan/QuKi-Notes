@@ -34,6 +34,13 @@
 //      recording calls (recordWindowFocusChanged/recordFocusRestoreAttempted
 //      below, and the corresponding overlay rows) are temporary and safe to
 //      delete once verification is complete.
+//   5. Round 6 addition — also NOT purely diagnostic: MainActivity.kt's
+//      onWindowFocusChanged() override now defers its dispatch via
+//      `window.decorView.post {}` instead of sending it inline (see the
+//      Round 6 addition section below). That deferral is a real part of the
+//      fix. Do not revert it to an inline dispatch as part of a future
+//      diagnostics-only cleanup. Only `sequenceLog` below (and its overlay
+//      rendering) is temporary/diagnostic-only.
 //
 // Round 2 addition: KeyboardFocusDebugOverlay also shows the LIVE current
 // value of the platform's keyboard-inset signal — the new ground-truth
@@ -196,6 +203,78 @@
 //     ordinary user interaction, so the next device round can confirm this
 //     specific new code path fired, and — paired with the existing
 //     connOpen/nativeFocus readings afterward — whether it actually worked.
+//
+// Round 6 addition (cross-app IME contention — the two-app keyboard repro):
+// two more device tests, both switching away from QuKi-Notes (keyboard open)
+// to a DIFFERENT app that itself had its own keyboard/text field open, then
+// back. Test 1: windowFocus and restoreAttempted both fired for the first
+// time ever in this whole investigation — genuine confirmation Round 5's
+// mechanism actually ran — but viewInsets.bottom stayed stuck nonzero
+// anyway, no real keyboard behind it. Test 2 (identical repro, repeated):
+// viewInsets.bottom correctly settled to 0 this time, but the editor still
+// ended up with no working keyboard/focus either way — and nativeFocus/
+// windowFocus each jumped by 2 while restoreAttempted only jumped by 1,
+// meaning more than one focus-change cycle happened, not a single clean one.
+//
+// Real, documented cause found (not assumed — see sources below): Android's
+// own InputMethodManager does not finish marking a newly-focused window
+// ready to receive showSoftInput() calls until AFTER
+// Activity#onWindowFocusChanged() returns — its internal mServedView field
+// is set by ViewRootImpl's checkFocusNoStartInput(), which runs "later" in
+// the handling of the same window-focus message. The official Android
+// documentation ("Handle input method visibility", developer.android.com)
+// confirms this exact race and its own recommended fix: calling
+// showSoftInput() synchronously/inline from onWindowFocusChanged can
+// silently no-op for this reason; post a Runnable so the dependent call
+// runs on the next iteration of the UI message loop instead, after
+// mServedView is set. (Corroborating third-party writeup with the same
+// underlying mechanism traced to source:
+// https://developer.squareup.com/blog/showing-the-android-keyboard-reliably/.)
+// This is a real, general Android framework behavior, not something
+// specific to Flutter or this app — but it plausibly explains why Round 5's
+// mechanism looked closer to working yet still failed sharpest in the
+// cross-app-IME-contention scenario specifically: when the PREVIOUS window
+// also had its own active IME session, InputMethodManager has more
+// unbind/rebind work to do around the focus handoff than a simple
+// window-to-window switch would, which would widen the race window past
+// whatever margin let Round 5's mechanism pass in simpler cases.
+//
+// Fix (MainActivity.kt's onWindowFocusChanged() override): the dispatch to
+// Dart is now deferred via `window.decorView.post {}` rather than sent
+// inline, so it — and everything the Dart-side restore chain triggers
+// downstream, including the eventual native showTextInput() call several
+// hops later — runs after checkFocusNoStartInput() has committed for this
+// same focus change. This is the same guarantee the documented Android fix
+// relies on, applied one level higher: this app never calls showSoftInput()
+// itself, Flutter's engine does, several async hops downstream of the
+// restore chain this event triggers.
+//
+// Activity#onResume() was considered as a second/earlier trigger (this
+// round's brief asked specifically whether it would help) and rejected:
+// official Android documentation confirms onResume() fires BEFORE window
+// focus is granted in the typical case, not after — an even less reliable
+// point to attempt IME re-establishment than onWindowFocusChanged already
+// was, not a better one ("onResume is not the best indicator that your
+// activity is visible to the user... use onWindowFocusChanged(boolean) to
+// know for certain", developer.android.com's own activity-lifecycle guide).
+// It's also unnecessary on the evidence gathered so far: both Round 5's and
+// Round 6's device tests show onWindowFocusChanged reliably firing in the
+// cross-app scenario already — the confirmed problem was never "the signal
+// doesn't fire," it was "acting on it raced against IME readiness" — so a
+// second trigger point would add complexity without addressing the
+// confirmed cause.
+//
+// No confirmed evidence was found for a further, DIFFERENT race beyond the
+// one just described — the double windowFocus/nativeFocus increment on Test
+// 2 above is not yet explained. It's plausible that extra focus-change
+// churn is a genuine, expected part of this specific Android/IME handoff
+// when the previous app also held an active IME session, but that is not
+// confirmed, and this round does not ship a fix for it — there is no
+// evidence yet to distinguish a real second bug from ordinary platform
+// churn. A rolling, millisecond-timestamped sequence log (added separately,
+// see git history) lets the next device test show directly whether the
+// deferred-dispatch fix above resolves the two-app scenario outright, or
+// whether a second, still-unexplained cycle remains.
 //
 // Counts and timestamps only — never logs, transmits, or persists QuKi
 // content. Nothing here touches shared_preferences or any other persistence;

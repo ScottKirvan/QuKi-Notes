@@ -118,12 +118,33 @@ class MainActivity : FlutterActivity() {
     // focus (MarkdownEditorController.restoreFocusAfterInterruption() in
     // markdown_editor.dart) — do not remove this override as part of a
     // future diagnostics-only cleanup pass.
+    //
+    // Round 6 (cross-app IME contention) — see keyboard_focus_debug.dart's
+    // header comment (Round 6 addition) for the full device evidence and
+    // citations. The dispatch below is now deferred via
+    // `window.decorView.post {}` instead of sent inline — this deferral is
+    // itself part of the fix, not incidental, matching Android's own
+    // documented behavior: InputMethodManager does not finish marking this
+    // window ready to receive showSoftInput() calls (its internal
+    // mServedView, set by ViewRootImpl.checkFocusNoStartInput()) until
+    // AFTER Activity#onWindowFocusChanged() returns, within the handling of
+    // this SAME window-focus message. Dispatching inline risked starting
+    // the whole Dart-side restore chain (which ends, several async hops
+    // later, in Flutter's own TextInputPlugin.showTextInput() calling
+    // InputMethodManager.showSoftInput()) before that internal state was
+    // ready — the official Android fix for this exact race
+    // (developer.android.com, "Handle input method visibility") is to post
+    // a Runnable from onWindowFocusChanged so the dependent call runs on
+    // the next iteration of the UI message loop instead. Do not revert this
+    // to an inline dispatch as part of a future diagnostics-only cleanup.
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        lifecycleDebugChannel?.invokeMethod(
-            "onWindowFocusChanged",
-            mapOf("hasFocus" to hasFocus)
-        )
+        window.decorView.post {
+            lifecycleDebugChannel?.invokeMethod(
+                "onWindowFocusChanged",
+                mapOf("hasFocus" to hasFocus)
+            )
+        }
     }
 
     // TEMP DEBUG (Round 4, see onCreate() above for the full explanation).
