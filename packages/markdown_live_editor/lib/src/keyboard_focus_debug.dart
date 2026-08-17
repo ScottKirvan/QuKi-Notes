@@ -22,8 +22,22 @@
 //      the lifecycleDebugChannel field, its onNewIntent() override, its
 //      onStop()/onStart() overrides, the onCreate() override that registers
 //      the ViewTreeObserver.OnGlobalFocusChangeListener, and the
-//      findFlutterView() helper (Round 4 additions — see below). Remove all
-//      of it.
+//      findFlutterView() helper (Round 4 additions — see below; Round 7
+//      replaced its implementation, see below, but it's still purely
+//      diagnostic and still safe to remove as a unit). Remove all of it.
+//   6. Round 7 addition — purely diagnostic, safe to remove as a unit like
+//      1-4 above: MainActivity.kt's onCreate() registers a
+//      ViewCompat.setOnApplyWindowInsetsListener on window.decorView
+//      reporting "onNativeInsetsChanged" over the same lifecycle_debug
+//      channel; editor_screen.dart's handler for it and the corresponding
+//      recordNativeInsetsChanged() counter/overlay row below. Also Round 7:
+//      findFlutterView() in MainActivity.kt was rewritten to use the
+//      documented FlutterActivity.FLUTTER_VIEW_ID + findViewById() instead
+//      of a hand-rolled recursive tree walk — this rewritten version stays
+//      if Round 4's diagnostics are ever kept longer than the rest of this
+//      file, since it is strictly more robust than what it replaced; only
+//      remove it as part of removing the whole activityStop/activityStart
+//      diagnostic per item 3 above.
 //   4. Round 5 addition — this one is NOT purely diagnostic, unlike 1-3
 //      above: MainActivity.kt's onWindowFocusChanged() override is also the
 //      real fix's trigger, not just telemetry. Do not remove it (or
@@ -279,6 +293,63 @@
 // something none of the existing per-type "last fired" fields can
 // distinguish from a single clean cycle.
 //
+// Round 7 addition (native window-insets telemetry — the layer beyond
+// everything instrumented so far): two fresh device tests of Round 6's fix,
+// run back-to-back with an identical two-app-IME-contention repro, came back
+// as a clean, deterministic, twice-reproduced failure — windowFocus/
+// nativeFocus counts matched exactly (3 each), restoreAttempted was 1 (not
+// Round 6 Test 2's unexplained 2), and connOpen is confirmed (by reading
+// quiki_editor.dart directly) to fire immediately after `_connection!.show()`
+// is actually called. Every signal this file tracks says the fix chain runs
+// cleanly end to end — and yet viewInsets.bottom still gets stuck at a stale
+// nonzero value (370.0, identically, both times) with no real keyboard on
+// screen. That means the remaining problem lives in a layer nothing here has
+// ever observed: what Android's InputMethodManager actually does with the
+// confirmed `.show()` call, and/or whether Flutter's own engine ever
+// receives a fresh platform inset callback after resume at all. This adds:
+//   - nativeInsetsChanged: MainActivity.kt's
+//     ViewCompat.setOnApplyWindowInsetsListener(window.decorView), reporting
+//     WindowInsetsCompat.Type.ime()'s visibility + raw bottom-inset pixel
+//     value every time Android delivers a new WindowInsets to the app's root
+//     view. This directly distinguishes the two very different remaining
+//     failure modes: (a) no new native insets callback ever arrives after
+//     the restore chain runs — an Android/IME-level failure the app cannot
+//     see, would need a different trigger/timing than anything tried in
+//     Rounds 1-6 — versus (b) a real callback does arrive with a real
+//     visible/nonzero IME inset, but Flutter's own `MediaQuery.viewInsets`
+//     never reflects it — a completely different, Flutter-engine-side
+//     propagation bug. Whether anything has arrived at all since the last
+//     windowFocus(true) is answered by the existing sequenceLog's
+//     chronological ordering (this event's own log entries interleave with
+//     the rest, exactly as Round 6 intended that mechanism for) — no new
+//     bookkeeping was added for that question specifically.
+// findFlutterView() (MainActivity.kt) was also fixed this round — a real,
+// unrelated regression found while implementing the above: Round 4's
+// activityStop/activityStart flutterViewVisibility diagnostic reported
+// "(not-found)" on both of the two fresh device tests, where Round 4's own
+// original device testing had found real GONE/VISIBLE values in the same
+// full-stop scenario. The previous implementation walked the decor view tree
+// by hand, matching on `javaClass.simpleName.contains("FlutterView")`. No
+// code-level reason for this regression could be found by reading the
+// engine source (FlutterActivity.onCreate() sets the FlutterView as this
+// Activity's own content view via `setContentView(createFlutterView())`, and
+// nothing else removes it from the hierarchy on a stop) — so the specific
+// cause is NOT confirmed, and this round has no device access to test it
+// further. Replaced outright with `FlutterActivity.FLUTTER_VIEW_ID` +
+// `findViewById()` — a public constant Flutter's own source documents
+// verbatim as "used to lookup FlutterView in the Android view hierarchy",
+// set on the FlutterView via `setId()` when it's created — Android's own
+// cached ID-based lookup instead of a hand-rolled recursive string match.
+// This is a genuine robustness improvement on its own merits regardless of
+// the previous mechanism's exact failure cause, in the same spirit as Round
+// 1's connectionClosed() fix (kept as a real improvement, not confirmed as
+// THE fix until device-tested).
+//
+// Not yet device-tested: everything in this Round 7 addition. This is the
+// current state — awaiting the next device test against the same two-app
+// cross-app-IME repro Round 6's evidence came from, to determine which of
+// the two failure modes above this actually is.
+//
 // Counts and timestamps only — never logs, transmits, or persists QuKi
 // content. Nothing here touches shared_preferences or any other persistence;
 // state lives only in memory for the current app session.
@@ -386,6 +457,22 @@ class KeyboardFocusDebugCounters {
   /// the false. See this file's header comment (Round 5 addition).
   int focusRestoreAttemptedCount = 0;
   DateTime? lastFocusRestoreAttempted;
+
+  /// Round 7: Android's own raw `WindowInsets`, reported from
+  /// MainActivity.kt's `ViewCompat.setOnApplyWindowInsetsListener` on
+  /// `window.decorView` every time the platform delivers a new one — a
+  /// read-only tap on the one layer no prior round observed (what
+  /// `InputMethodManager` actually does with the confirmed `.show()` call,
+  /// and whether Flutter's engine ever receives a fresh inset callback after
+  /// resume at all). [lastImeBottomPx] is in PHYSICAL pixels (Android's own
+  /// unit for `WindowInsets`) — [KeyboardFocusDebugOverlay] divides it by the
+  /// device pixel ratio when displaying it, for a direct side-by-side
+  /// comparison with Flutter's own `viewInsets.bottom` row (already logical
+  /// pixels). See this file's header comment (Round 7 addition).
+  int nativeInsetsChangedCount = 0;
+  DateTime? lastNativeInsetsChangedTime;
+  bool? lastImeVisible;
+  int? lastImeBottomPx;
 
   /// Round 6: a rolling, millisecond-timestamped log of every event recorded
   /// below, in the actual order they occur — see this file's header comment
@@ -504,6 +591,19 @@ class KeyboardFocusDebugCounters {
     tick.value++;
   }
 
+  /// Round 7: see this file's header comment (Round 7 addition).
+  void recordNativeInsetsChanged({
+    required bool imeVisible,
+    required int imeBottomPx,
+  }) {
+    nativeInsetsChangedCount++;
+    lastNativeInsetsChangedTime = DateTime.now();
+    lastImeVisible = imeVisible;
+    lastImeBottomPx = imeBottomPx;
+    _logSequence('nativeInsets(visible=$imeVisible,bottomPx=$imeBottomPx)');
+    tick.value++;
+  }
+
   /// Test-only: resets all counters so widget tests get a clean slate
   /// regardless of test execution order (this is a process-wide singleton).
   @visibleForTesting
@@ -534,6 +634,10 @@ class KeyboardFocusDebugCounters {
     lastWindowFocusChangedValue = null;
     focusRestoreAttemptedCount = 0;
     lastFocusRestoreAttempted = null;
+    nativeInsetsChangedCount = 0;
+    lastNativeInsetsChangedTime = null;
+    lastImeVisible = null;
+    lastImeBottomPx = null;
     _sequenceLog.clear();
   }
 }
@@ -642,6 +746,22 @@ class _KeyboardFocusDebugOverlayState extends State<KeyboardFocusDebugOverlay>
               children: [
                 Text(
                   'viewInsets.bottom ${viewInsetsBottom.toStringAsFixed(1)}',
+                  style: _textStyle,
+                ),
+                // Round 7 addition — deliberately placed directly under
+                // viewInsets.bottom above for a direct side-by-side
+                // comparison: this is Android's own raw WindowInsets value
+                // (nativeIme.bottom, converted from physical to logical
+                // pixels the same way viewInsetsBottom above is), independent
+                // of whether Flutter's engine has propagated it into
+                // MediaQuery/View.viewInsets yet. See this file's header
+                // comment (Round 7 addition) for why this distinction is the
+                // whole point of this round's addition.
+                Text(
+                  'nativeIme ${_counters.nativeInsetsChangedCount} '
+                  'visible=${_counters.lastImeVisible ?? '--'} '
+                  'bottom=${_counters.lastImeBottomPx == null ? '--' : (_counters.lastImeBottomPx! / view.devicePixelRatio).toStringAsFixed(1)} '
+                  '@ ${_fmt(_counters.lastNativeInsetsChangedTime)}',
                   style: _textStyle,
                 ),
                 Text(

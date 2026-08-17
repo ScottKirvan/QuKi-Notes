@@ -140,6 +140,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     // Round 5 addition (onWindowFocusChanged) — NOT purely diagnostic like
     // the above: see keyboard_focus_debug.dart's header comment (Round 5
     // addition) for the full evidence. This is the real fix's trigger.
+    //
+    // Round 7 addition (onNativeInsetsChanged) — purely diagnostic, like
+    // Rounds 3/4: reports Android's own raw WindowInsets (IME visibility +
+    // bottom inset) from MainActivity.kt's
+    // ViewCompat.setOnApplyWindowInsetsListener. See keyboard_focus_debug
+    // .dart's header comment (Round 7 addition) for the full rationale.
     const MethodChannel(_lifecycleDebugChannelName)
         .setMethodCallHandler((call) async {
       if (call.method == 'onNewIntent') {
@@ -175,6 +181,16 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
           _editorController.restoreFocusAfterInterruption();
           KeyboardFocusDebugCounters.instance.recordFocusRestoreAttempted();
         }
+      } else if (call.method == 'onNativeInsetsChanged') {
+        // TEMP DEBUG (notes/dev/keyboard_focus_state.md verification round,
+        // Round 7) — see keyboard_focus_debug.dart's header comment (Round 7
+        // addition) for the full rationale. Read-only: this only records the
+        // signal for the overlay, it never drives any app behavior.
+        final args = call.arguments as Map;
+        KeyboardFocusDebugCounters.instance.recordNativeInsetsChanged(
+          imeVisible: args['imeVisible'] as bool,
+          imeBottomPx: (args['imeBottomPx'] as num).toInt(),
+        );
       }
     });
 

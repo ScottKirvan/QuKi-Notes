@@ -227,6 +227,8 @@ void main() {
           reason: 'Round 5 addition');
       expect(find.textContaining('restoreAttempted 0'), findsOneWidget,
           reason: 'Round 5 addition');
+      expect(find.textContaining('nativeIme 0 visible=--'), findsOneWidget,
+          reason: 'Round 7 addition');
 
       await tester.pumpWidget(const SizedBox.shrink());
     });
@@ -446,6 +448,72 @@ void main() {
       expect(find.textContaining('restoreAttempted 1'), findsOneWidget);
 
       await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets(
+        'nativeIme counter increments and shows visibility + the raw bottom '
+        'inset converted to logical pixels — Round 7 addition (driven from '
+        'MainActivity.kt\'s ViewCompat.setOnApplyWindowInsetsListener over '
+        'the lifecycle_debug MethodChannel in production; this test '
+        'exercises the counter + overlay directly, since the native side '
+        'cannot be exercised from a widget test)', (tester) async {
+      // Pinned to 1.0 rather than relying on the ambient default — unlike
+      // `viewInsets`, `devicePixelRatio` has no test-harness-wide default of
+      // 1.0; TestFlutterView.devicePixelRatio falls back to the actual host
+      // display's real ratio when not overridden (confirmed by reading
+      // flutter_test's window.dart directly, after this assumption caused a
+      // real, host-dependent test failure while writing this). Pinning here
+      // makes the 370 -> 370.0 conversion below deterministic across
+      // machines. Reset afterward so this doesn't leak into other tests.
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(const MaterialApp(
+        home: Scaffold(body: KeyboardFocusDebugOverlay()),
+      ));
+      await tester.pump();
+
+      // Asserts the raw physical-pixel value is actually divided through the
+      // same View.of(context).devicePixelRatio path viewInsets.bottom
+      // already uses, not just passed through unconverted.
+      KeyboardFocusDebugCounters.instance.recordNativeInsetsChanged(
+        imeVisible: true,
+        imeBottomPx: 370,
+      );
+      await tester.pump();
+
+      expect(find.textContaining('nativeIme 1 visible=true bottom=370.0'),
+          findsOneWidget,
+          reason: 'must show the incremented count, the reported IME '
+              'visibility, and the bottom inset converted to logical pixels');
+
+      KeyboardFocusDebugCounters.instance.recordNativeInsetsChanged(
+        imeVisible: false,
+        imeBottomPx: 0,
+      );
+      await tester.pump();
+
+      expect(find.textContaining('nativeIme 2 visible=false bottom=0.0'),
+          findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets(
+        'a nativeInsets entry appears in sequenceLog alongside windowFocus, '
+        'in actual firing order — Round 7 addition: this is what lets the '
+        'next device test see directly whether a fresh native inset ever '
+        'arrives after the restore chain runs', (tester) async {
+      final counters = KeyboardFocusDebugCounters.instance;
+      expect(counters.sequenceLog, isEmpty, reason: 'sanity: clean slate');
+
+      counters.recordWindowFocusChanged(hasFocus: true);
+      counters.recordNativeInsetsChanged(imeVisible: true, imeBottomPx: 0);
+
+      expect(counters.sequenceLog.length, 2);
+      expect(counters.sequenceLog[0], contains('windowFocus(true)'));
+      expect(counters.sequenceLog[1],
+          contains('nativeInsets(visible=true,bottomPx=0)'));
     });
 
     testWidgets(

@@ -3,6 +3,8 @@ package com.quki.quki_notes
 import android.content.Intent
 import android.os.Bundle
 import android.view.View
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -54,6 +56,58 @@ class MainActivity : FlutterActivity() {
                     "to" to (newFocus?.javaClass?.simpleName ?: "null")
                 )
             )
+        }
+
+        // TEMP DEBUG (Round 7, notes/dev/keyboard_focus_state.md) — see
+        // keyboard_focus_debug.dart's header comment (Round 7 addition) for
+        // the full rationale. Every signal Rounds 1-6 instrumented lives on
+        // the Dart<->engine TextInputClient boundary or Android's Activity/
+        // View-focus layer; none of them observe what the platform's IME
+        // actually does with the `.show()` call Round 5/6's restore chain is
+        // confirmed to reach (verified directly against quiki_editor.dart:
+        // `_openConnection()` calls `_connection!.show()` immediately before
+        // recording `connOpen`). This taps the one remaining unobserved
+        // layer: the actual raw `WindowInsets` Android delivers to this
+        // window, via `ViewCompat.setOnApplyWindowInsetsListener` +
+        // `WindowInsetsCompat.Type.ime()` — the officially documented,
+        // version-compatible way to read IME visibility/size
+        // (developer.android.com, "Handle window insets" /
+        // "Animate the on-screen keyboard": `WindowInsetsCompat.Type.ime()`
+        // + `WindowInsetsCompat.isVisible()`/`getInsets()`). `androidx.core`
+        // is already a mandatory transitive dependency of Flutter's own
+        // Android embedding (FlutterView.java itself imports
+        // `androidx.core.content.ContextCompat` — confirmed by reading that
+        // file directly), so this is the first use of an already-present
+        // library, not a new one.
+        //
+        // Registered on `window.decorView` (the app's root view), NOT on the
+        // FlutterView itself: FlutterView.java's `onApplyWindowInsets()` is a
+        // `final` method override (confirmed by reading FlutterView.java
+        // directly) that this app's own cursor/toolbar visibility ultimately
+        // depends on via the engine — setting a competing
+        // OnApplyWindowInsetsListener directly on FlutterView would replace
+        // that dispatch entirely (View.dispatchApplyWindowInsets() calls a
+        // listener INSTEAD OF the view's own onApplyWindowInsets() override
+        // when one is set), which would violate this round's "read-only tap,
+        // not a new signal the app reacts to" invariant. Listening on
+        // decorView and returning the untouched `insets` value instead (as
+        // done below) lets Android's normal dispatch cascade continue
+        // downward unmodified to FlutterView's own handling exactly as
+        // before — confirmed by reading ViewGroup.dispatchApplyWindowInsets()
+        // in the AOSP View/ViewGroup source: a parent-level listener that
+        // returns the insets object unconsumed does not stop propagation to
+        // children.
+        ViewCompat.setOnApplyWindowInsetsListener(window.decorView) { _, insets ->
+            val imeInsets = insets.getInsets(WindowInsetsCompat.Type.ime())
+            val imeVisible = insets.isVisible(WindowInsetsCompat.Type.ime())
+            lifecycleDebugChannel?.invokeMethod(
+                "onNativeInsetsChanged",
+                mapOf(
+                    "imeVisible" to imeVisible,
+                    "imeBottomPx" to imeInsets.bottom
+                )
+            )
+            insets
         }
     }
 
