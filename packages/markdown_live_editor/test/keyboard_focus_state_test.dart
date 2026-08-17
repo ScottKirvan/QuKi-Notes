@@ -447,6 +447,74 @@ void main() {
 
       await tester.pumpWidget(const SizedBox.shrink());
     });
+
+    testWidgets(
+        'sequenceLog records events in the order they actually occurred, '
+        'with each event\'s own label — Round 6 addition (cross-app IME '
+        'contention): the per-event "last fired" fields above cannot tell a '
+        'single clean event cycle apart from two overlapping ones, which is '
+        'exactly what the next device test needs to distinguish',
+        (tester) async {
+      final counters = KeyboardFocusDebugCounters.instance;
+      expect(counters.sequenceLog, isEmpty, reason: 'sanity: clean slate');
+
+      counters.recordWindowFocusChanged(hasFocus: false);
+      counters.recordFocusRestoreAttempted();
+      counters.recordWindowFocusChanged(hasFocus: true);
+
+      expect(counters.sequenceLog.length, 3);
+      expect(counters.sequenceLog[0], contains('windowFocus(false)'));
+      expect(counters.sequenceLog[1], contains('restoreAttempted'));
+      expect(counters.sequenceLog[2], contains('windowFocus(true)'));
+    });
+
+    testWidgets(
+        'sequenceLog caps at its max size, dropping the oldest entries '
+        'first — Round 6 addition: this is a live diagnostic for one '
+        'verification session, not an unbounded audit log', (tester) async {
+      final counters = KeyboardFocusDebugCounters.instance;
+
+      for (var i = 0; i < 45; i++) {
+        counters.recordFocusRestoreAttempted();
+      }
+
+      expect(counters.sequenceLog.length, 40,
+          reason: 'must cap rather than grow unboundedly');
+    });
+
+    testWidgets(
+        'resetForTesting clears the sequence log along with every other '
+        'counter', (tester) async {
+      final counters = KeyboardFocusDebugCounters.instance;
+      counters.recordFocusRestoreAttempted();
+      expect(counters.sequenceLog, isNotEmpty, reason: 'sanity');
+
+      counters.resetForTesting();
+
+      expect(counters.sequenceLog, isEmpty);
+    });
+
+    testWidgets(
+        'the overlay renders the most recent sequence entries, newest '
+        'first — Round 6 addition', (tester) async {
+      final counters = KeyboardFocusDebugCounters.instance;
+      await tester.pumpWidget(const MaterialApp(
+        home: Scaffold(body: KeyboardFocusDebugOverlay()),
+      ));
+      await tester.pump();
+
+      counters.recordWindowFocusChanged(hasFocus: false);
+      await tester.pump();
+      counters.recordWindowFocusChanged(hasFocus: true);
+      await tester.pump();
+
+      expect(find.textContaining('— recent —'), findsOneWidget);
+      // Newest entry (windowFocus(true)) must render, not just be recorded.
+      expect(find.textContaining('windowFocus(true)'), findsOneWidget);
+      expect(find.textContaining('windowFocus(false)'), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
   });
 
   group(

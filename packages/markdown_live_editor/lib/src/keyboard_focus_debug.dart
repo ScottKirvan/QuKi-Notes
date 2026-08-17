@@ -271,10 +271,13 @@
 // when the previous app also held an active IME session, but that is not
 // confirmed, and this round does not ship a fix for it — there is no
 // evidence yet to distinguish a real second bug from ordinary platform
-// churn. A rolling, millisecond-timestamped sequence log (added separately,
-// see git history) lets the next device test show directly whether the
-// deferred-dispatch fix above resolves the two-app scenario outright, or
-// whether a second, still-unexplained cycle remains.
+// churn. Rather than guess, this adds `sequenceLog` below: a rolling,
+// millisecond-timestamped log of every event this file already tracks, in
+// the actual order they occur, so the next device test can show directly
+// whether the deferred-dispatch fix above resolves the two-app scenario
+// outright, or whether a second, still-unexplained cycle remains — this is
+// something none of the existing per-type "last fired" fields can
+// distinguish from a single clean cycle.
 //
 // Counts and timestamps only — never logs, transmits, or persists QuKi
 // content. Nothing here touches shared_preferences or any other persistence;
@@ -384,6 +387,34 @@ class KeyboardFocusDebugCounters {
   int focusRestoreAttemptedCount = 0;
   DateTime? lastFocusRestoreAttempted;
 
+  /// Round 6: a rolling, millisecond-timestamped log of every event recorded
+  /// below, in the actual order they occur — see this file's header comment
+  /// (Round 6 addition) for why this was added: the per-event-type "last
+  /// fired" fields above cannot distinguish a single clean event cycle from
+  /// two overlapping ones, which is exactly the ambiguity Round 6's second
+  /// device test left unresolved (nativeFocus/windowFocus counts jumped by
+  /// 2 while restoreAttempted only jumped by 1). Capped at
+  /// [_maxSequenceLogEntries] — oldest entries drop off — since this is a
+  /// live diagnostic aid for one verification session, not a persisted
+  /// audit log.
+  static const _maxSequenceLogEntries = 40;
+  final List<String> _sequenceLog = [];
+
+  /// Most recent entries last (chronological order) — see [_sequenceLog].
+  List<String> get sequenceLog => List.unmodifiable(_sequenceLog);
+
+  void _logSequence(String label) {
+    final t = DateTime.now();
+    final hh = t.hour.toString().padLeft(2, '0');
+    final mm = t.minute.toString().padLeft(2, '0');
+    final ss = t.second.toString().padLeft(2, '0');
+    final ms = t.millisecond.toString().padLeft(3, '0');
+    _sequenceLog.add('$hh:$mm:$ss.$ms $label');
+    if (_sequenceLog.length > _maxSequenceLogEntries) {
+      _sequenceLog.removeAt(0);
+    }
+  }
+
   /// Ticks on every recorded event so [KeyboardFocusDebugOverlay] can
   /// rebuild without polling.
   final ValueNotifier<int> tick = ValueNotifier<int>(0);
@@ -391,6 +422,7 @@ class KeyboardFocusDebugCounters {
   void recordConnectionClosed() {
     connectionClosedCount++;
     lastConnectionClosed = DateTime.now();
+    _logSequence('connClosed');
     tick.value++;
   }
 
@@ -398,9 +430,11 @@ class KeyboardFocusDebugCounters {
     if (hasFocus) {
       focusGainedCount++;
       lastFocusGained = DateTime.now();
+      _logSequence('focusGained');
     } else {
       focusLostCount++;
       lastFocusLost = DateTime.now();
+      _logSequence('focusLost');
     }
     tick.value++;
   }
@@ -408,18 +442,21 @@ class KeyboardFocusDebugCounters {
   void recordConnectionOpened() {
     connectionOpenedCount++;
     lastConnectionOpened = DateTime.now();
+    _logSequence('connOpen');
     tick.value++;
   }
 
   void recordExplicitClose() {
     explicitCloseCount++;
     lastExplicitClose = DateTime.now();
+    _logSequence('explicitClose');
     tick.value++;
   }
 
   void recordOnNewIntent() {
     onNewIntentCount++;
     lastOnNewIntent = DateTime.now();
+    _logSequence('onNewIntent');
     tick.value++;
   }
 
@@ -428,6 +465,7 @@ class KeyboardFocusDebugCounters {
     activityStopCount++;
     lastActivityStop = DateTime.now();
     lastFlutterViewVisibilityAtStop = flutterViewVisibility;
+    _logSequence('activityStop($flutterViewVisibility)');
     tick.value++;
   }
 
@@ -436,6 +474,7 @@ class KeyboardFocusDebugCounters {
     activityStartCount++;
     lastActivityStart = DateTime.now();
     lastFlutterViewVisibilityAtStart = flutterViewVisibility;
+    _logSequence('activityStart($flutterViewVisibility)');
     tick.value++;
   }
 
@@ -444,6 +483,7 @@ class KeyboardFocusDebugCounters {
     nativeFocusChangeCount++;
     lastNativeFocusChangeTime = DateTime.now();
     lastNativeFocusChange = '$from -> $to';
+    _logSequence('nativeFocus($from->$to)');
     tick.value++;
   }
 
@@ -452,6 +492,7 @@ class KeyboardFocusDebugCounters {
     windowFocusChangedCount++;
     lastWindowFocusChangedTime = DateTime.now();
     lastWindowFocusChangedValue = hasFocus;
+    _logSequence('windowFocus($hasFocus)');
     tick.value++;
   }
 
@@ -459,6 +500,7 @@ class KeyboardFocusDebugCounters {
   void recordFocusRestoreAttempted() {
     focusRestoreAttemptedCount++;
     lastFocusRestoreAttempted = DateTime.now();
+    _logSequence('restoreAttempted');
     tick.value++;
   }
 
@@ -492,6 +534,7 @@ class KeyboardFocusDebugCounters {
     lastWindowFocusChangedValue = null;
     focusRestoreAttemptedCount = 0;
     lastFocusRestoreAttempted = null;
+    _sequenceLog.clear();
   }
 }
 
@@ -660,6 +703,21 @@ class _KeyboardFocusDebugOverlayState extends State<KeyboardFocusDebugOverlay>
                   '@ ${_fmt(_counters.lastFocusRestoreAttempted)}',
                   style: _textStyle,
                 ),
+                // Round 6 addition — see this file's header comment (Round 6
+                // addition) for why: the per-event "last fired" rows above
+                // can't show whether two events overlapped or ran back to
+                // back cleanly. Most-recent-first, capped to the last 12 so
+                // the overlay doesn't grow unboundedly tall on a long
+                // session; the full (longer) history is still in
+                // KeyboardFocusDebugCounters.instance.sequenceLog for
+                // anything that needs more than the on-screen view.
+                if (_counters.sequenceLog.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  const Text('— recent —', style: _textStyle),
+                  ..._counters.sequenceLog.reversed
+                      .take(12)
+                      .map((e) => Text(e, style: _textStyle)),
+                ],
               ],
             ),
           ),
