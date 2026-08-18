@@ -72,7 +72,20 @@ Bulk-pull progress banner: always, or only above some threshold? Decision belong
 
 ---
 
-## Resolved / Removed
+## OQ-7: is the keyboard/focus bug (PR #376) a Flutter framework issue, not a QuKi-Notes bug?
+
+**Raised by the project owner, 2026-08-18**, after PR #376's Round 12 confirmed-fixed the toolbar/cursor-stuck-visible symptom device-tested across 12 rounds (full history: `notes/dev/keyboard_focus_state.md`, issues #394, #395). Looking for the most popular Flutter app they could find, the project owner found it has the *exact same* keyboard problems this investigation has been chasing in QuKi-Notes. Project owner's own words: "This is a fundamental flutter bug... it's key to our manifesto's contract, so I'm not sure what to do... we may need to back up and roll out all of our keyboard work and try to cooperate with flutter rather than fighting it. It seems flutter was the wrong choice here."
+
+**Explicitly unresolved, not a decision** — raised while the project owner was about to run out of session budget for the week; flagged for continuity, not acted on yet. No rollback of the keyboard work (PR #376, all 12 rounds) and no reconsideration of the locked `Framework: Flutter (Dart)` decision (`notes/dev/decisions.md`) should happen without the project owner's explicit go-ahead.
+
+**Why this is a genuinely high-stakes question, not a routine one**: the manifesto's "Velocity" principle (capture must be fast, frictionless) depends directly on reliable keyboard behavior, since that's the primary interaction surface for a capture app. If this really is an unfixable-at-the-app-level Flutter/Android IME integration bug, that's a threat to the manifesto's own contract, not just a bug to route around.
+
+**What needs investigating before any decision is made** (none of this has been done yet):
+1. Confirm whether the popular app's symptom shares QuKi-Notes's specific root mechanism (Round 10's finding: `didChangeMetrics()` firing a stale reading ~328ms after a correct one on resume) or is only superficially similar (e.g., a different keyboard-related bug that happens to look the same from the outside).
+2. Consider whether QuKi-Notes's fully custom editor (ADR-31 — no `TextField`/`RenderEditable`, a from-scratch `TextInputClient`) is *more* exposed to this than an app using Flutter's own stock text-editing widgets, since ADR-31 deliberately opted out of Flutter's built-in IME machinery that most apps (including whatever popular app was checked) still rely on.
+3. If it is a framework-level issue, "cooperate with Flutter rather than fighting it" needs a concrete meaning — e.g., whether adopting more of Flutter's own stock focus/`TextInputClient` conventions would sidestep the bug — before "roll back the keyboard work" is the right response rather than one of several options.
+
+**Surface during**: the next `notes/dev/keyboard_focus_state.md`-adjacent session, once the project owner has bandwidth to dig into this. Do not start a new keyboard-investigation round or a framework-reconsideration effort based on this entry alone.
 
 - **OQ-5: Workflow JSON schema validation** — **Removed.** Workflow JSON DSL dropped entirely per ADR-14. Transports are Dart code; no JSON schema to validate.
 
