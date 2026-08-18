@@ -41,7 +41,6 @@ import 'package:markdown_live_editor/markdown_live_editor.dart';
 // barrel to get at QuikiEditor/QuikiEditorState (debugForceMobile,
 // showsCursorForTesting) directly — the same convention already used by
 // keyboard_viewinsets_test.dart and keyboard_focus_state_test.dart.
-// KeyboardFocusDebugCounters is already re-exported from the public barrel.
 import 'package:markdown_live_editor/src/quiki_editor.dart';
 
 // A fresh Key per pumpWidget call forces a real unmount + remount rather
@@ -87,12 +86,10 @@ Future<void> _settleSingleTap(WidgetTester tester) =>
 void main() {
   setUp(() {
     QuikiEditorState.debugForceMobile = true;
-    KeyboardFocusDebugCounters.instance.resetForTesting();
   });
 
   tearDown(() {
     QuikiEditorState.debugForceMobile = false;
-    KeyboardFocusDebugCounters.instance.resetForTesting();
   });
 
   testWidgets(
@@ -128,8 +125,6 @@ void main() {
     expect(_quikiStateOf(tester).showsCursorForTesting, isFalse,
         reason: 'sanity: the confirmed-correct zero reading itself must '
             'still hide the cursor immediately');
-    expect(KeyboardFocusDebugCounters.instance.suppressedStaleMetricsCount, 0,
-        reason: 'sanity: nothing suspicious has happened yet');
 
     // 328ms later — #394's measured gap — the stale call arrives,
     // reporting the exact pre-interruption open height.
@@ -140,21 +135,6 @@ void main() {
     expect(_quikiStateOf(tester).showsCursorForTesting, isFalse,
         reason: 'the stale reading, arriving inside the grace window, must '
             'not be allowed to flip the cursor/toolbar back to visible');
-    expect(KeyboardFocusDebugCounters.instance.suppressedStaleMetricsCount, 1,
-        reason: 'the suppression must be recorded, not silently swallowed — '
-            '#394 must stay visible on-device even while its symptom is '
-            'masked');
-    // recordDidChangeMetrics/recordSuppressedStaleMetrics both convert the
-    // raw physical-pixel viewInsets.bottom to logical pixels via
-    // devicePixelRatio (matching production's own conversion) before
-    // recording — so the expected value must go through the same division,
-    // not assume physical == logical.
-    expect(
-      KeyboardFocusDebugCounters.instance.lastSuppressedStaleMetricsValue,
-      370.0 / tester.view.devicePixelRatio,
-      reason: 'the actual suspicious value must be captured, not just the '
-          'fact that something was suppressed',
-    );
 
     await tester.pumpWidget(const SizedBox.shrink());
     tester.view.resetViewInsets();
@@ -206,9 +186,6 @@ void main() {
         reason: 'a deliberate tap-driven reopen must show the cursor '
             'immediately, not be held hidden by the still-open grace '
             'window from the earlier confirmed-zero reading');
-    expect(KeyboardFocusDebugCounters.instance.suppressedStaleMetricsCount, 0,
-        reason: 'this reading is a genuine reopen, not a suppression — it '
-            'must never be counted as one');
 
     await tester.pumpWidget(const SizedBox.shrink());
     tester.view.resetViewInsets();
@@ -250,9 +227,6 @@ void main() {
         reason: 'a same-session reopen with no preceding resume must track '
             'the live viewInsets exactly as before Round 11 — nothing here '
             'should ever be suppressed');
-    expect(KeyboardFocusDebugCounters.instance.suppressedStaleMetricsCount, 0,
-        reason: 'the suppression mechanism must never trigger without a '
-            'preceding AppLifecycleState.resumed transition');
 
     await tester.pumpWidget(const SizedBox.shrink());
     tester.view.resetViewInsets();
@@ -294,9 +268,6 @@ void main() {
         reason: 'a reading arriving after the grace window has closed must '
             'not be suppressed — the window is short and tightly scoped, '
             'not a general dampening of _showCursor()');
-    expect(KeyboardFocusDebugCounters.instance.suppressedStaleMetricsCount, 0,
-        reason: 'a reading outside the grace window is not a suppression '
-            'event');
 
     await tester.pumpWidget(const SizedBox.shrink());
     tester.view.resetViewInsets();
@@ -327,7 +298,6 @@ void main() {
     expect(_quikiStateOf(tester).showsCursorForTesting, isTrue,
         reason: 'with no confirmed-zero reading to arm the grace window, '
             'a nonzero reading must be trusted immediately');
-    expect(KeyboardFocusDebugCounters.instance.suppressedStaleMetricsCount, 0);
 
     await tester.pumpWidget(const SizedBox.shrink());
     tester.view.resetViewInsets();

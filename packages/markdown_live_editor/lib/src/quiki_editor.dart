@@ -9,11 +9,6 @@ import 'package:flutter/services.dart';
 import 'editor_config.dart';
 import 'html_paste.dart';
 import 'indent_dedent.dart';
-// Rounds 10-11 diagnostic (notes/dev/keyboard_focus_state.md, #394) — kept
-// alongside the Round 11 suppression workaround below, not just temporary;
-// see keyboard_focus_debug.dart's own header comment for why and for
-// removal instructions.
-import 'keyboard_focus_debug.dart';
 import 'md_parser.dart';
 import 'quiki_render_editor.dart';
 import 'render_model.dart';
@@ -848,24 +843,13 @@ class QuikiEditorState extends State<QuikiEditor>
     // desktop, which has no software keyboard and would otherwise repaint
     // for every unrelated metrics change (e.g. a window resize).
     if (!_isMobile) return;
-    // Round 10 diagnostic (notes/dev/keyboard_focus_state.md) — records this
-    // invocation and the exact viewInsets.bottom value read at this moment.
-    // Read-only; does not change what happens below. This is the core new
-    // signal this round exists to capture — see keyboard_focus_debug.dart's
-    // header comment for why: Round 9's device test still showed stuck
-    // toolbar/cursor chrome even after removing the forced-show call that
-    // was racing (and losing to) Android's own automatic hide-on-resume, so
-    // the open question is whether this observer fires at all after that
-    // resume sequence, and if so, with what inset value.
     if (mounted) {
       final view = View.of(context);
       final viewInsetsBottom = view.viewInsets.bottom / view.devicePixelRatio;
-      KeyboardFocusDebugCounters.instance.recordDidChangeMetrics(
-        viewInsetsBottom: viewInsetsBottom,
-      );
 
-      // Round 11 (#394) — see the doc comment on _kStaleMetricsGraceWindow
-      // above for the full mechanism this arms/detects.
+      // Round 11 (#394) — pragmatic workaround for a still-unexplained
+      // stale didChangeMetrics() reading after resume. See the doc comment
+      // on _kStaleMetricsGraceWindow above for the full mechanism.
       if (viewInsetsBottom == 0 && _withinResumeConfirmationWindow) {
         // The genuine, correct post-resume reading — arm the grace window
         // so a following stale reading gets ignored rather than shown.
@@ -874,19 +858,10 @@ class QuikiEditorState extends State<QuikiEditor>
         _staleMetricsGraceTimer = Timer(_kStaleMetricsGraceWindow, () {
           _suppressingStaleResumeMetrics = false;
         });
-      } else if (viewInsetsBottom > 0 && _suppressingStaleResumeMetrics) {
-        // #394's stale call, arriving inside the grace window — recorded so
-        // its continued presence (or eventual disappearance, if some other
-        // change ever fixes the root cause) stays visible on-device rather
-        // than silently vanishing behind this workaround.
-        KeyboardFocusDebugCounters.instance.recordSuppressedStaleMetrics(
-          viewInsetsBottom: viewInsetsBottom,
-        );
       }
 
-      // Toolbar/cursor unification — a fresh inset reading (or a
-      // suppression window arming/detecting above) is exactly the kind of
-      // event that can change _showCursor()'s result without any
+      // Toolbar/cursor unification — a fresh inset reading is exactly the
+      // kind of event that can change _showCursor()'s result without any
       // FocusNode transition to notify the host through. See
       // _notifyKeyboardVisibilityIfChanged's doc comment.
       _notifyKeyboardVisibilityIfChanged();
