@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.24.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.23.0...v0.24.0) (2026-08-24)
+
+
+### Features
+
+* tap version number to copy it to clipboard ([6c45a1c](https://github.com/ScottKirvan/QuKi-Notes/commit/6c45a1c7c24eb6900068f57091eb869ffc3e7f7f))
+
+
+### Bug Fixes
+
+* dart format — collapse unnecessary line break in method chain ([0ba50f3](https://github.com/ScottKirvan/QuKi-Notes/commit/0ba50f389d4a7be5e61ecb50e3ec960bebcd7a9b))
+* supply viewId to Windows TextInputConfiguration ([1cd392d](https://github.com/ScottKirvan/QuKi-Notes/commit/1cd392de9f95329c0a5417e289b09b44ceae63f6))
+
 ## [0.23.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.22.0...v0.23.0) (2026-08-16)
 
 
