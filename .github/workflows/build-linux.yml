@@ -45,8 +45,14 @@ jobs:
           path: quki-notes-linux.tar.gz
           retention-days: 14
 
+      - name: Rename tarball with version tag
+        if: github.event_name != 'workflow_dispatch'
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: mv quki-notes-linux.tar.gz "quki-notes-linux-${TAG}.tar.gz"
+
       - name: Upload to GitHub Release
         if: github.event_name != 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
-          files: quki-notes-linux.tar.gz
+          files: quki-notes-linux-${{ github.event.release.tag_name }}.tar.gz

@@ -67,13 +67,19 @@ jobs:
           path: build/app/outputs/flutter-apk/app-release.apk
           retention-days: 14
 
+      - name: Rename APK with version tag
+        if: github.event_name != 'workflow_dispatch'
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          mv build/app/outputs/flutter-apk/app-release.apk \
+             build/app/outputs/flutter-apk/quki-notes-android-${TAG}.apk
+
       - name: Upload to GitHub Release
         if: github.event_name != 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            build/app/outputs/flutter-apk/app-release.apk
-            build/app/outputs/bundle/release/app-release.aab
+          files: build/app/outputs/flutter-apk/quki-notes-android-${{ github.event.release.tag_name }}.apk
 
       - name: Prepare whatsnew directory
         run: mkdir -p whatsnew

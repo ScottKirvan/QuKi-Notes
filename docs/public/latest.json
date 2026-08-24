@@ -1,0 +1,6 @@
+{
+  "version": "v0.24.0",
+  "android": "https://github.com/ScottKirvan/QuKi-Notes/releases/download/v0.24.0/quki-notes-android-v0.24.0.apk",
+  "windows": "https://github.com/ScottKirvan/QuKi-Notes/releases/download/v0.24.0/quki-notes-windows-v0.24.0.msi",
+  "linux": "https://github.com/ScottKirvan/QuKi-Notes/releases/download/v0.24.0/quki-notes-linux-v0.24.0.tar.gz"
+}

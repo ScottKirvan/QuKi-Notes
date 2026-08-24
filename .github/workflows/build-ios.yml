@@ -39,8 +39,5 @@ jobs:
           path: quki-notes-ios.zip
           retention-days: 14
 
-      - name: Upload to GitHub Release
-        if: github.event_name != 'workflow_dispatch'
-        uses: softprops/action-gh-release@v2
-        with:
-          files: quki-notes-ios.zip
+      # iOS build is unsigned and not installable on real devices without signing.
+      # Unsigned bundle is not published to GitHub Releases — kept as CI artifact only.

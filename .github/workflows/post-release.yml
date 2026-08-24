@@ -1,4 +1,4 @@
-name: Post-Build Discord Notify
+name: Post-Release
 
 on:
   workflow_run:
@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write
   actions: read
 
 jobs:
@@ -112,6 +112,40 @@ jobs:
       emoji: "🪽"
       discord_blurb: ${{ needs.get-blurb.outputs.discord_blurb }}
     secrets: inherit
+
+  update-manifest:
+    needs: check
+    if: needs.check.outputs.all_done == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ github.token }}
+
+      - name: Write latest.json
+        env:
+          TAG: ${{ needs.check.outputs.tag_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          BASE_URL="https://github.com/$REPO/releases/download/$TAG"
+          jq -n \
+            --arg version "$TAG" \
+            --arg android "$BASE_URL/quki-notes-android-${TAG}.apk" \
+            --arg windows "$BASE_URL/quki-notes-windows-${TAG}.msi" \
+            --arg linux "$BASE_URL/quki-notes-linux-${TAG}.tar.gz" \
+            '{version: $version, android: $android, windows: $windows, linux: $linux}' \
+            > docs/public/latest.json
+
+      - name: Commit and push
+        env:
+          TAG: ${{ needs.check.outputs.tag_name }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/public/latest.json
+          git commit -m "chore: update download manifest for $TAG"
+          git push
 
   mark-sent:
     needs: [check, notify]
