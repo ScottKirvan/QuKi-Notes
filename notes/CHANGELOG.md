@@ -13,6 +13,8 @@
 * dart format — collapse unnecessary line break in method chain ([0ba50f3](https://github.com/ScottKirvan/QuKi-Notes/commit/0ba50f389d4a7be5e61ecb50e3ec960bebcd7a9b))
 * supply viewId to Windows TextInputConfiguration ([1cd392d](https://github.com/ScottKirvan/QuKi-Notes/commit/1cd392de9f95329c0a5417e289b09b44ceae63f6))
 
+Includes PRs: [#392](https://github.com/ScottKirvan/QuKi-Notes/pull/392), [#393](https://github.com/ScottKirvan/QuKi-Notes/pull/393), [#396](https://github.com/ScottKirvan/QuKi-Notes/pull/396), [#397](https://github.com/ScottKirvan/QuKi-Notes/pull/397)
+
 ## [0.23.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.22.0...v0.23.0) (2026-08-16)
 
 
