@@ -731,10 +731,19 @@ class QuikiEditorState extends State<QuikiEditor> implements TextInputClient {
     if (_connection != null && _connection!.attached) return;
     _connection = TextInput.attach(
       this,
-      const TextInputConfiguration(
+      TextInputConfiguration(
         inputType: TextInputType.multiline,
         inputAction: TextInputAction.newline,
         textCapitalization: TextCapitalization.sentences,
+        // Windows requires the connection to carry the ID of the view it
+        // belongs to (Flutter 3.32+, flutter/flutter#163847) — omitting it
+        // leaves the platform side unable to resolve a client at all and
+        // throws PlatformException("Could not set client, view ID is
+        // null."), permanently wedging every subsequent setEditingState call
+        // for the rest of the session. Flutter's own EditableText always
+        // supplies this; this from-scratch TextInputClient (ADR-31) never
+        // did.
+        viewId: View.of(context).viewId,
       ),
     );
     _connection!.show();
