@@ -7,6 +7,7 @@ export default defineConfig({
   themeConfig: {
     nav: [
       { text: 'User Guide', link: '/user-guide/getting-started' },
+      { text: 'Downloads', link: '/downloads' },
     ],
     sidebar: [
       {

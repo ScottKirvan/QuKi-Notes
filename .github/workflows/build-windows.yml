@@ -57,8 +57,15 @@ jobs:
           path: quki-notes-windows.msi
           retention-days: 14
 
+      - name: Rename MSI with version tag
+        if: github.event_name != 'workflow_dispatch'
+        shell: bash
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: mv quki-notes-windows.msi "quki-notes-windows-${TAG}.msi"
+
       - name: Upload to GitHub Release
         if: github.event_name != 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
-          files: quki-notes-windows.msi
+          files: quki-notes-windows-${{ github.event.release.tag_name }}.msi
