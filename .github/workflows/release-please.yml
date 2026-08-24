@@ -64,13 +64,12 @@ jobs:
           gh api "repos/$REPO/git/refs/heads/$STAGING_BRANCH" --method DELETE || true
           echo "Deleted staging branch: $STAGING_BRANCH"
 
-          echo "used_staging=true" >> "$GITHUB_OUTPUT"
-          { echo 'discord_blurb<<BLURB_EOF'
+          {
+            echo "used_staging=true"
+            echo 'discord_blurb<<BLURB_EOF'
             printf '%s\n' "$BLURB"
             echo 'BLURB_EOF'
-          } >> "$GITHUB_OUTPUT"
-
-          { echo 'play_store_notes<<NOTES_EOF'
+            echo 'play_store_notes<<NOTES_EOF'
             printf '%s\n' "$PLAY_NOTES"
             echo 'NOTES_EOF'
           } >> "$GITHUB_OUTPUT"

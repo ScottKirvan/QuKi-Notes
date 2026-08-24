@@ -73,7 +73,7 @@ jobs:
           TAG: ${{ github.event.release.tag_name }}
         run: |
           mv build/app/outputs/flutter-apk/app-release.apk \
-             build/app/outputs/flutter-apk/quki-notes-android-${TAG}.apk
+             "build/app/outputs/flutter-apk/quki-notes-android-${TAG}.apk"
 
       - name: Upload to GitHub Release
         if: github.event_name != 'workflow_dispatch'
