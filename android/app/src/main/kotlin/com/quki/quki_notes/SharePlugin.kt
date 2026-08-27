@@ -1,7 +1,9 @@
 package com.quki.quki_notes
 
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
@@ -41,11 +43,43 @@ class SharePlugin(private val context: Context) : MethodChannel.MethodCallHandle
                     return
                 }
 
+                // TEMPORARY DIAGNOSTIC (see Agents/quiki-dev/CLAUDE.md "Android
+                // Share Sheet delivery is intermittent"). Records the Activity's
+                // identity/lifecycle state at the exact moment startActivity()
+                // fires, so it can be correlated against the registration-time
+                // log in MainActivity.configureFlutterEngine() and against the
+                // Dart-side timestamps in android_share_channel.dart /
+                // editor_screen.dart. Logs no QuKi content (ADR-12). Grep
+                // "TEMPORARY DIAGNOSTIC" to find and remove every part of this
+                // once the project owner has captured enough real attempts.
+                val activity = context as? Activity
+                Log.d(
+                    "QuKiShareDiag",
+                    "shareText: contextIdentity=${System.identityHashCode(context)} " +
+                        "isActivity=${activity != null} " +
+                        "isFinishing=${activity?.isFinishing} " +
+                        "isDestroyed=${activity?.isDestroyed} " +
+                        "hasWindowFocus=${activity?.hasWindowFocus()} " +
+                        "elapsedRealtimeMs=${android.os.SystemClock.elapsedRealtime()}"
+                )
+
                 val sendIntent = Intent(Intent.ACTION_SEND).apply {
                     type = "text/plain"
                     putExtra(Intent.EXTRA_TEXT, text)
                 }
                 context.startActivity(Intent.createChooser(sendIntent, null))
+
+                // TEMPORARY DIAGNOSTIC — confirms startActivity() returned
+                // without throwing, and when. A silent/no-op background-activity
+                // restriction throws no exception, so a matching "before" log
+                // with no crash reported back to Dart is expected either way —
+                // this line exists only to bound the timing.
+                Log.d(
+                    "QuKiShareDiag",
+                    "shareText: startActivity() returned normally " +
+                        "elapsedRealtimeMs=${android.os.SystemClock.elapsedRealtime()}"
+                )
+
                 result.success(null)
             }
 

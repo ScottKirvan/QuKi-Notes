@@ -381,8 +381,27 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
     }
     if (plugin == null || !mounted) return;
 
+    // TEMPORARY DIAGNOSTIC (see Agents/quiki-dev/CLAUDE.md "Android Share
+    // Sheet delivery is intermittent"). Brackets the real async gap between
+    // the user's tap and the eventual native startActivity() call (disk
+    // flush + platform channel round trip) that a native app's synchronous
+    // onClick handler doesn't have — compare against SharePlugin.kt's
+    // timestamps to see whether this gap correlates with failed attempts.
+    // Logs timing only, never QuKi content (ADR-12). debugPrint used rather
+    // than this file's `_log` (package:logging) because Logger.root has no
+    // listener registered anywhere in the app, so Logger calls currently
+    // produce no visible output — see PR report. Grep "TEMPORARY DIAGNOSTIC"
+    // to find and remove every part of this.
+    final tSendTapped = DateTime.now();
+    debugPrint('[ShareDiag] plugin selected at $tSendTapped');
+
     await _autoSave.flush();
     if (!mounted) return;
+
+    final tFlushDone = DateTime.now();
+    debugPrint('[ShareDiag] flush() done at $tFlushDone '
+        '(${tFlushDone.difference(tSendTapped).inMilliseconds}ms since plugin '
+        'selected)');
 
     final now = DateTime.now();
     final ctx = TransportContext(
@@ -393,8 +412,12 @@ class _EditorScreenState extends ConsumerState<EditorScreen>
 
     TransportResult result;
     try {
+      debugPrint('[ShareDiag] calling plugin.transport() at ${DateTime.now()}');
       result =
           await plugin.transport(markdown: body, images: const [], ctx: ctx);
+      debugPrint('[ShareDiag] plugin.transport() returned at ${DateTime.now()} '
+          '(${DateTime.now().difference(tSendTapped).inMilliseconds}ms total '
+          'since plugin selected)');
     } catch (e, st) {
       _log.severe('plugin.transport threw unexpectedly', e, st);
       if (!mounted) return;

@@ -99,4 +99,22 @@ Bulk-pull progress banner: always, or only above some threshold? Decision belong
 
 ---
 
+## OQ-8: Root cause of intermittent Android Share Sheet delivery (branch `fix/android-share-activity-context`)
+
+**Raised during implementation, 2026-08-27.** The #337 mechanism fix (plain `ACTION_SEND` chooser via `AndroidShareChannel`/`SharePlugin.kt`, no `startActivityForResult`) is confirmed real — targets now launch as their own independent task instead of nesting under QuKi-Notes'. But delivery is still intermittent with no clean repro, unlike two comparison apps (a minimal native app, Google Keep) that share consistently.
+
+**Investigated, not confirmed** (see PR report for full reasoning):
+- **Stale `Activity` context** (`SharePlugin`'s `context`, captured once in `MainActivity.configureFlutterEngine()`): code review found no structural path for this under the app's actual lifecycle — `configChanges` covers virtually every recreation trigger, and `FlutterActivity` creates a fresh engine (and thus a fresh `SharePlugin`) per Activity instance, so a genuinely stale reference at Send-time would require a scenario not identified during review. Additionally, if a stale/invalid context *did* throw, `_onTransport()`'s existing `catch` block would already surface a visible "Send failed" snackbar — which doesn't match the reported symptom (no visible error, just no delivery). Weak lead based on available evidence, not ruled out entirely.
+- **Async gap before the native call** (`await _autoSave.flush()` + the Dart↔Kotlin `MethodChannel` round trip, both absent from a native app's synchronous `onClick`): confirmed as a real, structural difference from the comparison apps. Whether it's long enough, and whether Android's Background Activity Launch restrictions (a real, documented OS mechanism that can silently no-op a `startActivity()` call with no exception thrown, if it's judged not to originate from a sufficiently "foreground" user gesture) are actually the mechanism, is **not confirmable from source alone** — it depends on real device timing.
+
+**Not implemented**: reordering `_autoSave.flush()` to no longer block the native call (would shrink the async gap, but changes `TransportContext.quki.id`'s value for a same-session first-ever send before any autosave has run — a real, if narrow, behavior change not covered by the brief's invariant, and "no unspecified UX behaviors" — left to Spec/project owner rather than implemented speculatively).
+
+**What was landed instead**: temporary diagnostic logging (grep `TEMPORARY DIAGNOSTIC` across `SharePlugin.kt`, `MainActivity.kt`, `android_share_channel.dart`, `editor_screen.dart`) — Activity identity/lifecycle state at registration time and at the moment `startActivity()` fires, plus Dart-side timestamps through the whole call chain. Needs the project owner to capture real `adb logcat` + app output across several attempts (successful and failed) before this can move past "leads" to a confirmed mechanism.
+
+**Separate finding, not part of this bug**: `Logger.root` (from `package:logging`) has no listener registered anywhere in the app (`grep -rn "Logger.root" lib/` finds nothing) — every existing `_log.*` call across the codebase (e.g. `EditorScreen`'s own `_log.severe('plugin.transport threw unexpectedly', ...)`) currently produces no visible output at all, in debug or release. This diagnostic instrumentation used `debugPrint` instead specifically to route around that gap. Worth its own follow-up (wire a listener, at least in debug builds) independent of this bug.
+
+**Surface during**: whenever the project owner has captured on-device logcat output from several real Send attempts against the intermittently-failing target(s).
+
+---
+
 **Last Updated**: 2026-07-04
