@@ -152,6 +152,41 @@ void main() {
     });
   });
 
+  group(
+      'ShareSheetTransport.transport — regression: intermittent Android '
+      'delivery failure, target already running', () {
+    // Follow-on to the #337 fix above: the plain chooser alone didn't fully
+    // resolve delivery -- a repro chain found it still intermittent,
+    // correlated with whether the target app is already running. The native
+    // fix (FLAG_ACTIVITY_NEW_TASK + try/catch around startActivity(),
+    // SharePlugin.kt) can't be exercised from a Dart unit test (needs a real
+    // device + target app). What IS verifiable here: a failure surfaced by
+    // the native channel (via result.error(), now that startActivity() is
+    // wrapped instead of left to propagate uncaught with no signal) must not
+    // be silently swallowed by ShareSheetTransport.transport() -- it has to
+    // reach EditorScreen._onTransport()'s existing catch block, which already
+    // shows a "Send failed" snackbar with Retry. No new UX needed; this only
+    // proves the plumbing doesn't accidentally eat the error in between.
+    test(
+        'a native-channel failure propagates out of transport() rather than '
+        'being swallowed', () async {
+      final transport = ShareSheetTransport(
+        useAndroidChannel: true,
+        shareViaAndroidChannel: (text) async {
+          throw PlatformException(
+            code: 'share_failed',
+            message: 'Failed to launch the share chooser.',
+          );
+        },
+      );
+
+      await expectLater(
+        transport.transport(markdown: 'hello', images: const [], ctx: ctx),
+        throwsA(isA<PlatformException>()),
+      );
+    });
+  });
+
   group('AndroidShareChannel — plain-chooser method-call shape', () {
     // Verifies only that the Dart→platform-channel call shape is correct.
     // The native Kotlin side (real Intent/chooser launch, actual delivery
@@ -179,6 +214,26 @@ void main() {
       expect(calls, hasLength(1));
       expect(calls.single.method, 'shareText');
       expect(calls.single.arguments, {'text': 'hello world'});
+    });
+
+    test(
+        'shareText propagates a PlatformException when the native side '
+        'reports an error via result.error() — regression: SharePlugin.kt '
+        'previously let startActivity() failures propagate uncaught with no '
+        'signal instead of reporting through the channel', () async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+        throw PlatformException(
+          code: 'share_failed',
+          message: 'Failed to launch the share chooser.',
+        );
+      });
+
+      await expectLater(
+        AndroidShareChannel.shareText('hello world'),
+        throwsA(isA<PlatformException>()
+            .having((e) => e.code, 'code', 'share_failed')),
+      );
     });
   });
 }
