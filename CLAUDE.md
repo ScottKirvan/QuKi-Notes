@@ -177,6 +177,7 @@ QuKi-Notes/
 
 ## Hard Rules (apply to all sessions)
 
+- **If Scott repeats an instruction a second time, execute it immediately — no further pushback, no re-litigating, no asking again.** One round of pushback or a clarifying question the first time is fine. A second explicit repetition means the decision is made; comply immediately rather than restating concerns already heard.
 - The manifesto is normative. Push back on anything that conflicts with it.
 - No vault-like features: no folders, tags, backlinks, archive, or pinning.
 - No analytics, crash reporting, or telemetry. Ever. (ADR-12)
