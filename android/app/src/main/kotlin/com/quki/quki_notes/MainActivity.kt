@@ -7,5 +7,6 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         StoragePlugin(this).register(flutterEngine.dartExecutor.binaryMessenger)
+        SharePlugin(this).register(flutterEngine.dartExecutor.binaryMessenger)
     }
 }
