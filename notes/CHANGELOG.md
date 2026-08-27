@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.24.1](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.24.0...v0.24.1) (2026-08-27)
+
+
+### Bug Fixes
+
+* add actionlint job to CI ([2ff1215](https://github.com/ScottKirvan/QuKi-Notes/commit/2ff1215d9bfac8f842ee3c60ec78da79c061b4d7))
+* add failing regression test for Android share sheet target delivery ([#337](https://github.com/ScottKirvan/QuKi-Notes/issues/337)) ([dc991f0](https://github.com/ScottKirvan/QuKi-Notes/commit/dc991f00ad877731e05e0ba28948f3e47cba4534))
+* add FLAG_ACTIVITY_NEW_TASK and startActivity exception handling to share chooser ([14e48c8](https://github.com/ScottKirvan/QuKi-Notes/commit/14e48c869115ccde449b3d6ac2f92dc1b8dd1b2c))
+* resolve shellcheck issues caught by actionlint ([5befefd](https://github.com/ScottKirvan/QuKi-Notes/commit/5befefd3c6c820274fb0cf3ce9cb7765ee763db5))
+* route Android Share Sheet through a plain no-result chooser ([#337](https://github.com/ScottKirvan/QuKi-Notes/issues/337)) ([f51ca68](https://github.com/ScottKirvan/QuKi-Notes/commit/f51ca686f0ff05d334a6aba3e936267d14c5f3e9))
+* versioned download assets, download page, and platform routing ([7d6829e](https://github.com/ScottKirvan/QuKi-Notes/commit/7d6829e5c745a122f9be4c2887980e6096b4d247))
+
 ## [0.24.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.23.0...v0.24.0) (2026-08-24)
 
 
