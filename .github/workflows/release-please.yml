@@ -93,7 +93,7 @@ jobs:
 
         ---
       footer: ""
-      changelog_path: ""
+      changelog_path: "notes/CHANGELOG.md"
     secrets: inherit
 
   store-discord-blurb:
