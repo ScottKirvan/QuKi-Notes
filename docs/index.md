@@ -2,7 +2,7 @@
 layout: home
 hero:
   name: QuKi Notes
-  text: Open the app. Type. Done.
+  text: Open. Type. Done.
   tagline: Scratchpad. Pasteboard. Blank canvas. For the thought that won't wait.
   actions:
     - theme: brand
