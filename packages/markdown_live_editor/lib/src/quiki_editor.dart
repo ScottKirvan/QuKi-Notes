@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/gestures.dart';
@@ -10,6 +9,7 @@ import 'editor_config.dart';
 import 'html_paste.dart';
 import 'indent_dedent.dart';
 import 'md_parser.dart';
+import 'platform_check.dart';
 import 'quiki_render_editor.dart';
 import 'render_model.dart';
 import 'selection_handle.dart';
@@ -29,7 +29,24 @@ bool _debugForceMobile = false;
 /// iOS builds are deferred but the codebase must remain iOS-compatible;
 /// guard all mobile-specific behaviours with this helper rather than
 /// Platform.isAndroid alone.
-bool get _isMobile => Platform.isAndroid || Platform.isIOS || _debugForceMobile;
+///
+/// [isMobilePlatform] (platform_check.dart) is a conditional-import seam,
+/// not a direct `dart:io` call — found during the web spike
+/// (notes/dev/web_platform.md Phase 0) that `dart:io` compiles for web (the
+/// Dart web SDK ships a stub) but *calling* `Platform.isAndroid`/`.isIOS` at
+/// runtime throws `UnsupportedError`, crashing the very first build of any
+/// widget that reads [_isMobile] (confirmed via `flutter run -d chrome`: the
+/// selection-handle overlay's `AnimatedBuilder` reads it unconditionally, so
+/// the whole app failed to render at all, before any user interaction).
+/// `platform_check.dart` picks a `dart:io`-backed implementation on
+/// non-web (byte-for-byte the old behavior, including under `flutter test`)
+/// and a `defaultTargetPlatform`-backed one only on web — using
+/// `defaultTargetPlatform` unconditionally was tried first and rejected: per
+/// Flutter's own foundation docs it always returns `TargetPlatform.android`
+/// under `flutter test` regardless of host OS, which silently flipped
+/// `_isMobile` to true for every existing desktop-host test (caught by
+/// `clipboard_toolbar_test.dart`'s "on desktop (test host)" test failing).
+bool get _isMobile => isMobilePlatform || _debugForceMobile;
 
 // ---------------------------------------------------------------------------
 // _ActiveHandleDrag — Stage 2 selection-handle drag bookkeeping.
