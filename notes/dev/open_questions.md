@@ -99,4 +99,18 @@ Bulk-pull progress banner: always, or only above some threshold? Decision belong
 
 ---
 
-**Last Updated**: 2026-07-04
+## OQ-8: testing `navigator.share()` over the project owner's LAN needs a secure context (HTTPS) — plain `http://<lan-ip>:port` will not do it
+
+**Raised during the web-editor iOS Safari spike (2026-08-30, `chore/web-editor-ios-spike`)**, while writing the project owner's on-device test instructions for the Phase 0 harness (`web_editor_spike/`, see `notes/dev/web_platform.md` §5/§7 for the Web Share goal this spike is validating).
+
+The Web Share API (`navigator.share()`/`navigator.canShare()`) is spec-gated to a [secure context](https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts) — `https:` origins, plus the special-cased loopback addresses (`localhost`, `127.0.0.1`). A private LAN address like `192.168.1.50` does **not** qualify, even though it's "local" in the everyday sense. `web_platform.md` §5 already names "requires a secure context (HTTPS)" as a known constraint, but didn't flag the concrete consequence for how this project actually tests things: the simplest way to reach a dev harness from a real iPhone — `flutter run -d web-server --web-hostname=0.0.0.0 --web-port=<port>` and opening `http://<machine's LAN IP>:<port>` in Safari — will make the share button silently unusable (`canShare()` false or `share` undefined) purely because of the insecure origin, with nothing about that failure distinguishing it from "iOS Safari doesn't support this" or "this app's call is wrong." Whoever runs the on-device test needs to know to route around this, not read a false negative as answering the spike's second question.
+
+**Not resolved here** — no attempt was made to stand up HTTPS in this pass (no network egress / cert tooling available in the environment this spike was built in, and it's arguably the project owner's call which option fits their setup). Two known ways to satisfy the secure-context requirement for a one-off LAN test, for whoever runs the real device pass:
+- A tunneling tool (e.g. `ngrok http <port>`, Cloudflare Tunnel, Tailscale Funnel) fronting the local dev server with a real `https://` URL — simplest, no cert handling.
+- `flutter run`'s own `--web-tls-cert-path`/`--web-tls-cert-key-path` flags with a self-signed cert — no external service, but Safari will show an untrusted-certificate warning the user has to click through, which occasionally has its own quirks worth being aware of going in.
+
+**Surface during**: whoever actually runs the Phase 0 on-device iPhone test (see this spike's session report for exact harness-launch steps), and again at Phase 3 (`web_platform.md` §7 — "Web Share transport + PWA installability") when the real hosted PWA exists, since a real deployment will have HTTPS by default and this constraint stops being a testing inconvenience and just works.
+
+---
+
+**Last Updated**: 2026-08-30
