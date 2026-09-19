@@ -117,6 +117,7 @@ jobs:
           cat whatsnew/whatsnew-en-US
 
       - name: Upload to Play Store (alpha)
+        if: github.event_name == 'release'
         uses: r0adkll/upload-google-play@v1
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_STORE_JSON_KEY }}
