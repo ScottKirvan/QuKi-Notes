@@ -2,9 +2,18 @@
 
 ## Closed Beta
 
-QuKi Notes for Android is currently in closed beta.
+QuKi Notes for Android is currently in closed testing.
 
 <!-- TODO: Add closed beta signup instructions here -->
+
+To get the permissions required to access the closed alpha test versions, first join this google group:  https://groups.google.com/g/boju-studio-beta
+
+Once you've joined the group, you'll have access to download directly from the Play Store on Android:  https://play.google.com/store/apps/details?id=com.quki.quki_notes
+
+Or, if you prefer, you can access the same version using the Play Store Weblink:  https://play.google.com/apps/testing/com.quki.quki_notes
+
+Use GitHub, or Discord to report any issues, request any new features, or to simply introduce yourself and say "hi!"  :-)
+
 
 ---
 
