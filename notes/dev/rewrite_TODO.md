@@ -25,6 +25,8 @@ Updated 2026-09-20. Unsequenced — just a record of what's open.
 - [ ] Send tested into Messages only; no second target, no full completed send (no contacts on emulator).
 - [ ] Share-in's failure-toast path never actually triggered/observed; both paths tested via explicit intent, not the real chooser UI.
 - [ ] Toolbar not tested on a physical device, or with predictive text active.
+- [ ] app icon need to be updated.
+- [ ] 
 
 ## Desktop
 
