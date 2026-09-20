@@ -1,8 +1,8 @@
 {
-  "name": "quki-editor-proof",
+  "name": "quki-notes",
   "private": true,
   "version": "0.1.0",
-  "description": "Phase 01 proof: CodeMirror 6 span-level live markdown reveal for QuKi Notes.",
+  "description": "QuKi Notes — quick-capture notes app (Android, Windows, Linux).",
   "type": "module",
   "scripts": {
     "dev": "vite",
