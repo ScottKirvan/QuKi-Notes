@@ -61,7 +61,7 @@ jobs:
         env:
           TAG: ${{ github.event.release.tag_name }}
         run: |
-          SRC=$(ls project/electron/release/*.exe | head -1)
+          SRC=$(find project/electron/release -maxdepth 1 -name "*.exe" | head -1)
           mv "$SRC" "project/electron/release/quki-notes-windows-${TAG}.exe"
 
       - name: Upload to GitHub Release
