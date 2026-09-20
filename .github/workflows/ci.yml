@@ -15,27 +15,83 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: subosito/flutter-action@v2
+      - uses: actions/setup-node@v4
         with:
-          channel: stable
-          cache: true
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            project/package-lock.json
+            project/core/package-lock.json
+            project/electron/package-lock.json
+            project/cli/package-lock.json
+            project/mcp/package-lock.json
 
-      - name: Install dependencies
-        run: flutter pub get
+      # core must be installed, type-checked, built, and tested first —
+      # the other packages import from core/dist/
+      - name: Install (core)
+        run: npm ci
+        working-directory: project/core
 
-      - name: Analyze
-        run: flutter analyze
+      - name: Type check (core)
+        run: npm run typecheck
+        working-directory: project/core
 
-      - name: Format check
-        run: dart format --output=none --set-exit-if-changed lib/ test/ packages/markdown_live_editor/
+      - name: Test (core)
+        run: npm test
+        working-directory: project/core
 
-      - name: Test
-        run: flutter test
+      - name: Build (core)
+        run: npm run build
+        working-directory: project/core
 
-      - name: Install dependencies (markdown_live_editor)
-        run: flutter pub get
-        working-directory: packages/markdown_live_editor
+      # Main Vite app — build runs tsc -b (type check) + vite build
+      - name: Install (app)
+        run: npm ci
+        working-directory: project
 
-      - name: Test (markdown_live_editor)
-        run: flutter test
-        working-directory: packages/markdown_live_editor
+      - name: Type check + build (app)
+        run: npm run build
+        working-directory: project
+
+      - name: Test (app)
+        run: npm test
+        working-directory: project
+
+      # Electron wrapper
+      - name: Install (electron)
+        run: npm ci
+        working-directory: project/electron
+
+      - name: Type check (electron)
+        run: npm run typecheck
+        working-directory: project/electron
+
+      - name: Test (electron)
+        run: npm test
+        working-directory: project/electron
+
+      # CLI
+      - name: Install (cli)
+        run: npm ci
+        working-directory: project/cli
+
+      - name: Type check (cli)
+        run: npm run typecheck
+        working-directory: project/cli
+
+      - name: Test (cli)
+        run: npm test
+        working-directory: project/cli
+
+      # MCP server
+      - name: Install (mcp)
+        run: npm ci
+        working-directory: project/mcp
+
+      - name: Type check (mcp)
+        run: npm run typecheck
+        working-directory: project/mcp
+
+      - name: Test (mcp)
+        run: npm test
+        working-directory: project/mcp
