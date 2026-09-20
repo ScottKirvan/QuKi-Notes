@@ -1,275 +1,336 @@
-# QuKi-Notes — Project Overview
+# CLAUDE.md — QuKi Notes 
 
-A personal **capture** app: ephemeral notes (**QuKis**) captured frictionlessly on whichever device is at hand. Transport plugins let you send a QuKi somewhere when you're ready — or just let it live in the stream. No vault. No organization. No backup ritual.
+## Current status (2026-09-20)
 
-**Philosophy first.** Read `notes/dev/manifesto.md` before anything else. The manifesto is normative; all other docs must stay consistent with it.
+The TypeScript rewrite (`project/`) has reached the end of
+`notes/dev/quki-rewrite-path.md`'s phase 06 (Capacitor/Android) per that phase's own
+stated scope: storage backend swap + Flutter-migration detection, the all-files
+permission Kotlin, the keyboard-aware formatting toolbar, Send (share-out), and
+share-in are all built and independently reviewed. All four day-one targets (web,
+Android, Windows, Linux) have working implementations.
+
+**Read `notes/dev/rewrite_TODO.md` first in any new session** — a running,
+checkbox-format list of everything still open, including the biggest known gap
+(list/task/blockquote live-reveal rendering doesn't exist yet), platform-specific
+loose ends, and manual-acceptance items only Scott can check off.
+`notes/dev/github_issues_review.md` cross-references all 123 issues from the old
+Flutter GitHub tracker against the rewrite — what's already fixed, what's structurally
+obsolete, and what's still genuinely relevant.
+
+## Keeping This File Current
+
+This file is the primary context for any agent working in this repo — keep it accurate
+as the project evolves. When you learn what the project is, add a brief description at
+the top. As key files, build commands, and architectural decisions emerge, record them
+here so future sessions start with full context rather than re-deriving it.
+
+Update this file in the same commit as the work it documents.
+
+## Working Conventions
+
+- Never commit or push directly to `main`. Always branch first, then PR.
+- Before pushing to, or building new commits on, a previously-used branch, run `git
+  fetch --prune` and confirm its remote ref still exists — a merged PR's branch may
+  already be gone. At the start of any session resuming an existing branch, `git fetch
+  origin && git rebase origin/main` before touching files — branches drift silently
+  between sessions.
+- Branch names must describe the work (e.g. `fix/login-timeout`, `feat/export-csv`).
+  No random characters, UUIDs, or generated suffixes to ensure uniqueness — if a name
+  is already taken, pick a more specific descriptive name instead.
+- If a branch name is pre-assigned by tooling (a hosted agent session, a CI runner)
+  rather than chosen by you, verify it against this convention before the first push.
+  Rename locally (`git branch -m <name>`) if it doesn't match — being handed a name
+  isn't an exemption from the rule.
+- One concern per branch and PR. If work naturally splits into independent problems,
+  split the branches too — resist bundling unrelated changes into one PR.
+- Conventional commits: `feat:` / `fix:` / `docs:` / `chore:` / `refactor:` / `test:`.
+  Breaking: `feat!:`.
+- `feat:` is for genuinely new user-facing capabilities only. Bug fixes and corrections
+  use `fix:`, even when they close a tracked issue.
+- Unit tests must be written alongside all new code. All bug fixes require red/green
+  tests — a failing test that reproduces the bug, then the fix that makes it pass.
+- CI, lint, and formatting must all pass before committing or opening a PR. Discover
+  the project's commands from the CI config, `package.json`, `Makefile`, or equivalent
+  — do not assume they match another project's toolchain.
+- Prefer narrow, localised changes. Favour modularity that contains the blast radius
+  of future edits — a fix or feature should not require touching unrelated parts of
+  the codebase. If it does, that's a design signal worth surfacing.
+- Refactoring is a first-class activity, not something to defer. Improve structure as
+  you go rather than accumulating technical debt for a later pass.
+- When working in unfamiliar domain territory, prefer primary sources — official docs,
+  specs, RFCs — over general knowledge. Flag domain uncertainty explicitly rather than
+  proceeding on an assumption.
+- Default to writing no comments. Add one only when the *why* is non-obvious — a
+  hidden constraint, a subtle invariant, a workaround for a specific bug. If code is
+  hard to understand, the fix is clearer naming and structure, not a comment explaining
+  what it does.
+
+## Change as Experiment
+
+Work proceeds in small, verifiable, safe, directed steps — not a plan executed end to
+end. Each step is small enough to evaluate on its own: land it, check whether it moved
+things in the right direction, then decide the next step from what was just learned
+rather than from what was originally guessed. Treat every change as an experiment with
+a check at the end, not a commitment to a predetermined path.
+
+This project runs in a constrained environment on purpose — the impulse to run ahead,
+anticipate the next three steps, or solve adjacent problems while already in the code
+is explicitly suppressed. Staying inside the current step is a discipline, not a
+limitation to work around.
+
+## Testing Strategy
+
+Tests are the fastest mechanical check that generated code matches intent — treat them
+as load-bearing, not optional scaffolding. Two tiers matter most here:
+
+- **Unit tests**, written alongside the code (see Working Conventions above) — TDD
+  where practical: the test exists before the implementation it verifies.
+- **Acceptance tests**, written in behavior terms (given/when/then or equivalent) —
+  describing what the system does from the outside, not how. These are the actual spec
+  for a feature or fix; if a change can't be stated as an acceptance criterion, the
+  requirement isn't clear enough yet to build against.
+
+When a process mistake gets logged in `notes/dev/mistakes.md`, ask whether it's also a
+missing test — a regression or acceptance test that would have caught it mechanically
+next time, not just a process note relying on memory.
+
+## No Shortcuts
+
+Nothing is deferred without explicit permission from the user. A known issue is still
+a bug — do not mark it "won't fix", "by design", or "out of scope" unilaterally.
+
+If a library or package cannot meet the stated requirements, the answer is to find an
+alternative or do the work from first principles — not to defer the requirement or
+revise it to fit the limitation. The requirements define what the project needs; the
+implementation serves the requirements, not the other way around.
+
+## Verification Discipline
+
+Never state that something works, is fixed, or is verified unless it was checked at
+that exact moment with a command whose output is the actual basis for the claim — not
+memory of an earlier check, not knowledge of what the code is supposed to do, and not
+a sub-agent's self-report taken at face value. The standard is identical in both
+directions: the skepticism applied to a sub-agent's "done" (see Sub-Agent Workflow)
+applies just as much to Claude's own claims to the user.
+
+Before reporting a task or verification as complete:
+- State the concrete, checkable success criteria before running anything — specific
+  facts ("a PR exists against branch X containing files A and B"), not a general
+  expectation ("it should work").
+- Check every criterion with a fresh command at the time of the claim, and cite its
+  actual output as the basis for what's reported.
+- If a task has multiple required scenarios (e.g. two code paths, or a dev environment
+  and the real deployment target), track them explicitly and don't report the whole
+  task done until every one has been checked — a passing sub-step is not a finished
+  task.
+- Report against the criteria list: state plainly what's verified and what isn't,
+  rather than describing the completed part in success language and leaving gaps
+  implicit.
+
+## Communication
+
+Ask questions in natural language. Never use a multiple choice / structured question
+tool — including Claude Code's `AskUserQuestion` tool — if clarification is needed,
+just ask directly in plain text. This is a project-wide preference, not a
+per-session one: some interfaces render binned/multiple-choice questions poorly,
+and forcing a question into fixed options loses the nuance an open question
+would surface. Standard engineering practice is to ask a real question and read
+a real answer, not to pick from a menu.
+
+**Scott's direct statements are authoritative, not claims to verify or hedge.** If he
+reports something directly — a bug, a fact about what he observed, a correction — record
+and act on it as established, not as "(Scott, unverified)" or similar. The heavy
+verification discipline in this file (re-run tests, re-read code, distrust a sub-agent's
+self-report) is aimed at agent and code output, not at Scott's own reports of what he's
+seen. Corrected explicitly after a first draft of `notes/dev/rewrite_TODO.md` hedged
+three of his direct bug reports this way.
+
+## Autonomy
+
+Make implementation decisions independently — don't ask permission for technical
+choices within the stated requirements. Escalate only when something would change
+scope, defer a requirement, or contradict what the user has described as the goal.
+
+A structural choice made while implementing a functional request — naming, module
+boundaries, a relationship between two pieces — is mine to propose, but must be
+flagged as a proposal, not written into this file, a spec, or code comments with the
+same authority as something the user actually decided.
+
+A description of a desired change is not, by itself, authorization to execute it. If a
+message separates *what* to do from *when* ("I'll tell you when"), wait for the
+explicit go-ahead before acting — even on a fully-specified, low-risk change.
+
+**IF YOU CANNOT DO EXACTLY WHAT WAS ASKED — DUE TO A TECHNICAL CONSTRAINT OR ANY OTHER
+REASON — STATE THE CONSTRAINT AND STOP.** Do not silently substitute an alternative and
+proceed to implement it in the same turn. Naming the blocker is not itself permission
+to pick a workaround; the user decides which alternative (if any) to pursue. This
+applies even when the substitute seems obviously reasonable.
+
+**Two-strike auto-comply.** If corrected twice on the same point, treat the second
+correction as an automatic stop: comply immediately, with no further justification or
+re-explanation. Don't make the user repeat themselves a third time or invoke a
+stop-word to get compliance — repetition itself is the signal.
+
+**Mark proposals as proposals.** Any architectural or structural choice made while
+implementing — one not a direct restatement of something the user actually decided —
+gets written into a spec, `CLAUDE.md`, or other persistent doc as `[Proposed —
+unconfirmed]`, not plain declarative text carrying the same authority as a real
+decision. Don't unmark your own proposal; only the user confirming it (or leaving it
+alone) makes it settled.
+
+## Attribution
+
+No attribution of any kind in commit messages, PR bodies, or issue text — no
+"Generated with", "Co-Authored-By", "Created by Claude", or any AI/tool credit lines.
+
+**Verify by reading the repo, not from memory.** Some git hosting integrations inject
+a footer server-side even into a request that omitted one — treat that as expected
+behavior, not a surprise. After every commit and after every PR create/update, re-read
+the actual result and strip any attribution found, regardless of source:
+- Run `git log` and read the actual commit messages
+- Re-fetch and read the actual PR body text
+- Remove any attribution found, regardless of source
+
+A commit or PR is not finished until this read-back check has run — don't rely on what
+you wrote, check what actually landed.
+
+## GitHub Issues and PRs
+
+Issue and PR templates live in `ScottKirvan/.github` (or your org's equivalent) and
+apply to this repo automatically via GitHub's community health file fallback.
+
+- Bug reports → `[BUG]` title prefix, `bug_report.md` sections
+- Feature requests → `[FEATURE]` title prefix, `feature_request.md` sections
+- General → `[GENERAL]` title prefix, `general_report.md` sections
+- PRs → fill all checklist sections; no attribution anywhere in the body
+
+Before creating any issue: check for duplicates first — `gh issue list --state open
+--limit 100` where the `gh` CLI is available, or the equivalent GitHub search/list
+tool (e.g. an MCP GitHub server's `search_issues`/`list_issues`) in hosted sessions
+that don't have `gh`. Don't skip the check just because the literal command doesn't
+apply in a given environment.
+Create issues only when explicitly asked — don't preemptively file future work.
+
+## Sub-Agent Workflow
+
+When using sub-agents for implementation:
+
+- Brief sub-agents on **what** to build, not **how** — implementation decisions belong
+  to the sub-agent, which serves as an independent second opinion on the approach.
+- Not every implementation choice is "how." A choice is **load-bearing** — and belongs
+  in the brief as a stated constraint, not left implicit — if getting it wrong would
+  foreclose a decision already made elsewhere, or if fixing it later would cascade into
+  sibling components rather than staying local to the one being built. The test: would
+  changing this later touch only this component, or would it touch others or
+  contradict something already decided? Local and reversible → genuinely "how,"
+  delegate freely. Cascading or hard to reverse → state it explicitly in the brief.
+  (Architecture — how two components relate, e.g. whether one delegates to the other —
+  is the case that's easiest to misclassify as "how" when it's actually load-bearing.)
+- Sub-agents follow all conventions in this file except they do not create PRs.
+- After a sub-agent completes, review its diff and tests before creating the PR.
+  This review is a genuine code review, not a compliance check — evaluate correctness,
+  requirement alignment, and test quality independently.
+- Simple issues found in review may be fixed directly. Significant deviations from the
+  stated requirements or complex problems go back to the sub-agent rather than being
+  patched over.
+- Create the PR only after review passes.
+
+
+# Working rules
 
 ---
 
-## Session Model
+## Sources of truth
 
-Work runs in three concurrent Claude session types. Launch each from its own folder under `Agents/`:
+Four documents govern this work. In order of precedence:
 
-| Session | Launch from | What it owns |
-|---|---|---|
-| **Spec** | `Agents/quiki-spec/` | `notes/dev/` docs, task briefs, phase tracking |
-| **Implementation** | `Agents/quiki-dev/` | App code + tests, one PR per session |
-| **DevOps** | `Agents/quiki-devops/` | `.github/workflows/`, build configs, `justfile` |
-| **Docs** | `Agents/quiki-docs/` | `README.md`, `CONTRIBUTING.md`, `docs/` VitePress content |
+1. **A direct instruction from Scott**, in the conversation at hand. Always wins.
+2. **`STORAGE_CONTRACT.md`** — normative for anything touching files, the QuKi list, images or trash.
+3. **`BEHAVIOR_SPEC.md`** — what a screen or interaction does.
+4. **`quki-rewrite-path.md`** — how work is sequenced and what each component becomes. Advisory.
 
-Each folder has its own `CLAUDE.md` with role-specific instructions and the current task brief. Start there.
+Below those, in descending reliability:
 
----
+5. **The test suite.** The best secondary source in the repository. A test records what someone *decided* should happen.
+6. **The source.** Records what got written — which is not always what was intended.
 
-## The Three Plugin Axes (load-bearing)
+**Everything else in this repository is stale by default.** Prior planning documents, architecture decision records, issue history, changelogs, READMEs and user documentation are not inputs to this work. Much of it was written by agents, describes intentions that were never implemented, or records decisions later reversed without the document being updated. If one of these lands in your context, treat it as noise and say so — do not act on it.
 
-| Layer | What it does | MVP |
-|---|---|---|
-| **Transports** | Take a QuKi → deliver to a destination. Stateless per fire. | Yes — ClipboardTransport + ShareSheetTransport shipped |
-| **Sync** | Move QuKis across this user's own devices. Opt-in. | No — v1.1+ |
-| **MCP** | Expose QuKi-Notes to AI agents over Model Context Protocol. | No — v2.0+ |
+**Code comments are unreliable and must not be trusted.** Two demonstrated examples: one comment asserts an image path "resolves to `<root>/../images/` which matches the images directory at `<root>/images/`" — two different paths claimed to be the same in a single sentence, and the reason images never rendered. Another attributes a retry loop to antivirus interference that was never tested and that the code doesn't actually address.
 
----
+**A GitHub issue is the same class of unreliable narrative as a code comment — not a way to verify one.** A Kotlin comment ported from the old Flutter app cited specific GitHub issue numbers and a named failing app as the reason for a design choice. A matching issue turned out to actually exist — but that only shows the same narrative was written down in two places, quite possibly by the same agent, in the same rationalizing mood. It does not make the narrative true. Corrected explicitly by Scott after a first pass treated "the issue exists" as if it confirmed the story: *"something being a github issue is no more concrete than the comment in the code — the code is the only source or[ld] truth... github issues are of the same class as code comments. tests are real ground truth. the code is real ground truth. any narrative is suspect."* This is consistent with, not an exception to, "everything else in this repository is stale by default" above — issue history was already named there as noise, and prose staying prose regardless of which file or platform it's filed in is the reason why.
 
-## Key Decisions (locked — full rationale in notes/dev/decisions.md)
-
-| Decision | Choice |
-|---|---|
-| Framework | Flutter (Dart) |
-| State management / DI | `riverpod` + `riverpod_generator` (`@riverpod`) |
-| Active platforms | Android first, then Windows + Linux |
-| Deferred platforms | iPadOS / iOS / macOS (codebase supports; builds deferred) |
-| Markdown flavor | GFM |
-| WYSIWYG editor | `markdown_live_editor` (monorepo package, ADR-26) — All stages complete (v0.11.0) |
-| Local storage | Individual `.md` files + `.meta/{uuid}.json` sidecar (ADR-25) |
-| Sync (MVP) | None — opt-in plugin axis v1.1+ (ADR-17, ADR-18) |
-| Transports (MVP) | Built-in compile-time registry; ClipboardTransport + ShareSheetTransport shipped (ADR-14) |
-| `lib/core/transports/` | Flutter import allowed for `settingsView()` (ADR-21) |
-| MCP | Reserved, no code in v1 (ADR-14, ADR-18) |
-| Auth | None in MVP; GitHub Device Flow when a plugin needs it (ADR-9) |
-| Token storage | `flutter_secure_storage`, namespaced per plugin (ADR-2) |
-| Image storage | Separate binary files; `![](../images/...)`; never base64 (ADR-4) |
-| Deletion | `.trash/` subfolder; restore/hard-delete user-managed + fixed 30-day auto-purge, not configurable (ADR-25, ADR-38) |
-| Save vs send | Save: 2s debounce + 30s periodic + lifecycle. Send: user-initiated only (ADR-6) |
-| Ephemerality | Gmail-style: framed ephemeral, persisted forever locally (ADR-15) |
-| CLI | Working hypothesis; not in MVP; `lib/core/` stays Flutter-free for it (ADR-16) |
-| Theme / Logging / Privacy | System theme; `logging` package; no analytics ever (ADR-12) |
-| Versioning | Semantic versioning via release-please (`dart` type) |
-| Commits | Conventional commits; rebase & merge |
-| Task runner | `just` (justfile) |
-| Docs | VitePress → GitHub Pages |
+**Read what executes.** If a behavior isn't in the four documents, isn't visible in the code's actual execution, and isn't asserted by a test, it is not established. Ask.
 
 ---
 
-## Project Structure
+## When a document is wrong
 
-```
-QuKi-Notes/
-├── Agents/
-│   ├── quiki-spec/    ← Spec session root (CLAUDE.md + briefs)
-│   ├── quiki-dev/     ← Implementation session root (CLAUDE.md + task brief)
-│   └── quiki-devops/  ← DevOps session root (CLAUDE.md + task brief)
-├── lib/
-│   ├── main.dart
-│   ├── app.dart
-│   ├── core/       ← storage/, transports/, auth/, settings/ (Flutter-free except transports/)
-│   ├── features/   ← editor/, stream/, settings/, share_in/
-│   └── shared/     ← models/ (pure Dart; CLI-safe)
-├── android/
-├── windows/
-├── linux/
-├── ios/            ← scaffold present; not actively built
-├── .github/
-│   ├── workflows/
-│   └── release-please/
-├── notes/dev/      ← all planning docs (manifesto, spec, decisions, OQs, etc.)
-├── docs/           ← VitePress source
-├── pubspec.yaml
-├── justfile
-└── CHANGELOG.md
-```
+It happens. The documents were written from the code and from conversation, and both can be misread.
+
+**Say so. Do not quietly implement around it, and do not quietly comply with it.**
+
+If the spec and the code disagree, report the disagreement with the specific file and line, and wait. If the spec is internally inconsistent, say which two parts conflict. If a rule appears to make a required behavior impossible, that is a finding, not an obstacle to work around.
+
+**The word is usually the bug.** When an implementation is defended as matching the specification and is nonetheless wrong, the specification is what needs fixing — and arguing about the code will not resolve it, because the code is compliant. This project has already lost significant work to exactly that: the word *database* entered an early spec in its broad sense (any organised store, a filesystem included) and was implemented in its narrow sense (a registry that decides what exists). The implementation was defensible against what was written. Raise the wording.
 
 ---
 
-## Development Pipeline Summary
+## Scope
 
-| Phase | Goal | Status |
-|---|---|---|
-| 0 | Bootstrap scaffold | Complete |
-| 1 | Local QuKi capture on Android | Complete (v0.3.0) |
-| | 1.1 Drift schema v1 | Complete |
-| | 1.2 Editor screen (super_editor + toolbar) | Complete |
-| | 1.3 Stream screen | Complete |
-| | 1.4 Image paste | Blocked — CargoKit archived; deferred |
-| | 1.5 Auto-save controller | Complete (v0.3.0) |
-| | 1.6 Settings stub | Complete (v0.4.0) |
-| 2 | Transport plugin loader + built-in transports | Complete (v0.5.0) |
-| 3 | Polish + share-in + Windows + Linux | In progress (v0.9.3) |
-| | 3.1 Android share-in | Complete (v0.6.0) |
-| | 3.2 Windows + Linux CI verification | Complete (v0.6.1) |
-| | 3.3 Platform guard: share-in on desktop | Complete (v0.6.2) |
-| | 3.4 Desktop keyboard shortcuts + window-state | Complete (v0.7.0) |
-| | 3.5 Snackbar auto-dismiss + paragraph spacing | Complete (v0.8.0) |
-| | 3.6 Editor navigation redesign (QuKis icon, hamburger, Send) | Complete (v0.8.0) |
-| | 3.7 Editor single-root architecture (activeQukiIdProvider) | Complete (v0.8.1) |
-| | 3.8 WYSIWYG markdown rendering (OQ-1) | Complete (v0.9.1) |
-| | 3.9 Primer DHC color palette (#37) | Complete (v0.9.2) |
-| | 3.10 Auto-capitalization bug (#32, #74) | Partially addressed (v0.9.2) — IME workaround insufficient; root issue persists, tracked #74 |
-| | 3.11 Editor auto-focus + keyboard dismiss button | **Corrected 2026-08-15: a genuine functional failure across repeated real attempts (this row, 3.20, 3.20a, 3.38)** — not resolved by a fix, but by the project owner's deliberate decision to stop pursuing cold-launch auto-focus and change the requirement instead, deferring the cold-launch experience to a future splash screen (#342). Cold-launch `requestFocus()` code removed accordingly; see Known bugs / #342 |
-| | 3.12 Error handling + case-insensitive search + relativeTime utility | Complete (v0.9.3) |
-| | 3.13 Editor UX polish batch (#75, #78, #82, #85, #86, #92) | Complete (PR #96) |
-| | 3.14 Post-#96 device regressions (transport state, #75 re-fix, #78 re-fix, #82 format fix) | Complete (PR #99) |
-| | 3.15 Storage migration: Drift/SQLite → individual .md files (ADR-25) | Complete (PRs #103, #104, #105, v0.9.6) |
-| | 3.16 Recently Deleted screen (#29) | Complete (PR #103) |
-| | 3.17 Replace super_editor with markdown_live_editor (ADR-26) | Complete (v0.11.0) |
-| | 3.18 App icon — Android adaptive, iOS, Windows, Linux | Complete (v0.12.0–v0.13.0) |
-| | 3.19 Storage location choice + first-launch setup (ADR-27/28, #134) | Complete (PR #145) |
-| | 3.20 Keyboard on cold launch (#72) — remove hacks, establish clean baseline | Marked "Complete" (PR #155) at the time; auto-focus remained a genuine functional failure at this stage too — see 3.11 correction above |
-| | 3.20a Keyboard on cold launch (#72) — + button paths + resume fix | Marked "Complete" (PRs #165, #168, #170) at the time; auto-focus remained a genuine functional failure at this stage too — see 3.11 correction above |
-| | 3.21 Stream performance (lazy loading) | Defer until threshold hit |
-| | 3.22 Single-buffer TextSpan editor — replace block-flip (ADR-30, #179, #180) | Complete (PRs #186, #189, v0.15.0) |
-| | 3.23 ADR-31 Stage 1 — custom RenderObject + TextInputClient, plain-text editor | Complete (PR #201, v0.16.0) |
-| | 3.24 ADR-31 Stage 1 device-test fixes — gesture, keyboard lifecycle, scroll, long-press | Complete (PR #203, v0.16.1) |
-| | 3.25 ADR-31 Stage 2 — MdParser + RenderModel; reveal/collapse for h1–h3, bold, italic | Complete (PR #205) |
-| | 3.26 ADR-31 Stage 2 rendering fixes — reveal at element.end, delimiter color | Complete (PR #209) |
-| | 3.27 ADR-31 Stage 3 — boundary-reveal cursor movement + precise tap-to-source | Complete (IME-native; arrow-key device-test deferred) |
-| | 3.28 ADR-31 Stage 4 — list glyphs, checkboxes, ordered-list numbering | Complete (PR #211) |
-| | 3.29 ADR-31 Stage 4 device regressions — list auto-continue IME sync, ol block-relative numbering, plain text mode | Complete (PR #213) |
-| | 3.30 ADR-31 Stage 5 — block-level inline images | Marked "Complete" (PR #215) at the time; per the project owner (2026-08-09) this has never actually worked in practice — always renders a blank gray placeholder box, never a real image. See Known bugs / #344 for the traced root cause |
-| | 3.31 ADR-31 Stage 6 — inline link rendering and tap-to-navigate | Complete (PR #217) |
-| | 3.32 Clipboard toolbar — Cut/Copy/Paste/Select All on Android | Complete (PR #218, v0.17.0) |
-| | 3.33 Bold delimiter fallthrough fix (#219) | Complete (v0.18.0) |
-| | 3.34 GFM inline markup batch — strikethrough, inline code, h4–h6, bare URL autolinks; icon + color fixes | Complete (v0.18.0) |
-| | 3.35 GFM second batch — blockquotes, horizontal rules, autolink word-boundary, inline code bg | Complete (v0.18.0) |
-| | 3.36 Sort order fix — sidecar modifiedAt decouples list sort from filesystem mtime (#75) | Complete (PRs #224, v0.18.1) |
-| | 3.37 Checkbox tap-to-toggle (#130) | Complete (PR #226, v0.18.1) |
-| | 3.38 Cold launch keyboard focus — postFrameCallback requestFocus() on all platforms (#72) | Marked "Complete" (PR #232, v0.18.2) at the time; this too was a genuine functional failure, despite a real attempt. The dead `postFrameCallback`/`requestFocus()` code has since been removed rather than left in place implying it functions — a startup splash screen (#342) is the chosen replacement approach for the cold-launch experience, not a further attempt at auto-focus |
-| | 3.39 Windows MSI installer (WiX 4) with optional Explorer context menu | Complete (PR #230, v0.18.2) |
-| | 3.40 Reading mode + toolbar gating + wrapSelection cursor + scroll padding + T-button icons + markdown mark icon (#234, #235, #236, #239) | Complete (PR #257, v0.19.0) |
-| | 3.41 Sticky plaintext mode + standalone Send/Settings AppBar buttons (#249, #251) | Complete (PR #258, v0.19.0) |
-| | 3.42 Share-in single-instance fix (#188) — launchMode singleTask | Complete (PR #259, v0.19.0) |
-| | 3.43 Help/about dialog — docs, Discord, GitHub links (#253) | Complete (PR #260, v0.19.0) |
-| | 3.44 Checkbox rendering — direct Canvas paint, no font-fallback dependency (#267) | Complete (PR #270, merged 2026-07-21) |
-| | 3.45 Nested inline markdown Stage 1 — CommonMark delimiter-run engine, paragraphs + headings (ADR-33, #240) | Complete (PR #276, merged 2026-07-21) |
-| | 3.46 Nested inline markdown Stage 2 — list-item/checkbox content (ADR-33, #240) | Complete (PR #279, merged 2026-07-22) |
-| | 3.47 Nested inline markdown Stage 3 — single-line HTML detection (ADR-33) | Complete (PR #281, merged 2026-07-22) |
-| | 3.48 Nested inline markdown Stage 4 — blockquote content + rendering fixes (ADR-33) | Complete (PR #283, merged 2026-07-22) — wrapped-line indent limitation fixed by 3.49 below |
-| | 3.49 Block indentation Stage 1 — multi-run rendering foundation + nested blockquotes (ADR-34, #242, #237) | Complete (PR #292, merged 2026-07-23) — device-tested and confirmed by the project owner before merge |
-| | 3.50 Block indentation Stage 2+3 — nested list indentation (ADR-34, #241) | Complete (PR #294, merged 2026-07-24) — device-tested through two rounds of fixes (ol numbering, marker gutter alignment, marker-gutter-leak, Tab key, marker vertical alignment); user guide updated (PR #295) |
-| | 3.51 Block indentation Stage 4 — interactive Indent/Dedent, toolbar buttons + Tab/Shift+Tab (ADR-34, #77) | Complete (PR #307, merged 2026-07-30) — closes #77. Two immediate device-test follow-ups: toolbar horizontal scroll (PR #308), tab render width (PR #309) |
-| | 3.52 Rich-text (HTML) clipboard paste → GFM markdown conversion (ADR-35) | Complete (PR #314, merged 2026-08-01) — real friction fixed: paste from a webpage previously lost all formatting. Clipboard-reading dependency swapped mid-review (`super_clipboard` → `quill_native_bridge`) after CI surfaced a Gradle 9/cargokit build failure; Linux HTML paste is a known, tracked gap (#316), not a regression |
-| | 3.53 Text selection Stage 1 — correct word/entity selection + double-tap (ADR-36) | Complete (PR #320, merged 2026-08-01) — fixes a real, confirmed bug (long-press selecting partial words, not code-review-guessed); adds double-tap and entity-aware selection (links, emails, punctuated numeric strings). Device-tested: tap-to-cursor latency concern from adding double-tap to the gesture arena does not read as laggy in practice |
-| | 3.54 Text selection Stage 2 — draggable selection handles + crossing (ADR-36) | Complete (PR #323, merged 2026-08-03) — shipped after two real-device fix rounds on the same branch: a scroll-position-staleness bug (real, but not the actual reported cause) and the real root cause (handles painted one line-height below the caret they represent; touch resolution wasn't correcting for that offset, so grabbing a handle where it's drawn resolved onto the wrong line). Device-tested and accepted, possible minor tweaks flagged but not yet itemized |
-| | 3.55 Text selection Stage 3 — auto-scroll while dragging a handle (ADR-36) | Complete (PR #325, merged 2026-08-03) — device-tested and accepted on the first attempt, no fix rounds needed. Keeps the dragged selection boundary resolving correctly against a stationary finger while content scrolls continuously underneath it, reusing Stage 2 Round 1's post-frame-deferred scroll-notification machinery |
-| | 3.56 Text selection Stage 4 — magnifier + haptic feedback (ADR-36) | Complete (PR #327, merged 2026-08-03) — **closes ADR-36, all four stages shipped**. Explicitly provisional going in; not dropped — the magnifier's open feasibility question resolved favorably (Flutter's `RawMagnifier`/`MagnifierController` confirmed usable without `RenderEditable`) and a real implementation was built and device-tested/confirmed. Two real gaps found during the whole initiative filed as tracked issues rather than left as loose notes: #328 (selection doesn't work in reading mode), #329 (no draggable handle for precise single-tap cursor placement) |
-| | 3.57 QuKis list Help button + Ko-fi link + tighter list density | Complete (PR #331, merged 2026-08-05) — Help button added to the Stream (QuKis list) screen app bar, mirroring the Editor screen's existing entry point into the same help/about dialog. "Buy me a coffee" Ko-fi link row added to the help dialog itself, consistent with the project's earlier switch to Ko-fi for funding. `ListTile` vertical density tightened on the QuKis list for a more compact view. Small direct edit reviewed and shipped by the Spec session rather than briefed to Implementation |
-| | 3.58 Toss → Transport rename (ADR-14 terminology cleanup) | Complete (PR #347, code; PR #348, docs; both merged 2026-08-09) — every "Toss"/"QuKi-Toss" identifier in `lib/`, `test/`, and all project docs renamed to "Transport" (`ClipboardToss`→`ClipboardTransport`, `ShareSheetToss`→`ShareSheetTransport`, `TossResult`→`TransportResult`, `TossImage`→`TransportImage`, `TossContext`→`TransportContext`, `TossPickerSheet`→`TransportPickerSheet`, `TransportPlugin.toss()`→`.transport()`, `EditorScreen._onToss()`→`_onTransport()`). Zero behavior change — "Toss" predated the project's own vocabulary lock (`CONTRIBUTING.md` already banned it from user-facing text) and survived only as internal naming. Deliberately does not introduce "Send" as a replacement anywhere in the rename; "Send" stays exactly where it was already correct (the UI button, the tagline) |
-| | 3.59 Cold-launch auto-focus removed — a genuine functional failure the project owner ultimately conceded on (#72) | Complete (PR #346, merged 2026-08-09) — the `initState` `postFrameCallback` `requestFocus()` added across Phase 3.11/3.20/3.20a/3.38 never actually worked on a real device across repeated genuine attempts; the project owner ultimately made the deliberate call to stop pursuing it and change the requirement (defer to a future splash screen, #342) rather than keep attempting a fix. Removed outright rather than left in place implying it functions. Four widget tests broke on removal (they'd been implicitly relying on the same dead code for focus/settle timing); root-caused to a real, separate, already-known gesture-arena delay (double-tap recognizer sharing the arena, ~300ms) and fixed using the exact pattern already established elsewhere in the suite |
-| | 3.60 Checkbox tap + text selection reading-mode safety, checkbox hit-target, nested checkbox toggle (#335, #266, #336, #352, #354) | Complete (PR #350, merged 2026-08-10) — closes all five issues, one bundled branch across four device-tested rounds. **Round 1**: checkbox tap no longer reveals the line as raw source / scrolls to top / opens the keyboard (root cause: `setValue()`'s hardcoded selection-reset-to-0, used for an in-place edit it was never meant for — new `setValuePreservingSelection()`); text selection via long-press/double-tap in reading mode no longer opens the keyboard (`_onTapDown`'s eager focus request, reversed post-hoc when a real selection results and the editor started unfocused). **Round 2 (three attempts)**: checkbox hit-test zone widened from exactly-glyph-sized (attempt 1, insufficient — only ~2px real margin, and didn't scale to nested items) → anchored at the row's text-origin left edge (attempt 2, still insufficient — never accounted for the editor's own 12px content padding sitting further left, exactly where "farthest left I can tap" lands) → anchored at the actual widget edge including padding (attempt 3/round 4, the one that worked). **Round 3**: found mid-investigation, not initially in scope — nested checkboxes didn't visibly toggle even with a perfectly-targeted tap, because `_onCheckboxToggle`'s marker-read assumed the marker started exactly at the tap's resolved offset, true only for non-nested items (`MdElement.start` is the *line's* absolute start, before any leading indentation whitespace); fixed by skipping leading whitespace before reading the marker. A flaky test surfaced only under full-suite load (never in isolation) was root-caused to two genuine timing issues (real disk-write latency under contention, and a Windows-specific transient exception during the storage layer's write-temp-then-rename) and fixed with a real poll-and-retry loop, verified via three consecutive clean full-suite runs. Every round independently re-verified by Spec against the actual diff and re-run test suites, not trusted from implementation reports alone — round 2's first attempt is the one documented case this round where Spec's own review missed a real gap (an untested claim: "doesn't overlap a neighbor" ≠ "is big enough") until device-test feedback caught it |
-| | 3.61 Block-marker reveal scoped to the marker itself, not the whole line (#345, ADR-37) | Complete (PR #358, merged) — a list-item/checkbox/heading/blockquote line no longer reveals as raw source just because the cursor is anywhere on that line; only the marker's own `[start, start+openDelimLen)` range does, via new `_isMarkerScopedBlock()`/`_blockRevealEnd()` helpers in `render_model.dart`. Landed as a single commit rather than the mandatory failing-test-then-fix pair (session-limit interruption mid-task) — flagged plainly in the PR body and compensated with Spec's own A/B verification (5 of 10 new tests confirmed to genuinely fail without the fix). |
-| | 3.62 Unify list-toggle-button detection across ul/ol/checkbox | Complete (PR #365, merged) — clicking a different list-type toolbar button on an existing list item now converts it in place instead of corrupting the line by prepending the new marker (`- item` + checkbox button used to produce `- [ ] - item`). Also fixed a related, separately-confirmed bug found during the same investigation: none of the three detectors recognized an existing marker on an indented/nested list item at all. One shared detector (`_detectListMarker`) + one shared apply function (`_applyListMarkerToggle`) now back all three buttons; checkbox got its own dedicated method instead of continuing to share `toggleLinePrefix` with the heading button. 28 new tests cover the full matrix (all 6 conversion pairs × 2 indentation levels, same-type remove, no-marker add, heading non-regression). |
-| | 3.63 Media asset path fixup — `media/` → `assets/media/` | Complete (PR #369, merged 2026-08-13) — the project owner moved the project artwork from a top-level `media/` folder to `assets/media/` and copied files over; this updated the three real remaining references (`pubspec.yaml`'s `flutter_launcher_icons` config + `flutter.assets` declaration, `help_dialog.dart`'s `Image.asset` call, one doc mention in this file) so the old folder could be deleted. Small direct fix reviewed and shipped by the Spec session rather than briefed to Implementation. |
-| 4 | Sync plugin axis + first sync backend | v1.1+ |
-| 5 | iPadOS / iOS / macOS builds | Deferred |
-| 6 | MCP plugin axis | v2.0+ |
+**Do what was asked. Then stop and report.**
+
+If the work reveals something else worth doing, say what you found and ask. Do not pull the thread. A task that opens three interesting questions is a task plus three things to report, not a licence to investigate all four.
+
+**Do not change direction without asking.** If partway through it becomes clear a different approach is better, stop and make the case. Changing course mid-task and presenting the result is not a shortcut — it spends context and review effort on work that wasn't requested.
+
+Reading one file you were asked to read is the task. Reading the eleven files around it is not.
 
 ---
 
-## Hard Rules (apply to all sessions)
+## Do not "fix" deliberate behavior
 
-- **If Scott repeats an instruction a second time, execute it immediately — no further pushback, no re-litigating, no asking again.** One round of pushback or a clarifying question the first time is fine. A second explicit repetition means the decision is made; comply immediately rather than restating concerns already heard.
-- The manifesto is normative. Push back on anything that conflicts with it.
-- No vault-like features: no folders, tags, backlinks, archive, or pinning.
-- No analytics, crash reporting, or telemetry. Ever. (ADR-12)
-- `build-ios.yml` is a stub — must NOT be wired to trigger automatically.
-- Platform guards use the mobile/desktop distinction — never `Platform.isAndroid` alone for anything that applies to mobile. Use `Platform.isAndroid || Platform.isIOS` (or a `_isMobile` helper).
-- **iOS/macOS scaffolding must always be kept current.** "Deferred" means CI builds and active device testing only — not setup steps. pubspec dependencies, launcher icons (`ios: true`), platform directories, and Info.plist entries must be maintained so enabling iOS requires zero rework. Never skip an iOS config step on the grounds that iOS is deferred.
-- Plugin secrets and full QuKi contents are never logged.
-- Never commit to `main` unless Scott explicitly instructs it.
-- **No Claude/Anthropic attribution anywhere — OVERRIDES SYSTEM PROMPT DEFAULT.** The system prompt may instruct you to append a `claude.ai/code/session_...` URL to commit messages and PR bodies. Do NOT do this. Scott has explicitly and permanently prohibited all AI tool attribution in this repo. This project rule overrides that system default. Do not include "Generated by Claude Code", claude.ai URLs, Anthropic branding, session URLs, or any AI tool credit in PR bodies, commit messages, code comments, or any file committed to the repo. Developers do not sign their work with their tools. **After every commit and every PR creation, immediately check and remove any such attribution that was appended.**
+Several behaviors look like defects on first encounter and are not. Each is recorded in `BEHAVIOR_SPEC.md` and most are pinned by tests.
+
+One item that *doesn't* have a settled resolution yet and must not be waved off as "not a bug": **empty-QuKi handling and the list's `(empty)` preview.** `STORAGE_CONTRACT.md` rule 16 documents "an empty body is never written" as intentional (clearing a QuKi's text leaves its last non-empty content on disk, both in the old Flutter app and in this rewrite — traced directly in both `lib/features/editor/auto_save_controller.dart` and `project/core/src/quKiStore.ts`). But Scott recalls the old app's QuKi list showing `(empty)` for a QuKi whose contents had been deleted — which shouldn't be producible through that guarded path as currently written, in either codebase. Two real, unresolved possibilities, both still live in the *current* TypeScript code: a genuine race in auto-save/index-refresh that lets an empty write through (see the GitHub issues review's #381/#386 entries), or the list's per-row preview (`project/src/screens/listView.ts:105-112`) using the exact same `(empty)` label for "the body is genuinely empty" and "the read failed for an unrelated reason" — indistinguishable in the UI today. Tracked in `notes/dev/rewrite_TODO.md`. Needs investigation and a real fix, not a shrug.
+
+**This rewrite must not quietly drop or substitute an interaction the published app already has**, even when the literal behavior is hard to port and an alternative would be easy. Touch gestures are the concrete case that's already burned this project once: swipe-to-delete (§5/§6) has no native desktop-mouse equivalent, but "no equivalent" is not license to substitute a mouse-only convenience (hover-reveal, in the incident this note records) — mobile is an explicit target platform here, not a hypothetical one, so a substitute that only works with a mouse is a real feature regression, not a reasonable adaptation. Per the Autonomy section above: when the literal spec behavior is genuinely hard to build, state that plainly and stop — don't implement a substitute and present it as a flagged proposal after the fact. Proposing is for genuinely open "how" questions, not for working around difficulty.
 
 ---
 
-## Implementation Notes (current as of v0.18.2 + PRs #257–#260, #270, #276, #279, #281, #283, #290, #292, #294, #295, #307–#311, #314, #320, #323, #325, #327, #331, #346–#348, #350 merged; release-please pending)
+## Completion and honesty
 
-**Navigation**: Editor is the permanent root. `app.dart` home = `EditorScreen`; it never has a back button. `activeQukiIdProvider` (NotifierProvider<String?>) controls which QuKi is loaded. `StreamScreen` sets `activeQukiIdProvider` and pops — no second `EditorScreen` is ever pushed. QuKis list slides in from the left; Settings slides in from the right (directional per affordance position).
+**Acceptance is Scott's, manual, and per step.** A passing test suite is not a claim of completion. Work proceeds in small discrete pieces, each reviewed and tested by hand.
 
-**Storage layer (ADR-25, ADR-27, ADR-28)**: `lib/core/storage/` — `QuKiStorage` (file I/O, write-to-temp-then-rename for atomicity), `QuKiIndex` (Riverpod `Notifier<List<QuKiMeta>>`, in-memory, rescanned on `StreamScreen.initState`), `TrashIndex` (same pattern for `.trash/`), `QuKiSearch` (content scan at query time). **Directory, corrected 2026-08-09** — `.md` files live directly at `<storage-root>/{uuid}.md` (no nested `qukis/` subfolder in production; `_mdFile()` joins straight off `QuKiStorage.basePath`, which is `StorageLocationService.basePath` — the user's own chosen root — via `QuKiStorage.fromPath()`) + `.meta/{uuid}.json` (createdAt + modifiedAt) + `.trash/`, all as siblings inside that same root. A `qukis/` subfolder only exists in the app-sandbox-only `QuKiStorage.fromAppDir()` test helper, which is not the production path. This doc previously (incorrectly) described the production layout as `<storage-root>/qukis/{uuid}.md` — that nested-subfolder shape predates the ADR-27/28 user-choosable storage location and was never corrected after the flat layout landed; see the image-rendering entry in Known bugs / #344 for why this mismatch matters (it's the root cause of ADR-4's `../images/{filename}` reference convention resolving outside the user's chosen folder). `modifiedAt` stored as UTC ISO-8601 in sidecar; `_readMeta()` falls back to `stat.modified` for pre-v0.18.1 notes (gain sidecar modifiedAt on next edit). `QuKiStorage.update()` returns `Future<DateTime>` — caller passes the same timestamp to `updateMeta()` to keep in-memory and on-disk state identical. First-launch setup modal: user picks "Filesystem storage" (`Documents/QuKi_Notes`, requires `MANAGE_EXTERNAL_STORAGE` on Android) or "App storage" (`getApplicationDocumentsDirectory()`); changeable from Settings.
+**Never report something as working that you have not seen work.** This project has a history of work marked complete that had never functioned on a device — across several phases, for the same feature, each time in good faith. It is the single most expensive failure mode here.
 
-**Auto-save (ADR-6)**: `AutoSaveController` — 2s idle debounce + 30s periodic + lifecycle hooks. Accepts a `Future<void> Function(String body)` write callback. Tracks `_lastSavedBody` and skips writes when content is identical. `resetForQuki(id:, initialBody:)` switches the save target without disposing the controller.
+State plainly:
 
-**Editor (ADR-31, all stages shipped, v0.18.1)**: `packages/markdown_live_editor/` (monorepo path dep) — custom `QuikiRenderEditor extends RenderBox` + `QuikiEditorState implements TextInputClient`, replacing `TextField`. `MdParser`: block-level detection is a flat left-to-right per-line scanner (no cross-line matching) for h1–h6, `ul`/`ol`/`checkboxUnchecked`/`checkboxChecked` list kinds, block-level images `![alt](path)`, blockquotes `> `, horizontal rules `---`/`***`/`___`. Inline content (bold `**`/`__`, italic `*`/`_`, strikethrough `~~`, inline code `` ` ``, links `[text](url)`, bare URL autolinks) is recursively scanned via a CommonMark delimiter-run engine (ADR-33) — see below; as of Stage 1 this runs on paragraph and heading content only, not list-item content yet. `RenderModel` (bidirectional offset maps `sourceToRendered`/`renderedToSource`; the *outermost* element containing the cursor is *revealed* — raw source visible at `baseStyle`; all others *collapsed* — delimiters hidden, content styled, ancestor styles combine for nested inline runs). Variable-length N→M marker substitution for list kinds. `ImageSlot`, `LinkSlot`, `CheckboxSlot`, `BlockquoteSlot`, `HrSlot` carry collapsed-element metadata for paint and tap-handling. Tap callbacks: `onLinkTap(url)` and `onCheckboxToggle(sourceOffset)` — both fire from `_onTapDown` before cursor placement, return early (cursor does not move). `FormattingToolbar` in the package. Public API: `setValue()`, `requestFocus()`, `wrapSelection()`, `toggleLinePrefix()`, `toggleUnorderedList()`, `toggleOrderedList()`, `togglePlainTextMode()`. `MarkdownEditorController.setValue()` is the seam to `EditorScreen`; `onChanged` → `_autoSave.notifyChanged()`.
+- What you implemented and what you actually verified.
+- What you could not verify, and why.
+- What you changed that wasn't asked for, if anything.
+- Anything you're unsure about. Uncertainty reported is cheap; uncertainty concealed is not.
 
-**Recently Deleted (PR #103)**: `lib/features/recently_deleted/recently_deleted_screen.dart` — `Consumer` over `trashIndexProvider`, newest-first list. Tap → restore. Swipe → confirmation → hard delete. Accessible via Settings → Recently Deleted.
+If something doesn't work and you can't make it work, say that. An honest "this approach failed, here's what I learned" is worth more than a plausible implementation that doesn't run.
 
-**Transport registry**: Plugins registered at compile time in `lib/core/transports/registry.dart`. `TransportSettingsNotifier` persists enabled state via `shared_preferences`. `enabledTransportsProvider` `loading:` branch returns `[]` — prevents disabled transports flashing as enabled on startup.
+**Some things cannot be verified by automation at all** — keyboard-aware layout, the feel of live reveal while typing, paste-to-image, selection handles, share targets. These need a real device. Don't claim them from a green suite.
 
-**Share-in**: `lib/features/share_in/share_handler.dart` — guarded with `Platform.isAndroid`; creates a new QuKi via `QuKiStorage.create()` and routes via `activeQukiIdProvider` (no second screen).
+**"Not a bug" is a red flag, not a finding.** Saying it tends to mean "not something I was asked to fix" got blurred into "not actually wrong" — two different questions. Don't say it without doing the full check first: what's the correct/intended behavior here, does the code actually match it, and what's the realistic failure scenario if it doesn't. If a comparable piece of code elsewhere already does it correctly (a sibling implementation, an existing pattern in the same file), that comparison is often the fastest way to tell a real defect from an intentional tradeoff — don't skip it. A real bug doesn't stop being one because it's out of scope for the current task; out of scope means "report it and ask," not "wave it off as fine."
 
-**Smart send (#85)**: `_onTransport()` skips the picker sheet when `enabled.length == 1` and fires the single transport directly. Picker shown for 2+ transports.
+---
 
-**QuKis icon disabled when empty (#86)**: `_hasQukisProvider` (`StreamProvider<bool>`) watches `quKiIndexProvider` — drives `onPressed: hasQukis ? _openQuKisList : null`.
+## Vocabulary
 
-**Snackbar workaround**: Flutter 3.44 + Material 3 — `SnackBar` with `SnackBarAction` does not auto-dismiss when `duration` is set. Fix: capture `ScaffoldFeatureController`, start explicit `Timer(duration, controller.close)`, cancel in `onPressed`.
+**QuKi Notes** is the application. A **QuKi** is what it captures. The app has two pages: the **QuKi editor** and the **QuKi list**. Use these exactly; don't substitute "note", "document", "file" or "item".
 
-**APK signing**: `android/app/build.gradle.kts` reads `STORE_FILE` / `STORE_PASSWORD` / `KEY_ALIAS` / `KEY_PASSWORD` env vars; falls back to debug signing when absent (local dev). Four GitHub Actions secrets required for release builds.
+**The word *database* does not appear in QuKi Notes specifications**, in either sense. Say "the folder", "the files", or "the sidecar" — each names one specific thing whose behavior can be checked.
 
-**ShareSheetTransport always succeeds (#92)**: `share_plus` fires `ShareResultStatus.dismissed` on Android even on success. Dropped the status check; always returns `TransportResult(success: true, message: 'Shared.')`.
+The same caution applies to any word broader in Scott's usage than in an implementer's: *index*, *node*, *graph*, *store*, *model*, *scene*. If a term could carry either reading, pin it at first use or choose a narrower word.
 
-**Focus on launch — removed, a genuine functional failure conceded rather than fixed (corrected 2026-08-15)**: `_EditorScreenState.initState()` no longer posts `requestFocus()` via `postFrameCallback` on cold launch. This code (originally from PR #232/#72, and the "Complete" status on Phase 3.11/3.20/3.20a/3.38) was carried in the codebase and documented as shipped, but never actually worked in practice across repeated genuine attempts — the project owner ultimately made the deliberate call to stop pursuing cold-launch auto-focus and change the requirement instead, rather than keep attempting a fix. The code has been removed outright rather than left in place implying it functions. The outer desktop `Focus(skipTraversal: true, ...)` wrapper for `CallbackShortcuts` still does not carry `autofocus: true` (unrelated desktop keyboard-shortcut focus, untouched). A startup splash screen (#342) is the chosen replacement approach for the cold-launch experience — see #342 for the design questions this resolves. The other `requestFocus()`/`unfocus()` calls tied to switching *which* QuKi is active (new note → edit mode, existing note → reading mode) are untouched by this — that's a different code path than cold-launch auto-focus, and its own reliability is tracked under #340.
+---
 
-**Windows installer**: `installer/` directory — WiX 4 MSI with optional Explorer context menu (right-click → "New QuKi"). Built by `build-windows.yml` in CI.
+## Repository conventions
 
-**Reading mode (PR #257, #235, #239)**: Keyboard visible = edit mode (`FormattingToolbar` visible); keyboard dismissed = reading mode (`FormattingToolbar` hidden). `MarkdownEditorController.onFocusChanged` (new `VoidCallback?`) fires `EditorScreen.setState()` on focus change. `_editorController.hasActiveBlock` drives `FormattingToolbar` visibility. Existing notes open in reading mode (`unfocus()` on load); new/empty notes open in edit mode (`requestFocus()`). `unfocus()` is a new controller method; `onFocusChanged` is nulled in `dispose()`.
-
-**T button icon states (PR #257, #239)**: `_tButtonWidget()` in `EditorScreen` — edit+rendered = `_MarkdownMarkIcon` (standard markdown logo M+↓ in rounded rect, `CustomPainter`, 24×15, color from ambient `IconTheme`); edit+plaintext = `LucideIcons.codeXml`; read+rendered = `LucideIcons.bookOpen`; read+plaintext = `LucideIcons.codeXml`. No new package dependency. `_MarkdownMarkPainter` scales SVG viewBox 0 0 208 128 to painter size.
-
-**`wrapSelection()` cursor fix (PR #257, #236)**: When no text is selected, cursor now lands between inserted delimiters (at `sel.start + prefix.length`), not after the closing suffix.
-
-**Scroll padding (PR #257, #234)**: `contentPadding: EdgeInsets.fromLTRB(12, 12, 12, 36)` in `MarkdownEditorConfig`.
-
-**Sticky plaintext mode (PR #258, #249)**: Persisted in `shared_preferences` under key `'plainTextMode'`. Loaded async in `postFrameCallback` on first frame. Saved on every T button toggle (async `onPressed`).
-
-**AppBar navigation (PR #258, #251)**: `PopupMenuButton` removed. Send (`LucideIcons.send`) and Settings (`LucideIcons.settings`) are direct `IconButton` actions in `AppBar.actions`.
-
-**Share-in single instance (PR #259, #188)**: `android:launchMode="singleTask"` in `AndroidManifest.xml`. Was `singleTop` (only prevents duplicates when activity is at top of stack; insufficient when app is backgrounded). `FlutterActivity.onNewIntent()` already forwards to the engine — no Kotlin change needed.
-
-**Help/about dialog (PR #260, #253)**: `?` (`circleHelp`) button in editor AppBar opens a help/about dialog — icon + name + version (via `package_info_plus`, loaded async), then three link rows: Documentation (`FilledButton`, accent), Discord, GitHub. Layout mirrors BojuBot's `AboutModal`. New dependency: `flutter_svg` (icon rendering). App icon asset: `assets/media/QuKiNotes_v2_Rainbow_transparent.png`.
-
-**Checkbox rendering fix (PR #270, merged 2026-07-21, #267)**: Root cause was Android font-fallback (Minikin/Skia) resolving one font per text run, not per character — a checked box after an unchecked one in the same run could render as a large color emoji instead of a small monochrome glyph. Fix stops delegating to Unicode glyphs entirely: `collapsedMarker` for checkbox kinds now emits blank placeholder characters (layout width only, 5 characters), and `QuikiRenderEditor.paint()` draws the checkbox itself via `Canvas` (stroked rounded-square, checkmark stroke path when checked) using the same `TextPainter.getOffsetForCaret()` positioning already used for blockquote stripes and horizontal rules. `CheckboxSlot` gained `checked`/`color` fields. Tap-to-toggle hit-testing unaffected. The box is a fixed `lineHeight * 0.8` regardless of reserved marker width — an earlier commit on this branch sized it off the *measured* reserved width instead, which shrank it to roughly half size at typical font sizes and (combined with a hardcoded 3px corner radius) made it render as a circle; caught in spec review and fixed before merge by widening the reserved marker instead of shrinking the box, and scaling the corner radius (`boxSize * 0.2`) to the box size.
-
-**Nested inline markdown, Stages 1-4 (PRs #276/#279/#281/#283, merged 2026-07-21–22, ADR-33, #240)**: `MdParser._scanInline()` replaces the old flat "find nearest matching delimiter pair" scanner with a recursive engine implementing CommonMark's delimiter-run + flanking-rule algorithm — `_processEmphasis()` resolves emphasis/strong/strikethrough spans from recorded delimiter runs (rule-of-three, intraword `_` vs `*` distinction, 1-or-2-delimiter consumption for arbitrary nesting like `***x***`). `MdElement.isBlock`/`isInline` distinguishes non-overlapping block elements from nestable/overlapping inline ones; `RenderModel.build()` tracks an `active` stack of covering inline elements per character, combines every ancestor's style cumulatively, and resolves reveal-on-cursor to the *outermost* covering element (a nested run reveals as one whole raw-source unit, not per-level). Link text is also recursively scanned (`scanLinks` flag suppresses nested links per CommonMark, but allows nested emphasis) — `LinkSlot` records `renderedStart`/`renderedEnd` in two phases since hidden nested delimiters mean rendered label length no longer equals source length. New `MdElKind.escape` for backslash escapes. Deleted `span_parser.dart`/`MarkdownSpanParser` — confirmed-dead code from the pre-ADR-31 `buildTextSpan()` architecture that `QuikiEditor` never called.
-
-Content scanning now runs uniformly across **paragraphs, headings (Stage 1), list-item/checkbox content (Stage 2), and blockquote content (Stage 4)** — each block branch in `MdParser.parse()` calls `_scanInline()` on the content after its own prefix, reusing the same engine rather than one path per block kind. **Single-line HTML detection (Stage 3)**: `_htmlTagEnd`/`_isHtmlOnlyLine` recognize a permissive `<tag>`/`<!-- comment -->` pattern — an HTML-only line emits no element (rendered as literal text, no render-layer change needed) and an inline HTML tag mid-line is skipped by `_scanInline` the same way an inline code span is. Multi-line HTML blocks are explicitly not tracked.
-
-**Blockquote rendering (Stage 4)**: `MdElKind.blockquote`'s marker length is now variable (`_srcMarkerLen`, shared with `ol`) — 1 char for a bare `>`, 2 for `> `, matching CommonMark's actual rule (previously required the space always). `BlockquoteSlot` recording moved from an in-loop check (which had an off-by-one causing empty blockquotes to paint no stripe) to a post-pass over the completed offset map. The stripe's vertical extent uses `TextPainter.getBoxesForSelection(BoxHeightStyle.tight)` (glyph ink bounds) rather than `getOffsetForCaret` (line-box bounds, which sit above the ink when `height > 1.0` — this editor uses `height: 1.4`). Content indentation originally used a `collapsedMarker` of 4 blank characters (the same mechanism as checkbox/list markers); this only indented a line's first visual row and was superseded by real layout indentation in Stage 3.49/ADR-34 below.
-
-**Block indentation Stage 1 — multi-run rendering foundation + nested blockquotes (PR #292, merged 2026-07-23, ADR-34, #242, #237)**: `QuikiRenderEditor` no longer owns one whole-document `TextPainter` — `performLayout()` now builds a `List<_RunLayout>`, one `TextPainter` per `RenderModel.runs` entry (`RenderRun`: a maximal span of consecutive source lines sharing one `MdElement.indentLevel`), each laid out at `maxWidth - indentLevel * 16px` and stacked vertically (`sliceTextSpan()` carves each run's input out of the single flat rendered `TextSpan` `RenderModel.build()` already produces — its offset-mapping/inline-formatting machinery is unchanged). Every public coordinate method (`positionForOffset`, `getOffsetForCaret`, `getPositionForOffset`, `preferredLineHeight`, `textHeight`, `linkUrlForOffset`, `checkboxSourceOffsetForTap`) kept its exact pre-existing signature; internally each now resolves which run a rendered offset/tap falls into (`_runForRendered`/`_runForLocalY`) before delegating. `quiki_editor.dart` required zero changes. `MdParser`'s blockquote branch now peels `>` prefixes recursively for nesting depth (`_blockquoteDepth`: `>` / `> ` = depth 1, `>>` / `> >` = depth 2, etc.) via the new kind-agnostic `MdElement.indentLevel` field. `groupBlockquoteRunsByLevel()` generalizes the old single-level `groupBlockquoteRuns()` to nested stripes with per-level continuity — a level-K stripe spans every consecutive line whose depth is `>= K`, not just exact matches, matching GitHub. The old 4-blank-character `collapsedMarker` indent reservation was removed entirely (now `''`, same as headings) rather than kept alongside the new layout-based indent — keeping both would have double-indented a blockquote's first row relative to its own wrapped rows. Closes #242 (nested blockquotes) and #237 (blockquote indentation/wrap bug). Device-tested and confirmed by the project owner before merge, including the 16px-per-level indent and 4px stripe-to-content gap.
-
-**Block indentation Stage 2+3 — nested list indentation (PR #294, merged 2026-07-24, ADR-34, #241)**: `MdParser.parse()` gains a `_listIndent()` pre-check (2 columns per level; a space = 1 column, a tab = 2) that detects `ul`/`ol`/checkbox markers preceded by leading whitespace and sets their `indentLevel`, reusing Stage 1's field — a column-0 line is untouched, falling through to the original detection chain byte-for-byte. Ordered-list numbering now tracks a separate consecutive-run counter per nesting depth (`invalidateOlFrom`/`nextOlSeqNum`), depth-scoped: a line only invalidates its own depth and everything deeper, never a shallower depth — so a depth-0 list correctly *continues* its count after being interrupted by more deeply nested content (`1. top` / `  1. sub` / `1. top2` → `1. / 1. / 2.`, not a restart). `RenderModel._computeRuns()` generalized beyond blockquote-only to read `indentLevel` from any block kind. List/ol/checkbox markers are painted as a Canvas gutter decoration (`ListMarkerSlot`, redesigned `CheckboxSlot`) rather than inline rendered characters — `collapsedMarker` is now `''` for these kinds too, mirroring blockquote's Stage 1 fix, so every wrapped visual row (including the first) aligns at the same content-start x; checkbox tap-to-toggle hit-tests the box's actual painted `Rect` (`_checkboxLocalRect`) instead of an inline-reservation offset range. Two-property run-merging: `RenderRun` now requires both `indentLevel` *and* `listMarker` to match for two lines to merge into one run — merging on `indentLevel` alone let a marker-bearing line's 24px gutter leak into unrelated same-level content anywhere in that run (confirmed via a real pasted-document repro: a paragraph after a blockquote measured 24px offset it shouldn't have had, because it shared an unbroken level-0 run with a list item several lines later). List/ol/checkbox marker vertical position now shares `QuikiRenderEditor.markerVerticalOffset()` with the checkbox box's already-tuned `+lineHeight/3` formula (previously the bullet/ol-number label used plain centering and sat visibly higher). `quiki_editor.dart`'s `_handleKeyEvent` gained a `LogicalKeyboardKey.tab` case — previously absent, so Tab fell through to `KeyEventResult.ignored` and Flutter's default focus-traversal silently consumed it before it reached the text buffer; it now inserts a literal `'\t'` character (replacing the selection if one is active) and returns `handled`. This is letting the keystroke through only — not interactive indent/dedent (Tab pressed mid-content just inserts a tab character where the cursor is; it does not detect "cursor is in a list item" and re-indent that item). `QuikiRenderEditor`'s public coordinate API needed zero changes across the whole stage. Closes #241. User guide updated for nesting and the Tab key (PR #295).
-
-**Block indentation Stage 4 — interactive Indent/Dedent (PR #307, merged 2026-07-30, ADR-34, #77)**: new `Indent`/`Dedent` buttons in `FormattingToolbar` and the `Tab`/`Shift+Tab` keys now trigger the identical underlying action (`applyIndent`/`applyDedent` in new file `indent_dedent.dart`) — a line-start whitespace prepend/strip, not a cursor-position insert (the prior Tab-key-only behavior). For a list item (any depth) the whitespace goes before the existing marker — real depth change, reusing all of Stage 2+3's already-correct depth-scoped rendering/numbering with zero new logic there. For a plain paragraph line the whitespace goes at the absolute line start as a literal tab — a **deliberate, logged divergence from real GFM/CommonMark** (#305: strict CommonMark would produce an indented code block, or silently discard the whitespace on a paragraph continuation line; this app does neither, shipped anyway per the project owner's explicit call to log and defer rather than block). Headings and blockquotes are excluded — prepending whitespace before their marker (`#`, `>`) breaks `MdParser` recognition — and keep the pre-existing at-cursor insert (Indent) / no-op (Dedent). Horizontal rules are also excluded but as a genuine no-op (not the at-cursor fallback): `_isHrLine` requires the *entire* line to be only the hr character or spaces, so no cursor position preserves recognition — caught during review by a test that asserted recognition would survive and then failed, not shipped as a known limitation. Multi-line selections apply the per-line-kind rule independently to every line touched, preserving relative list nesting. `QuikiRenderEditor`'s public coordinate API needed zero changes — this is a pure text-buffer/selection transform. Two immediate device-test follow-ups, each its own small PR: `FormattingToolbar` had no horizontal-scroll mechanism and the two new buttons pushed it off-screen on phone widths, fixed via `LayoutBuilder` + `SingleChildScrollView` + `ConstrainedBox(minWidth: ...)` so it still fills full width when everything fits and only scrolls once content overflows (PR #308); a literal *visible* tab character renders too narrow under Flutter's default text layout to read as an indent (Flutter has no real tab-stop concept), fixed by substituting any visible tab with 4 literal space characters in `RenderModel.build()`'s per-character loop, mapped through `sourceToRendered`/`renderedToSource` the same way historical marker substitutions worked — applies identically in plain-text mode (which never parses markdown at all) and live-preview mode; list-item indentation itself is unaffected since its tab is a hidden delimiter, never reaching the visible-character path (PR #309).
-
-**HTML clipboard paste → GFM markdown (PR #314, merged 2026-08-01, ADR-35)**: `_pasteFromClipboard()` in `quiki_editor.dart` reads the clipboard's HTML representation via `quill_native_bridge`'s `getClipboardHtml()` when present, converts it with `html2md` (tuned to match `MdParser`'s actual recognized syntax — ATX headings, fenced code, `*` emphasis, a custom rule for GFM task-list checkboxes), and inserts through the exact same buffer-update path (`_insertAtSelection()`) plain-text paste already used — both paths now literally share that one helper. Conversion preserves full GFM structure (tables, fenced code, image references) even where this app doesn't render it with special treatment yet, rather than degrading to plain prose — the same reasoning already applied to fenced code blocks elsewhere in this app. Any HTML-read failure or empty conversion falls back to the pre-existing plain-text path. `super_clipboard` was the original clipboard-reading dependency; swapped mid-review to `quill_native_bridge` after CI's `Build Android` job (a real Gradle build) failed three times — `super_clipboard` transitively pulls in `irondash_engine_context`, whose Gradle integration (`cargokit`) calls `Project.exec()`, removed in Gradle 9.0, with no released fix (same root cause already blocking image paste, Phase 1.4). Pinned to `quill_native_bridge ^11.1.0` rather than `^11.2.0` to avoid a `win32` version conflict with `file_picker` (backs the storage-root picker) — the tradeoff is Linux gets no HTML paste yet (`getClipboardHtml()` always returns null there in `11.1.0`; falls back to plain text, not a regression since Linux never had this), tracked as #316, with a Dependabot watch (`.github/dependabot.yml`, scoped to just `file_picker`) added so a compatible release surfaces automatically.
-
-**Text selection Stage 1 — correct word/entity selection + double-tap (PR #320, merged 2026-08-01, ADR-36)**: this editor has no Flutter selection machinery to build on (ADR-31 — no `RenderEditable`, no `TextSelectionOverlay`), so the target is Android/Material's documented selection behavior, adopted as requirements and rebuilt from scratch (`notes/dev/selection.md`). Stage 1 fixes a real, confirmed bug: long-press word selection could select only a fragment of a word, because the old `_selectWordAt`/`_isWordChar` scan ran over raw *source* text, which still contains hidden markdown delimiters (`*` correctly fails a `\w` test, so the scan stopped dead at the first hidden delimiter). New `_selectEntityAt` scans the *rendered* text instead (delimiters already stripped) and maps the result back to source offsets via `RenderModel`'s existing bidirectional offset maps — the same machinery tap-to-source already uses. Long-press and double-tap (new — `onDoubleTapDown`, no prior double-tap support existed at all) both call this one function, so they can't drift apart. Entity-aware: links/autolinks reuse `LinkSlot` data (the same metadata tap-to-navigate uses) so the whole rendered link label selects as one unit; email addresses and punctuated numeric strings (digits + `. - / ( )`, phone/serial/version numbers) select as a whole unit via dedicated regexes, checked in priority order (link → email → numeric → plain word) before falling through to `_wordPattern`. The numeric matcher is deliberately digits-plus-punctuation only, no letters (a letter-suffixed serial number selects only its digit core) and has no space in its character class (`(555) 123-4567` selects as two fragments, not one) — both explicit, reasoned scope decisions, not oversights, deferred to Stage 2's handles for manual bridging. Recognizer hardening: `_onPanStart` (new) now explicitly captures the mouse/stylus drag anchor at drag-start rather than relying on `_onTapDown` having already run and left the right value in state. A real, non-hypothetical side effect surfaced during review: adding a double-tap recognizer to the gesture arena delays `onTapDown` itself (not just double-tap resolution) by up to `kDoubleTapTimeout` (~300ms), confirmed via two pre-existing tests needing longer pumps to observe `onTapDown`'s effects — deliberately left unmitigated per the project owner's call to judge it from real device feel; device-tested after merge and confirmed to feel fine, no perceptible lag. New `selection_test.dart` (22 tests) exercises real simulated gestures and asserts actual resulting `TextSelection` offsets — the original bug shipped despite existing tests specifically because every prior selection test set the selection programmatically rather than exercising the tap-coordinate-to-selection path. Stages 2-4 (draggable handles, auto-scroll, magnifier/haptics) not yet briefed.
-
-**Text selection Stage 2 — draggable selection handles + crossing (PR #323, merged 2026-08-03, ADR-36)**: two independent, teardrop-style handles (`SelectionHandle`, new file `selection_handle.dart`, a from-scratch `CustomPainter` — circle plus one squared-off top corner — not a Material asset) appear at a non-collapsed selection's start/end, rendered as a **sibling overlay** to the editor's own gesture-detecting subtree (a `Stack` with `focusable` and an `AnimatedBuilder`-driven handle layer as siblings), not nested inside it — nesting would share a gesture arena with the editor's Tap/DoubleTap/Pan/LongPress recognizers, the exact ambiguity category that produced Stage 1's tap-latency finding. `StackFit.expand` is required on the outer `Stack`: without it, the editor's content shrinks to its own height once a sibling overlay layer exists, while the `Stack` itself still reports the full available size — caught when it silently broke an existing toolbar-dismiss test. Crossing (dragging one handle past the other) needs no special-case logic for the `TextSelection` value itself (`.start`/`.end` already normalize via min/max), but rendering does: an explicit `_ActiveHandleDrag(isStartRole, fixed, moving)` tracks which physical widget is bound to the live pointer through a crossing, since `.start`/`.end` swapping which side they refer to would otherwise make the dragged handle visually snap to the other side mid-drag. The floating toolbar hides for the duration of a drag and re-anchors after, matching Android's own convention.
-
-Shipped only after two real-device-driven fix rounds on the same branch — both independently A/B-verified during review (revert the fix, confirm the regression test fails; restore it, confirm it passes), not trusted from either implementation report alone. **Round 1**: the handle overlay rebuilt directly off `ScrollController`'s notification, which fires synchronously before that frame's layout applies a scroll offset change — so a handle's computed position could be one scroll-tick stale, confirmed via a zero-extra-pump widget test (~680px off). Fixed by deferring the rebuild trigger through a `WidgetsBinding.instance.addPostFrameCallback` (`_handleOverlayTick`, a `ValueNotifier<int>` the `AnimatedBuilder` listens to instead of `_scrollController` directly). Real bug, but review found its own shipped regression test passed identically with or without the fix present, and a no-scroll check showed the reported symptom (which never involved scrolling) didn't reproduce this way at all — kept as a harmless improvement, not the actual cause. **Round 2**, using temporary on-device diagnostics (a visible hit-box overlay and gesture-layer logging, fully reverted after use) plus the project owner's own precise description ("moves a line lower the instant I touch it, have to slide back onto the word to regain control"): `_buildSelectionHandlesOverlay` correctly *paints* each handle one `preferredLineHeight` below the caret it represents (matching real teardrop-handle convention), but `_sourceOffsetForGlobal` (shared by all four handle pan handlers) fed the raw touch position straight into `positionForOffset` with no correction for that paint-time offset — so touching a handle exactly where it's drawn resolved onto the line below the one it actually controls. Fixed by subtracting the same `preferredLineHeight` before resolving, applied identically at pan-start and every pan-update so the correction holds for the whole drag (matching how a real handle keeps a fixed relationship to the finger throughout a drag, not just a one-time correction). Two pre-existing multi-line drag tests needed their drag *target* adjusted by the same offset to match the corrected semantics — a legitimate consequence of the fix, verified during review, not a weakened assertion.
-
-Deliberately scoped down from `selection.md` §2: the single collapsed-cursor drag handle (precise cursor repositioning without an active selection) is held back to a later pass. Device-tested and accepted by the project owner after the second fix round, with a note that minor tweaks may still be wanted later — not itemized, not blocking.
-
-**Text selection Stage 3 — auto-scroll while dragging a handle near a viewport edge (PR #325, merged 2026-08-03, ADR-36)**: holding a selection handle within a threshold distance (56px, an estimate — no documented Android/Material constant exists for this) of the top or bottom edge of the visible viewport now scrolls continuously in that direction via a plain `Timer.periodic` (16ms/16px per tick — a fixed wall-clock cadence chosen specifically because it needs to keep firing purely off "pointer still in the edge zone," independent of anything else requesting frames, and because it's straightforward to drive deterministically from `tester.pump(duration)` in tests). Edge-zone detection measures against a new `_viewportKey` on the `SingleChildScrollView` itself (fixed on screen at the viewport bounds) rather than the scrolled content's own `RenderBox` (which moves as a side effect of scrolling — the moving-target bug an edge-proximity check must avoid). The hard part: keeping the dragged selection boundary accurate while content scrolls under a *stationary* finger, which produces no pointer-move events to trigger the usual re-resolution. Solved by reusing Stage 2 Round 1's exact machinery — each auto-scroll tick's `ScrollController.jumpTo()` triggers the same `ScrollPosition` notification `_onScrollChangedForHandles` already listens for, whose existing post-frame-deferred callback now also re-resolves the dragged handle's boundary (`_resolveActiveHandleDragAfterScroll`) against the pointer's last known position (`_lastHandleDragGlobalPosition`, updated on every real pan event, untouched by a scroll-only tick) — the same `_sourceOffsetForGlobal` resolution ordinary pan-updates use. Deferring through the post-frame callback is required, not optional: resolving synchronously right after `jumpTo` would read a stale paint transform, reproducing Round 1's bug for the selection boundary instead of the handle's painted position. Independently A/B-verified during review: temporarily disabling the re-resolution call made 3 of 6 regression tests genuinely fail (the two mid-tick boundary-correctness checks and the handle-paint-position check), while the other 3 (stop-on-retreat, both clamp-at-document-bounds tests) correctly kept passing, since those exercise the separate scroll-clamping mechanism — confirming the fix is real and load-bearing, not a placebo. Device-tested and accepted on the first attempt, no fix rounds needed — a first for this feature.
-
-**Text selection Stage 4 — magnifier + haptic feedback (PR #327, merged 2026-08-03, ADR-36) — closes ADR-36, all four stages shipped**: this stage was explicitly provisional going in (`selection.md`'s staging plan: try it, drop it if it isn't landing) — it was not dropped. The open feasibility question from the original research (whether Flutter's magnifier machinery works without `RenderEditable`, ADR-31) resolved favorably: `RawMagnifier`/`MagnifierController` (`package:flutter/widgets.dart`) are genuinely general-purpose — a `BackdropFilter`-based lens plus an `OverlayEntry` lifecycle helper, zero dependency on `RenderEditable`/`EditableText` (confirmed by reading the Flutter SDK source directly during review, not assumed). Deliberately not Material's own styled `Magnifier`/`TextMagnifier` widgets, which hardcode Material's visual look — this app already overrides that everywhere else (Primer palette, Lucide icons, a from-scratch Canvas-painted handle). New `selection_magnifier.dart` reimplements Flutter's own text-magnifier *positioning algorithm* (horizontal tracks the drag clamped to the current visual line's own edges via new `QuikiRenderEditor.lineBoundsForRendered()`; vertical locked to the line's center; jumps only across a line boundary) against this editor's own geometry — the math was hand-traced during review against `RawMagnifier.focalPointOffset`'s actual documented contract and confirmed algebraically correct, not just plausible-looking. Since this editor's handles are ordinary widget-tree content rather than `Overlay` entries, there's no paint-order trick to exclude the dragged handle's glyph from the magnifier's backdrop-filter sampling — worked around by making the actively-dragged handle's glyph fully transparent (`Opacity(opacity: 0)`, which doesn't affect hit-testing) for exactly the duration of its own drag. Haptics: `HapticFeedback.vibrate()` fires once when a long-press/double-tap triggers a real word/entity selection (Flutter's own doc comment confirms this simulates Android's `LONG_PRESS` constant); `HapticFeedback.selectionClick()` fires as a handle drag's resolved boundary crosses to a different character, gated on an actual offset change — the exact same call Flutter's own stock `TextSelectionOverlay` fires at the identical moment for its built-in handles, verified against that source directly. Device-tested and confirmed by the project owner. Two real gaps found across the whole four-stage initiative, filed as tracked issues rather than left as doc notes: **#328** (selection doesn't work in reading mode — the edit gesture set, and therefore all of ADR-36, is disabled whenever the keyboard is dismissed) and **#329** (no draggable handle for precise single-tap collapsed-cursor placement — part of the original confirmed spec, deliberately deferred out of Stage 2's scope and never revisited).
-
-**QuKis list Help button + Ko-fi link + tighter list density (PR #331, merged 2026-08-05)**: `stream_screen.dart` gained a Help (`LucideIcons.circleHelp`) `IconButton` in the app bar, calling the same `showHelpDialog()` the Editor screen already exposes — no new dialog, just a second entry point. `help_dialog.dart` gained a "Buy me a coffee" `_LinkRow` pointing at `https://ko-fi.com/ScottKirvan`, following the existing Discord/GitHub row pattern exactly (same `_SvgIcon` mechanism, inline SVG constant). The QuKi list's `ListTile` now sets `visualDensity: const VisualDensity(horizontal: 0, vertical: -4)` for a more compact row height. Small, self-contained UI change; made directly and reviewed by the Spec session rather than briefed to Implementation.
-
-**Known bugs (open)**: #73 rapid shares may lose content; #261 share-in opens QuKi list instead of routing straight to the new note in the editor; #263 reading mode residual toolbar/cursor visibility on new/just-dismissed notes; #264 bold formatting intermittently produces `*word**`; #265 keyboard opens after deleting a QuKi from the stream list; #272 notes dropped into the storage folder without a matching `.meta/{uuid}.json` sidecar are silently ignored; #316 Linux HTML clipboard paste blocked on `file_picker`'s win32 constraint (tracked via Dependabot, not a regression); #328 text selection doesn't fully work in reading mode — partially addressed by PR #350 (selecting no longer opens the keyboard); per the project owner (2026-08-10) this is likely a downstream symptom of #340 (can't reliably get into reading mode at all) rather than a separate selection-specific gap — reading mode's own reliability is probably the real root cause to fix; #329 no draggable handle for precise single-tap cursor placement; #337/#338/#339 share-sheet targets (Bluesky, "Save," Google Voice) not working, root cause not yet investigated; #340 keyboard open/close detection driving reading/edit mode is fundamentally unreliable (broader than #263) — new concrete repro 2026-08-10: a persistent black bar (keyboard-sized, near-black canvas color showing through) on the QuKis list screen even with no keyboard visible, traced to `StreamScreen`'s `Scaffold` (default `resizeToAvoidBottomInset: true`) reserving space for a stale, non-zero `MediaQuery.viewInsets.bottom` — reproduces against a plain Flutter `TextField` (the search box), not the custom editor, suggesting the desync happens during navigation away from the Editor screen rather than inside the custom editor's own IME plumbing; #344 block-level image rendering has never worked, always a blank gray box (root cause traced, see ADR-4 correction above).
-
-#349 (link-tap eager-focus pattern) was filed as a hypothesized bug mirroring the checkbox issue, but the project owner confirmed link-tap actually works correctly and closed it — not a real gap.
-
-**Closed since last sync**: #335, #266, #336, #352, #354 (all via PR #350, see Phase 3.60) — including correcting a stale note in this very file: #336 was previously (mis)described here as "editor doesn't always scroll to keep the cursor visible," which was never its actual content after an early rewrite — its real, final scope ("selecting text in reading mode opens the keyboard") is what actually shipped fixed.
-
-**Last Updated**: 2026-08-13
+- **No AI attribution anywhere.** No generated-by lines, no session URLs, no tool credit in commit messages, PR bodies, code comments or any committed file. Check after every commit and PR and remove anything that was appended automatically.
+- **Never commit to `main`** unless explicitly instructed.
+- **Conventional commits**, rebase and merge.

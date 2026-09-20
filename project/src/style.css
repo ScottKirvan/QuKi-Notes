@@ -1,0 +1,697 @@
+:root {
+  color-scheme: light dark;
+  --surface: #ffffff;
+  --surface-subtle: #f6f8fa;
+  --text: #1f2328;
+  --text-muted: #59636e;
+  --accent: #0969da;
+  --accent-emphasis: #0550ae;
+  --danger: #cf222e;
+  --border: #d1d9e0;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface: #010409;
+    --surface-subtle: #151b23;
+    --text: #ffffff;
+    --text-muted: #b7bdc8;
+    --accent: #71b7ff;
+    --accent-emphasis: #a5d6ff;
+    --danger: #ff9492;
+    --border: #b7bdc8;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--surface);
+  color: var(--text);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+
+#app {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.view {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  overflow-y: auto;
+}
+
+.view[hidden] {
+  display: none !important;
+}
+
+.app-header {
+  padding: 8px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-subtle);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.app-header-spacer {
+  flex: 1 1 auto;
+}
+
+.app-bar-btn {
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.app-bar-btn:hover:not(:disabled) {
+  background: var(--surface-subtle);
+}
+
+.app-bar-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.app-bar-btn-danger {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.app-bar-btn-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+}
+
+.app-bar-btn-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.view-header {
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-subtle);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.view-header h1 {
+  font-size: 16px;
+  margin: 0;
+  flex: 1 1 auto;
+}
+
+.back-btn {
+  font: inherit;
+  font-size: 16px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.view-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.view-actions button,
+.empty-trash-btn {
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.search-bar {
+  padding: 12px 16px;
+}
+
+.search-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface-subtle);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+
+.list-body {
+  padding: 0 16px 24px;
+  max-width: 760px;
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.empty-state {
+  color: var(--text-muted);
+  white-space: pre-line;
+  padding: 32px 4px;
+  text-align: center;
+}
+
+.list-row {
+  position: relative;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+}
+
+/*
+ * BEHAVIOR_SPEC.md §5/§6: swiping right-to-left reveals a red background
+ * with a trash icon behind the row as it's dragged. This sits underneath
+ * `.list-row-content` at all times; it's only ever seen through the gap
+ * the drag opens up.
+ */
+.list-row-swipe-bg {
+  position: absolute;
+  inset: 0;
+  background: var(--danger);
+  color: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 20px;
+  font-size: 18px;
+}
+
+.list-row-content {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 4px;
+  background: var(--surface);
+  cursor: pointer;
+  /* Only vertical panning is left to the browser; horizontal drags are
+     read by the pointer-event swipe handler in swipeToDelete.ts. */
+  touch-action: pan-y;
+}
+
+.list-row-content:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.list-row-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.list-row-preview {
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.list-row-time {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.settings-body {
+  max-width: 640px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 8px 16px 32px;
+  box-sizing: border-box;
+}
+
+.settings-section {
+  margin: 20px 0;
+}
+
+.settings-section h2 {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin: 0 0 8px;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--border);
+  font: inherit;
+  background: none;
+  color: var(--text);
+  text-align: left;
+}
+
+button.settings-row {
+  width: 100%;
+  border: none;
+  cursor: pointer;
+}
+
+.settings-row-disabled {
+  color: var(--text-muted);
+}
+
+.settings-value {
+  color: var(--text-muted);
+}
+
+.settings-note {
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--text);
+  color: var(--surface);
+  padding: 10px 18px;
+  border-radius: 6px;
+  font-size: 13px;
+  z-index: 1000;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.toast[hidden] {
+  display: none;
+}
+
+.toast-action {
+  font: inherit;
+  font-weight: 600;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--surface);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.toast-action[hidden] {
+  display: none;
+}
+
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+}
+
+.confirm-overlay[hidden] {
+  display: none !important;
+}
+
+.confirm-dialog {
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 20px;
+  max-width: 340px;
+  width: calc(100% - 48px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.confirm-title {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.confirm-message {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.confirm-actions button {
+  font: inherit;
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.confirm-actions button.danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--surface);
+}
+
+/*
+ * BEHAVIOR_SPEC.md §11 has no separate "warning" role, only --danger — and
+ * every message this banner shows (a save conflict, a thrown save/load
+ * error) is a real problem, not a soft warning, so it's tied to --danger.
+ * color-mix() against --surface (rather than a fixed hex tint) is what
+ * makes the tint track both the light and dark palettes automatically.
+ * Message text stays --text: mixing --danger down to a readable tint
+ * leaves too little contrast for --danger itself to double as body text
+ * (BEHAVIOR_SPEC.md's --danger values are tuned to read as an accent
+ * color against a full-strength --surface, not against a tint of it).
+ */
+#save-status {
+  margin: 12px 24px 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  background: color-mix(in srgb, var(--danger) 15%, var(--surface));
+  color: var(--text);
+  border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--surface));
+}
+
+#save-status[hidden] {
+  display: none;
+}
+
+#editor-host {
+  position: relative;
+  width: 100%;
+  max-width: 760px;
+  margin: 24px auto;
+  box-sizing: border-box;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.cm-editor {
+  height: 70vh;
+}
+
+/*
+ * cm-content's padding is set from main.ts's EditorView.theme(), not here.
+ * CodeMirror ships its own baseTheme rule for `.cm-content` (padding: 4px
+ * 0) using a two-class selector (its generated theme class plus
+ * .cm-content) - a plain `.cm-content { padding-bottom: ... }` rule in this
+ * stylesheet loses to it on specificity regardless of source order or
+ * !important, and CodeMirror's own internal layout measurements (line
+ * positions, scrollHeight) are cached from its own theme mechanism, not
+ * re-read from a later external override even when one wins on paper.
+ * Confirmed on a real device: content authored this way never actually
+ * gets the intended bottom clearance (chunk 3's report has the
+ * measurements). EditorView.theme() is CodeMirror's own sanctioned
+ * mechanism for exactly this, so that's where it has to live.
+ */
+
+/*
+ * BEHAVIOR_SPEC.md §4: the formatting toolbar is shown in edit mode, hidden
+ * in reading mode. It's pinned to the bottom of #editor-host (its
+ * `position: relative` anchor, above) rather than pushed into normal flow
+ * below the editor, so `.cm-content`'s own bottom padding (main.ts) is what
+ * keeps the last line of real content clear of it - the two are sized to
+ * match on purpose.
+ */
+.formatting-toolbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  overflow-x: auto;
+  background: var(--surface-subtle);
+  border-top: 1px solid var(--border);
+}
+
+.formatting-toolbar[hidden] {
+  display: none !important;
+}
+
+.toolbar-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.toolbar-btn:hover {
+  background: var(--surface);
+}
+
+.toolbar-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.cm-quki-heading {
+  font-weight: 600;
+}
+
+.cm-quki-heading-1 {
+  font-size: 1.6em;
+}
+
+.cm-quki-heading-2 {
+  font-size: 1.35em;
+}
+
+.cm-quki-heading-3 {
+  font-size: 1.15em;
+}
+
+.cm-quki-strong {
+  font-weight: 700;
+}
+
+.cm-quki-em {
+  font-style: italic;
+}
+
+.cm-quki-strike {
+  text-decoration: line-through;
+}
+
+.cm-quki-code {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  background: var(--surface-subtle);
+  border-radius: 3px;
+  padding: 0 3px;
+}
+
+.cm-quki-link {
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.cm-quki-image {
+  max-width: 100%;
+  border-radius: 4px;
+  vertical-align: middle;
+}
+
+.cm-quki-image-broken {
+  display: inline-block;
+  min-width: 32px;
+  min-height: 32px;
+  border: 1px dashed var(--danger);
+  border-radius: 4px;
+  vertical-align: middle;
+}
+
+.cm-quki-hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 8px 0;
+}
+
+/*
+ * BEHAVIOR_SPEC.md §3: shown "instead of the editor" on first launch, so
+ * this is fully opaque (not a translucent modal backdrop like
+ * .confirm-overlay) and sits above everything, including the app bar.
+ */
+.setup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: var(--surface);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.setup-overlay[hidden] {
+  display: none !important;
+}
+
+.setup-panel {
+  position: relative;
+  max-width: 480px;
+  width: 100%;
+}
+
+.setup-cancel-btn {
+  position: absolute;
+  top: -8px;
+  left: -8px;
+}
+
+.setup-title {
+  font-size: 22px;
+  margin: 0 0 8px;
+}
+
+.setup-subtitle {
+  color: var(--text-muted);
+  font-size: 14px;
+  margin: 0 0 24px;
+}
+
+.setup-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.setup-card {
+  font: inherit;
+  text-align: left;
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.setup-card:hover:not(:disabled) {
+  background: var(--surface-subtle);
+}
+
+.setup-card:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.setup-card h2 {
+  font-size: 15px;
+  margin: 0 0 4px;
+}
+
+.setup-card p {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/*
+ * Android-only: BEHAVIOR_SPEC.md §3's all-files-access flow. Same full-
+ * screen "replaces the whole app UI until resolved" treatment as
+ * .setup-overlay, kept as its own class rather than shared with it so this
+ * Android-specific screen can evolve independently of Electron's desktop
+ * setup screen.
+ */
+.android-permission-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: var(--surface);
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.android-permission-overlay[hidden] {
+  display: none !important;
+}
+
+.android-permission-panel {
+  max-width: 480px;
+  width: 100%;
+}
+
+.android-permission-title {
+  font-size: 22px;
+  margin: 0 0 8px;
+}
+
+.android-permission-body {
+  color: var(--text-muted);
+  font-size: 14px;
+  margin: 0 0 24px;
+}
+
+.android-permission-btn {
+  font: inherit;
+  padding: 12px 20px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--accent);
+  color: var(--surface);
+  cursor: pointer;
+}
+
+.android-permission-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.android-permission-waiting {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin: 16px 0 0;
+}

@@ -1,0 +1,60 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+
+buildscript {
+    ext.kotlin_version = '2.0.21'
+
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.13.0'
+        classpath 'com.google.gms:google-services:4.4.4'
+        // Capacitor's generated project is Java-only by default; the custom
+        // Storage plugin (app/src/main/java/com/quki/quki_notes/StoragePlugin.kt)
+        // is Kotlin, ported from the Flutter app's real StoragePlugin.kt, so
+        // this project needs the Kotlin Gradle plugin added on top.
+        classpath "org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlin_version"
+
+        // NOTE: Do not place your application dependencies here; they belong
+        // in the individual module build.gradle files
+    }
+}
+
+apply from: "variables.gradle"
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+// This build environment only has JDK 17 available (matches the Flutter
+// project's own android/app/build.gradle.kts, which also targets
+// VERSION_17), and javac cannot target a release newer than the JDK
+// running it. Both this project's own :app module (via the generated,
+// not-hand-edited capacitor.build.gradle) and @capacitor/android's own
+// vendored library module (project/node_modules/@capacitor/android/capacitor,
+// entirely outside this app's control) set their Java/Kotlin target to 21,
+// so every subproject gets forced back down to 17 here rather than in each
+// module individually.
+subprojects {
+    afterEvaluate { subproject ->
+        if (subproject.hasProperty('android')) {
+            subproject.android.compileOptions {
+                sourceCompatibility JavaVersion.VERSION_17
+                targetCompatibility JavaVersion.VERSION_17
+            }
+        }
+        if (subproject.plugins.hasPlugin('kotlin-android')) {
+            subproject.android.kotlinOptions {
+                jvmTarget = "17"
+            }
+        }
+    }
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">QuKi Notes</string>
+    <string name="title_activity_main">QuKi Notes</string>
+    <string name="package_name">com.quki.quki_notes</string>
+    <string name="custom_url_scheme">com.quki.quki_notes</string>
+</resources>

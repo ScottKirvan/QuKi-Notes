@@ -1,0 +1,37 @@
+{
+  "name": "quki-core",
+  "private": true,
+  "version": "0.1.0",
+  "description": "QuKi Notes storage core: folder-is-the-index storage, trash, export, search.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./node": {
+      "types": "./dist/node.d.ts",
+      "default": "./dist/node.js"
+    },
+    "./opfs": {
+      "types": "./dist/opfsBackend.d.ts",
+      "default": "./dist/opfsBackend.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:browser": "vitest run --config vitest.browser.config.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@vitest/browser": "^2.1.9",
+    "playwright": "^1.63.0",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  }
+}

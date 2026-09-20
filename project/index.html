@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f6f8fa" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <title>QuKi Notes</title>
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <section id="view-editor" class="view">
+        <header class="app-header">
+          <button type="button" id="btn-quki-list" class="app-bar-btn app-bar-btn-icon" disabled></button>
+          <div class="app-header-spacer"></div>
+          <button type="button" id="btn-mode-toggle" class="app-bar-btn app-bar-btn-icon" aria-pressed="false"></button>
+          <button type="button" id="btn-new-quki" class="app-bar-btn app-bar-btn-icon"></button>
+          <button type="button" id="btn-help" class="app-bar-btn app-bar-btn-icon"></button>
+          <button type="button" id="btn-send" class="app-bar-btn app-bar-btn-icon"></button>
+          <button type="button" id="btn-settings" class="app-bar-btn app-bar-btn-icon"></button>
+          <button type="button" id="btn-delete" class="app-bar-btn app-bar-btn-icon app-bar-btn-danger" disabled></button>
+        </header>
+        <div id="save-status" role="status" aria-live="polite" hidden></div>
+        <main id="editor-host"></main>
+      </section>
+
+      <section id="view-list" class="view" hidden></section>
+      <section id="view-settings" class="view" hidden></section>
+      <section id="view-trash" class="view" hidden></section>
+    </div>
+    <div id="overlay-host"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

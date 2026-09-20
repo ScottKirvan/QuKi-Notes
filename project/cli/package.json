@@ -1,0 +1,25 @@
+{
+  "name": "quki-cli",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Thin command-line adapter over quki-core.",
+  "type": "module",
+  "bin": {
+    "quki": "dist/main.js"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "start": "tsc -b && node dist/main.js",
+    "pretest": "tsc -b",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "quki-core": "file:../core"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  }
+}
