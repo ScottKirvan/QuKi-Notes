@@ -1,0 +1,21 @@
+appId: com.quki.quki_notes
+productName: QuKi Notes
+directories:
+  output: release
+files:
+  - dist/**
+# project/dist (Vite web build) is copied into resources/webdist inside the
+# package. main.ts reads process.resourcesPath + '/webdist' when app.isPackaged.
+extraResources:
+  - from: ../dist
+    to: webdist
+win:
+  target:
+    - target: nsis
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+linux:
+  target:
+    - target: AppImage
+  category: Utility

@@ -46,7 +46,11 @@ if (documentsOverride) {
 // The renderer (project/src, the same web app OpfsBackend already serves)
 // is unmodified by this wrapper. project/dist is its production build,
 // already proven by `npm run build` at the project root.
-const RENDERER_DIST_DIR = path.join(__dirname, '..', '..', 'dist');
+// In a packaged build, extraResources copies project/dist → resources/webdist.
+// In dev, __dirname is project/electron/dist/ so ../../dist is project/dist/.
+const RENDERER_DIST_DIR = app.isPackaged
+  ? path.join(process.resourcesPath, 'webdist')
+  : path.join(__dirname, '..', '..', 'dist');
 
 /**
  * Matches the Flutter app's own "app storage" convention exactly:

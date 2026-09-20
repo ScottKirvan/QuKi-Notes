@@ -14,45 +14,57 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Linux build dependencies
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y \
-            clang cmake ninja-build pkg-config \
-            libgtk-3-dev liblzma-dev libsecret-1-dev
-
-      - uses: subosito/flutter-action@v2
+      - uses: actions/setup-node@v4
         with:
-          channel: stable
-          cache: true
+          node-version: 22
 
-      - name: Install dependencies
-        run: flutter pub get
+      # core must be built first — the web app and electron both import from core/dist/
+      - name: Install (core)
+        run: npm ci
+        working-directory: project/core
 
-      - name: Build Linux release
-        run: flutter build linux --release
+      - name: Build (core)
+        run: npm run build
+        working-directory: project/core
 
-      - name: Tarball release
-        run: |
-          tar -czvf quki-notes-linux.tar.gz \
-            -C build/linux/x64/release/bundle .
+      - name: Install (app)
+        run: npm ci
+        working-directory: project
 
-      - name: Upload tarball as artifact (manual dispatch)
+      - name: Build web app
+        run: npm run build
+        working-directory: project
+
+      - name: Install (electron)
+        run: npm ci
+        working-directory: project/electron
+
+      - name: Build electron main process
+        run: npm run build
+        working-directory: project/electron
+
+      - name: Package Linux AppImage
+        run: npm run dist:linux
+        working-directory: project/electron
+
+      - name: Upload AppImage as artifact (manual dispatch)
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: quki-notes-linux
-          path: quki-notes-linux.tar.gz
+          path: project/electron/release/*.AppImage
           retention-days: 14
 
-      - name: Rename tarball with version tag
+      - name: Rename AppImage with version tag
         if: github.event_name != 'workflow_dispatch'
         env:
           TAG: ${{ github.event.release.tag_name }}
-        run: mv quki-notes-linux.tar.gz "quki-notes-linux-${TAG}.tar.gz"
+        run: |
+          SRC=$(ls project/electron/release/*.AppImage | head -1)
+          mv "$SRC" "project/electron/release/quki-notes-linux-${TAG}.AppImage"
 
       - name: Upload to GitHub Release
         if: github.event_name != 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
-          files: quki-notes-linux-${{ github.event.release.tag_name }}.tar.gz
+          files: project/electron/release/quki-notes-linux-${{ github.event.release.tag_name }}.AppImage
