@@ -48,17 +48,17 @@ import { createAboutDialog } from "./screens/aboutDialog";
 // colors tuned for a light background — most notably tags.meta at #404740,
 // which is what markdown delimiter marks (the `**`, `#`, backtick, etc.
 // tokens raw source reveals) are tagged with. Registered as a non-fallback
-// highlighter, this mirrors defaultHighlightStyle's rules exactly but ties
+// highlighter, this mirrors defaultHighlightStyle's rules except that it ties
 // the colors that were only readable on light backgrounds to the page's own
 // CSS custom properties — the same fix pattern as the cursor/selection
-// colors below. A non-fallback syntaxHighlighting() extension fully
+// colors below — and does not underline headings. A non-fallback syntaxHighlighting() extension fully
 // supersedes basicSetup's fallback one (see @codemirror/language's
 // getHighlighters), so this replaces it deterministically regardless of
 // extension order.
 const qukiSyntaxHighlighting = HighlightStyle.define([
   { tag: tags.meta, color: "var(--text-muted)" },
   { tag: tags.link, textDecoration: "underline" },
-  { tag: tags.heading, textDecoration: "underline", fontWeight: "bold" },
+  { tag: tags.heading, fontWeight: "bold" },
   { tag: tags.emphasis, fontStyle: "italic" },
   { tag: tags.strong, fontWeight: "bold" },
   { tag: tags.strikethrough, textDecoration: "line-through" },

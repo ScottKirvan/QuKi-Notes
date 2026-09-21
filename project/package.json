@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "node e2e/persistence.e2e.ts && node e2e/chunk2.e2e.ts && node e2e/swipeGesture.e2e.ts && node e2e/imagePaste.e2e.ts && node e2e/formattingToolbar.e2e.ts && node e2e/listReveal.e2e.ts && node e2e/hangingIndent.e2e.ts && node e2e/iconButtons.e2e.ts && node e2e/about.e2e.ts && node e2e/theme.e2e.ts && node e2e/selection.e2e.ts && node e2e/pwa.e2e.ts",
+    "test:e2e": "node e2e/persistence.e2e.ts && node e2e/chunk2.e2e.ts && node e2e/swipeGesture.e2e.ts && node e2e/imagePaste.e2e.ts && node e2e/formattingToolbar.e2e.ts && node e2e/listReveal.e2e.ts && node e2e/hangingIndent.e2e.ts && node e2e/iconButtons.e2e.ts && node e2e/about.e2e.ts && node e2e/theme.e2e.ts && node e2e/selection.e2e.ts && node e2e/headings.e2e.ts && node e2e/pwa.e2e.ts",
     "test:e2e:electron": "npm run build && npm run --prefix electron build && node e2e/electron.e2e.ts && node e2e/send.e2e.ts && node e2e/hangingIndentElectron.e2e.ts",
     "test:e2e:electron:setup": "npm run build && npm run --prefix electron build && node e2e/electronSetup.e2e.ts",
     "electron:build": "npm run build && npm run --prefix electron build",
