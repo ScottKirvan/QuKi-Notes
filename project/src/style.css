@@ -22,7 +22,8 @@ body.theme-dark {
   --text-accent: #71b7ff;
   --text-on-accent: black;
   --text-error: #ff9492;
-  --text-selection: rgba(169, 175, 188, 0.4);
+  /* github.com dark selection, measured from a phone screenshot: blends to #33649C on #010409 */
+  --text-selection: rgba(88, 166, 255, 0.6);
   --caret-color: var(--text-accent);
   --link-color: #71b7ff;
   --blockquote-border-color: #7a828e;
