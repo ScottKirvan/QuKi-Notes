@@ -8,14 +8,17 @@ Updated 2026-09-20. Unsequenced — just a record of what's open.
 
 ## Rendering / editor
 
-- [ ] List/task/blockquote markers never collapse or reveal — only headings, images/hr, and inline formatting (bold/italic/strike/code/links) go through the reveal engine (`reveal/extractElements.ts`).
-- [ ] No checkbox widget — no visual checkbox, no tap-to-toggle.
-- [ ] Enter-continues/exits-a-list works (CodeMirror's own default keymap) — but the list still doesn't render, so it just doesn't look like anything.
+- [x] List/task/blockquote markers never collapse or reveal — only headings, images/hr, and inline formatting (bold/italic/strike/code/links) go through the reveal engine (`reveal/extractElements.ts`).
+- [x] No checkbox widget — no visual checkbox, no tap-to-toggle.
+- [x] Enter-continues/exits-a-list works (CodeMirror's own default keymap) — but the list still doesn't render, so it just doesn't look like anything.
 - [ ] Indentation visual grouping ("same-depth lines laid out as one run", BEHAVIOR_SPEC §12) — no matching code found in `reveal/`. Tab/toolbar indent itself is separate, well-tested code and likely unaffected.
 - [ ] Markdown parsing rules (heading-needs-space, intraword `*` vs `_`, block-relative ordered-list renumbering, etc.) rely on CodeMirror's stock GFM parser — never checked against Flutter's specific rules, no test coverage for the edge cases.
 - [ ] Font is incorrect.
 - [ ] Button style is incorrect.
 - [ ] Some buttons show words instead of icons.
+- [ ] Enter on an empty list item that follows another item doesn't exit the list (BEHAVIOR_SPEC §4 "List auto-continue"): `- item⏎⏎- ` stays as `- item\n\n- ` instead of removing the marker; same for `- [ ] ` and `1. `. Only a lone `- ` exits. Reproduces with CodeMirror's bare `insertNewlineContinueMarkup`. Found during list-reveal review; the item above wrongly said exit works.
+- [ ] Mode-toggle button (`#btn-mode-toggle`) may ignore real mouse clicks: in headless Chromium a mouse click didn't toggle plain-text mode but `element.click()` did. Unconfirmed guess: the icon `replaceChildren` on focus loss swallows the click. Not investigated; base commit not checked.
+- [ ] A lone indented list item with no parent item (`\t- x`, which toolbar Indent produces on a lone `- item`) is an indented code block to the parser and doesn't collapse; the Flutter app treats it as nested depth 1. Parsing-rule audit territory.
 
 ## Android
 
