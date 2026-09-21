@@ -82,8 +82,6 @@
 
 21. **`.quki/` may describe how QuKi Notes looks and behaves. It may never determine which QuKis there are** — rule 6 applies to it exactly as it does to the sidecar. A missing, stale or corrupt `.quki/` never hides a file and never stops the app starting: the app falls back to its built-in defaults (for themes, the default theme shipped with the app). *[Proposed — unconfirmed]*
 
-    A theme kept in `.quki/themes/` may carry its own `manifest.json` (Obsidian's theme format). That file describes the theme; it is not a list of QuKis, and the reject list's ban on manifests concerns lists of QuKis.
-
 ---
 
 ## Storage backends
