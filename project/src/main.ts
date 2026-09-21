@@ -26,6 +26,7 @@ import { applyDedent, applyIndent } from "./toolbar/indentDedent";
 import { runToolbarCommand } from "./toolbarAdapter";
 import { createFormattingToolbar, type FormattingToolbarHandle } from "./screens/formattingToolbar";
 import { revealPlugin } from "./reveal/decorations";
+import { hangingIndent } from "./reveal/hangingIndent";
 import { plainTextMode, setPlainTextMode } from "./reveal/plainTextMode";
 import { createEditModeTracker, resolveModeIconState, shouldFocusOnOpen } from "./editMode";
 import { imageResolver } from "./reveal/imageResolver";
@@ -397,6 +398,7 @@ async function init(): Promise<void> {
       plainTextMode,
       imageResolver.of((relPath) => backend.readBinary(relPath)),
       revealPlugin,
+      hangingIndent,
       // STORAGE_CONTRACT.md rule 12 / web-specific "images paste in the
       // same way [as text]": a pasted image is written into the shared
       // media/ folder and its link inserted at the cursor. Plain-text

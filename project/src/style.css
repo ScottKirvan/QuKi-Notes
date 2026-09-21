@@ -673,6 +673,21 @@ button.settings-row {
   white-space: nowrap;
 }
 
+/*
+ * A list-style line shown as raw source: its wrapped rows start at the offset
+ * hangingIndent.ts measured for --quki-hang, under the text after the marker.
+ * `hanging` indents every row but the first and, unlike padding, leaves the
+ * content edge (and so the first row's tab stops) alone. Reset on descendants
+ * because text-indent inherits into inline-block widgets.
+ */
+.cm-quki-hang {
+  text-indent: var(--quki-hang, 0px) hanging;
+}
+
+.cm-quki-hang * {
+  text-indent: 0;
+}
+
 .cm-quki-ordered {
   display: inline-flex;
   justify-content: flex-end;
