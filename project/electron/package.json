@@ -1,7 +1,7 @@
 {
   "name": "quki-electron",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.24.1",
   "description": "Electron desktop wrapper for QuKi Notes: hosts NodeFsBackend in the main process and serves the existing web app renderer unchanged, over IPC.",
   "main": "dist/main.js",
   "scripts": {
