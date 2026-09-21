@@ -1,4 +1,7 @@
+import { ArrowLeft } from "lucide";
+
 import type { ElectronSetupApi } from "../electronSetupApi";
+import { setIconButton } from "./icons";
 
 export interface SetupViewShowOptions {
   /**
@@ -45,7 +48,7 @@ export function createSetupView(container: HTMLElement, api: ElectronSetupApi): 
   overlay.hidden = true;
   overlay.innerHTML = `
     <div class="setup-panel">
-      <button type="button" class="back-btn setup-cancel-btn" aria-label="Cancel" hidden>&larr;</button>
+      <button type="button" class="back-btn setup-cancel-btn" hidden></button>
       <h1 class="setup-title">Where should QuKis be saved?</h1>
       <p class="setup-subtitle">Choose once. You can change this later in Settings.</p>
       <div class="setup-cards">
@@ -65,7 +68,8 @@ export function createSetupView(container: HTMLElement, api: ElectronSetupApi): 
   const titleEl = overlay.querySelector<HTMLHeadingElement>(".setup-title")!;
   const subtitleEl = overlay.querySelector<HTMLParagraphElement>(".setup-subtitle")!;
   const cancelBtn = overlay.querySelector<HTMLButtonElement>(".setup-cancel-btn")!;
-  const filesystemBtn = overlay.querySelector<HTMLButtonElement>(".setup-card-filesystem")!;
+  setIconButton(cancelBtn, ArrowLeft, "Cancel");
+  const filesystemBtn =overlay.querySelector<HTMLButtonElement>(".setup-card-filesystem")!;
   const appStorageBtn = overlay.querySelector<HTMLButtonElement>(".setup-card-appstorage")!;
 
   const FIRST_LAUNCH_TITLE = "Where should QuKis be saved?";

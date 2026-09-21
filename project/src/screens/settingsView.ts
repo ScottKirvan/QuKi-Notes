@@ -1,3 +1,6 @@
+import { ArrowLeft } from "lucide";
+
+import { setIconButton } from "./icons";
 import type { ShowToast } from "./toast";
 
 export interface SettingsStorageCallbacks {
@@ -64,7 +67,7 @@ export function createSettingsView(container: HTMLElement, callbacks: SettingsVi
 
   container.innerHTML = `
     <header class="view-header">
-      <button type="button" class="back-btn" aria-label="Back">&larr;</button>
+      <button type="button" class="back-btn"></button>
       <h1>Settings</h1>
     </header>
     <div class="settings-body">
@@ -102,6 +105,7 @@ export function createSettingsView(container: HTMLElement, callbacks: SettingsVi
   `;
 
   const backBtn = container.querySelector<HTMLButtonElement>(".back-btn")!;
+  setIconButton(backBtn, ArrowLeft, "Back");
   const trashBtn = container.querySelector<HTMLButtonElement>(".trash-btn")!;
   const versionBtn = container.querySelector<HTMLButtonElement>(".version-btn")!;
 

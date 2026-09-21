@@ -1,8 +1,10 @@
+import { ArrowLeft, BrushCleaning, Trash2 } from "lucide";
 import type { QuKiStore, TrashedQuKiSummary } from "quki-core";
 
 import { extractPreview } from "../preview";
 import { formatRelativeTime } from "../relativeTime";
 import type { Confirm } from "./confirmDialog";
+import { createIcon, setIconButton } from "./icons";
 import { attachSwipeToDelete } from "./swipeToDelete";
 import type { ShowToast } from "./toast";
 
@@ -31,10 +33,10 @@ export interface TrashView {
 export function createTrashView(store: QuKiStore, container: HTMLElement, callbacks: TrashViewCallbacks): TrashView {
   container.innerHTML = `
     <header class="view-header">
-      <button type="button" class="back-btn" aria-label="Back to Settings">&larr;</button>
+      <button type="button" class="back-btn"></button>
       <h1>Trash</h1>
       <div class="view-actions">
-        <button type="button" class="empty-trash-btn">Empty Trash</button>
+        <button type="button" class="empty-trash-btn"></button>
       </div>
     </header>
     <div class="list-body"></div>
@@ -43,6 +45,9 @@ export function createTrashView(store: QuKiStore, container: HTMLElement, callba
   const backBtn = container.querySelector<HTMLButtonElement>(".back-btn")!;
   const emptyTrashBtn = container.querySelector<HTMLButtonElement>(".empty-trash-btn")!;
   const listBody = container.querySelector<HTMLDivElement>(".list-body")!;
+
+  setIconButton(backBtn, ArrowLeft, "Back to Settings");
+  setIconButton(emptyTrashBtn, BrushCleaning, "Empty Trash");
 
   async function refresh(): Promise<void> {
     const items = await store.listTrash();
@@ -68,7 +73,7 @@ export function createTrashView(store: QuKiStore, container: HTMLElement, callba
     const swipeBg = document.createElement("div");
     swipeBg.className = "list-row-swipe-bg";
     swipeBg.setAttribute("aria-hidden", "true");
-    swipeBg.textContent = "\u{1F5D1}";
+    swipeBg.append(createIcon(Trash2));
 
     const content = document.createElement("div");
     content.className = "list-row-content";
