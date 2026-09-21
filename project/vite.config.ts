@@ -1,15 +1,21 @@
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
+
+import { collectBuildInfo } from "./src/buildInfoGit";
 
 const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf-8")) as {
   version: string;
 };
 
+const buildInfo = collectBuildInfo({ cwd: fileURLToPath(new URL(".", import.meta.url)) });
+
 export default defineConfig({
   root: ".",
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
+    __BUILD_INFO__: JSON.stringify(buildInfo),
   },
   server: {
     host: true,
