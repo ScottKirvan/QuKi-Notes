@@ -4,7 +4,7 @@
 
 <img src="https://raw.githubusercontent.com/ScottKirvan/QuKi-Notes/refs/heads/main/android/app/src/main/res/drawable-xxxhdpi/ic_launcher_foreground.png" alt="QuKi Notes" width="160" />
 
-**Open the app. Type. Done.**
+**Open. Type. Done.**
 
 Ephemeral notes captured on whatever device is at hand, dispatched wherever they need to go.
 
