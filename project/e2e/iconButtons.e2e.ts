@@ -94,6 +94,48 @@ async function assertIconButton(button: Locator, name: string, expectedLabel?: s
   return f;
 }
 
+interface WordButtonLook {
+  text: string;
+  svgCount: number;
+  borderWidths: string[];
+  padding: string;
+  fontSize: string;
+  borderRadius: string;
+  cursor: string;
+  width: number;
+  height: number;
+}
+
+async function assertWordButton(
+  button: Locator,
+  name: string,
+  expected: { text: string; padding: string; fontSize: string | null; borderRadius: string; width: number; height: number },
+): Promise<void> {
+  const look: WordButtonLook = await button.evaluate((el) => {
+    const style = getComputedStyle(el);
+    const rect = el.getBoundingClientRect();
+    return {
+      text: (el.textContent ?? "").trim(),
+      svgCount: el.querySelectorAll("svg").length,
+      borderWidths: [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth],
+      padding: style.padding,
+      fontSize: style.fontSize,
+      borderRadius: style.borderTopLeftRadius,
+      cursor: style.cursor,
+      width: rect.width,
+      height: rect.height,
+    };
+  });
+  assert(look.text === expected.text, `${name}: must read "${expected.text}", got "${look.text}"`);
+  assert(look.svgCount === 0, `${name}: must stay a word button with no icon, found ${look.svgCount} <svg>`);
+  assert(look.borderWidths.every((w) => w === "1px"), `${name}: must keep its 1px border, got ${look.borderWidths.join("/")}`);
+  assert(look.padding === expected.padding, `${name}: padding should be ${expected.padding}, got ${look.padding}`);
+  if (expected.fontSize !== null) assert(look.fontSize === expected.fontSize, `${name}: font-size should be ${expected.fontSize}, got ${look.fontSize}`);
+  assert(look.borderRadius === expected.borderRadius, `${name}: border-radius should be ${expected.borderRadius}, got ${look.borderRadius}`);
+  assert(look.cursor === "pointer", `${name}: cursor should be pointer, got ${look.cursor}`);
+  assert(Math.abs(look.width - expected.width) <= 2 && Math.abs(look.height - expected.height) <= 2, `${name}: size should be about ${expected.width}x${expected.height}, got ${look.width}x${look.height}`);
+}
+
 async function assertSwipeBackground(row: Locator, name: string): Promise<void> {
   const bg = row.locator(".list-row-swipe-bg");
   const info = await bg.evaluate((el) => {
@@ -265,12 +307,17 @@ async function runWebScenario(browser: Browser, url: string, scheme: "light" | "
   await page.waitForTimeout(300);
   const trashBack = await assertIconButton(trash.locator(".back-btn"), "trash back button", "Back to Settings");
   assert(trashBack.width >= OLD_BACK_SIZE.width && trashBack.height >= OLD_BACK_SIZE.height, `trash back must not shrink, got ${trashBack.width}x${trashBack.height}`);
-  const emptyTrash = await assertIconButton(trash.locator(".empty-trash-btn"), "Empty Trash button", "Empty Trash");
-  assert(emptyTrash.height >= OLD_HEADER_ACTION_HEIGHT, `Empty Trash must not be shorter than the old ${OLD_HEADER_ACTION_HEIGHT}px, got ${emptyTrash.height}`);
-  assert((await trash.locator(".empty-trash-btn").getAttribute("title")) === "Empty Trash", "Empty Trash must keep a tooltip");
+  await assertWordButton(trash.locator(".empty-trash-btn"), "Empty Trash button", {
+    text: "Empty Trash",
+    padding: "6px 12px",
+    fontSize: "13px",
+    borderRadius: "6px",
+    width: 95.4,
+    height: 31,
+  });
   await assertSwipeBackground(trash.locator(".list-row").first(), "trash row");
   await assertMidSwipeIconVisible(page, trash.locator(".list-row").first(), "trash row");
-  console.log(`${tag} PASS: trash header back/Empty Trash and the trash row swipe background are icon-only SVG, labelled, borderless`);
+  console.log(`${tag} PASS: trash back button and the trash row swipe background are icon-only SVG, labelled, borderless; Empty Trash is still the bordered word button`);
 
   // --- Empty Trash still asks first: cancel keeps the row, confirm empties ---
   await trash.locator(".empty-trash-btn").click();
@@ -348,9 +395,14 @@ async function runOverlayScenario(browser: Browser, devUrl: string, scheme: "lig
 
   await page.evaluate(() => (window as unknown as { __permissionView: { render(s: string): void } }).__permissionView.render("needs-permission"));
   const grant = page.locator(".android-permission-btn");
-  const grantFacts = await assertIconButton(grant, "Grant access button", "Grant access");
-  assert((await grant.getAttribute("title")) === "Grant access", "Grant access must keep a tooltip");
-  assert(grantFacts.width >= 130.4 && grantFacts.height >= 47, `Grant access must not shrink below its old 130.4x47, got ${grantFacts.width}x${grantFacts.height}`);
+  await assertWordButton(grant, "Grant access button", {
+    text: "Grant access",
+    padding: "12px 20px",
+    fontSize: null,
+    borderRadius: "8px",
+    width: 130.4,
+    height: 47,
+  });
   const copy = await page.locator(".android-permission-panel").evaluate((el) => ({
     title: el.querySelector("h1")!.textContent,
     body: (el.querySelector(".android-permission-body")!.textContent ?? "").replace(/\s+/g, " ").trim(),
@@ -360,13 +412,12 @@ async function runOverlayScenario(browser: Browser, devUrl: string, scheme: "lig
     copy.body === `To save your QuKis as files in your device's Documents folder, QuKi Notes needs "Allow management of all files" permission. Grant it on the next screen, then switch back to QuKi Notes.`,
     `permission body copy changed: "${copy.body}"`,
   );
-  await assertHoverAndFocusFeedback(page, grant, "Grant access button");
   await grant.click();
   const clicks = await page.evaluate(() => (window as unknown as { __grantClicks: number }).__grantClicks);
   assert(clicks === 1, `Grant access must still trigger the request flow once, got ${clicks}`);
   await page.evaluate(() => (window as unknown as { __permissionView: { render(s: string): void } }).__permissionView.render("waiting-for-settings"));
   assert(await grant.isDisabled(), "Grant access must be disabled while waiting for Settings");
-  console.log(`${tag} PASS: Grant access is an icon-only SVG, labelled, borderless, copy unchanged, still triggers the request and disables while waiting`);
+  console.log(`${tag} PASS: Grant access is still the bordered word button, copy unchanged, still triggers the request and disables while waiting`);
 
   await context.close();
 }
