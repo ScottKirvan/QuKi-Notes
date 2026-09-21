@@ -8,7 +8,17 @@
   "packages": {
     ".": {
       "extra-files": [
-        "notes/VERSION.md"
+        "notes/VERSION.md",
+        {
+          "type": "json",
+          "path": "project/package.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "project/electron/package.json",
+          "jsonpath": "$.version"
+        }
       ]
     }
   }
