@@ -19,7 +19,7 @@ Updated 2026-09-20. Unsequenced — just a record of what's open.
 
 ## Android
 
-- [ ] Release signing: env vars wired (`STORE_FILE`/`STORE_PASSWORD`/`KEY_ALIAS`/`KEY_PASSWORD`), real keystore/secrets still needed. Until then every build is debug-signed, and a mismatched real cert would break the Flutter migration path on update.
+- [X] Release signing: env vars wired (`STORE_FILE`/`STORE_PASSWORD`/`KEY_ALIAS`/`KEY_PASSWORD`), real keystore/secrets still needed. Until then every build is debug-signed, and a mismatched real cert would break the Flutter migration path on update.
 - [ ] Send's success toast always says "Copied to clipboard.", even on Android where it's a real share-sheet send now.
 - [ ] Heading-cycle multi-line behavior is `[Proposed — unconfirmed]` — try it by hand with a reversed, mixed-level selection.
 - [ ] Send tested into Messages only; no second target, no full completed send (no contacts on emulator).
