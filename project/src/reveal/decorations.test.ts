@@ -11,6 +11,7 @@ interface Deco {
   widget: string | null;
   cls: string | null;
   style: string | null;
+  checked: boolean | null;
 }
 
 function decorationsFor(doc: string, caret: number, plain = false): Deco[] {
@@ -25,7 +26,7 @@ function decorationsFor(doc: string, caret: number, plain = false): Deco[] {
   const out: Deco[] = [];
   buildDecorations(state).between(0, doc.length, (from, to, value) => {
     const spec = value.spec as {
-      widget?: object;
+      widget?: { checked?: boolean };
       class?: string;
       attributes?: { style?: string };
     };
@@ -35,6 +36,7 @@ function decorationsFor(doc: string, caret: number, plain = false): Deco[] {
       widget: spec.widget ? spec.widget.constructor.name : null,
       cls: spec.class ?? null,
       style: spec.attributes?.style ?? null,
+      checked: spec.widget?.checked ?? null,
     });
   });
   return out;
@@ -51,7 +53,7 @@ describe("unordered list marker collapse", () => {
       const doc = `plain\n${bullet} apple`;
       const decos = decorationsFor(doc, 0);
       expect(widgets(decos, "BulletWidget")).toEqual([
-        { from: 6, to: 8, widget: "BulletWidget", cls: null, style: null },
+        { from: 6, to: 8, widget: "BulletWidget", cls: null, style: null, checked: null },
       ]);
     },
   );
@@ -201,5 +203,72 @@ describe("blockquote marker collapse", () => {
 
   it("given plain-text mode, when decorated, then quote lines get no decorations", () => {
     expect(decorationsFor("> a\n> > b", 0, true)).toEqual([]);
+  });
+});
+
+describe("task checkbox collapse", () => {
+  it("given an unchecked task and the caret elsewhere, when decorated, then the marker collapses to an unchecked checkbox", () => {
+    const [box] = widgets(decorationsFor("plain\n- [ ] milk", 0), "CheckboxWidget");
+    expect(box).toEqual(expect.objectContaining({ from: 6, to: 12, checked: false }));
+  });
+
+  it.each(["x", "X"])("given a - [%s] task, when decorated, then the checkbox is checked", (mark) => {
+    const [box] = widgets(decorationsFor(`plain\n- [${mark}] milk`, 0), "CheckboxWidget");
+    expect(box.checked).toBe(true);
+  });
+
+  it("given a task, when decorated, then no bullet is drawn for it", () => {
+    const decos = decorationsFor("plain\n- [ ] milk", 0);
+    expect(widgets(decos, "BulletWidget")).toEqual([]);
+  });
+
+  it("given the caret inside the marker, when decorated, then the raw marker shows and no checkbox is drawn", () => {
+    expect(widgets(decorationsFor("- [ ] milk", 3), "CheckboxWidget")).toEqual([]);
+  });
+
+  it("given the caret at the boundary just after the marker's space, when decorated, then the raw marker still shows", () => {
+    expect(widgets(decorationsFor("- [ ] milk", 6), "CheckboxWidget")).toEqual([]);
+  });
+
+  it("given the caret one character into the text, when decorated, then the checkbox is collapsed again", () => {
+    expect(widgets(decorationsFor("- [ ] milk", 7), "CheckboxWidget")).toHaveLength(1);
+  });
+
+  it("given a nested task, when decorated, then only the marker collapses, not its indentation", () => {
+    const doc = "- top\n\t- [ ] sub";
+    const [box] = widgets(decorationsFor(doc, doc.length), "CheckboxWidget");
+    expect([box.from, box.to]).toEqual([7, 13]);
+  });
+
+  it("given a checked task, when decorated, then its content is struck through", () => {
+    const decos = decorationsFor("plain\n- [x] milk", 0);
+    expect(byClass(decos, "cm-quki-checked-text")).toEqual([
+      expect.objectContaining({ from: 12, to: 16 }),
+    ]);
+  });
+
+  it("given a checked task with the caret in its marker, when decorated, then the content stays struck through", () => {
+    const decos = decorationsFor("- [x] milk", 1);
+    expect(byClass(decos, "cm-quki-checked-text")).toEqual([
+      expect.objectContaining({ from: 6, to: 10 }),
+    ]);
+  });
+
+  it("given an unchecked task, when decorated, then its content is not struck through", () => {
+    expect(byClass(decorationsFor("plain\n- [ ] milk", 0), "cm-quki-checked-text")).toEqual([]);
+  });
+
+  it("given a checked task with no content, when decorated, then there is nothing to strike through", () => {
+    expect(byClass(decorationsFor("plain\n- [x] ", 0), "cm-quki-checked-text")).toEqual([]);
+  });
+
+  it("given * [ ] text, when decorated, then it is a bullet, not a checkbox", () => {
+    const decos = decorationsFor("plain\n* [ ] milk", 0);
+    expect(widgets(decos, "CheckboxWidget")).toEqual([]);
+    expect(widgets(decos, "BulletWidget")).toHaveLength(1);
+  });
+
+  it("given plain-text mode, when decorated, then tasks get no decorations", () => {
+    expect(decorationsFor("- [x] a\n- [ ] b", 0, true)).toEqual([]);
   });
 });

@@ -30,28 +30,48 @@ const NESTING_INLINE_TYPES = new Set([
 const WHOLE_LINE_TYPES = new Set(["Image", "HorizontalRule"]);
 
 interface ListItemMarker {
-  type: "BulletItem" | "OrderedItem";
+  type: "BulletItem" | "OrderedItem" | "TaskItem";
   start: number;
   end: number;
   digit: number | null;
+  checked?: boolean;
 }
 
-// Only a whole line's worth of leading whitespace may precede a list marker
-// for it to collapse: anything else (a `>` quote prefix, another list's
-// marker) leaves it as literal text.
+// A marker collapses only when nothing but whitespace precedes it on its
+// line and a single space follows it; anything else (a `>` quote prefix,
+// another item's marker on the same line, `-x`) stays literal text, which
+// is also what keeps the checkbox tap's six-character rule from ever being
+// asked to toggle something it would ignore.
 function readListItemMarker(
   item: SyntaxNode,
   state: EditorState,
 ): ListItemMarker | null {
   const mark = item.getChild("ListMark");
   if (!mark) return null;
-  if (item.getChild("Task")) return null;
 
   const line = state.doc.lineAt(mark.from);
   if (!/^[ \t]*$/.test(state.sliceDoc(line.from, mark.from))) return null;
   if (state.sliceDoc(mark.to, mark.to + 1) !== " ") return null;
 
   const markText = state.sliceDoc(mark.from, mark.to);
+
+  const taskMarker = item.getChild("Task")?.getChild("TaskMarker");
+  if (
+    taskMarker &&
+    markText === "-" &&
+    item.parent?.name === "BulletList" &&
+    taskMarker.from === mark.to + 1 &&
+    state.sliceDoc(taskMarker.to, taskMarker.to + 1) === " "
+  ) {
+    return {
+      type: "TaskItem",
+      start: mark.from,
+      end: taskMarker.to + 1,
+      digit: null,
+      checked: state.sliceDoc(taskMarker.from + 1, taskMarker.from + 2) !== " ",
+    };
+  }
+
   if (item.parent?.name === "OrderedList") {
     if (!/^\d+\.$/.test(markText)) return null;
     return {
@@ -179,6 +199,7 @@ export function extractElements(state: EditorState): ExtractResult {
             checkStart: marker.start,
             checkEnd: marker.end,
             parentId: null,
+            ...(marker.checked !== undefined && { checked: marker.checked }),
           };
           elements.push(element);
           nodes.set(id, node.node);

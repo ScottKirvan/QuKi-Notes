@@ -12,6 +12,7 @@ import { computeRevealedIds, caretForReveal } from "./computeReveal";
 import { plainTextMode } from "./plainTextMode";
 import {
   BulletWidget,
+  CheckboxWidget,
   HorizontalRuleWidget,
   ImageWidget,
   LinkWidget,
@@ -127,6 +128,24 @@ export function buildDecorations(state: EditorState): DecorationSet {
             Decoration.replace({ widget: new BulletWidget() }).range(
               element.checkStart,
               element.checkEnd,
+            ),
+          );
+        }
+        break;
+
+      case "TaskItem":
+        if (!revealed) {
+          ranges.push(
+            Decoration.replace({
+              widget: new CheckboxWidget(element.checked === true),
+            }).range(element.checkStart, element.checkEnd),
+          );
+        }
+        if (element.checked && element.checkEnd < element.end) {
+          ranges.push(
+            Decoration.mark({ class: "cm-quki-checked-text" }).range(
+              element.checkEnd,
+              element.end,
             ),
           );
         }

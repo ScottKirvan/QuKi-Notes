@@ -564,6 +564,25 @@ button.settings-row {
   text-align: right;
 }
 
+.cm-quki-checkbox {
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.cm-quki-checkbox svg {
+  width: 1.2544em;
+  height: 1.2544em;
+  vertical-align: -0.3em;
+}
+
+.cm-quki-checked-text {
+  text-decoration: line-through;
+}
+
 /*
  * BEHAVIOR_SPEC.md §3: shown "instead of the editor" on first launch, so
  * this is fully opaque (not a translucent modal backdrop like
