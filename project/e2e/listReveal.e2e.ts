@@ -111,12 +111,12 @@ async function blurEditor(page: Page): Promise<void> {
  * so one scrollTop assignment can land short of the line; retry until the
  * checkbox is actually rendered, then return the settled scrollTop.
  */
-async function scrollTargetIntoView(page: Page): Promise<number> {
+async function scrollTargetIntoView(page: Page, offset: number = TARGET_OFFSET): Promise<number> {
   for (let attempt = 0; attempt < 15; attempt++) {
     await page.evaluate((offset) => {
       const view = (window as WindowWithQukiView).qukiView;
       view.scrollDOM.scrollTop = view.lineBlockAt(offset).top - 120;
-    }, TARGET_OFFSET);
+    }, offset);
     await page.waitForTimeout(150);
     if ((await page.locator(".cm-line", { hasText: "target task" }).locator(".cm-quki-checkbox").count()) !== 1) continue;
     let previous = await scrollTop(page);
@@ -156,6 +156,91 @@ const FILLER = Array.from({ length: 60 }, (_, i) => `filler line ${i + 1}`).join
 const TARGET_DOC = `${FILLER}\n\n- [ ] target task\n- [x] done task\n\n${FILLER}`;
 const TARGET_OFFSET = TARGET_DOC.indexOf("- [ ] target task");
 const CARET_ELSEWHERE = TARGET_DOC.indexOf("filler line 30") + 6;
+
+// The same target one and two levels deep, so a tap has to find its marker
+// past leading whitespace that is hidden while collapsed.
+const NESTED_DOC = `${FILLER}\n\n- parent\n\t- [ ] target task\n\t\t- [x] done task\n\n${FILLER}`;
+const NESTED_OFFSET = NESTED_DOC.indexOf("\t- [ ] target task");
+
+const WRAP = "lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua";
+const LAYOUT_DOC = [
+  "plain reference paragraph",
+  "",
+  `- alpha ${WRAP}`,
+  `\t- bravo ${WRAP}`,
+  `\t\t- charlie ${WRAP}`,
+  "",
+  `1. delta ${WRAP}`,
+  `\t1. echo ${WRAP}`,
+  "",
+  ...Array.from({ length: 9 }, (_, i) => `1. filler${i}`),
+  `1. foxtrot ${WRAP}`,
+  "",
+  `- [ ] golf ${WRAP}`,
+  `\t- [x] hotel ${WRAP}`,
+  `\t\t- [ ] india ${WRAP}`,
+  "",
+  "> juliet quoted",
+  "",
+  "trailing plain paragraph",
+].join("\n");
+
+interface LineGeometry {
+  /** Left edge of the first visual row's text (after any marker widget). */
+  firstRowLeft: number;
+  /** Left edge of every later visual row's text. */
+  laterRowLefts: number[];
+  markerLeft: number | null;
+  markerRight: number | null;
+  paddingLeft: number;
+  textIndent: string;
+  text: string;
+}
+
+/**
+ * Measures where each visual row of the line containing `needle` starts. Rows
+ * are found by grouping the line's non-widget characters by their top edge.
+ */
+async function lineGeometry(page: Page, needle: string): Promise<LineGeometry> {
+  return page.evaluate((needle) => {
+    const line = [...document.querySelectorAll<HTMLElement>(".cm-line")].find((l) => l.textContent?.includes(needle));
+    if (!line) throw new Error("no line containing " + needle);
+    const marker = line.querySelector<HTMLElement>(".cm-quki-marker");
+    const rows = new Map<number, number>();
+    const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (marker?.contains(node)) continue;
+      const text = node.textContent ?? "";
+      for (let i = 0; i < text.length; i++) {
+        if (text[i] === " " || text[i] === "\t") continue;
+        const range = document.createRange();
+        range.setStart(node, i);
+        range.setEnd(node, i + 1);
+        const rect = range.getBoundingClientRect();
+        if (rect.width === 0) continue;
+        const top = Math.round(rect.top);
+        const known = rows.get(top);
+        if (known === undefined || rect.left < known) rows.set(top, rect.left);
+      }
+    }
+    const lefts = [...rows.entries()].sort((a, b) => a[0] - b[0]).map(([, left]) => left);
+    const style = getComputedStyle(line);
+    const markerRect = marker?.getBoundingClientRect();
+    return {
+      firstRowLeft: lefts[0]!,
+      laterRowLefts: lefts.slice(1),
+      markerLeft: markerRect ? markerRect.left : null,
+      markerRight: markerRect ? markerRect.right : null,
+      paddingLeft: Number.parseFloat(style.paddingLeft),
+      textIndent: style.textIndent,
+      text: line.textContent ?? "",
+    };
+  }, needle);
+}
+
+function near(a: number, b: number, tolerance = 0.5): boolean {
+  return Math.abs(a - b) <= tolerance;
+}
 
 async function openFreshPage(context: BrowserContext, url: string): Promise<Page> {
   const page = await context.newPage();
@@ -229,10 +314,80 @@ async function main(): Promise<void> {
       await setDocAndSelection(page, doc, doc.length);
       await page.evaluate(() => document.querySelector<HTMLButtonElement>("#btn-mode-toggle")!.click());
       await page.waitForTimeout(150);
-      const decorated = await page.locator(".cm-quki-marker, .cm-quki-quote, .cm-quki-quote-text, .cm-quki-checked-text").count();
+      const decorated = await page.locator(".cm-quki-marker, .cm-quki-list-line, .cm-quki-quote, .cm-quki-quote-text, .cm-quki-checked-text").count();
       assert(decorated === 0, `plain-text mode should add no list/quote decorations, found ${decorated}`);
       assert((await page.locator(".cm-line", { hasText: "quoted" }).first().textContent()) === "> quoted", "plain-text mode shows the raw > marker");
       console.log("[e2e-listReveal] PASS: plain-text mode shows raw markers and adds no decorations");
+
+      await context.close();
+    }
+
+    // --- Layout indentation: depth, hanging wrapped rows, reveal ---
+    {
+      const context = await browser.newContext({ viewport: { width: 400, height: 900 } });
+      const page = await openFreshPage(context, url);
+      await setDocAndSelection(page, LAYOUT_DOC, LAYOUT_DOC.length);
+      await page.waitForTimeout(200);
+
+      const plain = await lineGeometry(page, "plain reference paragraph");
+      const cases: [string, number][] = [
+        ["alpha", 0], ["bravo", 1], ["charlie", 2],
+        ["delta", 0], ["echo", 1], ["foxtrot", 0],
+        ["golf", 0], ["hotel", 1], ["india", 2],
+      ];
+      const collapsed = new Map<string, LineGeometry>();
+      for (const [needle, depth] of cases) {
+        const g = await lineGeometry(page, needle);
+        collapsed.set(needle, g);
+        assert(g.laterRowLefts.length >= 1, `${needle}: the item should wrap onto more than one row at this width`);
+        const expectedLeft = plain.firstRowLeft + 24 + 16 * depth;
+        assert(near(g.firstRowLeft, expectedLeft), `${needle}: content should start ${24 + 16 * depth}px right of plain text (depth ${depth}); got ${g.firstRowLeft - plain.firstRowLeft}px`);
+        for (const left of g.laterRowLefts) {
+          assert(near(left, g.firstRowLeft), `${needle}: a wrapped row starts at ${left}, not under the content at ${g.firstRowLeft}`);
+        }
+        assert(g.markerRight !== null && near(g.markerRight, g.firstRowLeft), `${needle}: the marker's gutter should end where the content starts (${g.markerRight} vs ${g.firstRowLeft})`);
+        assert(!/^\s/.test(g.text) && !g.text.includes("\t"), `${needle}: leading whitespace must not be shown, got ${JSON.stringify(g.text.slice(0, 12))}`);
+      }
+      console.log("[e2e-listReveal] PASS: bullets, numbers and checkboxes indent by depth and wrapped rows hang under the content at depths 0, 1 and 2");
+
+      const twoDigit = await lineGeometry(page, "foxtrot");
+      assert(twoDigit.text.startsWith("10."), `the tenth item should be numbered 10, got ${JSON.stringify(twoDigit.text.slice(0, 6))}`);
+      console.log("[e2e-listReveal] PASS: a two-digit number keeps its content aligned with the wrapped rows");
+
+      const trailing = await lineGeometry(page, "trailing plain paragraph");
+      assert(near(trailing.firstRowLeft, plain.firstRowLeft) && trailing.textIndent === "0px", "a plain paragraph after a list must get no list gutter");
+      const quoted = await lineGeometry(page, "juliet");
+      assert(quoted.textIndent === "0px" && near(quoted.paddingLeft, 16), `a quote line keeps its own 16px indent, got padding ${quoted.paddingLeft}, text-indent ${quoted.textIndent}`);
+      console.log("[e2e-listReveal] PASS: plain and quoted lines beside a list get no marker gutter");
+
+      // Revealing a line: raw source, no layout indent, neighbours undisturbed.
+      const bravoMarker = LAYOUT_DOC.indexOf("\t- bravo");
+      for (const caret of [bravoMarker, bravoMarker + 1, bravoMarker + 3]) {
+        await setDocAndSelection(page, LAYOUT_DOC, caret);
+        await page.waitForTimeout(100);
+        const revealed = await lineGeometry(page, "bravo");
+        assert(revealed.text.startsWith("\t- bravo"), `caret ${caret - bravoMarker}: the revealed line should show its tab and marker raw, got ${JSON.stringify(revealed.text.slice(0, 10))}`);
+        assert(revealed.textIndent === "0px" && near(revealed.paddingLeft, plain.paddingLeft), `caret ${caret - bravoMarker}: a revealed line gets no layout indent (padding ${revealed.paddingLeft}, text-indent ${revealed.textIndent})`);
+        assert(revealed.markerLeft === null, `caret ${caret - bravoMarker}: a revealed line has no marker widget`);
+        for (const neighbour of ["alpha", "charlie"]) {
+          const g = await lineGeometry(page, neighbour);
+          assert(near(g.firstRowLeft, collapsed.get(neighbour)!.firstRowLeft), `caret ${caret - bravoMarker}: ${neighbour} must not move when bravo is revealed`);
+        }
+      }
+      console.log("[e2e-listReveal] PASS: a revealed indented line shows raw source at depth zero and moves no neighbour");
+
+      await setDocAndSelection(page, LAYOUT_DOC, LAYOUT_DOC.length);
+      await page.waitForTimeout(100);
+      const collapsedAgain = await lineGeometry(page, "bravo");
+      assert(near(collapsedAgain.firstRowLeft, collapsed.get("bravo")!.firstRowLeft), "moving the caret away collapses the line back to its indented layout");
+      console.log("[e2e-listReveal] PASS: moving the caret away restores the indentation");
+
+      await page.evaluate(() => document.querySelector<HTMLButtonElement>("#btn-mode-toggle")!.click());
+      await page.waitForTimeout(150);
+      assert((await page.locator(".cm-quki-list-line, .cm-quki-marker").count()) === 0, "plain-text mode should leave every list line undecorated");
+      const rawBravo = await lineGeometry(page, "bravo");
+      assert(rawBravo.text.startsWith("\t- bravo") && near(rawBravo.paddingLeft, plain.paddingLeft), "plain-text mode shows the raw indented line");
+      console.log("[e2e-listReveal] PASS: plain-text mode shows raw indented lines with no layout indent");
 
       await context.close();
     }
@@ -299,6 +454,32 @@ async function main(): Promise<void> {
       await context.close();
     }
 
+    // --- Tap an indented collapsed checkbox: mouse ---
+    {
+      const context = await browser.newContext();
+      const page = await openFreshPage(context, url);
+
+      await setDocAndSelection(page, NESTED_DOC, CARET_ELSEWHERE);
+      await focusEditor(page);
+      const scrollBefore = await scrollTargetIntoView(page, NESTED_OFFSET);
+      const selectionBefore = await editorSelection(page);
+      assert(scrollBefore > 0, "the test needs the scroller scrolled away from the top");
+
+      await page.locator(".cm-line", { hasText: "target task" }).locator(".cm-quki-checkbox").click();
+      await page.waitForTimeout(150);
+      assert((await editorBody(page)) === NESTED_DOC.replace("\t- [ ] target task", "\t- [x] target task"), "a click on an indented checkbox should check it, keeping its indentation");
+      assert(JSON.stringify(await editorSelection(page)) === JSON.stringify(selectionBefore), "cursor should be untouched by a tap on an indented checkbox");
+      assert((await scrollTop(page)) === scrollBefore, `view should not scroll: ${scrollBefore} -> ${await scrollTop(page)}`);
+      assert(await editorHasFocus(page), "the editor should keep the focus it had");
+
+      await page.locator(".cm-line", { hasText: "done task" }).locator(".cm-quki-checkbox").click();
+      await page.waitForTimeout(100);
+      assert((await editorBody(page)).includes("\t\t- [ ] done task"), "a checked checkbox two levels deep should uncheck");
+      console.log("[e2e-listReveal] PASS: tapping an indented checkbox (depth 1 and 2) toggles it, preserving cursor, scroll and focus");
+
+      await context.close();
+    }
+
     // --- Tap the collapsed checkbox: real touch (CDP trusted touch events) ---
     {
       const context = await browser.newContext({ hasTouch: true, isMobile: true, viewport: { width: 412, height: 800 } });
@@ -339,6 +520,19 @@ async function main(): Promise<void> {
       assert(!(await editorHasFocus(page)), "a touch tap on a checkbox must not focus the editor (no keyboard pop-up)");
       assert(JSON.stringify(await editorSelection(page)) === JSON.stringify(readingSelection), "reading-mode touch tap must not move the cursor");
       console.log("[e2e-listReveal] PASS: reading-mode touch tap toggles without focusing the editor or moving the cursor");
+
+      await setDocAndSelection(page, NESTED_DOC, CARET_ELSEWHERE);
+      await focusEditor(page);
+      const nestedScrollBefore = await scrollTargetIntoView(page, NESTED_OFFSET);
+      const nestedSelectionBefore = await editorSelection(page);
+      const nestedTarget = page.locator(".cm-line", { hasText: "target task" }).locator(".cm-quki-checkbox");
+      await touchTap(client, await stableBox(nestedTarget));
+      await page.waitForTimeout(250);
+      assert((await editorBody(page)) === NESTED_DOC.replace("\t- [ ] target task", "\t- [x] target task"), "a touch tap on an indented checkbox should check it");
+      assert(JSON.stringify(await editorSelection(page)) === JSON.stringify(nestedSelectionBefore), "touch tap on an indented checkbox must not move the cursor");
+      assert((await scrollTop(page)) === nestedScrollBefore, `touch tap on an indented checkbox must not scroll: ${nestedScrollBefore} -> ${await scrollTop(page)}`);
+      assert(await editorHasFocus(page), "touch tap on an indented checkbox must not blur the editor");
+      console.log("[e2e-listReveal] PASS: touch tap on an indented checkbox toggles it, preserving cursor, scroll and focus");
 
       await context.close();
     }

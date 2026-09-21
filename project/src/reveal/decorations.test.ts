@@ -280,3 +280,103 @@ describe("task checkbox collapse", () => {
     expect(decorationsFor("- [x] a\n- [ ] b", 0, true)).toEqual([]);
   });
 });
+
+function listLines(decos: Deco[]): Deco[] {
+  return byClass(decos, "cm-quki-list-line");
+}
+
+// Content starts at CodeMirror's 6px line inset + 16px per depth level + the
+// 24px marker gutter; the first row is pulled back left by that gutter.
+function listStyle(contentX: number): string {
+  return `padding-left:${contentX}px;text-indent:-24px`;
+}
+
+describe("list item layout indentation", () => {
+  it.each([
+    ["bullet", "- a"],
+    ["ordered", "1. a"],
+    ["task", "- [ ] a"],
+  ])("given a %s item at depth 0, when collapsed, then its line hangs its wrapped rows under the content", (_kind, item) => {
+    const decos = listLines(decorationsFor(`plain\n\n${item}`, 0));
+    expect(decos).toEqual([expect.objectContaining({ from: 7, style: listStyle(30) })]);
+  });
+
+  it.each([
+    ["a tab", "\t", 46],
+    ["two spaces", "  ", 46],
+    ["four spaces", "    ", 62],
+    ["three spaces", "   ", 46],
+    ["one space", " ", 30],
+  ])("given an item indented with %s under a parent, when collapsed, then its content starts at the depth's indentation", (_name, ws, contentX) => {
+    const doc = `- top\n${ws}- nested`;
+    const decos = listLines(decorationsFor(doc, 0)).filter((d) => d.from === 6);
+    expect(decos).toEqual([expect.objectContaining({ style: listStyle(contentX) })]);
+  });
+
+  it("given a nested ordered item and a nested task, when collapsed, then each is indented to its own depth", () => {
+    const doc = "1. top\n\t1. sub\n- [ ] t\n\t\t- [x] deep";
+    const contentXByLine = new Map(listLines(decorationsFor(doc, doc.length)).map((d) => [d.from, d.style]));
+    expect(contentXByLine.get(0)).toBe(listStyle(30));
+    expect(contentXByLine.get(7)).toBe(listStyle(46));
+    expect(contentXByLine.get(15)).toBe(listStyle(30));
+  });
+
+  it("given a collapsed indented item, when decorated, then its leading whitespace is hidden by the same replacement that draws the marker", () => {
+    const doc = "- top\n\t- nested";
+    const hidden = decorationsFor(doc, doc.length).filter((d) => d.from === 6);
+    expect(hidden.map((d) => [d.from, d.to, d.widget])).toEqual(
+      expect.arrayContaining([[6, 9, "BulletWidget"]]),
+    );
+    expect(hiddenRanges(decorationsFor(doc, doc.length))).toEqual([]);
+  });
+
+  it("given the caret in an indented item's marker span, when decorated, then that line shows raw source with no layout indentation", () => {
+    const doc = "- top\n  - nested\n  - other";
+    const decos = decorationsFor(doc, 7);
+    expect(widgets(decos, "BulletWidget").map((d) => d.from)).toEqual([0, 17]);
+    expect(listLines(decos).map((d) => d.from)).toEqual([0, 17]);
+  });
+
+  it("given a revealed line between two lines at the same depth, when decorated, then the neighbours keep their indentation", () => {
+    const doc = "- a\n  - b\n  - c\n  - d";
+    const decos = decorationsFor(doc, doc.indexOf("- c") + 1);
+    const lines = listLines(decos);
+    expect(lines.map((d) => [d.from, d.style])).toEqual([
+      [0, listStyle(30)],
+      [4, listStyle(46)],
+      [16, listStyle(46)],
+    ]);
+  });
+
+  it("given a revealed task, when decorated, then its raw source shows and no checkbox or layout indentation is drawn", () => {
+    const doc = "- top\n\t- [ ] sub";
+    const decos = decorationsFor(doc, 8);
+    expect(widgets(decos, "CheckboxWidget")).toEqual([]);
+    expect(listLines(decos).map((d) => d.from)).toEqual([0]);
+  });
+
+  it("given non-list lines beside a list item, when decorated, then none of them receives the marker gutter", () => {
+    const doc = "# head\n- a\nplain\n> quote";
+    const decos = decorationsFor(doc, doc.length);
+    expect(listLines(decos).map((d) => d.from)).toEqual([7]);
+  });
+
+  it("given a quote line beside a list item, when decorated, then the quote keeps its own indentation and gets no list layout", () => {
+    const doc = "- a\n\n> q";
+    const decos = decorationsFor(doc, doc.length);
+    expect(listLines(decos).map((d) => d.from)).toEqual([0]);
+    const [bar] = byClass(decos, "cm-quki-quote");
+    expect(bar.from).toBe(5);
+    expect(bar.style).toContain("padding-left:16px");
+    expect(bar.style).not.toContain("text-indent");
+  });
+
+  it("given a list item quoted or nested inside a quote, when decorated, then it stays raw text with no list layout", () => {
+    const decos = decorationsFor("> - a\n> > - b", 0);
+    expect(listLines(decos)).toEqual([]);
+  });
+
+  it("given plain-text mode, when decorated, then no line receives layout indentation", () => {
+    expect(listLines(decorationsFor("- a\n\t- b", 0, true))).toEqual([]);
+  });
+});
