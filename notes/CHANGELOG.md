@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.24.2](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.24.1...v0.24.2) (2026-09-21)
+
+
+### Bug Fixes
+
+* add changelog link to release and staging footers ([2f7861e](https://github.com/ScottKirvan/QuKi-Notes/commit/2f7861ed02b083499ab36a7807f88571cba38064))
+* skip Play Store upload on workflow_dispatch ([d5b8c3e](https://github.com/ScottKirvan/QuKi-Notes/commit/d5b8c3e0fe3660d57210052d3d296489427c182b))
+
 ## [0.24.1](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.24.0...v0.24.1) (2026-08-27)
 
 
