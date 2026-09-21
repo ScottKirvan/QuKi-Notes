@@ -11,7 +11,7 @@ Updated 2026-09-20. Unsequenced — just a record of what's open.
 - [x] List/task/blockquote markers never collapse or reveal — only headings, images/hr, and inline formatting (bold/italic/strike/code/links) go through the reveal engine (`reveal/extractElements.ts`).
 - [x] No checkbox widget — no visual checkbox, no tap-to-toggle.
 - [x] Enter-continues/exits-a-list works (CodeMirror's own default keymap) — but the list still doesn't render, so it just doesn't look like anything.
-- [ ] Indentation visual grouping ("same-depth lines laid out as one run", BEHAVIOR_SPEC §12) — no matching code found in `reveal/`. Tab/toolbar indent itself is separate, well-tested code and likely unaffected.
+- [ ] Indentation layout (BEHAVIOR_SPEC §12 "How indentation renders") — implemented as per-line decorations in `reveal/decorations.ts` (no explicit runs structure): collapsed list/task/ordered items indent by depth and hang wrapped rows under their content, and a revealed line shows raw source at depth zero. Covered by unit tests and `e2e/listReveal.e2e.ts` in desktop Chromium only — needs Scott's on-device check on Android. Known gap: an item whose indentation jumps two or more levels at once, or a lone indented item with no parent (e.g. toolbar Indent on a lone `- item`), is not a list item to the parser and stays raw text, where Flutter treats it as nested.
 - [ ] Markdown parsing rules (heading-needs-space, intraword `*` vs `_`, block-relative ordered-list renumbering, etc.) rely on CodeMirror's stock GFM parser — never checked against Flutter's specific rules, no test coverage for the edge cases.
 - [ ] Font is incorrect.
 - [ ] Button style is incorrect.
