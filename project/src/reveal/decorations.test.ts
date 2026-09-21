@@ -74,18 +74,26 @@ describe("unordered list marker collapse", () => {
     expect(widgets(decorationsFor("- apple", 7), "BulletWidget")).toHaveLength(1);
   });
 
-  it("given an indented item, when decorated, then only the marker collapses, not its indentation", () => {
+  it("given an indented item, when decorated, then its leading whitespace collapses together with the marker", () => {
     const doc = "- top\n\t- nested";
     const decos = widgets(decorationsFor(doc, doc.length), "BulletWidget");
     expect(decos.map((d) => [d.from, d.to])).toEqual([
       [0, 2],
-      [7, 9],
+      [6, 9],
     ]);
   });
 
-  it("given the caret inside the indentation before the marker, when decorated, then the marker stays collapsed", () => {
-    const decos = widgets(decorationsFor("- top\n  - nested", 6), "BulletWidget");
-    expect(decos.map((d) => d.from)).toEqual([0, 8]);
+  it("given the caret inside the indentation before the marker, when decorated, then the whole line reveals as raw source", () => {
+    for (const caret of [6, 7]) {
+      const decos = widgets(decorationsFor("- top\n  - nested", caret), "BulletWidget");
+      expect(decos.map((d) => d.from)).toEqual([0]);
+    }
+  });
+
+  it("given the caret one character past an indented marker's space, when decorated, then the indented marker collapses again", () => {
+    const doc = "- top\n  - nested";
+    expect(widgets(decorationsFor(doc, 10), "BulletWidget").map((d) => d.from)).toEqual([0]);
+    expect(widgets(decorationsFor(doc, 11), "BulletWidget").map((d) => d.from)).toEqual([0, 6]);
   });
 });
 
@@ -234,10 +242,10 @@ describe("task checkbox collapse", () => {
     expect(widgets(decorationsFor("- [ ] milk", 7), "CheckboxWidget")).toHaveLength(1);
   });
 
-  it("given a nested task, when decorated, then only the marker collapses, not its indentation", () => {
+  it("given a nested task, when decorated, then its leading whitespace collapses together with the checkbox", () => {
     const doc = "- top\n\t- [ ] sub";
     const [box] = widgets(decorationsFor(doc, doc.length), "CheckboxWidget");
-    expect([box.from, box.to]).toEqual([7, 13]);
+    expect([box.from, box.to]).toEqual([6, 13]);
   });
 
   it("given a checked task, when decorated, then its content is struck through", () => {

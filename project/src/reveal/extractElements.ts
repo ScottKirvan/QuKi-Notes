@@ -190,15 +190,17 @@ export function extractElements(state: EditorState): ExtractResult {
         const marker = readListItemMarker(node.node, state);
         if (marker) {
           const id = nextId++;
+          const line = state.doc.lineAt(marker.start);
           const element: RevealElement = {
             id,
             type: marker.type,
             category: "block-marker",
-            start: marker.start,
-            end: state.doc.lineAt(marker.start).to,
-            checkStart: marker.start,
+            start: line.from,
+            end: line.to,
+            checkStart: line.from,
             checkEnd: marker.end,
             parentId: null,
+            indentDepth: indentDepth(state.sliceDoc(line.from, marker.start)),
             ...(marker.checked !== undefined && { checked: marker.checked }),
           };
           elements.push(element);
