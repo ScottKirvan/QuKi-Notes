@@ -10,6 +10,17 @@
     <link rel="stylesheet" href="/src/style.css" />
   </head>
   <body>
+    <script>
+      (function () {
+        var query = window.matchMedia("(prefers-color-scheme: dark)");
+        function apply() {
+          document.body.classList.toggle("theme-dark", query.matches);
+          document.body.classList.toggle("theme-light", !query.matches);
+        }
+        apply();
+        query.addEventListener("change", apply);
+      })();
+    </script>
     <div id="app">
       <section id="view-editor" class="view">
         <header class="app-header">
