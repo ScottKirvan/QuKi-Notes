@@ -69,7 +69,7 @@ export function createSetupView(container: HTMLElement, api: ElectronSetupApi): 
   const subtitleEl = overlay.querySelector<HTMLParagraphElement>(".setup-subtitle")!;
   const cancelBtn = overlay.querySelector<HTMLButtonElement>(".setup-cancel-btn")!;
   setIconButton(cancelBtn, ArrowLeft, "Cancel");
-  const filesystemBtn =overlay.querySelector<HTMLButtonElement>(".setup-card-filesystem")!;
+  const filesystemBtn = overlay.querySelector<HTMLButtonElement>(".setup-card-filesystem")!;
   const appStorageBtn = overlay.querySelector<HTMLButtonElement>(".setup-card-appstorage")!;
 
   const FIRST_LAUNCH_TITLE = "Where should QuKis be saved?";
