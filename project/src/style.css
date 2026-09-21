@@ -31,8 +31,8 @@ body.theme-dark {
   --hr-color: #7a828e;
   --modal-background: #010409;
   --modal-border-color: #b7bdc8;
-  --font-interface-theme: -apple-system BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
-  --font-text-theme: -apple-system BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  --font-interface-theme: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  --font-text-theme: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
   /* not GitHubDHC's 'DM Mono', 'Fira Code', Courier, monospace: those fonts are not shipped */
   --font-monospace-theme: ui-monospace, SFMono-Regular, Consolas, monospace;
   --font-interface: var(--font-interface-theme), sans-serif;
@@ -65,8 +65,8 @@ body.theme-light {
   --hr-color: #6e7781;
   --modal-background: #ffffff;
   --modal-border-color: #d1d9e0;
-  --font-interface-theme: -apple-system BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
-  --font-text-theme: -apple-system BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  --font-interface-theme: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  --font-text-theme: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
   --font-monospace-theme: ui-monospace, SFMono-Regular, Consolas, monospace;
   --font-interface: var(--font-interface-theme), sans-serif;
   --font-text: var(--font-text-theme), sans-serif;

@@ -184,6 +184,20 @@ async function assertVariablesDriveTheFonts(page: Page, tag: string): Promise<vo
   console.log(`${tag} PASS: a theme setting --font-text-theme, --font-monospace-theme or --font-interface-theme restyles exactly its own part of the app`);
 }
 
+async function assertSystemFontsAreSeparateFamilies(page: Page, tag: string): Promise<void> {
+  const computed = await page.evaluate(() => ({
+    text: getComputedStyle(document.querySelector(".cm-line")!).fontFamily,
+    interface: getComputedStyle(document.body).fontFamily,
+  }));
+  for (const [what, list] of Object.entries(computed)) {
+    const families = list.split(",").map((f) => f.trim());
+    for (const family of ["-apple-system", "BlinkMacSystemFont"]) {
+      assert(families.includes(family), `${tag}: the ${what} font must list ${family} as its own family (an unquoted name with a space in it is one family, so a missing comma hides both system fonts), got [${families.join(" | ")}]`);
+    }
+  }
+  console.log(`${tag} PASS: the body text and interface fonts list -apple-system and BlinkMacSystemFont as separate families`);
+}
+
 async function runScenario(browser: Browser, url: string, scheme: Scheme): Promise<void> {
   const tag = `[e2e-fonts:${scheme}]`;
   const context = await browser.newContext({ colorScheme: scheme, viewport: { width: 420, height: 800 } });
@@ -195,6 +209,7 @@ async function runScenario(browser: Browser, url: string, scheme: Scheme): Promi
 
   await assertEditorFonts(page, tag);
   await assertVariablesDriveTheFonts(page, tag);
+  await assertSystemFontsAreSeparateFamilies(page, tag);
 
   const interfaceFamily = await resolvedFamily(page, "--font-interface");
   const bodyFamily = await page.evaluate(() => getComputedStyle(document.body).fontFamily);

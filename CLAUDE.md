@@ -102,8 +102,10 @@ limitation to work around.
   monospace font. One deliberate exception: the monospace default is the app's own
   `ui-monospace, SFMono-Regular, Consolas, monospace`, not GitHubDHC's `'DM Mono', 'Fira
   Code', Courier, monospace` (those fonts are not shipped); `e2e/theme.e2e.ts` names it
-  in `DELIBERATE_FONT_DEFAULTS`. GitHubDHC's sans stack is copied verbatim, including its
-  missing comma after `-apple-system`.
+  in `DELIBERATE_FONT_DEFAULTS`. The sans defaults (`--font-interface-theme`,
+  `--font-text-theme`) are GitHubDHC's own value, which `e2e/theme.e2e.ts` asserts;
+  `e2e/fonts.e2e.ts` asserts `-apple-system` and `BlinkMacSystemFont` compute as separate
+  families (a missing comma between them makes one bogus family that hides both).
 - No line gets a background of its own, including the caret's: the selection layer sits
   behind the text, so a line background hides a selection on that line.
   `e2e/selection.e2e.ts` samples real pixels for both.
