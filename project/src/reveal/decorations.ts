@@ -10,6 +10,7 @@ import type { SyntaxNode } from "@lezer/common";
 import { extractElements } from "./extractElements";
 import { computeRevealedIds, caretForReveal } from "./computeReveal";
 import { plainTextMode } from "./plainTextMode";
+import { listPrefixLength } from "./listPrefix";
 import {
   BulletWidget,
   CheckboxWidget,
@@ -70,6 +71,27 @@ function listLineDecoration(depth: number): Decoration {
   });
 }
 
+// A list-style line shown as raw source — revealed for editing, or never
+// recognised by the parser — has no gutter to hang under, so its wrapped rows
+// would fall back to the left margin. The class only marks the line; where
+// the text starts depends on the font and on tab widths, so hangingIndent.ts
+// measures that and sets the offset.
+const hangLine = Decoration.line({ class: "cm-quki-hang" });
+
+function rawListLineDecorations(
+  state: EditorState,
+  skipLines: ReadonlySet<number>,
+): Range<Decoration>[] {
+  const ranges: Range<Decoration>[] = [];
+  for (let n = 1; n <= state.doc.lines; n++) {
+    const line = state.doc.line(n);
+    if (skipLines.has(line.from)) continue;
+    if (listPrefixLength(line.text) === null) continue;
+    ranges.push(hangLine.range(line.from));
+  }
+  return ranges;
+}
+
 function hideMarksAndStyle(
   ranges: Range<Decoration>[],
   node: SyntaxNode,
@@ -115,6 +137,7 @@ export function buildDecorations(state: EditorState): DecorationSet {
   const revealedIds = computeRevealedIds(elements, caret);
 
   const ranges: Range<Decoration>[] = [];
+  const nonHangingLines = new Set<number>();
 
   for (const element of elements) {
     const node = nodes.get(element.id);
@@ -151,6 +174,7 @@ export function buildDecorations(state: EditorState): DecorationSet {
             ),
             listLineDecoration(element.indentDepth ?? 0).range(element.start),
           );
+          nonHangingLines.add(element.start);
         }
         break;
 
@@ -162,6 +186,7 @@ export function buildDecorations(state: EditorState): DecorationSet {
             }).range(element.checkStart, element.checkEnd),
             listLineDecoration(element.indentDepth ?? 0).range(element.start),
           );
+          nonHangingLines.add(element.start);
         }
         if (element.checked && element.checkEnd < element.end) {
           ranges.push(
@@ -181,6 +206,7 @@ export function buildDecorations(state: EditorState): DecorationSet {
             }).range(element.checkStart, element.checkEnd),
             listLineDecoration(element.indentDepth ?? 0).range(element.start),
           );
+          nonHangingLines.add(element.start);
         }
         break;
 
@@ -208,6 +234,7 @@ export function buildDecorations(state: EditorState): DecorationSet {
       }
 
       case "HorizontalRule": {
+        nonHangingLines.add(state.doc.lineAt(element.start).from);
         if (!revealed) {
           ranges.push(
             Decoration.replace({ widget: new HorizontalRuleWidget() }).range(
@@ -278,6 +305,8 @@ export function buildDecorations(state: EditorState): DecorationSet {
         break;
     }
   }
+
+  ranges.push(...rawListLineDecorations(state, nonHangingLines));
 
   return Decoration.set(ranges, true);
 }

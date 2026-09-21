@@ -380,3 +380,56 @@ describe("list item layout indentation", () => {
     expect(listLines(decorationsFor("- a\n\t- b", 0, true))).toEqual([]);
   });
 });
+
+function hangLines(decos: Deco[]): number[] {
+  return byClass(decos, "cm-quki-hang").map((d) => d.from);
+}
+
+describe("raw list-style lines hang their wrapped rows", () => {
+  it("given the caret in a top-level item's marker, when decorated, then the raw line is marked to hang and is not also given the collapsed layout", () => {
+    const doc = "- a\n- b";
+    const decos = decorationsFor(doc, 1);
+    expect(hangLines(decos)).toEqual([0]);
+    expect(listLines(decos).map((d) => d.from)).toEqual([4]);
+  });
+
+  it.each([
+    ["nested bullet", "- top\n\t- nested", 8, 6],
+    ["ordered", "1. a\n2. b", 1, 0],
+    ["two-digit ordered", "10. a\n\nx", 1, 0],
+    ["task", "- [ ] a\n- b", 1, 0],
+  ])("given the caret in a revealed %s item's marker, when decorated, then that line is marked to hang", (_name, doc, caret, lineFrom) => {
+    expect(hangLines(decorationsFor(doc, caret))).toContain(lineFrom);
+  });
+
+  it("given a line that looks like a list item but the parser did not make one, when decorated, then it is marked to hang", () => {
+    const doc = "- blah\n        - jdjd djdid\n- x";
+    const decos = decorationsFor(doc, doc.length);
+    expect(hangLines(decos)).toEqual([7]);
+    expect(listLines(decos).map((d) => d.from)).toEqual([0, doc.indexOf("- x")]);
+  });
+
+  it("given collapsed items, when decorated, then none is marked to hang", () => {
+    const doc = "plain\n- a\n\t- b\n1. c\n- [ ] d";
+    expect(hangLines(decorationsFor(doc, 0))).toEqual([]);
+  });
+
+  it("given a line whose text only resembles a marker, when decorated, then it is not marked to hang", () => {
+    const doc = "-x\n1.x\ntext - more\n> - q\n# - h";
+    expect(hangLines(decorationsFor(doc, 0))).toEqual([]);
+  });
+
+  it("given a collapsed horizontal rule that looks like a bullet run, when decorated, then it is not marked to hang", () => {
+    const doc = "text\n\n- - -\n\nmore";
+    expect(hangLines(decorationsFor(doc, 0))).toEqual([]);
+  });
+
+  it("given plain-text mode, when decorated, then no line is marked to hang", () => {
+    expect(hangLines(decorationsFor("- a\n        - b\n1. c", 0, true))).toEqual([]);
+  });
+
+  it("given a marked line, then the mark carries no inline style of its own (the measured offset is applied at layout time)", () => {
+    const [deco] = byClass(decorationsFor("- a", 1), "cm-quki-hang");
+    expect(deco.style).toBeNull();
+  });
+});
