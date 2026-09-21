@@ -117,3 +117,65 @@ describe("ordered list items", () => {
     expect(listElements("1. a\n- b\n1. c").filter((el) => el.type === "OrderedItem").map((el) => el.orderedNumber)).toEqual([1, 1]);
   });
 });
+
+function quoteElements(doc: string): RevealElement[] {
+  return elementsFor(doc).filter((el) => el.type === "BlockquoteLine");
+}
+
+describe("blockquote lines", () => {
+  it("given > quoted, then the marker span is the > and its one space", () => {
+    const [quote] = quoteElements("> quoted");
+    expect(quote.category).toBe("block-marker");
+    expect(quote.start).toBe(0);
+    expect(quote.end).toBe(8);
+    expect(quote.checkStart).toBe(0);
+    expect(quote.checkEnd).toBe(2);
+    expect(quote.quoteDepth).toBe(1);
+  });
+
+  it("given >quoted with no space, then the marker span is only the >", () => {
+    const [quote] = quoteElements(">quoted");
+    expect(quote.checkEnd).toBe(1);
+  });
+
+  it("given a bare >, then it is still a quote line with a one-character marker", () => {
+    const [quote] = quoteElements(">");
+    expect(quote.checkStart).toBe(0);
+    expect(quote.checkEnd).toBe(1);
+  });
+
+  it("given nested markers, then the depth counts every > and the span covers them all", () => {
+    const [spaced] = quoteElements("> > deep");
+    expect(spaced.quoteDepth).toBe(2);
+    expect(spaced.checkEnd).toBe(4);
+
+    const [tight] = quoteElements(">> deep");
+    expect(tight.quoteDepth).toBe(2);
+    expect(tight.checkEnd).toBe(3);
+  });
+
+  it("given a quote spanning several lines, then each line has its own element", () => {
+    const quotes = quoteElements("> a\n> b\n>\n> c");
+    expect(quotes.map((q) => [q.start, q.checkEnd])).toEqual([
+      [0, 2],
+      [4, 6],
+      [8, 9],
+      [10, 12],
+    ]);
+  });
+
+  it("given a lazy continuation line with no >, then that line is not a quote line", () => {
+    const quotes = quoteElements("> a\nlazy");
+    expect(quotes).toHaveLength(1);
+  });
+
+  it("given a > that is not at the start of the line, then it is not a quote line", () => {
+    expect(quoteElements(" > x")).toEqual([]);
+    expect(quoteElements("- > x")).toEqual([]);
+    expect(quoteElements("a > b")).toEqual([]);
+  });
+
+  it("given a > inside a fenced code block, then it is not a quote line", () => {
+    expect(quoteElements("```\n> not a quote\n```")).toEqual([]);
+  });
+});

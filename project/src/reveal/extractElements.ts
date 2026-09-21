@@ -3,6 +3,7 @@ import { syntaxTree } from "@codemirror/language";
 import type { SyntaxNode } from "@lezer/common";
 import type { RevealElement } from "./types";
 import { computeOrderedNumbers, indentDepth } from "./listNumbering";
+import { quotePrefix } from "./quotePrefix";
 
 const HEADING_TYPES = new Set([
   "ATXHeading1",
@@ -138,6 +139,27 @@ export function extractElements(state: EditorState): ExtractResult {
             checkStart: node.from,
             checkEnd: node.from + markerLength,
             parentId: null,
+          });
+          nodes.set(id, node.node);
+        }
+        return true;
+      }
+
+      if (type === "QuoteMark") {
+        const line = state.doc.lineAt(node.from);
+        const prefix = node.from === line.from ? quotePrefix(line.text) : null;
+        if (prefix) {
+          const id = nextId++;
+          elements.push({
+            id,
+            type: "BlockquoteLine",
+            category: "block-marker",
+            start: line.from,
+            end: line.to,
+            checkStart: line.from,
+            checkEnd: line.from + prefix.length,
+            parentId: null,
+            quoteDepth: prefix.depth,
           });
           nodes.set(id, node.node);
         }
