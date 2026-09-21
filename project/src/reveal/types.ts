@@ -15,9 +15,11 @@ export type ElementCategory = "inline" | "block-marker";
  *
  * List-item and blockquote elements (`BulletItem`, `OrderedItem`,
  * `TaskItem`, `BlockquoteLine`) are one per source line: `start` is the
- * marker's first character (after any leading indentation), `end` is the end
- * of that line, and `checkStart`/`checkEnd` is the marker span. The optional
- * fields below carry what the collapsed rendering needs.
+ * line's first character, `end` is the end of that line, and
+ * `checkStart`/`checkEnd` is the marker span. For a list item the marker span
+ * includes the item's leading whitespace, so the whitespace that collapses
+ * into layout indentation reappears as raw text when the marker is revealed.
+ * The optional fields below carry what the collapsed rendering needs.
  *
  * `parentId` links an inline element to its nearest inline ancestor, which
  * is how the outermost-element rule (rule 1) is resolved. Block-marker
@@ -33,6 +35,12 @@ export interface RevealElement {
   checkStart: number;
   checkEnd: number;
   parentId: number | null;
+  /**
+   * List, ordered and task items: layout depth from the leading whitespace
+   * (a space is one column, a tab two, depth is columns divided by two,
+   * rounded down).
+   */
+  indentDepth?: number;
   /** OrderedItem only: the block-relative number to render. */
   orderedNumber?: number;
   /** TaskItem only. */

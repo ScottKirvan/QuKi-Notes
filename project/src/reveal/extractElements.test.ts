@@ -41,16 +41,25 @@ describe("unordered list items", () => {
     expect(listElements("-apple")).toEqual([]);
   });
 
-  it("given an item indented with a tab under a parent item, then the tab is not part of the marker span", () => {
+  it("given an item indented with a tab under a parent item, then the marker span starts at the tab", () => {
     const nested = listElements("- top\n\t- apple")[1];
-    expect(nested.checkStart).toBe(7);
+    expect(nested.start).toBe(6);
+    expect(nested.checkStart).toBe(6);
     expect(nested.checkEnd).toBe(9);
   });
 
-  it("given an item indented with spaces under a parent item, then the spaces are not part of the marker span", () => {
+  it("given an item indented with spaces under a parent item, then the marker span starts at the first space", () => {
     const nested = listElements("- top\n  - apple")[1];
-    expect(nested.checkStart).toBe(8);
+    expect(nested.start).toBe(6);
+    expect(nested.checkStart).toBe(6);
     expect(nested.checkEnd).toBe(10);
+  });
+
+  it("given an ordered item indented under a parent item, then the marker span starts at its indentation", () => {
+    const nested = listElements("1. top\n   1. apple")[1];
+    expect(nested.start).toBe(7);
+    expect(nested.checkStart).toBe(7);
+    expect(nested.checkEnd).toBe(7 + 3 + 3);
   });
 
   it("given a list item on each line, then each line gets its own element", () => {
@@ -213,9 +222,10 @@ describe("task items", () => {
     expect(types).toEqual(["TaskItem", "TaskItem", "BulletItem"]);
   });
 
-  it("given a nested task, then the indentation is not part of the marker span", () => {
+  it("given a nested task, then the marker span starts at its indentation", () => {
     const [, nested] = taskElements("- [ ] top\n\t- [x] nested");
-    expect(nested.checkStart).toBe(11);
+    expect(nested.start).toBe(10);
+    expect(nested.checkStart).toBe(10);
     expect(nested.checkEnd).toBe(17);
     expect(nested.checked).toBe(true);
   });
@@ -236,5 +246,43 @@ describe("task items", () => {
 
   it("given two spaces before the bracket, then it is not a task", () => {
     expect(taskElements("-  [ ] x")).toEqual([]);
+  });
+});
+
+describe("list item indent depth", () => {
+  function depthOf(doc: string, line: number): number | undefined {
+    const items = elementsFor(doc).filter((el) => ["BulletItem", "OrderedItem", "TaskItem"].includes(el.type));
+    return items[line].indentDepth;
+  }
+
+  it("given an item with no leading whitespace, then its depth is 0", () => {
+    expect(depthOf("- a", 0)).toBe(0);
+  });
+
+  it.each([
+    ["one tab", "\t", 1],
+    ["two spaces", "  ", 1],
+    ["four spaces", "    ", 2],
+    ["one space", " ", 0],
+    ["three spaces", "   ", 1],
+  ])("given %s before the marker, then the depth is floor(columns / 2) with a tab counting two", (_name, ws, depth) => {
+    expect(depthOf(`- top\n${ws}- x`, 1)).toBe(depth);
+  });
+
+  it.each([
+    ["two tabs", "\t\t"],
+    ["a tab and two spaces", "\t  "],
+  ])("given %s before the marker under a nested parent, then the depth is 2", (_name, ws) => {
+    expect(depthOf(`- top\n\t- mid\n${ws}- x`, 2)).toBe(2);
+  });
+
+  it("given a nested task and a nested ordered item, then each carries its own depth", () => {
+    expect(depthOf("- [ ] top\n  - [ ] sub", 1)).toBe(1);
+    expect(depthOf("1. top\n    1. sub", 1)).toBe(2);
+  });
+
+  it("given a heading, a quote and an image, then none carries an indent depth", () => {
+    const els = elementsFor("# h\n\n> q\n\n![a](b.png)");
+    expect(els.every((el) => el.indentDepth === undefined)).toBe(true);
   });
 });
