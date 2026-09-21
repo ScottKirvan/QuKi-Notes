@@ -75,7 +75,7 @@ function listLineDecoration(depth: number): Decoration {
 // recognised by the parser — has no gutter to hang under, so its wrapped rows
 // would fall back to the left margin. The class only marks the line; where
 // the text starts depends on the font and on tab widths, so hangingIndent.ts
-// measures that and sets the offset.
+// measures that and sizes the float that pushes the wrapped rows over.
 const hangLine = Decoration.line({ class: "cm-quki-hang" });
 
 function rawListLineDecorations(
