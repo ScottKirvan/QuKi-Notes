@@ -367,7 +367,7 @@ async function main(): Promise<void> {
         await page.waitForTimeout(100);
         const revealed = await lineGeometry(page, "bravo");
         assert(revealed.text.startsWith("\t- bravo"), `caret ${caret - bravoMarker}: the revealed line should show its tab and marker raw, got ${JSON.stringify(revealed.text.slice(0, 10))}`);
-        assert(revealed.textIndent === "0px" && near(revealed.paddingLeft, plain.paddingLeft), `caret ${caret - bravoMarker}: a revealed line gets no layout indent (padding ${revealed.paddingLeft}, text-indent ${revealed.textIndent})`);
+        assert(!revealed.textIndent.startsWith("-") && near(revealed.paddingLeft, plain.paddingLeft), `caret ${caret - bravoMarker}: a revealed line gets no collapsed-layout indent; only its wrapped rows hang (padding ${revealed.paddingLeft}, text-indent ${revealed.textIndent})`);
         assert(revealed.markerLeft === null, `caret ${caret - bravoMarker}: a revealed line has no marker widget`);
         for (const neighbour of ["alpha", "charlie"]) {
           const g = await lineGeometry(page, neighbour);
