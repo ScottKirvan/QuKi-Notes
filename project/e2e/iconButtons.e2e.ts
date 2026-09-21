@@ -63,6 +63,8 @@ interface ButtonFacts {
   borderWidths: string[];
   width: number;
   height: number;
+  svgWidth: number;
+  svgHeight: number;
 }
 
 async function facts(button: Locator): Promise<ButtonFacts> {
@@ -79,6 +81,8 @@ async function facts(button: Locator): Promise<ButtonFacts> {
       borderWidths: [style.borderTopWidth, style.borderRightWidth, style.borderBottomWidth, style.borderLeftWidth],
       width: rect.width,
       height: rect.height,
+      svgWidth: svg?.getBoundingClientRect().width ?? 0,
+      svgHeight: svg?.getBoundingClientRect().height ?? 0,
     };
   });
 }
@@ -134,6 +138,21 @@ async function assertWordButton(
   assert(look.borderRadius === expected.borderRadius, `${name}: border-radius should be ${expected.borderRadius}, got ${look.borderRadius}`);
   assert(look.cursor === "pointer", `${name}: cursor should be pointer, got ${look.cursor}`);
   assert(Math.abs(look.width - expected.width) <= 2 && Math.abs(look.height - expected.height) <= 2, `${name}: size should be about ${expected.width}x${expected.height}, got ${look.width}x${look.height}`);
+}
+
+function assertSizes(f: ButtonFacts, name: string, box: number, icon: number): void {
+  assert(f.width === box && f.height === box, `${name}: button should be ${box}x${box}, got ${f.width}x${f.height}`);
+  assert(f.svgWidth === icon && f.svgHeight === icon, `${name}: icon should be ${icon}x${icon}, got ${f.svgWidth}x${f.svgHeight}`);
+}
+
+async function assertHeaderHeight(page: Page, selector: string, expected: number, name: string): Promise<void> {
+  const height = await page.locator(selector).evaluate((el) => el.getBoundingClientRect().height);
+  assert(Math.abs(height - expected) <= 1, `${name}: header should stay about ${expected}px tall, got ${height}`);
+}
+
+async function assertHeaderFitsWithoutOverflow(page: Page, selector: string, name: string): Promise<void> {
+  const fit = await page.locator(selector).evaluate((el) => ({ scrollWidth: el.scrollWidth, clientWidth: el.clientWidth }));
+  assert(fit.scrollWidth <= fit.clientWidth, `${name}: header content overflows (${fit.scrollWidth} > ${fit.clientWidth})`);
 }
 
 async function assertSwipeBackground(row: Locator, name: string): Promise<void> {
@@ -203,8 +222,16 @@ async function assertKeyboardFocusRing(page: Page, buttonSelector: string, name:
   assert(ring.outlineStyle === "solid" && ring.outlineWidth === "2px", `${name}: keyboard focus must show a 2px outline, got ${ring.outlineStyle} ${ring.outlineWidth}`);
 }
 
-const OLD_BACK_SIZE = { width: 35.8, height: 31 };
-const OLD_HEADER_ACTION_HEIGHT = 31;
+// Deliberate, not a regression: every icon-only button matches the Flutter app's "tight" icon button
+// (36x36 box, 6px padding, 24px icon), replacing the earlier 32px (app bar) and 40px (headers) boxes with 20px icons.
+// The formatting toolbar and the swipe-background trash icon are outside that change and keep their sizes.
+const ICON_BUTTON_SIZE = 36;
+const ICON_SIZE = 24;
+const TOOLBAR_BUTTON_SIZE = 28;
+const TOOLBAR_ICON_SIZE = 18;
+// Header heights on the base branch before any of the icon work, so the larger buttons must not grow the headers.
+const BASE_APP_HEADER_HEIGHT = 49;
+const BASE_VIEW_HEADER_HEIGHT = 48;
 
 async function runWebScenario(browser: Browser, url: string, scheme: "light" | "dark"): Promise<void> {
   const tag = `[e2e-icons:${scheme}]`;
@@ -228,14 +255,20 @@ async function runWebScenario(browser: Browser, url: string, scheme: "light" | "
   assert(appBarCount === 7, `expected 7 app bar buttons, got ${appBarCount}`);
   for (let i = 0; i < appBarCount; i++) {
     const f = await assertIconButton(appBarButtons.nth(i), `app bar button ${i}`);
-    assert(f.width >= 32 && f.height >= 32, `app bar button ${i} must stay at least 32x32, got ${f.width}x${f.height}`);
+    assertSizes(f, `app bar button ${i}`, ICON_BUTTON_SIZE, ICON_SIZE);
   }
+  await assertHeaderHeight(page, "#view-editor .app-header", BASE_APP_HEADER_HEIGHT, "editor app bar");
+  await page.setViewportSize({ width: 360, height: 700 });
+  await assertHeaderFitsWithoutOverflow(page, "#view-editor .app-header", "editor app bar at 360px wide");
+  const narrowWidths = await appBarButtons.evaluateAll((els) => els.map((el) => el.getBoundingClientRect().width));
+  assert(narrowWidths.every((w) => w === ICON_BUTTON_SIZE), `app bar buttons must not shrink at 360px wide, got ${narrowWidths.join(",")}`);
+  await page.setViewportSize({ width: 420, height: 700 });
   const toolbarButtons = page.locator("#view-editor .toolbar-btn");
   const toolbarCount = await toolbarButtons.count();
   assert(toolbarCount === 10, `expected 10 toolbar buttons, got ${toolbarCount}`);
   for (let i = 0; i < toolbarCount; i++) {
     const f = await assertIconButton(toolbarButtons.nth(i), `toolbar button ${i}`);
-    assert(f.width >= 28 && f.height >= 28, `toolbar button ${i} must stay at least 28x28, got ${f.width}x${f.height}`);
+    assertSizes(f, `toolbar button ${i}`, TOOLBAR_BUTTON_SIZE, TOOLBAR_ICON_SIZE);
   }
   await assertHoverAndFocusFeedback(page, toolbarButtons.nth(0), "toolbar Bold button");
   await assertHoverAndFocusFeedback(page, page.locator("#btn-settings"), "editor app bar Settings button");
@@ -250,9 +283,9 @@ async function runWebScenario(browser: Browser, url: string, scheme: "light" | "
   const listNew = await assertIconButton(list.locator(".new-btn"), "list New button", "New");
   const listSettings = await assertIconButton(list.locator(".settings-btn"), "list Settings button", "Settings");
   for (const [name, f] of [["list back", listBack], ["list New", listNew], ["list Settings", listSettings]] as const) {
-    assert(f.height >= OLD_HEADER_ACTION_HEIGHT, `${name} must not be shorter than the old ${OLD_HEADER_ACTION_HEIGHT}px, got ${f.height}`);
+    assertSizes(f, name, ICON_BUTTON_SIZE, ICON_SIZE);
   }
-  assert(listBack.width >= OLD_BACK_SIZE.width, `list back button must not be narrower than the old ${OLD_BACK_SIZE.width}px, got ${listBack.width}`);
+  await assertHeaderHeight(page, "#view-list .view-header", BASE_VIEW_HEADER_HEIGHT, "list");
   const listTitles = await list.locator(".back-btn, .new-btn, .settings-btn").evaluateAll((els) => els.map((el) => (el as HTMLElement).title));
   assert(listTitles.join("|") === "Back to editor|New|Settings", `list buttons must carry tooltips matching their labels, got ${listTitles.join("|")}`);
   await assertHoverAndFocusFeedback(page, list.locator(".back-btn"), "list back button");
@@ -281,7 +314,8 @@ async function runWebScenario(browser: Browser, url: string, scheme: "light" | "
   await settings.locator(".trash-btn").waitFor();
   await page.waitForTimeout(300);
   const settingsBack = await assertIconButton(settings.locator(".back-btn"), "settings back button", "Back");
-  assert(settingsBack.width >= OLD_BACK_SIZE.width && settingsBack.height >= OLD_BACK_SIZE.height, `settings back must not shrink, got ${settingsBack.width}x${settingsBack.height}`);
+  assertSizes(settingsBack, "settings back button", ICON_BUTTON_SIZE, ICON_SIZE);
+  await assertHeaderHeight(page, "#view-settings .view-header", BASE_VIEW_HEADER_HEIGHT, "settings");
   await assertKeyboardFocusRing(page, "#view-settings .back-btn", "settings back button");
 
   // --- Trash screen: put one QuKi in Trash via the list swipe, then look at it ---
@@ -306,7 +340,8 @@ async function runWebScenario(browser: Browser, url: string, scheme: "light" | "
   await trash.locator(".list-row").first().waitFor({ timeout: 5000 });
   await page.waitForTimeout(300);
   const trashBack = await assertIconButton(trash.locator(".back-btn"), "trash back button", "Back to Settings");
-  assert(trashBack.width >= OLD_BACK_SIZE.width && trashBack.height >= OLD_BACK_SIZE.height, `trash back must not shrink, got ${trashBack.width}x${trashBack.height}`);
+  assertSizes(trashBack, "trash back button", ICON_BUTTON_SIZE, ICON_SIZE);
+  await assertHeaderHeight(page, "#view-trash .view-header", BASE_VIEW_HEADER_HEIGHT, "trash");
   await assertWordButton(trash.locator(".empty-trash-btn"), "Empty Trash button", {
     text: "Empty Trash",
     padding: "6px 12px",
@@ -381,7 +416,7 @@ async function runOverlayScenario(browser: Browser, devUrl: string, scheme: "lig
   });
   assert(await cancel.isVisible(), "the setup cancel button must show when cancelable");
   const cancelFacts = await assertIconButton(cancel, "setup cancel button", "Cancel");
-  assert(cancelFacts.width >= OLD_BACK_SIZE.width && cancelFacts.height >= OLD_BACK_SIZE.height, `setup cancel must not shrink, got ${cancelFacts.width}x${cancelFacts.height}`);
+  assertSizes(cancelFacts, "setup cancel button", ICON_BUTTON_SIZE, ICON_SIZE);
   const overlap = await page.evaluate(() => {
     const c = document.querySelector(".setup-cancel-btn")!.getBoundingClientRect();
     const t = document.querySelector(".setup-title")!.getBoundingClientRect();

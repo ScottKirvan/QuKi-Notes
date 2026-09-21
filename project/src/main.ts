@@ -85,7 +85,7 @@ const qukiSyntaxHighlighting = HighlightStyle.define([
 type IconNode = Parameters<typeof createElement>[0];
 
 function setButtonIcon(button: HTMLButtonElement, iconNode: IconNode, label: string): void {
-  button.replaceChildren(createElement(iconNode, { width: 20, height: 20, "aria-hidden": "true", focusable: "false" }));
+  button.replaceChildren(createElement(iconNode, { width: 24, height: 24, "aria-hidden": "true", focusable: "false" }));
   button.title = label;
   button.setAttribute("aria-label", label);
 }
@@ -578,10 +578,10 @@ async function init(): Promise<void> {
     const iconState = resolveModeIconState(isPlainText, editModeTracker.isEditMode());
     const icon =
       iconState === "plain-text"
-        ? createElement(CodeXml, { width: 20, height: 20, "aria-hidden": "true", focusable: "false" })
+        ? createElement(CodeXml, { width: 24, height: 24, "aria-hidden": "true", focusable: "false" })
         : iconState === "edit"
           ? createMarkdownMarkIcon()
-          : createElement(BookOpen, { width: 20, height: 20, "aria-hidden": "true", focusable: "false" });
+          : createElement(BookOpen, { width: 24, height: 24, "aria-hidden": "true", focusable: "false" });
     modeToggleBtn.replaceChildren(icon);
     const label = isPlainText ? "Rendered mode" : "Plain text";
     modeToggleBtn.title = label;

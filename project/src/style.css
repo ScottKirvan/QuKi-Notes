@@ -53,12 +53,12 @@ body {
 }
 
 .app-header {
-  padding: 8px 24px;
+  padding: 6px 24px;
   border-bottom: 1px solid var(--border);
   background: var(--surface-subtle);
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .app-header-spacer {
@@ -131,17 +131,17 @@ body {
 }
 
 .app-bar-btn-icon {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
 }
 
 .app-bar-btn-icon svg {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
 }
 
 .view-header {
-  padding: 4px 16px;
+  padding: 6px 16px;
   border-bottom: 1px solid var(--border);
   background: var(--surface-subtle);
   display: flex;
@@ -158,8 +158,8 @@ body {
 .back-btn,
 .new-btn,
 .settings-btn {
-  width: 40px;
-  height: 40px;
+  width: 36px;
+  height: 36px;
 }
 
 .view-actions {
@@ -637,8 +637,8 @@ button.settings-row {
 
 .setup-cancel-btn {
   position: absolute;
-  top: -48px;
-  left: -10px;
+  top: -44px;
+  left: -6px;
 }
 
 .setup-title {

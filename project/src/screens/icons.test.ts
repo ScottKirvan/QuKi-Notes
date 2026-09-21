@@ -41,8 +41,8 @@ describe("icon helpers", () => {
     globals.document = previousDocument;
   });
 
-  it("creates a 20px SVG that is hidden from assistive tech and inherits the text colour", () => {
-    const icon = createIcon(ArrowLeft) as unknown as FakeElement;
+  it("creates an SVG of the requested size that is hidden from assistive tech and inherits the text colour", () => {
+    const icon = createIcon(ArrowLeft, 20) as unknown as FakeElement;
 
     expect(icon.tagName).toBe("svg");
     expect(icon.getAttribute("width")).toBe("20");
@@ -51,13 +51,6 @@ describe("icon helpers", () => {
     expect(icon.getAttribute("focusable")).toBe("false");
     expect(icon.getAttribute("stroke")).toBe("currentColor");
     expect(icon.children.length).toBeGreaterThan(0);
-  });
-
-  it("honours an explicit size", () => {
-    const icon = createIcon(Trash2, 24) as unknown as FakeElement;
-
-    expect(icon.getAttribute("width")).toBe("24");
-    expect(icon.getAttribute("height")).toBe("24");
   });
 
   it("puts only the icon in a button and labels it with the aria-label and tooltip", () => {
@@ -72,11 +65,20 @@ describe("icon helpers", () => {
     expect(button.title).toBe("Back to editor");
   });
 
-  it("passes a size through to the icon", () => {
+  it("draws button icons at 24px by default, matching the Flutter app's icon buttons", () => {
     const button = new FakeElement("button");
 
-    setIconButton(button as unknown as HTMLButtonElement, Trash2, "Grant access", 24);
+    setIconButton(button as unknown as HTMLButtonElement, Trash2, "Delete");
 
     expect(button.children[0]!.getAttribute("width")).toBe("24");
+    expect(button.children[0]!.getAttribute("height")).toBe("24");
+  });
+
+  it("passes an explicit size through to the icon", () => {
+    const button = new FakeElement("button");
+
+    setIconButton(button as unknown as HTMLButtonElement, Trash2, "Delete", 18);
+
+    expect(button.children[0]!.getAttribute("width")).toBe("18");
   });
 });

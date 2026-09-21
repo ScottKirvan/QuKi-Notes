@@ -83,7 +83,7 @@ export function createListView(store: QuKiStore, container: HTMLElement, callbac
     const swipeBg = document.createElement("div");
     swipeBg.className = "list-row-swipe-bg";
     swipeBg.setAttribute("aria-hidden", "true");
-    swipeBg.append(createIcon(Trash2));
+    swipeBg.append(createIcon(Trash2, 20));
 
     const content = document.createElement("div");
     content.className = "list-row-content";
