@@ -22,6 +22,33 @@ function headingLevel(type: string): number {
   return Number(type.slice(-1));
 }
 
+const QUOTE_INDENT_PX = 16;
+const QUOTE_BAR_WIDTH_PX = 3;
+const QUOTE_BAR_INSET_PX = 4;
+
+// One 3px bar per nesting level, level K at (K-1)*16+4px, with the content
+// indented 16px per level — the Flutter editor's geometry. Consecutive quote
+// lines' backgrounds meet, so a level's bar is continuous across the lines
+// that share it.
+function quoteLineStyle(depth: number): string {
+  const bar = "linear-gradient(var(--border), var(--border))";
+  const images: string[] = [];
+  const sizes: string[] = [];
+  const positions: string[] = [];
+  for (let level = 1; level <= depth; level++) {
+    images.push(bar);
+    sizes.push(`${QUOTE_BAR_WIDTH_PX}px 100%`);
+    positions.push(`${(level - 1) * QUOTE_INDENT_PX + QUOTE_BAR_INSET_PX}px 0`);
+  }
+  return [
+    `padding-left:${depth * QUOTE_INDENT_PX}px`,
+    `background-image:${images.join(",")}`,
+    `background-size:${sizes.join(",")}`,
+    `background-position:${positions.join(",")}`,
+    "background-repeat:no-repeat",
+  ].join(";");
+}
+
 function hideMarksAndStyle(
   ranges: Range<Decoration>[],
   node: SyntaxNode,
@@ -114,6 +141,29 @@ export function buildDecorations(state: EditorState): DecorationSet {
           );
         }
         break;
+
+      case "BlockquoteLine": {
+        if (element.checkEnd < element.end) {
+          ranges.push(
+            Decoration.mark({ class: "cm-quki-quote-text" }).range(
+              element.checkEnd,
+              element.end,
+            ),
+          );
+        }
+        if (!revealed) {
+          ranges.push(
+            Decoration.replace({}).range(element.checkStart, element.checkEnd),
+          );
+          ranges.push(
+            Decoration.line({
+              class: "cm-quki-quote",
+              attributes: { style: quoteLineStyle(element.quoteDepth ?? 1) },
+            }).range(element.start),
+          );
+        }
+        break;
+      }
 
       case "HorizontalRule": {
         if (!revealed) {

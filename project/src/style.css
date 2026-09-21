@@ -553,6 +553,10 @@ button.settings-row {
   margin: 8px 0;
 }
 
+.cm-quki-quote-text {
+  color: var(--text-muted);
+}
+
 .cm-quki-marker {
   display: inline-block;
   min-width: 20px;
