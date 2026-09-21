@@ -143,8 +143,8 @@ async function runScenario(browser: Browser, url: string, scheme: "light" | "dar
 
   const colors = await dialog.evaluate((el) => {
     const probe = document.createElement("div");
-    probe.style.background = "var(--surface)";
-    probe.style.color = "var(--text)";
+    probe.style.background = "var(--modal-background)";
+    probe.style.color = "var(--text-normal)";
     document.body.appendChild(probe);
     const probeStyle = getComputedStyle(probe);
     const result = {
@@ -156,7 +156,7 @@ async function runScenario(browser: Browser, url: string, scheme: "light" | "dar
     probe.remove();
     return result;
   });
-  assert(colors.dialogBg === colors.surface && colors.dialogColor === colors.text, `dialog must use the --surface/--text tokens, got ${JSON.stringify(colors)}`);
+  assert(colors.dialogBg === colors.surface && colors.dialogColor === colors.text, `dialog must use the --modal-background/--text-normal variables, got ${JSON.stringify(colors)}`);
   const surfaceChannels = (colors.surface.match(/\d+/g) ?? []).slice(0, 3).map(Number);
   const surfaceIsDark = surfaceChannels.every((c) => c < 64);
   assert(surfaceIsDark === (scheme === "dark"), `in ${scheme} mode the dialog surface ${colors.surface} must be ${scheme === "dark" ? "dark" : "light"}`);

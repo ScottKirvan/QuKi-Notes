@@ -66,10 +66,10 @@ const qukiSyntaxHighlighting = HighlightStyle.define([
   { tag: tags.keyword, color: "#708" },
   {
     tag: [tags.atom, tags.bool, tags.url, tags.contentSeparator, tags.labelName],
-    color: "var(--accent)",
+    color: "var(--text-accent)",
   },
   { tag: [tags.literal, tags.inserted], color: "#164" },
-  { tag: [tags.string, tags.deleted], color: "var(--text)" },
+  { tag: [tags.string, tags.deleted], color: "var(--text-normal)" },
   {
     tag: [tags.regexp, tags.escape, tags.special(tags.string)],
     color: "var(--text-muted)",
@@ -443,18 +443,22 @@ async function init(): Promise<void> {
         ".cm-content": { lineHeight: "1.4", padding: "12px", paddingBottom: "36px" },
         // CodeMirror's default cursor/selection/active-line colors only switch
         // via the `dark: true` theme flag, which this project doesn't set —
-        // the page's dark mode comes from prefers-color-scheme on CSS custom
-        // properties instead, so all of these must be tied to those same
-        // properties rather than CodeMirror's separate light/dark mechanism.
+        // the page's dark mode comes from the theme-dark/theme-light class on
+        // <body> and the CSS custom properties it selects instead, so all of
+        // these must be tied to those same properties rather than
+        // CodeMirror's separate light/dark mechanism.
         ".cm-cursor, .cm-cursor-primary": {
-          borderLeft: "1.5px solid var(--accent)",
+          borderLeft: "1.5px solid var(--caret-color)",
         },
         ".cm-selectionBackground": {
-          backgroundColor: "var(--accent)",
-          opacity: "0.35",
+          backgroundColor: "var(--text-selection)",
+        },
+        // CodeMirror's own focused-selection rule out-ranks the plain one above.
+        "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground": {
+          backgroundColor: "var(--text-selection)",
         },
         ".cm-activeLine": {
-          backgroundColor: "var(--surface-subtle)",
+          backgroundColor: "var(--background-primary-alt)",
         },
       }),
     ],

@@ -33,7 +33,7 @@ const QUOTE_BAR_INSET_PX = 4;
 // lines' backgrounds meet, so a level's bar is continuous across the lines
 // that share it.
 function quoteLineStyle(depth: number): string {
-  const bar = "linear-gradient(var(--border), var(--border))";
+  const bar = "linear-gradient(var(--blockquote-border-color), var(--blockquote-border-color))";
   const images: string[] = [];
   const sizes: string[] = [];
   const positions: string[] = [];
