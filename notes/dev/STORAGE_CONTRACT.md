@@ -40,7 +40,7 @@
 
 8. **QuKi Notes never writes into a `.md` file it did not create**, except to save the user's own edits. No frontmatter injection, no id stamping, no reformatting on read. A file placed in the folder and never edited stays byte-identical.
 
-9. **The folder is flat.** Subfolders are not scanned for QuKis. `.meta/`, `.trash/` and `media/` are structural and are never treated as content. When grouping arrives it arrives as an explicit design change with its own spec — this rule is a current scope limit, not a permanent position.
+9. **The folder is flat.** Subfolders are not scanned for QuKis. `.meta/`, `.trash/`, `media/` and `.quki/` are structural and are never treated as content. When grouping arrives it arrives as an explicit design change with its own spec — this rule is a current scope limit, not a permanent position.
 
 ---
 
@@ -76,6 +76,16 @@
 
 ---
 
+## The `.quki/` directory
+
+20. **`.quki/` is the folder's own configuration, and it travels with the folder.** It holds QuKi Notes' per-folder configuration: today, themes in `.quki/themes/`; later settings, templates, plugins, scripts, and whatever else it grows into. It is structural (rule 9): never scanned for QuKis and never treated as content. Because it lives in the folder, whatever syncs or copies the folder carries it along, and it is part of Export everything (see The core API).
+
+21. **`.quki/` may describe how QuKi Notes looks and behaves. It may never determine which QuKis there are** — rule 6 applies to it exactly as it does to the sidecar. A missing, stale or corrupt `.quki/` never hides a file and never stops the app starting: the app falls back to its built-in defaults (for themes, the default theme shipped with the app). *[Proposed — unconfirmed]*
+
+    A theme kept in `.quki/themes/` may carry its own `manifest.json` (Obsidian's theme format). That file describes the theme; it is not a list of QuKis, and the reject list's ban on manifests concerns lists of QuKis.
+
+---
+
 ## Storage backends
 
 The contract holds identically across all three. Only the route for getting a file into the folder changes.
@@ -92,6 +102,8 @@ Storage is an interface with these implementations behind it. The core module ta
 
 **Getting content into the web app is paste.** Text pasted in becomes a new QuKi with a generated name, exactly like any other generated QuKi. Images paste in the same way. Web Share Target may be added later where an installed PWA supports it, but is not assumed.
 
+**A theme cannot be dropped into the web app's folder**, because OPFS is not user-visible; it is added through an in-app control instead. *[Proposed — unconfirmed]*
+
 **On iOS, OPFS is evictable.** WebKit evicts by least-recently-used under quota pressure, storage pressure, or site-inactivity rules. `navigator.storage.persist()` can exempt an origin and the heuristic that most reliably grants it is being installed to the home screen — which is why the web app is installable as a day-one requirement. Durability there is ultimately a sync question, not a storage one.
 
 ---
@@ -100,7 +112,7 @@ Storage is an interface with these implementations behind it. The core module ta
 
 Two requirements that exist for the API surface rather than for any current screen:
 
-**Export everything.** A single call that produces the complete library — QuKis, sidecars and media — in one portable bundle. It is the backup story, and it is also the migration path: web-app users on OPFS move to a desktop folder this way, and iOS users move off the web app when a native iOS app exists. No UI has to call it on day one, but it belongs in the API from the start.
+**Export everything.** A single call that produces the complete library — QuKis, sidecars, media and the entire `.quki/` directory, whatever it contains — in one portable bundle. `.quki/` is included as a whole, not item by item, so export never has to be updated as `.quki/` grows. It is the backup story, and it is also the migration path: web-app users on OPFS move to a desktop folder this way, and iOS users move off the web app when a native iOS app exists. No UI has to call it on day one, but it belongs in the API from the start.
 
 **Share is one action with no picker.** It does the platform-appropriate thing: the system share sheet via `navigator.share()` on Windows, Android and macOS; copy to clipboard on Linux, which has no cross-desktop share mechanism. There is no transport abstraction and no transport registry. Additional destinations, if ever wanted, are added through the API.
 
