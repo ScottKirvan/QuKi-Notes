@@ -674,18 +674,24 @@ button.settings-row {
 }
 
 /*
- * A list-style line shown as raw source: its wrapped rows start at the offset
- * hangingIndent.ts measured for --quki-hang, under the text after the marker.
- * `hanging` indents every row but the first and, unlike padding, leaves the
- * content edge (and so the first row's tab stops) alone. Reset on descendants
- * because text-indent inherits into inline-block widgets.
+ * A list-style line shown as raw source: hangingIndent.ts sizes a float that
+ * pushes every row after the first to the right, so the wrapped rows start
+ * under the text after the marker while the first row (and its tab stops) is
+ * laid out as plain source is. shape-outside makes the float's area its border
+ * box, so its margin-top keeps it clear of the first row. flow-root keeps a
+ * float that ends up a hair too tall from reaching into the next line.
  */
-.cm-quki-hang {
-  text-indent: var(--quki-hang, 0px) hanging;
+.cm-line.cm-quki-hang {
+  display: flow-root;
 }
 
-.cm-quki-hang * {
-  text-indent: 0;
+.cm-quki-hang::before {
+  content: "";
+  float: left;
+  width: var(--quki-hang-width, 0);
+  height: var(--quki-hang-height, 0);
+  margin-top: var(--quki-hang-top, 0);
+  shape-outside: border-box;
 }
 
 .cm-quki-ordered {

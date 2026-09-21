@@ -49,9 +49,9 @@ async function main(): Promise<void> {
       apps.push(app);
       const page = await app.firstWindow();
       await page.waitForSelector(".cm-content");
-      await app.evaluate(({ nativeTheme }, theme) => {
-        nativeTheme.themeSource = theme;
-      }, scheme);
+      // nativeTheme.themeSource does not reach the renderer's prefers-color-scheme
+      // under Playwright's Electron launch, so the scheme is emulated instead.
+      await page.emulateMedia({ colorScheme: scheme });
       const resize = async (w: number, h: number): Promise<void> => {
         await app.evaluate(({ BrowserWindow }, [cw, ch]) => {
           const win = BrowserWindow.getAllWindows()[0]!;

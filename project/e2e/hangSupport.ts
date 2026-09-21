@@ -84,12 +84,19 @@ export interface HangGeometry {
   textStartLeft: number;
   /** Left edge of every character of the prefix, in order. */
   prefixLefts: number[];
-  /** Left edge of every character of the line, in order. */
+  /** Left edge and top of every character of the line, in order. */
   charLefts: number[];
+  charTops: number[];
   /** Left edge of the line's content box (where a row starting at the margin would begin). */
   contentLeft: number;
   hangClass: boolean;
   markerWidgets: number;
+  /** The line's own height, and how far down the hang float reaches (0 when it has none). */
+  lineHeight: number;
+  floatBottom: number;
+  /** Right edge of the line's content box and of its rightmost character. */
+  contentRight: number;
+  textRight: number;
 }
 
 /**
@@ -105,9 +112,11 @@ export async function hangGeometry(page: Page, needle: string, prefixLengthOrAut
         prefixLengthOrAuto === "auto"
           ? (/^[ 	]*(?:-(?: \[[ xX]\])? |[*+] |\d+\. )/.exec(line.textContent ?? "")?.[0].length ?? 0)
           : prefixLengthOrAuto;
-      const rowLeft = new Map<number, number>();
+      const rowLeft: [number, number][] = [];
       const prefixLefts: number[] = [];
       const charLefts: number[] = [];
+      const charTops: number[] = [];
+      let textRight = 0;
       let textStartLeft = Number.NaN;
       let index = 0;
       const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
@@ -120,23 +129,30 @@ export async function hangGeometry(page: Page, needle: string, prefixLengthOrAut
           range.setEnd(node, i + 1);
           const rect = range.getBoundingClientRect();
           charLefts.push(rect.left);
+          textRight = Math.max(textRight, rect.right);
+          charTops.push(rect.top);
           if (index < prefixLength) prefixLefts.push(rect.left);
           if (index === prefixLength) textStartLeft = rect.left;
           if (text[i] === " " || text[i] === "\t" || rect.width === 0) continue;
-          const top = Math.round(rect.top);
-          const known = rowLeft.get(top);
-          if (known === undefined || rect.left < known) rowLeft.set(top, rect.left);
+          const row = rowLeft.find(([top]) => Math.abs(top - rect.top) < 4);
+          if (!row) rowLeft.push([rect.top, rect.left]);
+          else if (rect.left < row[1]) row[1] = rect.left;
         }
       }
       const style = getComputedStyle(line);
       return {
-        rows: [...rowLeft.entries()].sort((a, b) => a[0] - b[0]).map(([top, left]) => ({ top, left })),
+        rows: rowLeft.sort((a, b) => a[0] - b[0]).map(([top, left]) => ({ top, left })),
         textStartLeft,
         prefixLefts,
         charLefts,
+        charTops,
         contentLeft: line.getBoundingClientRect().left + Number.parseFloat(style.paddingLeft),
         hangClass: line.classList.contains("cm-quki-hang"),
         markerWidgets: line.querySelectorAll(".cm-quki-marker").length,
+        contentRight: line.getBoundingClientRect().right - Number.parseFloat(style.paddingRight),
+        textRight,
+        lineHeight: line.getBoundingClientRect().height,
+        floatBottom: (Number.parseFloat(getComputedStyle(line, "::before").marginTop) || 0) + (Number.parseFloat(getComputedStyle(line, "::before").height) || 0),
       };
     },
     { needle, prefixLengthOrAuto },
@@ -170,6 +186,11 @@ export async function assertHangs(page: Page, label: string, needle: string, pre
     assert(near(row.left, hung.textStartLeft), `${label}: a wrapped row starts at ${row.left}, not under the text at ${hung.textStartLeft}`);
   }
   assert(hung.textStartLeft > hung.contentLeft + 1, `${label}: the text start (${hung.textStartLeft}) should be right of the margin (${hung.contentLeft})`);
+  // Nothing about the hang may make the line taller than its rows or reach into the next line.
+  const pitch = (hung.rows[hung.rows.length - 1]!.top - hung.rows[0]!.top) / (hung.rows.length - 1);
+  assert(near(hung.lineHeight, hung.rows.length * pitch, 2), `${label}: the line is ${hung.lineHeight}px tall but has ${hung.rows.length} rows of ${pitch}px`);
+  assert(hung.textRight <= hung.contentRight + 0.5, `${label}: text reaches ${hung.textRight}, past the right margin at ${hung.contentRight}`);
+  assert(hung.floatBottom <= hung.lineHeight + 0.5, `${label}: the hang float reaches ${hung.floatBottom}px into a line ${hung.lineHeight}px tall`);
 
   await toggleMode(page);
   const raw = await hangGeometry(page, needle, prefixLength);
@@ -181,15 +202,32 @@ export async function assertHangs(page: Page, label: string, needle: string, pre
     assert(near(left, raw.prefixLefts[i]!), `${label}: prefix character ${i} moved from ${raw.prefixLefts[i]} to ${left}`);
   });
   assert(near(hung.textStartLeft, raw.textStartLeft), `${label}: the text start moved from ${raw.textStartLeft} to ${hung.textStartLeft}`);
+  assertFirstRowUnmoved(label, hung, raw);
   return hung;
+}
+
+/** Every character on the first row, tabs in the text included, sits exactly where plain source puts it. */
+function assertFirstRowUnmoved(label: string, hung: HangGeometry, raw: HangGeometry): void {
+  const count = (g: HangGeometry): number => g.charTops.filter((top) => Math.abs(top - g.charTops[0]!) < 4).length;
+  assert(count(hung) === count(raw), `${label}: the first row holds ${count(hung)} characters, plain source ${count(raw)}`);
+  for (let i = 0; i < count(hung); i++) {
+    assert(near(hung.charLefts[i]!, raw.charLefts[i]!), `${label}: first-row character ${i} moved from ${raw.charLefts[i]} to ${hung.charLefts[i]}`);
+  }
 }
 
 export async function runHangScenarios(env: HangEnvironment): Promise<void> {
   const tag = `[e2e-hangingIndent:${env.name}]`;
+  const loopWarnings: string[] = [];
+  const watch = (page: Page): void => {
+    page.on("console", (message) => {
+      if (/Measure loop|failed to stabilize/.test(message.text())) loopWarnings.push(message.text());
+    });
+  };
 
   for (const scheme of ["light", "dark"] as const) {
     const session = await env.open(scheme, 400, 900);
     const { page } = session;
+    watch(page);
     if (scheme === "light") console.log(`${tag} engine: ${await env.assertEngine(page)}`);
     await setDocAndSelection(page, SCREENSHOT_DOC, SCREENSHOT_DOC.length);
     await assertHangs(page, `screenshot document (${scheme})`, "jdjd djdid", 10);
@@ -200,6 +238,7 @@ export async function runHangScenarios(env: HangEnvironment): Promise<void> {
 
   const session = await env.open("light", 400, 900);
   const { page } = session;
+  watch(page);
 
   const doc = [
     "plain reference paragraph",
@@ -253,6 +292,33 @@ export async function runHangScenarios(env: HangEnvironment): Promise<void> {
   await assertHangs(page, "line indented with tabs", "tabbed", 5);
   await assertHangs(page, "line indented with spaces and a tab", "mixed", 7);
   console.log(`${tag} PASS: tabs in the leading whitespace do not disturb the first row or the wrapped rows`);
+
+  // A tab in the item's own text, on the first row and on a wrapped row.
+  const bodyTabDoc = `- top\n\t\t- has\ttab\there ${WRAP} and\tanother ${WRAP}\n- [ ] task\twith\ttabs ${WRAP}\n`;
+  await setDocAndSelection(page, bodyTabDoc, bodyTabDoc.indexOf("- [ ] task") + 1);
+  await assertHangs(page, "raw line with tabs in its text", "has", 4);
+  await assertHangs(page, "revealed task with tabs in its text", "task", 6);
+  console.log(`${tag} PASS: tabs in the item's own text keep their exact positions on the first row`);
+
+  // An unbroken word longer than the line must not push wrapped rows down or out.
+  const longWord = "x".repeat(150);
+  const longDoc = `- top\n\t\t- start ${longWord} end\n- after\n`;
+  await setDocAndSelection(page, longDoc, longDoc.length);
+  const long = await assertHangs(page, "line with an unbroken word", "start", 4);
+  const gaps = long.rows.slice(1).map((row, i) => row.top - long.rows[i]!.top);
+  assert(gaps.every((gap) => near(gap, gaps[0]!, 1.5)), `rows of the unbroken-word line should be evenly spaced, got ${gaps}`);
+  console.log(`${tag} PASS: an unbroken word wraps under the text without gaps`);
+
+  // A raw item that fits on one row is laid out exactly as plain source lays it out.
+  const shortDoc = "- top\n\t- short\ttab item\n";
+  await setDocAndSelection(page, shortDoc, shortDoc.indexOf("- short") + 1);
+  const shortHung = await hangGeometry(page, "short", 3);
+  await toggleMode(page);
+  const shortRaw = await hangGeometry(page, "short", 3);
+  await toggleMode(page);
+  assert(shortHung.rows.length === 1 && shortRaw.rows.length === 1, "the short item should not wrap");
+  assertFirstRowUnmoved("short raw item", shortHung, shortRaw);
+  console.log(`${tag} PASS: a raw item that does not wrap is unmoved`);
 
   // Typing and caret movement.
   await setDocAndSelection(page, SCREENSHOT_DOC, SCREENSHOT_DOC.lastIndexOf("dhej") + 4);
@@ -327,6 +393,7 @@ export async function runHangScenarios(env: HangEnvironment): Promise<void> {
   assert(seenTextStarts.size >= 2, `the fonts should place the text start at different offsets, got ${[...seenTextStarts]}`);
   console.log(`${tag} PASS: monospace, serif and proportional fonts all align exactly`);
 
+  assert(loopWarnings.length === 0, `CodeMirror reported a measure loop: ${loopWarnings.join(" | ")}`);
   await session.close();
   console.log(`${tag} ALL SCENARIOS PASSED`);
 }
