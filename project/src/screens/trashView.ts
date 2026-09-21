@@ -1,4 +1,4 @@
-import { ArrowLeft, BrushCleaning, Trash2 } from "lucide";
+import { ArrowLeft, Trash2 } from "lucide";
 import type { QuKiStore, TrashedQuKiSummary } from "quki-core";
 
 import { extractPreview } from "../preview";
@@ -36,7 +36,7 @@ export function createTrashView(store: QuKiStore, container: HTMLElement, callba
       <button type="button" class="back-btn"></button>
       <h1>Trash</h1>
       <div class="view-actions">
-        <button type="button" class="empty-trash-btn"></button>
+        <button type="button" class="empty-trash-btn">Empty Trash</button>
       </div>
     </header>
     <div class="list-body"></div>
@@ -47,7 +47,6 @@ export function createTrashView(store: QuKiStore, container: HTMLElement, callba
   const listBody = container.querySelector<HTMLDivElement>(".list-body")!;
 
   setIconButton(backBtn, ArrowLeft, "Back to Settings");
-  setIconButton(emptyTrashBtn, BrushCleaning, "Empty Trash");
 
   async function refresh(): Promise<void> {
     const items = await store.listTrash();

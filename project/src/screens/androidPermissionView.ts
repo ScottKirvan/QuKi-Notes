@@ -1,7 +1,4 @@
-import { FolderCheck } from "lucide";
-
 import type { StorageAccessState } from "../androidStorageAccess.js";
-import { setIconButton } from "./icons";
 
 export interface AndroidPermissionView {
   /**
@@ -41,7 +38,7 @@ export function createAndroidPermissionView(container: HTMLElement, onRequestAcc
         To save your QuKis as files in your device's Documents folder, QuKi Notes needs
         "Allow management of all files" permission. Grant it on the next screen, then switch back to QuKi Notes.
       </p>
-      <button type="button" class="android-permission-btn"></button>
+      <button type="button" class="android-permission-btn">Grant access</button>
       <p class="android-permission-waiting" hidden>Waiting for you to grant access in Settings&hellip;</p>
     </div>
   `;
@@ -49,7 +46,6 @@ export function createAndroidPermissionView(container: HTMLElement, onRequestAcc
 
   const button = overlay.querySelector<HTMLButtonElement>(".android-permission-btn")!;
   const waitingEl = overlay.querySelector<HTMLParagraphElement>(".android-permission-waiting")!;
-  setIconButton(button, FolderCheck, "Grant access", 24);
 
   button.addEventListener("click", () => onRequestAccess());
 
