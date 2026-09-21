@@ -111,11 +111,11 @@ function hideMarksAndStyle(
   }
 }
 
-const selectedCode = Decoration.mark({ class: "cm-quki-code-selected" });
-
 // The selection is drawn in a layer behind the text and a collapsed code
 // span's background is opaque, so it would hide a selection running through
-// it; this marks the selected part so the stylesheet can paint over the chip.
+// it; this marks the selected part so the stylesheet can paint over the chip,
+// and flags an end that reaches the chip's edge so the paint can also cover
+// the chip's padding there.
 function selectedCodeText(
   state: EditorState,
   node: SyntaxNode,
@@ -128,7 +128,11 @@ function selectedCodeText(
   for (const selected of state.selection.ranges) {
     const from = Math.max(selected.from, textFrom);
     const to = Math.min(selected.to, textTo);
-    if (from < to) ranges.push(selectedCode.range(from, to));
+    if (from >= to) continue;
+    const classes = ["cm-quki-code-selected"];
+    if (from === textFrom) classes.push("cm-quki-code-selected-start");
+    if (to === textTo) classes.push("cm-quki-code-selected-end");
+    ranges.push(Decoration.mark({ class: classes.join(" ") }).range(from, to));
   }
   return ranges;
 }

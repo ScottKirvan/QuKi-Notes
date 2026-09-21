@@ -660,6 +660,16 @@ button.settings-row {
   background-image: linear-gradient(var(--text-selection), var(--text-selection));
 }
 
+.cm-quki-code-selected-start {
+  margin-left: -3px;
+  padding-left: 3px;
+}
+
+.cm-quki-code-selected-end {
+  margin-right: -3px;
+  padding-right: 3px;
+}
+
 .cm-quki-link {
   color: var(--link-color);
   text-decoration: underline;
