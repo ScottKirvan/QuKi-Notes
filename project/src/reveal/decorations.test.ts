@@ -447,7 +447,8 @@ describe("inline code under a selection", () => {
     });
     const out: Array<[number, number]> = [];
     buildDecorations(state).between(0, doc.length, (from, to, value) => {
-      if ((value.spec as { class?: string }).class === cls) out.push([from, to]);
+      const classes = ((value.spec as { class?: string }).class ?? "").split(" ");
+      if (classes.includes(cls)) out.push([from, to]);
     });
     return out;
   }
@@ -476,6 +477,15 @@ describe("inline code under a selection", () => {
 
   it("given no selected range, when decorated, then nothing is marked selected", () => {
     expect(marks(doc.length, doc.length, "cm-quki-code-selected")).toEqual([]);
+  });
+
+  it("given a selection reaching a span's edges, when decorated, then only the edges it reaches are flagged", () => {
+    expect(marks(0, doc.length, "cm-quki-code-selected-start")).toEqual([[chipStart, chipEnd]]);
+    expect(marks(0, doc.length, "cm-quki-code-selected-end")).toEqual([[chipStart, chipEnd]]);
+    expect(marks(0, chipStart + 3, "cm-quki-code-selected-start")).toEqual([[chipStart, chipStart + 3]]);
+    expect(marks(0, chipStart + 3, "cm-quki-code-selected-end")).toEqual([]);
+    expect(marks(doc.length, chipStart + 5, "cm-quki-code-selected-start")).toEqual([]);
+    expect(marks(doc.length, chipStart + 5, "cm-quki-code-selected-end")).toEqual([[chipStart + 5, chipEnd]]);
   });
 
   it("given a selection across the span, when decorated, then the span keeps its own code mark", () => {
