@@ -655,11 +655,27 @@ button.settings-row {
   color: var(--text-muted);
 }
 
+/*
+ * Exactly 24px wide (20px box plus 4px gap): a list line's wrapped rows are
+ * indented by that same 24px, so a marker wider or narrower than it would
+ * leave the first row's content out of line with them. text-indent is reset
+ * because the list line's negative hanging indent is inherited by this
+ * inline-block. A label wider than the box (a two-digit number) grows to the
+ * left, into the gutter, rather than pushing the content right.
+ */
 .cm-quki-marker {
   display: inline-block;
-  min-width: 20px;
-  margin-right: 4px;
+  box-sizing: border-box;
+  width: 24px;
+  padding-right: 4px;
   text-align: right;
+  text-indent: 0;
+  white-space: nowrap;
+}
+
+.cm-quki-ordered {
+  display: inline-flex;
+  justify-content: flex-end;
 }
 
 .cm-quki-checkbox {

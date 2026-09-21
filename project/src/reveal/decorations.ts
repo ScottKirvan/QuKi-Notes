@@ -50,6 +50,26 @@ function quoteLineStyle(depth: number): string {
   ].join(";");
 }
 
+const LIST_INDENT_PX = 16;
+const LIST_MARKER_GUTTER_PX = 24;
+// CodeMirror's own `.cm-line` left padding, which an inline padding-left
+// replaces rather than adds to.
+const EDITOR_LINE_INSET_PX = 6;
+
+// A list line's marker widget fills the 24px gutter at the line's first row,
+// so the first row is pulled back by the gutter while every wrapped row
+// starts at the padding edge, directly under the content.
+function listLineDecoration(depth: number): Decoration {
+  const contentX =
+    EDITOR_LINE_INSET_PX + depth * LIST_INDENT_PX + LIST_MARKER_GUTTER_PX;
+  return Decoration.line({
+    class: "cm-quki-list-line",
+    attributes: {
+      style: `padding-left:${contentX}px;text-indent:-${LIST_MARKER_GUTTER_PX}px`,
+    },
+  });
+}
+
 function hideMarksAndStyle(
   ranges: Range<Decoration>[],
   node: SyntaxNode,
@@ -129,6 +149,7 @@ export function buildDecorations(state: EditorState): DecorationSet {
               element.checkStart,
               element.checkEnd,
             ),
+            listLineDecoration(element.indentDepth ?? 0).range(element.start),
           );
         }
         break;
@@ -139,6 +160,7 @@ export function buildDecorations(state: EditorState): DecorationSet {
             Decoration.replace({
               widget: new CheckboxWidget(element.checked === true),
             }).range(element.checkStart, element.checkEnd),
+            listLineDecoration(element.indentDepth ?? 0).range(element.start),
           );
         }
         if (element.checked && element.checkEnd < element.end) {
@@ -157,6 +179,7 @@ export function buildDecorations(state: EditorState): DecorationSet {
             Decoration.replace({
               widget: new OrderedMarkerWidget(element.orderedNumber),
             }).range(element.checkStart, element.checkEnd),
+            listLineDecoration(element.indentDepth ?? 0).range(element.start),
           );
         }
         break;
