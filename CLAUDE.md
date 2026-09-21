@@ -79,6 +79,24 @@ anticipate the next three steps, or solve adjacent problems while already in the
 is explicitly suppressed. Staying inside the current step is a discipline, not a
 limitation to work around.
 
+## Theming
+
+- CSS, TypeScript inline styles and `project/index.html` use Obsidian's CSS variable
+  names for every colour (`--background-primary`, `--text-normal`,
+  `--interactive-accent`, ...) and never an app-invented colour name, so an Obsidian
+  theme can restyle the whole interface. `project/src/colourVariables.test.ts` fails
+  on an undeclared variable or a return of the old names (`--surface`, `--accent`, ...).
+- The defaults sit at the top of `project/src/style.css`, on `body.theme-dark` and
+  `body.theme-light` (not `:root`): GitHubDHC's values
+  (`notes/dev/reference/GitHubDHC-theme.css`) with its `var()` chains resolved. A
+  variable the app starts using needs a default in both blocks. A theme loaded later
+  sets its values on the same selectors and wins by order.
+- An inline script at the top of `<body>` in `project/index.html` sets exactly one of
+  `theme-dark` / `theme-light` on `<body>` from the OS colour scheme before first paint
+  and follows changes. Nothing keys on `prefers-color-scheme`.
+- Decided, not built yet: a user's theme will load from `.quki/themes/`, reduced to its
+  custom-property declarations (variables only).
+
 ## Testing Strategy
 
 Tests are the fastest mechanical check that generated code matches intent — treat them

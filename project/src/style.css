@@ -1,34 +1,68 @@
 :root {
   color-scheme: light dark;
-  --surface: #ffffff;
-  --surface-subtle: #f6f8fa;
-  --text: #1f2328;
-  --text-muted: #59636e;
-  --accent: #0969da;
-  --accent-emphasis: #0550ae;
-  --danger: #cf222e;
-  --border: #d1d9e0;
-  --tint-hover: color-mix(in srgb, var(--text) 10%, transparent);
-  --tint-pressed: color-mix(in srgb, var(--text) 18%, transparent);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --surface: #010409;
-    --surface-subtle: #151b23;
-    --text: #ffffff;
-    --text-muted: #b7bdc8;
-    --accent: #71b7ff;
-    --accent-emphasis: #a5d6ff;
-    --danger: #ff9492;
-    --border: #b7bdc8;
-  }
+/* Defaults for the Obsidian variables the app uses: GitHubDHC's own values
+   (notes/dev/reference/GitHubDHC-theme.css) with its var() chains resolved.
+   --caret-color is the one variable GitHubDHC leaves undefined. */
+body.theme-dark {
+  color-scheme: dark;
+  --background-primary: #010409;
+  --background-primary-alt: #151b23;
+  --background-modifier-border: #b7bdc8;
+  --background-modifier-border-focus: #b7bdc8;
+  --background-modifier-hover: rgba(183, 189, 200, 0.12);
+  --background-modifier-active-hover: rgba(169, 175, 188, 0.15);
+  --background-modifier-error: #ff9492;
+  --background-modifier-form-field: #010409;
+  --interactive-normal: #3d444d;
+  --interactive-accent: #9ea7b3;
+  --text-normal: #ffffff;
+  --text-muted: #b7bdc8;
+  --text-accent: #71b7ff;
+  --text-on-accent: black;
+  --text-error: #ff9492;
+  --text-selection: rgba(169, 175, 188, 0.4);
+  --caret-color: var(--text-accent);
+  --link-color: #71b7ff;
+  --blockquote-border-color: #7a828e;
+  --code-background: #161b22;
+  --hr-color: #7a828e;
+  --modal-background: #010409;
+  --modal-border-color: #b7bdc8;
+}
+
+body.theme-light {
+  color-scheme: light;
+  --background-primary: #ffffff;
+  --background-primary-alt: #f6f8fa;
+  --background-modifier-border: #d1d9e0;
+  --background-modifier-border-focus: #096cdc;
+  --background-modifier-hover: rgba(208, 215, 222, 0.1);
+  --background-modifier-active-hover: rgba(9, 108, 220, 0.15);
+  --background-modifier-error: #cf222e;
+  --background-modifier-form-field: #f6f8fa;
+  --interactive-normal: #f6f8fa;
+  --interactive-accent: #0a72e9;
+  --text-normal: #1f2328;
+  --text-muted: #424a53;
+  --text-accent: #0969da;
+  --text-on-accent: black;
+  --text-error: #cf222e;
+  --text-selection: rgba(9, 108, 220, 0.2);
+  --caret-color: var(--text-accent);
+  --link-color: #0969da;
+  --blockquote-border-color: #6e7781;
+  --code-background: #afb8c1;
+  --hr-color: #6e7781;
+  --modal-background: #ffffff;
+  --modal-border-color: #d1d9e0;
 }
 
 body {
   margin: 0;
-  background: var(--surface);
-  color: var(--text);
+  background: var(--background-primary);
+  color: var(--text-normal);
   font-family:
     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
@@ -44,7 +78,7 @@ body {
   inset: 0;
   display: flex;
   flex-direction: column;
-  background: var(--surface);
+  background: var(--background-primary);
   overflow-y: auto;
 }
 
@@ -54,8 +88,8 @@ body {
 
 .app-header {
   padding: 6px 24px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface-subtle);
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-primary-alt);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -68,8 +102,7 @@ body {
 /*
  * Every icon-only button shares this look: no border, a subtle tint on
  * hover/press, and a focus ring for keyboard users. Sizes are set per class
- * below; the tints derive from --text so they read on both the surface and
- * surface-subtle backgrounds in either palette.
+ * below.
  */
 .app-bar-btn,
 .back-btn,
@@ -83,7 +116,7 @@ body {
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: var(--text);
+  color: var(--text-normal);
   font: inherit;
   cursor: pointer;
 }
@@ -93,7 +126,7 @@ body {
 .new-btn:hover:not(:disabled),
 .settings-btn:hover:not(:disabled),
 .toolbar-btn:hover:not(:disabled) {
-  background: var(--tint-hover);
+  background: var(--background-modifier-hover);
 }
 
 .app-bar-btn:active:not(:disabled),
@@ -101,7 +134,7 @@ body {
 .new-btn:active:not(:disabled),
 .settings-btn:active:not(:disabled),
 .toolbar-btn:active:not(:disabled) {
-  background: var(--tint-pressed);
+  background: var(--background-modifier-active-hover);
 }
 
 .app-bar-btn:focus-visible,
@@ -109,7 +142,7 @@ body {
 .new-btn:focus-visible,
 .settings-btn:focus-visible,
 .toolbar-btn:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--background-modifier-border-focus);
   outline-offset: 2px;
 }
 
@@ -127,7 +160,7 @@ body {
 }
 
 .app-bar-btn-danger {
-  color: var(--danger);
+  color: var(--text-error);
 }
 
 .app-bar-btn-icon {
@@ -142,8 +175,8 @@ body {
 
 .view-header {
   padding: 6px 16px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface-subtle);
+  border-bottom: 1px solid var(--background-modifier-border);
+  background: var(--background-primary-alt);
   display: flex;
   align-items: center;
   gap: 12px;
@@ -172,9 +205,9 @@ body {
   font-size: 13px;
   padding: 6px 12px;
   border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
+  border: 1px solid var(--background-modifier-border);
+  background: var(--interactive-normal);
+  color: var(--text-normal);
   cursor: pointer;
 }
 
@@ -187,9 +220,9 @@ body {
   box-sizing: border-box;
   padding: 8px 14px;
   border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--surface-subtle);
-  color: var(--text);
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-modifier-form-field);
+  color: var(--text-normal);
   font: inherit;
   font-size: 14px;
 }
@@ -212,7 +245,7 @@ body {
 .list-row {
   position: relative;
   overflow: hidden;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--background-modifier-border);
 }
 
 /*
@@ -224,8 +257,8 @@ body {
 .list-row-swipe-bg {
   position: absolute;
   inset: 0;
-  background: var(--danger);
-  color: var(--surface);
+  background: var(--background-modifier-error);
+  color: var(--text-on-accent);
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -238,7 +271,7 @@ body {
   align-items: center;
   gap: 8px;
   padding: 12px 4px;
-  background: var(--surface);
+  background: var(--background-primary);
   cursor: pointer;
   /* Only vertical panning is left to the browser; horizontal drags are
      read by the pointer-event swipe handler in swipeToDelete.ts. */
@@ -246,7 +279,7 @@ body {
 }
 
 .list-row-content:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--background-modifier-border-focus);
   outline-offset: -2px;
 }
 
@@ -284,7 +317,7 @@ body {
   font-size: 11px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--accent);
+  color: var(--text-accent);
   margin: 0 0 8px;
 }
 
@@ -293,10 +326,10 @@ body {
   align-items: center;
   justify-content: space-between;
   padding: 10px 4px;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--background-modifier-border);
   font: inherit;
   background: none;
-  color: var(--text);
+  color: var(--text-normal);
   text-align: left;
 }
 
@@ -329,8 +362,8 @@ button.settings-row {
   display: flex;
   align-items: center;
   gap: 12px;
-  background: var(--text);
-  color: var(--surface);
+  background: var(--text-normal);
+  color: var(--background-primary);
   padding: 10px 18px;
   border-radius: 6px;
   font-size: 13px;
@@ -348,7 +381,7 @@ button.settings-row {
   padding: 0;
   border: none;
   background: none;
-  color: var(--surface);
+  color: var(--background-primary);
   text-decoration: underline;
   cursor: pointer;
 }
@@ -372,8 +405,8 @@ button.settings-row {
 }
 
 .confirm-dialog {
-  background: var(--surface);
-  color: var(--text);
+  background: var(--modal-background);
+  color: var(--text-normal);
   border-radius: 8px;
   padding: 20px;
   max-width: 340px;
@@ -403,21 +436,21 @@ button.settings-row {
   font-size: 13px;
   padding: 8px 14px;
   border-radius: 6px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
+  border: 1px solid var(--background-modifier-border);
+  background: var(--interactive-normal);
+  color: var(--text-normal);
   cursor: pointer;
 }
 
 .confirm-actions button.danger {
-  background: var(--danger);
-  border-color: var(--danger);
-  color: var(--surface);
+  background: var(--background-modifier-error);
+  border-color: var(--background-modifier-error);
+  color: var(--text-on-accent);
 }
 
 .about-dialog {
   max-width: 400px;
-  border: 1px solid var(--border);
+  border: 1px solid var(--modal-border-color);
 }
 
 .about-header {
@@ -459,22 +492,22 @@ button.settings-row {
 }
 
 .about-copy:hover {
-  background: var(--tint-hover);
+  background: var(--background-modifier-hover);
 }
 
 .about-copy:active {
-  background: var(--tint-pressed);
+  background: var(--background-modifier-active-hover);
 }
 
 .about-copy:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--background-modifier-border-focus);
   outline-offset: 2px;
 }
 
 .about-version {
   display: block;
   font-size: 14px;
-  color: var(--text);
+  color: var(--text-normal);
 }
 
 .about-build {
@@ -490,24 +523,21 @@ button.settings-row {
 }
 
 /*
- * BEHAVIOR_SPEC.md §11 has no separate "warning" role, only --danger — and
- * every message this banner shows (a save conflict, a thrown save/load
- * error) is a real problem, not a soft warning, so it's tied to --danger.
- * color-mix() against --surface (rather than a fixed hex tint) is what
- * makes the tint track both the light and dark palettes automatically.
- * Message text stays --text: mixing --danger down to a readable tint
- * leaves too little contrast for --danger itself to double as body text
- * (BEHAVIOR_SPEC.md's --danger values are tuned to read as an accent
- * color against a full-strength --surface, not against a tint of it).
+ * Every message this banner shows (a save conflict, a thrown save/load
+ * error) is a real problem, not a soft warning, so it is tinted from the
+ * error colour. color-mix() against the page background (rather than a fixed
+ * hex tint) makes the tint track any palette. Message text stays
+ * --text-normal: mixing the error colour down to a readable tint leaves too
+ * little contrast for the error colour itself to double as body text.
  */
 #save-status {
   margin: 12px 24px 0;
   padding: 8px 12px;
   border-radius: 6px;
   font-size: 13px;
-  background: color-mix(in srgb, var(--danger) 15%, var(--surface));
-  color: var(--text);
-  border: 1px solid color-mix(in srgb, var(--danger) 45%, var(--surface));
+  background: color-mix(in srgb, var(--background-modifier-error) 15%, var(--background-primary));
+  color: var(--text-normal);
+  border: 1px solid color-mix(in srgb, var(--background-modifier-error) 45%, var(--background-primary));
 }
 
 #save-status[hidden] {
@@ -520,7 +550,7 @@ button.settings-row {
   max-width: 760px;
   margin: 24px auto;
   box-sizing: border-box;
-  border: 1px solid var(--border);
+  border: 1px solid var(--background-modifier-border);
   border-radius: 6px;
   overflow: hidden;
 }
@@ -565,8 +595,8 @@ button.settings-row {
   padding: 0 6px;
   box-sizing: border-box;
   overflow-x: auto;
-  background: var(--surface-subtle);
-  border-top: 1px solid var(--border);
+  background: var(--background-primary-alt);
+  border-top: 1px solid var(--background-modifier-border);
 }
 
 .formatting-toolbar[hidden] {
@@ -619,13 +649,13 @@ button.settings-row {
 
 .cm-quki-code {
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  background: var(--surface-subtle);
+  background: var(--code-background);
   border-radius: 3px;
   padding: 0 3px;
 }
 
 .cm-quki-link {
-  color: var(--accent);
+  color: var(--link-color);
   text-decoration: underline;
   cursor: pointer;
 }
@@ -640,14 +670,14 @@ button.settings-row {
   display: inline-block;
   min-width: 32px;
   min-height: 32px;
-  border: 1px dashed var(--danger);
+  border: 1px dashed var(--background-modifier-error);
   border-radius: 4px;
   vertical-align: middle;
 }
 
 .cm-quki-hr {
   border: none;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--hr-color);
   margin: 8px 0;
 }
 
@@ -727,8 +757,8 @@ button.settings-row {
   position: fixed;
   inset: 0;
   z-index: 1200;
-  background: var(--surface);
-  color: var(--text);
+  background: var(--background-primary);
+  color: var(--text-normal);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -774,14 +804,14 @@ button.settings-row {
   text-align: left;
   padding: 16px;
   border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text);
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-normal);
   cursor: pointer;
 }
 
 .setup-card:hover:not(:disabled) {
-  background: var(--surface-subtle);
+  background: var(--background-primary-alt);
 }
 
 .setup-card:disabled {
@@ -811,8 +841,8 @@ button.settings-row {
   position: fixed;
   inset: 0;
   z-index: 1200;
-  background: var(--surface);
-  color: var(--text);
+  background: var(--background-primary);
+  color: var(--text-normal);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -844,9 +874,9 @@ button.settings-row {
   font: inherit;
   padding: 12px 20px;
   border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--accent);
-  color: var(--surface);
+  border: 1px solid var(--background-modifier-border);
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
   cursor: pointer;
 }
 
