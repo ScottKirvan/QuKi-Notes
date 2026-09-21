@@ -10,7 +10,13 @@ import type { SyntaxNode } from "@lezer/common";
 import { extractElements } from "./extractElements";
 import { computeRevealedIds, caretForReveal } from "./computeReveal";
 import { plainTextMode } from "./plainTextMode";
-import { HorizontalRuleWidget, ImageWidget, LinkWidget } from "./widgets";
+import {
+  BulletWidget,
+  HorizontalRuleWidget,
+  ImageWidget,
+  LinkWidget,
+  OrderedMarkerWidget,
+} from "./widgets";
 
 function headingLevel(type: string): number {
   return Number(type.slice(-1));
@@ -49,15 +55,15 @@ function readLabelAndUrl(
   return { label, url };
 }
 
-function buildDecorations(view: EditorView): DecorationSet {
-  if (view.state.field(plainTextMode)) {
+export function buildDecorations(state: EditorState): DecorationSet {
+  if (state.field(plainTextMode)) {
     // Rule 6: plain-text mode reveals nothing and collapses nothing — the
     // whole buffer is raw source with no decorations at all.
     return Decoration.none;
   }
 
-  const { elements, nodes } = extractElements(view.state);
-  const caret = caretForReveal(view.state.selection.main);
+  const { elements, nodes } = extractElements(state);
+  const caret = caretForReveal(state.selection.main);
   const revealedIds = computeRevealedIds(elements, caret);
 
   const ranges: Range<Decoration>[] = [];
@@ -88,6 +94,27 @@ function buildDecorations(view: EditorView): DecorationSet {
         break;
       }
 
+      case "BulletItem":
+        if (!revealed) {
+          ranges.push(
+            Decoration.replace({ widget: new BulletWidget() }).range(
+              element.checkStart,
+              element.checkEnd,
+            ),
+          );
+        }
+        break;
+
+      case "OrderedItem":
+        if (!revealed && element.orderedNumber !== undefined) {
+          ranges.push(
+            Decoration.replace({
+              widget: new OrderedMarkerWidget(element.orderedNumber),
+            }).range(element.checkStart, element.checkEnd),
+          );
+        }
+        break;
+
       case "HorizontalRule": {
         if (!revealed) {
           ranges.push(
@@ -102,7 +129,7 @@ function buildDecorations(view: EditorView): DecorationSet {
 
       case "Image": {
         if (!revealed) {
-          const { label, url } = readLabelAndUrl(node, view.state);
+          const { label, url } = readLabelAndUrl(node, state);
           ranges.push(
             Decoration.replace({ widget: new ImageWidget(label, url) }).range(
               element.start,
@@ -144,7 +171,7 @@ function buildDecorations(view: EditorView): DecorationSet {
 
       case "Link": {
         if (!revealed) {
-          const { label, url } = readLabelAndUrl(node, view.state);
+          const { label, url } = readLabelAndUrl(node, state);
           ranges.push(
             Decoration.replace({ widget: new LinkWidget(label, url) }).range(
               element.start,
@@ -168,7 +195,7 @@ export const revealPlugin = ViewPlugin.fromClass(
     decorations: DecorationSet;
 
     constructor(view: EditorView) {
-      this.decorations = buildDecorations(view);
+      this.decorations = buildDecorations(view.state);
     }
 
     update(update: ViewUpdate): void {
@@ -176,7 +203,7 @@ export const revealPlugin = ViewPlugin.fromClass(
         update.startState.field(plainTextMode) !==
         update.state.field(plainTextMode);
       if (update.docChanged || update.selectionSet || plainTextChanged) {
-        this.decorations = buildDecorations(update.view);
+        this.decorations = buildDecorations(update.state);
       }
     }
   },
