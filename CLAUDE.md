@@ -94,6 +94,16 @@ limitation to work around.
   dark `--text-selection` is `rgba(88, 166, 255, 0.6)` (github.com's dark selection,
   measured from a phone screenshot), not GitHubDHC's; `e2e/theme.e2e.ts` names it in
   `DELIBERATE_DEFAULTS`.
+- Fonts use Obsidian's mechanism: the defaults layer declares `--font-interface-theme`,
+  `--font-text-theme` and `--font-monospace-theme` (what a theme sets) and the computed
+  `--font-interface`, `--font-text` and `--font-monospace` (the only font variables the
+  app uses; `colourVariables.test.ts` fails on a literal `font-family`). Body text uses
+  the text font, chrome the interface font, inline code and plain-text mode the
+  monospace font. One deliberate exception: the monospace default is the app's own
+  `ui-monospace, SFMono-Regular, Consolas, monospace`, not GitHubDHC's `'DM Mono', 'Fira
+  Code', Courier, monospace` (those fonts are not shipped); `e2e/theme.e2e.ts` names it
+  in `DELIBERATE_FONT_DEFAULTS`. GitHubDHC's sans stack is copied verbatim, including its
+  missing comma after `-apple-system`.
 - No line gets a background of its own, including the caret's: the selection layer sits
   behind the text, so a line background hides a selection on that line.
   `e2e/selection.e2e.ts` samples real pixels for both.

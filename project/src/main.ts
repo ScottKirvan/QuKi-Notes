@@ -439,6 +439,11 @@ async function init(): Promise<void> {
         // end up covering the caret's own line (chunk 3's report has the
         // measurements). 36px here must keep matching that height.
         ".cm-content": { lineHeight: "1.4", padding: "12px", paddingBottom: "36px" },
+        // CodeMirror's baseTheme sets `font-family: monospace` on
+        // .cm-scroller, which a plain rule in style.css cannot out-rank (same
+        // reason as the padding above).
+        ".cm-scroller": { fontFamily: "var(--font-text)" },
+        "&.cm-quki-plain-text .cm-scroller": { fontFamily: "var(--font-monospace)" },
         // CodeMirror's default cursor/selection colors only switch
         // via the `dark: true` theme flag, which this project doesn't set —
         // the page's dark mode comes from the theme-dark/theme-light class on

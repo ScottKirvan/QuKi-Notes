@@ -67,8 +67,21 @@ export async function lineText(page: Page, needle: string): Promise<string> {
   );
 }
 
+// Plain-text mode is set in the monospace font and the rendered editor in the text font. The tests toggle it to
+// get undecorated source as a reference layout, which only means anything in the same font as the layout it is
+// compared with, so the reference is measured in the text font.
+const PLAIN_TEXT_REFERENCE_FONT = ".cm-editor.cm-quki-plain-text .cm-scroller { font-family: var(--font-text) !important; }";
+
 export async function toggleMode(page: Page): Promise<void> {
-  await page.evaluate(() => document.querySelector<HTMLButtonElement>("#btn-mode-toggle")!.click());
+  await page.evaluate((css) => {
+    if (!document.getElementById("hang-reference-font")) {
+      const style = document.createElement("style");
+      style.id = "hang-reference-font";
+      style.textContent = css;
+      document.head.appendChild(style);
+    }
+    document.querySelector<HTMLButtonElement>("#btn-mode-toggle")!.click();
+  }, PLAIN_TEXT_REFERENCE_FONT);
   await settle(page);
 }
 
