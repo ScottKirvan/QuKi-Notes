@@ -10,9 +10,10 @@ share-in are all built and independently reviewed. All four day-one targets (web
 Android, Windows, Linux) have working implementations.
 
 **Read `notes/dev/rewrite_TODO.md` first in any new session** — a running,
-checkbox-format list of everything still open, including the biggest known gap
-(list/task/blockquote live-reveal rendering doesn't exist yet), platform-specific
-loose ends, and manual-acceptance items only Scott can check off.
+checkbox-format list of everything still open, including the remaining
+rendering/editor gaps (list/task/blockquote live-reveal now exists; indentation
+layout grouping does not), platform-specific loose ends, and manual-acceptance
+items only Scott can check off.
 `notes/dev/github_issues_review.md` cross-references all 123 issues from the old
 Flutter GitHub tracker against the rewrite — what's already fixed, what's structurally
 obsolete, and what's still genuinely relevant.
