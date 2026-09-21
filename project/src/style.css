@@ -655,6 +655,11 @@ button.settings-row {
   padding: 0 3px;
 }
 
+.cm-quki-code-selected {
+  background-color: var(--background-primary);
+  background-image: linear-gradient(var(--text-selection), var(--text-selection));
+}
+
 .cm-quki-link {
   color: var(--link-color);
   text-decoration: underline;

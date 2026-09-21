@@ -57,7 +57,7 @@ type Sample = { dominant: Rgb; ink: Rgb };
 
 type QukiWindow = typeof window & {
   qukiView: {
-    state: { doc: { line(n: number): { from: number; to: number }; length: number } };
+    state: { doc: { line(n: number): { from: number; to: number }; length: number; sliceString(from: number, to: number): string } };
     dispatch: (spec: unknown) => void;
     focus: () => void;
     coordsAtPos: (pos: number, side?: number) => { left: number; right: number; top: number; bottom: number } | null;
@@ -188,8 +188,7 @@ async function offsetOf(page: Page, line: number, text: string): Promise<{ from:
     ({ line, text }) => {
       const view = (window as QukiWindow).qukiView;
       const info = view.state.doc.line(line);
-      const source = (window as QukiWindow).qukiView as unknown as { state: { doc: { toString(): string } } };
-      const content = source.state.doc.toString().slice(info.from, info.to);
+      const content = view.state.doc.sliceString(info.from, info.to);
       const at = content.indexOf(text);
       if (at < 0) throw new Error(`"${text}" is not on line ${line}: ${content}`);
       return { from: info.from + at, to: info.from + at + text.length };
@@ -344,6 +343,20 @@ async function runScenario(browser: Browser, url: string, scheme: Scheme): Promi
     await select(page, word.from, word.to);
     const png = await shot(page, scheme, "code-span");
     await checkSelection("inline code span", [await lineSpan(page, 5, word.from, word.to)], png);
+  }
+
+  // 7. a selection that ends partway through a collapsed code span
+  {
+    const code = await offsetOf(page, 5, "code span");
+    const lineStart = (await offsetOf(page, 5, "has")).from;
+    const cut = code.from + 4;
+    await select(page, lineStart, cut);
+    const png = await shot(page, scheme, "code-span-partial");
+    await checkSelection("selected part of a partly selected code span", [await lineSpan(page, 5, code.from, cut)], png);
+    const chipColour = parseColour((await probe(page, ["--code-background"]))["--code-background"]!).rgb;
+    const [rest] = await sampleBoxes(scratch, png, [await lineSpan(page, 5, cut + 1, code.to)]);
+    console.log(`${tag}   unselected rest of the code span is ${fmt(rest!.dominant)} (--code-background ${fmt(chipColour)})`);
+    check(distance(rest!.dominant, chipColour) <= BLEND_TOLERANCE, `the unselected rest of the code span is ${fmt(rest!.dominant)}, not its own --code-background ${fmt(chipColour)}`);
   }
 
   if (pageErrors.length > 0) failures.push(`page errors: ${pageErrors.join("; ")}`);

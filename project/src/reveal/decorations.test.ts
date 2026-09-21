@@ -433,3 +433,52 @@ describe("raw list-style lines hang their wrapped rows", () => {
     expect(deco.style).toBeNull();
   });
 });
+
+describe("inline code under a selection", () => {
+  const doc = "ab `code span` cd\nend";
+  const chipStart = doc.indexOf("code span");
+  const chipEnd = chipStart + "code span".length;
+
+  function marks(anchor: number, head: number, cls: string): Array<[number, number]> {
+    const state = EditorState.create({
+      doc,
+      selection: { anchor, head },
+      extensions: [markdown({ extensions: GFM }), plainTextMode],
+    });
+    const out: Array<[number, number]> = [];
+    buildDecorations(state).between(0, doc.length, (from, to, value) => {
+      if ((value.spec as { class?: string }).class === cls) out.push([from, to]);
+    });
+    return out;
+  }
+
+  it("given a selection running across a collapsed code span, when decorated, then the whole span text is marked selected", () => {
+    expect(marks(0, doc.length, "cm-quki-code-selected")).toEqual([[chipStart, chipEnd]]);
+  });
+
+  it("given a selection anchored outside a collapsed code span and ending inside it, when decorated, then only the covered part is marked selected", () => {
+    expect(marks(0, chipStart + 3, "cm-quki-code-selected")).toEqual([[chipStart, chipStart + 3]]);
+    expect(marks(doc.length, chipStart + 5, "cm-quki-code-selected")).toEqual([[chipStart + 5, chipEnd]]);
+  });
+
+  it("given a backwards selection across the span, when decorated, then the span text is marked selected", () => {
+    expect(marks(doc.length, 0, "cm-quki-code-selected")).toEqual([[chipStart, chipEnd]]);
+  });
+
+  it("given a selection that only touches the backticks, when decorated, then nothing inside the span is marked selected", () => {
+    expect(marks(0, chipStart, "cm-quki-code-selected")).toEqual([]);
+  });
+
+  it("given a selection anchored inside the span, when decorated, then the span is revealed as raw source and nothing is marked selected", () => {
+    expect(marks(chipStart + 3, doc.length, "cm-quki-code")).toEqual([]);
+    expect(marks(chipStart + 3, doc.length, "cm-quki-code-selected")).toEqual([]);
+  });
+
+  it("given no selected range, when decorated, then nothing is marked selected", () => {
+    expect(marks(doc.length, doc.length, "cm-quki-code-selected")).toEqual([]);
+  });
+
+  it("given a selection across the span, when decorated, then the span keeps its own code mark", () => {
+    expect(marks(0, doc.length, "cm-quki-code")).toEqual([[chipStart, chipEnd]]);
+  });
+});
