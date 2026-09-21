@@ -1,6 +1,7 @@
 import { type EditorView, WidgetType } from "@codemirror/view";
 import { imageResolver } from "./imageResolver";
 import { acquireImageUrl, releaseImageUrl } from "./imageUrlCache";
+import { toggleCheckboxAt } from "./checkboxTap";
 
 /**
  * `this.src` is a markdown image path (e.g. "media/<name>.png"), not a URL
@@ -127,5 +128,82 @@ export class OrderedMarkerWidget extends WidgetType {
     span.className = "cm-quki-marker cm-quki-ordered";
     span.textContent = `${this.number}.`;
     return span;
+  }
+}
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+
+function svgElement(tag: string, attrs: Record<string, string>): SVGElement {
+  const el = document.createElementNS(SVG_NS, tag);
+  for (const [name, value] of Object.entries(attrs)) el.setAttribute(name, value);
+  return el;
+}
+
+// Drawn, not a Unicode glyph: font fallback picks a different font per text
+// run on Android, so a ballot-box character can come out as a colour emoji.
+// Proportions are the Flutter editor's painted box: an outlined rounded
+// square with radius 0.2 of its side and a three-point round-capped tick.
+function checkboxSvg(checked: boolean): SVGElement {
+  const svg = svgElement("svg", {
+    viewBox: "-6 -6 112 112",
+    "aria-hidden": "true",
+    focusable: "false",
+  });
+  svg.appendChild(
+    svgElement("rect", {
+      x: "0",
+      y: "0",
+      width: "100",
+      height: "100",
+      rx: "20",
+      fill: "none",
+      stroke: "currentColor",
+      "stroke-width": "10",
+    }),
+  );
+  if (checked) {
+    svg.appendChild(
+      svgElement("polyline", {
+        points: "20,52 42,74 82,28",
+        fill: "none",
+        stroke: "currentColor",
+        "stroke-width": "11",
+        "stroke-linecap": "round",
+        "stroke-linejoin": "round",
+      }),
+    );
+  }
+  return svg;
+}
+
+// Rule 7: a collapsed checkbox is interactive, a revealed one is ordinary
+// text — automatic here, since this widget only exists while collapsed.
+//
+// Tap handling is on the widget's own element (CodeMirror ignores events
+// that originate in a widget). mousedown is cancelled so neither a mouse
+// press nor the mouse events a touch tap synthesises can move the caret or
+// take focus; the toggle itself happens on click, which both a mouse click
+// and a touch tap produce.
+export class CheckboxWidget extends WidgetType {
+  constructor(readonly checked: boolean) {
+    super();
+  }
+
+  override eq(other: CheckboxWidget): boolean {
+    return other.checked === this.checked;
+  }
+
+  toDOM(view: EditorView): HTMLElement {
+    const box = document.createElement("span");
+    box.className = "cm-quki-marker cm-quki-checkbox";
+    box.setAttribute("role", "checkbox");
+    box.setAttribute("aria-checked", String(this.checked));
+    box.appendChild(checkboxSvg(this.checked));
+    box.addEventListener("mousedown", (event) => event.preventDefault());
+    box.addEventListener("click", (event) => {
+      event.preventDefault();
+      toggleCheckboxAt(view, view.posAtDOM(box));
+    });
+    return box;
   }
 }

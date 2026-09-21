@@ -179,3 +179,62 @@ describe("blockquote lines", () => {
     expect(quoteElements("```\n> not a quote\n```")).toEqual([]);
   });
 });
+
+function taskElements(doc: string): RevealElement[] {
+  return elementsFor(doc).filter((el) => el.type === "TaskItem");
+}
+
+describe("task items", () => {
+  it("given - [ ] item, then it is one task element whose marker span is all six characters", () => {
+    const els = elementsFor("- [ ] buy milk");
+    expect(els.map((el) => el.type)).toEqual(["TaskItem"]);
+    const [task] = els;
+    expect(task.category).toBe("block-marker");
+    expect(task.checkStart).toBe(0);
+    expect(task.checkEnd).toBe(6);
+    expect(task.start).toBe(0);
+    expect(task.end).toBe(14);
+    expect(task.checked).toBe(false);
+  });
+
+  it.each(["x", "X"])("given - [%s] item, then it is a checked task", (mark) => {
+    const [task] = taskElements(`- [${mark}] done`);
+    expect(task.checked).toBe(true);
+    expect(task.checkEnd).toBe(6);
+  });
+
+  it("given an empty task item, then it is still a task", () => {
+    const [task] = taskElements("- [ ] ");
+    expect(task.checkEnd).toBe(6);
+  });
+
+  it("given a task, then it is never also extracted as a plain unordered item", () => {
+    const types = elementsFor("- [ ] a\n- [x] b\n- c").map((el) => el.type);
+    expect(types).toEqual(["TaskItem", "TaskItem", "BulletItem"]);
+  });
+
+  it("given a nested task, then the indentation is not part of the marker span", () => {
+    const [, nested] = taskElements("- [ ] top\n\t- [x] nested");
+    expect(nested.checkStart).toBe(11);
+    expect(nested.checkEnd).toBe(17);
+    expect(nested.checked).toBe(true);
+  });
+
+  it.each(["* [ ] x", "+ [x] x"])("given %j, then it is a plain unordered item, not a task", (line) => {
+    expect(taskElements(line)).toEqual([]);
+    expect(listElements(line).map((el) => el.type)).toEqual(["BulletItem"]);
+  });
+
+  it("given an ordered item with a checkbox-looking start, then it is an ordered item, not a task", () => {
+    expect(taskElements("1. [ ] x")).toEqual([]);
+    expect(listElements("1. [ ] x").map((el) => el.type)).toEqual(["OrderedItem"]);
+  });
+
+  it("given - [ ] with no space after the bracket, then it is a plain unordered item", () => {
+    expect(taskElements("- [ ]")).toEqual([]);
+  });
+
+  it("given two spaces before the bracket, then it is not a task", () => {
+    expect(taskElements("-  [ ] x")).toEqual([]);
+  });
+});
