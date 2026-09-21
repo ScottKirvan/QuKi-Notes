@@ -2,9 +2,9 @@
 
 Updated 2026-09-20. Unsequenced — just a record of what's open.
 
-## Data loss — highest priority
+## Data loss — not urgent, deferred
 
-- [ ] Save is too slow, and new QuKis can get lost (Scott, direct report). Relates to the GitHub issues review's "Check" items on auto-save reentrancy/timing (#73, #381, #384, #386) — worth investigating alongside those.
+- [ ] Save is too slow, and new QuKis can get lost (Scott, direct report). Not breaking — Scott has explicitly deferred this until the Rendering / Editor items are done. Relates to the GitHub issues review's "Check" items on auto-save reentrancy/timing (#73, #381, #384, #386) — worth investigating alongside those.
 
 ## Rendering / editor
 
