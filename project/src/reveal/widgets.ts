@@ -96,3 +96,36 @@ export class LinkWidget extends WidgetType {
     return anchor;
   }
 }
+
+// The marker's whole 24px gutter (20px label box plus its 4px gap) matches
+// the Flutter editor's list-marker gutter: the marker is right-aligned in it
+// and the item's content starts just past it.
+export class BulletWidget extends WidgetType {
+  override eq(): boolean {
+    return true;
+  }
+
+  toDOM(): HTMLElement {
+    const span = document.createElement("span");
+    span.className = "cm-quki-marker cm-quki-bullet";
+    span.textContent = "•";
+    return span;
+  }
+}
+
+export class OrderedMarkerWidget extends WidgetType {
+  constructor(readonly number: number) {
+    super();
+  }
+
+  override eq(other: OrderedMarkerWidget): boolean {
+    return other.number === this.number;
+  }
+
+  toDOM(): HTMLElement {
+    const span = document.createElement("span");
+    span.className = "cm-quki-marker cm-quki-ordered";
+    span.textContent = `${this.number}.`;
+    return span;
+  }
+}

@@ -2,6 +2,7 @@ import type { EditorState } from "@codemirror/state";
 import { syntaxTree } from "@codemirror/language";
 import type { SyntaxNode } from "@lezer/common";
 import type { RevealElement } from "./types";
+import { computeOrderedNumbers, indentDepth } from "./listNumbering";
 
 const HEADING_TYPES = new Set([
   "ATXHeading1",
@@ -26,6 +27,66 @@ const NESTING_INLINE_TYPES = new Set([
 // the same start<=caret<=end check as any other element, just over the full
 // node instead of a marker substring.
 const WHOLE_LINE_TYPES = new Set(["Image", "HorizontalRule"]);
+
+interface ListItemMarker {
+  type: "BulletItem" | "OrderedItem";
+  start: number;
+  end: number;
+  digit: number | null;
+}
+
+// Only a whole line's worth of leading whitespace may precede a list marker
+// for it to collapse: anything else (a `>` quote prefix, another list's
+// marker) leaves it as literal text.
+function readListItemMarker(
+  item: SyntaxNode,
+  state: EditorState,
+): ListItemMarker | null {
+  const mark = item.getChild("ListMark");
+  if (!mark) return null;
+  if (item.getChild("Task")) return null;
+
+  const line = state.doc.lineAt(mark.from);
+  if (!/^[ \t]*$/.test(state.sliceDoc(line.from, mark.from))) return null;
+  if (state.sliceDoc(mark.to, mark.to + 1) !== " ") return null;
+
+  const markText = state.sliceDoc(mark.from, mark.to);
+  if (item.parent?.name === "OrderedList") {
+    if (!/^\d+\.$/.test(markText)) return null;
+    return {
+      type: "OrderedItem",
+      start: mark.from,
+      end: mark.to + 1,
+      digit: Number.parseInt(markText, 10),
+    };
+  }
+  if (markText === "-" || markText === "*" || markText === "+") {
+    return { type: "BulletItem", start: mark.from, end: mark.to + 1, digit: null };
+  }
+  return null;
+}
+
+function assignOrderedNumbers(
+  state: EditorState,
+  ordered: { element: RevealElement; digit: number }[],
+): void {
+  if (ordered.length === 0) return;
+  const digitByLine = new Map<number, number>();
+  for (const { element, digit } of ordered) {
+    digitByLine.set(state.doc.lineAt(element.start).number, digit);
+  }
+  const lines = [];
+  for (let n = 1; n <= state.doc.lines; n++) {
+    const text = state.doc.line(n).text;
+    const indent = /^[ \t]*/.exec(text)?.[0] ?? "";
+    lines.push({ depth: indentDepth(indent), digit: digitByLine.get(n) ?? null });
+  }
+  const numbers = computeOrderedNumbers(lines);
+  for (const { element } of ordered) {
+    const n = numbers[state.doc.lineAt(element.start).number - 1];
+    if (n !== null && n !== undefined) element.orderedNumber = n;
+  }
+}
 
 export interface ExtractResult {
   elements: RevealElement[];
@@ -53,6 +114,7 @@ export function extractElements(state: EditorState): ExtractResult {
   const nodes = new Map<number, SyntaxNode>();
   let nextId = 0;
   const inlineAncestorStack: number[] = [];
+  const ordered: { element: RevealElement; digit: number }[] = [];
 
   tree.iterate({
     enter(node) {
@@ -78,6 +140,27 @@ export function extractElements(state: EditorState): ExtractResult {
             parentId: null,
           });
           nodes.set(id, node.node);
+        }
+        return true;
+      }
+
+      if (type === "ListItem") {
+        const marker = readListItemMarker(node.node, state);
+        if (marker) {
+          const id = nextId++;
+          const element: RevealElement = {
+            id,
+            type: marker.type,
+            category: "block-marker",
+            start: marker.start,
+            end: state.doc.lineAt(marker.start).to,
+            checkStart: marker.start,
+            checkEnd: marker.end,
+            parentId: null,
+          };
+          elements.push(element);
+          nodes.set(id, node.node);
+          if (marker.digit !== null) ordered.push({ element, digit: marker.digit });
         }
         return true;
       }
@@ -127,6 +210,8 @@ export function extractElements(state: EditorState): ExtractResult {
       }
     },
   });
+
+  assignOrderedNumbers(state, ordered);
 
   return { elements, nodes };
 }

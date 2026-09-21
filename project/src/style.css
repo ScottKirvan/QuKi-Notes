@@ -553,6 +553,13 @@ button.settings-row {
   margin: 8px 0;
 }
 
+.cm-quki-marker {
+  display: inline-block;
+  min-width: 20px;
+  margin-right: 4px;
+  text-align: right;
+}
+
 /*
  * BEHAVIOR_SPEC.md §3: shown "instead of the editor" on first launch, so
  * this is fully opaque (not a translucent modal backdrop like
