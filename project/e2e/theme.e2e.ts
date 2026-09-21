@@ -66,6 +66,24 @@ const DELIBERATE_DEFAULTS: Record<Scheme, Record<string, { value: string; reason
   light: {},
 };
 
+// The font variables a theme sets. The computed --font-interface, --font-text and --font-monospace are the app's own
+// mechanism (Obsidian's), which GitHubDHC does not define, so there is nothing to compare them with.
+const THEME_FONT_VARIABLES = ["--font-interface-theme", "--font-text-theme", "--font-monospace-theme"];
+const COMPUTED_FONT_VARIABLES = ["--font-interface", "--font-text", "--font-monospace"];
+
+// Font defaults chosen on purpose to differ from GitHubDHC, in both schemes. The exact value is still asserted, so drift fails.
+const DELIBERATE_FONT_DEFAULTS: Record<string, { value: string; reason: string }> = {
+  "--font-monospace-theme": {
+    value: "ui-monospace, SFMono-Regular, Consolas, monospace",
+    reason: "GitHubDHC's 'DM Mono', 'Fira Code', Courier, monospace names fonts the app does not ship, and Courier is probably a thin typewriter face on Android",
+  },
+};
+
+// The build rewrites 'Segoe UI' as "Segoe UI"; the family list is the same, so compare without the quote style.
+function collapseWhitespace(value: string): string {
+  return value.replace(/'/g, '"').replace(/\s+/g, " ").trim();
+}
+
 async function themeClasses(page: Page): Promise<string[]> {
   return page.evaluate(() => [...document.body.classList].filter((c) => c === "theme-dark" || c === "theme-light"));
 }
@@ -97,6 +115,21 @@ async function defaultLayerNames(page: Page, scheme: Scheme): Promise<string[]> 
     }
     return [...names];
   }, `body.theme-${scheme}`);
+}
+
+async function computedVariables(page: Page, names: string[]): Promise<Record<string, string>> {
+  return page.evaluate((varNames) => Object.fromEntries(varNames.map((n) => [n, getComputedStyle(document.body).getPropertyValue(n)])), names);
+}
+
+async function referenceFonts(browser: Browser, scheme: Scheme, names: string[]): Promise<Record<string, string>> {
+  const context = await browser.newContext();
+  try {
+    const page = await context.newPage();
+    await page.setContent(`<html><head><style>${referenceCss}</style></head><body class="theme-${scheme}"></body></html>`);
+    return await computedVariables(page, names);
+  } finally {
+    await context.close();
+  }
 }
 
 async function referenceColours(browser: Browser, scheme: Scheme, names: string[]): Promise<{ colours: Record<string, string>; unset: string[] }> {
@@ -162,7 +195,9 @@ async function runScenario(browser: Browser, url: string, scheme: Scheme): Promi
   assert(restored.length === 1 && restored[0] === `theme-${scheme}`, `after the OS returns to ${scheme}, body must carry exactly theme-${scheme}, got [${restored.join(", ")}]`);
   console.log(`${tag} PASS: the class follows live OS changes to ${other} and back`);
 
-  const names = await defaultLayerNames(page, scheme);
+  const declaredNames = await defaultLayerNames(page, scheme);
+  const fontNames = declaredNames.filter((n) => n.startsWith("--font-"));
+  const names = declaredNames.filter((n) => !n.startsWith("--font-"));
   assert(names.length >= 20, `expected the app's default layer to declare 20+ variables on body.theme-${scheme}, found ${names.length}`);
   const app = await probeColours(page, names);
   const reference = await referenceColours(browser, scheme, names);
@@ -185,6 +220,21 @@ async function runScenario(browser: Browser, url: string, scheme: Scheme): Promi
   const caret = (await probeColours(page, ["--caret-color", "--text-accent"]));
   assert(caret["--caret-color"] === caret["--text-accent"], `--caret-color should default to --text-accent, got ${caret["--caret-color"]} vs ${caret["--text-accent"]}`);
   console.log(`${tag} PASS: all ${names.length} default variables match GitHubDHC's computed values (${NOT_A_GITHUBDHC_COLOUR.join(", ")} is the app's own choice${Object.keys(deliberate).length > 0 ? `; ${Object.keys(deliberate).join(", ")} deliberately differs` : ""})`);
+
+  assert([...fontNames].sort().join(",") === [...THEME_FONT_VARIABLES, ...COMPUTED_FONT_VARIABLES].sort().join(","), `body.theme-${scheme} must declare exactly the three --font-*-theme defaults and the three computed --font-* variables, got ${fontNames.join(", ")}`);
+  const appFonts = await computedVariables(page, THEME_FONT_VARIABLES);
+  const referenceFontValues = await referenceFonts(browser, scheme, THEME_FONT_VARIABLES);
+  for (const name of THEME_FONT_VARIABLES) {
+    assert(collapseWhitespace(referenceFontValues[name]!) !== "", `GitHubDHC leaves ${name} unset, so the comparison proves nothing for it`);
+    const deliberateFont = DELIBERATE_FONT_DEFAULTS[name];
+    if (deliberateFont) {
+      assert(collapseWhitespace(appFonts[name]!) === deliberateFont.value, `${name} is deliberately ${deliberateFont.value} (${deliberateFont.reason}), got ${collapseWhitespace(appFonts[name]!)}`);
+      assert(collapseWhitespace(appFonts[name]!) !== collapseWhitespace(referenceFontValues[name]!), `${name} is listed as deliberately different from GitHubDHC but equals it; drop it from DELIBERATE_FONT_DEFAULTS`);
+    } else {
+      assert(collapseWhitespace(appFonts[name]!) === collapseWhitespace(referenceFontValues[name]!), `${name} must equal GitHubDHC's (${collapseWhitespace(referenceFontValues[name]!)}), got ${collapseWhitespace(appFonts[name]!)}`);
+    }
+  }
+  console.log(`${tag} PASS: --font-interface-theme and --font-text-theme equal GitHubDHC's; ${Object.keys(DELIBERATE_FONT_DEFAULTS).join(", ")} deliberately differs`);
 
   assert(pageErrors.length === 0, `page errors: ${pageErrors.join("; ")}`);
   await context.close();

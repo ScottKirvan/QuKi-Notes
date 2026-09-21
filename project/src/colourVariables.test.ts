@@ -141,3 +141,45 @@ describe("colour variables use Obsidian's names", () => {
     expect(declared.has("--text-muted")).toBe(true);
   });
 });
+
+// Obsidian's mechanism (its own app.css): a theme sets --font-*-theme, and the
+// app consumes --font-interface, --font-text and --font-monospace, each
+// computed from its -theme variable.
+const FONT_KINDS = ["interface", "text", "monospace"] as const;
+
+describe("font variables follow Obsidian's mechanism", () => {
+  it("declares each --font-*-theme default and its computed --font-* in both schemes", () => {
+    for (const kind of FONT_KINDS) {
+      for (const scheme of ["dark", "light"] as const) {
+        expect(layer[scheme], `--font-${kind}-theme in ${scheme}`).toContain(`--font-${kind}-theme`);
+        expect(layer[scheme], `--font-${kind} in ${scheme}`).toContain(`--font-${kind}`);
+      }
+    }
+  });
+
+  it("computes each --font-* from its own --font-*-theme", () => {
+    for (const kind of FONT_KINDS) {
+      expect(defaultLayerText).toMatch(new RegExp(`--font-${kind}\\s*:\\s*var\\(--font-${kind}-theme\\)`));
+    }
+  });
+
+  it("uses only the computed variables outside the default layer, never a --font-*-theme one", () => {
+    expect([...usedByApp].filter((name) => /^--font-.*-theme$/.test(name))).toEqual([]);
+    for (const kind of FONT_KINDS) {
+      expect(usedByApp.has(`--font-${kind}`), `--font-${kind} is never used`).toBe(true);
+    }
+  });
+
+  it("sets every font-family from a computed variable, never a literal font stack", () => {
+    const allowed = /^var\(\s*--font-(interface|text|monospace)\s*\)$/;
+    const values = [
+      ...[...cssOutsideDefaultLayer.matchAll(/font-family\s*:\s*([^;}]+)/g)].map((m) => ["src/style.css", m[1]!.trim()] as const),
+      ...[...indexHtml.matchAll(/font-family\s*:\s*([^;}"']+)/g)].map((m) => ["index.html", m[1]!.trim()] as const),
+      ...sourceFiles.flatMap((file) =>
+        [...read(file).matchAll(/fontFamily\s*:\s*["'`]([^"'`]*)["'`]/g)].map((m) => [file, m[1]!.trim()] as const),
+      ),
+    ];
+    expect(values.length).toBeGreaterThan(0);
+    expect(values.filter(([, value]) => !allowed.test(value))).toEqual([]);
+  });
+});
