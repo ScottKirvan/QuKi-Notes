@@ -42,6 +42,7 @@ import { createAndroidPermissionView } from "./screens/androidPermissionView";
 import { createTrashView } from "./screens/trashView";
 import { createToast } from "./screens/toast";
 import { createConfirmDialog } from "./screens/confirmDialog";
+import { createAboutDialog } from "./screens/aboutDialog";
 
 // basicSetup's defaultHighlightStyle (from @codemirror/language) hardcodes
 // colors tuned for a light background — most notably tags.meta at #404740,
@@ -263,6 +264,7 @@ async function init(): Promise<void> {
   const overlayHost = document.querySelector<HTMLElement>("#overlay-host")!;
   const showToast = createToast(overlayHost);
   const confirm = createConfirmDialog(overlayHost);
+  const aboutDialog = createAboutDialog(overlayHost, { version: __APP_VERSION__, buildInfo: __BUILD_INFO__, showToast });
 
   // Electron's preload script (project/electron/src/preload.ts) exposes
   // window.electronAPI/window.electronSetupAPI only when this app is
@@ -532,11 +534,8 @@ async function init(): Promise<void> {
 
   setButtonIcon(quKiListBtn, FileStack, "QuKis");
   setButtonIcon(newQuKiBtn, Plus, "New QuKi");
-  // Help matches the reference app bar's icon, tooltip and position, but no
-  // Help dialog exists yet in this rewrite - disabled until that work
-  // lands, rather than shown enabled with no click handler.
   setButtonIcon(helpBtn, CircleHelp, "Help");
-  helpBtn.disabled = true;
+  helpBtn.addEventListener("click", () => aboutDialog.open(helpBtn));
   setButtonIcon(sendBtn, Send, "Send");
   // KNOWN DEFICIENCY, accepted deliberately, not a design decision:
   // STORAGE_CONTRACT.md calls for the real OS share sheet on Windows via

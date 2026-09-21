@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatBuildLine, formatBuildString, resolveBuildInfo, type BuildInfo } from "./buildInfo";
+import { buildLineParts, formatBuildString, resolveBuildInfo, type BuildInfo } from "./buildInfo";
 
 const NOW = new Date("2026-09-21T08:32:59.999Z");
 const FULL_SHA = "0123456789abcdef0123456789abcdef01234567";
@@ -94,12 +94,12 @@ describe("display strings", () => {
   const clean: BuildInfo = { commit: "0123456", branch: "feat/about-box", builtAt: "2026-09-21 08:32 UTC", dirty: false };
   const dirty: BuildInfo = { ...clean, dirty: true };
 
-  it("formatBuildLine shows commit, branch and build time", () => {
-    expect(formatBuildLine(clean)).toBe("0123456 · feat/about-box · 2026-09-21 08:32 UTC");
+  it("buildLineParts lists commit, branch and build time - the pieces the dialog keeps unbroken when it wraps", () => {
+    expect(buildLineParts(clean)).toEqual(["0123456", "feat/about-box", "2026-09-21 08:32 UTC"]);
   });
 
-  it("formatBuildLine appends the uncommitted-changes flag only when set", () => {
-    expect(formatBuildLine(dirty)).toBe("0123456 · feat/about-box · 2026-09-21 08:32 UTC · uncommitted changes");
+  it("buildLineParts appends the uncommitted-changes flag only when set", () => {
+    expect(buildLineParts(dirty)).toEqual(["0123456", "feat/about-box", "2026-09-21 08:32 UTC", "uncommitted changes"]);
   });
 
   it("formatBuildString is the full self-describing string that gets copied", () => {
