@@ -1,8 +1,10 @@
+import { ArrowLeft, Plus, Settings, Trash2 } from "lucide";
 import type { QuKiStore, QuKiSummary } from "quki-core";
 
 import { guardLatest } from "../asyncGuard";
 import { extractPreview } from "../preview";
 import { formatRelativeTime } from "../relativeTime";
+import { createIcon, setIconButton } from "./icons";
 import { attachSwipeToDelete } from "./swipeToDelete";
 
 export interface ListViewCallbacks {
@@ -25,11 +27,11 @@ export interface ListView {
 export function createListView(store: QuKiStore, container: HTMLElement, callbacks: ListViewCallbacks): ListView {
   container.innerHTML = `
     <header class="view-header">
-      <button type="button" class="back-btn" aria-label="Back to editor">&larr;</button>
+      <button type="button" class="back-btn"></button>
       <h1>QuKis</h1>
       <div class="view-actions">
-        <button type="button" class="new-btn">New</button>
-        <button type="button" class="settings-btn">Settings</button>
+        <button type="button" class="new-btn"></button>
+        <button type="button" class="settings-btn"></button>
       </div>
     </header>
     <div class="search-bar">
@@ -43,6 +45,10 @@ export function createListView(store: QuKiStore, container: HTMLElement, callbac
   const settingsBtn = container.querySelector<HTMLButtonElement>(".settings-btn")!;
   const searchInput = container.querySelector<HTMLInputElement>(".search-input")!;
   const listBody = container.querySelector<HTMLDivElement>(".list-body")!;
+
+  setIconButton(backBtn, ArrowLeft, "Back to editor");
+  setIconButton(newBtn, Plus, "New");
+  setIconButton(settingsBtn, Settings, "Settings");
 
   let currentQuery = "";
 
@@ -77,7 +83,7 @@ export function createListView(store: QuKiStore, container: HTMLElement, callbac
     const swipeBg = document.createElement("div");
     swipeBg.className = "list-row-swipe-bg";
     swipeBg.setAttribute("aria-hidden", "true");
-    swipeBg.textContent = "\u{1F5D1}";
+    swipeBg.append(createIcon(Trash2));
 
     const content = document.createElement("div");
     content.className = "list-row-content";
