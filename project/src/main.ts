@@ -3,7 +3,6 @@ import {
   highlightSpecialChars,
   drawSelection,
   dropCursor,
-  highlightActiveLine,
   keymap,
   type KeyBinding,
 } from "@codemirror/view";
@@ -391,7 +390,6 @@ async function init(): Promise<void> {
       dropCursor(),
       EditorState.allowMultipleSelections.of(true),
       indentOnInput(),
-      highlightActiveLine(),
       keymap.of([...indentDedentKeymap, ...defaultKeymap, ...historyKeymap]),
       markdown({ extensions: GFM }),
       syntaxHighlighting(qukiSyntaxHighlighting),
@@ -441,11 +439,11 @@ async function init(): Promise<void> {
         // end up covering the caret's own line (chunk 3's report has the
         // measurements). 36px here must keep matching that height.
         ".cm-content": { lineHeight: "1.4", padding: "12px", paddingBottom: "36px" },
-        // CodeMirror's default cursor/selection/active-line colors only switch
+        // CodeMirror's default cursor/selection colors only switch
         // via the `dark: true` theme flag, which this project doesn't set —
         // the page's dark mode comes from the theme-dark/theme-light class on
-        // <body> and the CSS custom properties it selects instead, so all of
-        // these must be tied to those same properties rather than
+        // <body> and the CSS custom properties it selects instead, so both
+        // of these must be tied to those same properties rather than
         // CodeMirror's separate light/dark mechanism.
         ".cm-cursor, .cm-cursor-primary": {
           borderLeft: "1.5px solid var(--caret-color)",
@@ -456,9 +454,6 @@ async function init(): Promise<void> {
         // CodeMirror's own focused-selection rule out-ranks the plain one above.
         "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground": {
           backgroundColor: "var(--text-selection)",
-        },
-        ".cm-activeLine": {
-          backgroundColor: "var(--background-primary-alt)",
         },
       }),
     ],
