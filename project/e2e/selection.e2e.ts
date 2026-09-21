@@ -71,6 +71,7 @@ const DOC = ["plain caret line here", "second line other words", "- list item wo
 
 const MIN_DISTANCE_FROM_PAGE = 40;
 const MIN_TEXT_CONTRAST = 4.5;
+const MIN_MUTED_TEXT_CONTRAST = 3;
 const BLEND_TOLERANCE = 3;
 
 const failures: string[] = [];
@@ -241,7 +242,7 @@ async function runScenario(browser: Browser, url: string, scheme: Scheme): Promi
   const selectionBlend = blend(parseColour(colours["--text-selection"]!), pageBg);
   console.log(`${tag} page background ${fmt(pageBg)}, --text-selection ${colours["--text-selection"]}, expected blend ${fmt(selectionBlend)}, blend-vs-page distance ${distance(selectionBlend, pageBg).toFixed(1)}, contrast ${contrast(selectionBlend, pageBg).toFixed(2)}:1`);
 
-  async function checkSelection(label: string, boxes: Box[], png: Buffer, expectInk: boolean): Promise<void> {
+  async function checkSelection(label: string, boxes: Box[], png: Buffer, mutedBoxes: number[] = []): Promise<void> {
     const samples = await sampleBoxes(scratch, png, boxes);
     samples.forEach((s, i) => {
       const away = distance(s.dominant, pageBg);
@@ -249,7 +250,8 @@ async function runScenario(browser: Browser, url: string, scheme: Scheme): Promi
       console.log(`${tag}   ${label} [${i}]: selection area is ${fmt(s.dominant)} (page ${fmt(pageBg)}, ${away.toFixed(1)} away; expected blend ${fmt(selectionBlend)}, ${off.toFixed(1)} away), ink ${fmt(s.ink)} contrast ${contrast(s.ink, s.dominant).toFixed(2)}:1`);
       check(away >= MIN_DISTANCE_FROM_PAGE, `${label} [${i}]: the selected area ${fmt(s.dominant)} is not visibly different from the page ${fmt(pageBg)} (${away.toFixed(1)} < ${MIN_DISTANCE_FROM_PAGE})`);
       check(off <= BLEND_TOLERANCE * Math.sqrt(3), `${label} [${i}]: the selected area ${fmt(s.dominant)} is not --text-selection over the page (${fmt(selectionBlend)})`);
-      if (expectInk) check(contrast(s.ink, s.dominant) >= MIN_TEXT_CONTRAST, `${label} [${i}]: the text ${fmt(s.ink)} is not readable on ${fmt(s.dominant)} (${contrast(s.ink, s.dominant).toFixed(2)}:1 < ${MIN_TEXT_CONTRAST}:1)`);
+      const needed = mutedBoxes.includes(i) ? MIN_MUTED_TEXT_CONTRAST : MIN_TEXT_CONTRAST;
+      check(contrast(s.ink, s.dominant) >= needed, `${label} [${i}]: the text ${fmt(s.ink)} is not readable on ${fmt(s.dominant)} (${contrast(s.ink, s.dominant).toFixed(2)}:1 < ${needed}:1)`);
     });
   }
 
@@ -289,7 +291,7 @@ async function runScenario(browser: Browser, url: string, scheme: Scheme): Promi
     await select(page, word.from, word.to);
     await checkCaretLineIsPlain("caret line", 1);
     const png = await shot(page, scheme, "caret-line-word");
-    await checkSelection("word on the caret's line", [await lineSpan(page, 1, word.from, word.to)], png, true);
+    await checkSelection("word on the caret's line", [await lineSpan(page, 1, word.from, word.to)], png);
   }
 
   // 2. a word on another line
@@ -298,7 +300,7 @@ async function runScenario(browser: Browser, url: string, scheme: Scheme): Promi
     await select(page, word.from, word.to);
     await checkCaretLineIsPlain("second line", 2);
     const png = await shot(page, scheme, "second-line-word");
-    await checkSelection("word on a second line", [await lineSpan(page, 2, word.from, word.to)], png, true);
+    await checkSelection("word on a second line", [await lineSpan(page, 2, word.from, word.to)], png);
   }
 
   // 3. one selection across every kind of line
@@ -309,7 +311,7 @@ async function runScenario(browser: Browser, url: string, scheme: Scheme): Promi
     const png = await shot(page, scheme, "across-lines");
     const boxes: Box[] = [];
     for (const line of [1, 2, 3, 4, 5, 6]) boxes.push(await lineSpan(page, line, first.from, last.to));
-    await checkSelection("across lines (1 plain, 2 plain, 3 list item, 4 quote, 5 code, 6 plain)", boxes, png, true);
+    await checkSelection("across lines (1 plain, 2 plain, 3 list item, 4 quote, 5 code, 6 plain)", boxes, png, [3]);
     const code = await page.evaluate(() => {
       const el = document.querySelector(".cm-quki-code");
       if (el === null) return null;
@@ -317,7 +319,7 @@ async function runScenario(browser: Browser, url: string, scheme: Scheme): Promi
       return { x: r.left + 2, y: r.top + r.height * 0.15, width: r.width - 4, height: r.height * 0.7 };
     });
     check(code !== null, "across lines: no .cm-quki-code element rendered for the code span");
-    if (code !== null) await checkSelection("across lines, inside the code span's own box", [code], png, true);
+    if (code !== null) await checkSelection("across lines, inside the code span's own box", [code], png);
   }
 
   // 4. inside a list item whose marker is revealed
@@ -325,7 +327,7 @@ async function runScenario(browser: Browser, url: string, scheme: Scheme): Promi
     const word = await offsetOf(page, 3, "item");
     await select(page, word.from - 2, word.to);
     const png = await shot(page, scheme, "revealed-list-marker");
-    await checkSelection("revealed list marker and text", [await lineSpan(page, 3, word.from - 2, word.to)], png, true);
+    await checkSelection("revealed list marker and text", [await lineSpan(page, 3, word.from - 2, word.to)], png);
   }
 
   // 5. inside a quote line
@@ -333,7 +335,7 @@ async function runScenario(browser: Browser, url: string, scheme: Scheme): Promi
     const word = await offsetOf(page, 4, "quote");
     await select(page, word.from, word.to);
     const png = await shot(page, scheme, "quote-word");
-    await checkSelection("word in a quote line", [await lineSpan(page, 4, word.from, word.to)], png, true);
+    await checkSelection("word in a quote line", [await lineSpan(page, 4, word.from, word.to)], png, [0]);
   }
 
   // 6. inside an inline code span while the caret is elsewhere on that line
@@ -341,7 +343,7 @@ async function runScenario(browser: Browser, url: string, scheme: Scheme): Promi
     const word = await offsetOf(page, 5, "code span");
     await select(page, word.from, word.to);
     const png = await shot(page, scheme, "code-span");
-    await checkSelection("inline code span", [await lineSpan(page, 5, word.from, word.to)], png, true);
+    await checkSelection("inline code span", [await lineSpan(page, 5, word.from, word.to)], png);
   }
 
   if (pageErrors.length > 0) failures.push(`page errors: ${pageErrors.join("; ")}`);

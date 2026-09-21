@@ -90,7 +90,13 @@ limitation to work around.
   `body.theme-light` (not `:root`): GitHubDHC's values
   (`notes/dev/reference/GitHubDHC-theme.css`) with its `var()` chains resolved. A
   variable the app starts using needs a default in both blocks. A theme loaded later
-  sets its values on the same selectors and wins by order.
+  sets its values on the same selectors and wins by order. One deliberate exception:
+  dark `--text-selection` is `rgba(88, 166, 255, 0.6)` (github.com's dark selection,
+  measured from a phone screenshot), not GitHubDHC's; `e2e/theme.e2e.ts` names it in
+  `DELIBERATE_DEFAULTS`.
+- No line gets a background of its own, including the caret's: the selection layer sits
+  behind the text, so a line background hides a selection on that line.
+  `e2e/selection.e2e.ts` samples real pixels for both.
 - An inline script at the top of `<body>` in `project/index.html` sets exactly one of
   `theme-dark` / `theme-light` on `<body>` from the OS colour scheme before first paint
   and follows changes. Nothing keys on `prefers-color-scheme`.

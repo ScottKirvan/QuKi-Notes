@@ -60,6 +60,12 @@ type Scheme = "light" | "dark";
 // GitHubDHC leaves --caret-color undefined, so it has no colour to compare against.
 const NOT_A_GITHUBDHC_COLOUR = ["--caret-color"];
 
+// Defaults chosen on purpose to differ from GitHubDHC. The exact value is still asserted, so drift fails.
+const DELIBERATE_DEFAULTS: Record<Scheme, Record<string, { value: string; reason: string }>> = {
+  dark: { "--text-selection": { value: "rgba(88, 166, 255, 0.6)", reason: "github.com dark selection, measured from a phone screenshot: blends to #33649C on #010409" } },
+  light: {},
+};
+
 async function themeClasses(page: Page): Promise<string[]> {
   return page.evaluate(() => [...document.body.classList].filter((c) => c === "theme-dark" || c === "theme-light"));
 }
@@ -160,8 +166,13 @@ async function runScenario(browser: Browser, url: string, scheme: Scheme): Promi
   assert(names.length >= 20, `expected the app's default layer to declare 20+ variables on body.theme-${scheme}, found ${names.length}`);
   const app = await probeColours(page, names);
   const reference = await referenceColours(browser, scheme, names);
-  const mismatches = names.filter((n) => !NOT_A_GITHUBDHC_COLOUR.includes(n) && app[n] !== reference.colours[n]).map((n) => `${n}: app ${app[n]} vs GitHubDHC ${reference.colours[n]}`);
+  const deliberate = DELIBERATE_DEFAULTS[scheme];
+  const mismatches = names.filter((n) => !NOT_A_GITHUBDHC_COLOUR.includes(n) && !(n in deliberate) && app[n] !== reference.colours[n]).map((n) => `${n}: app ${app[n]} vs GitHubDHC ${reference.colours[n]}`);
   assert(mismatches.length === 0, `defaults must equal GitHubDHC's computed values:\n  ${mismatches.join("\n  ")}`);
+  for (const [name, { value, reason }] of Object.entries(deliberate)) {
+    assert(names.includes(name), `${name} is a deliberate default but the app does not declare it on body.theme-${scheme}`);
+    assert(app[name] === value, `${name} in ${scheme} is deliberately ${value} (${reason}), got ${app[name]}`);
+  }
   const unexpectedlyUnset = reference.unset.filter((n) => !NOT_A_GITHUBDHC_COLOUR.includes(n));
   assert(unexpectedlyUnset.length === 0, `GitHubDHC leaves these unset, so the comparison above proved nothing for them: ${unexpectedlyUnset.join(", ")}`);
   const expectedKey: Record<Scheme, Record<string, string>> = {
@@ -173,7 +184,7 @@ async function runScenario(browser: Browser, url: string, scheme: Scheme): Promi
   }
   const caret = (await probeColours(page, ["--caret-color", "--text-accent"]));
   assert(caret["--caret-color"] === caret["--text-accent"], `--caret-color should default to --text-accent, got ${caret["--caret-color"]} vs ${caret["--text-accent"]}`);
-  console.log(`${tag} PASS: all ${names.length} default variables match GitHubDHC's computed values (${NOT_A_GITHUBDHC_COLOUR.join(", ")} is the app's own choice)`);
+  console.log(`${tag} PASS: all ${names.length} default variables match GitHubDHC's computed values (${NOT_A_GITHUBDHC_COLOUR.join(", ")} is the app's own choice${Object.keys(deliberate).length > 0 ? `; ${Object.keys(deliberate).join(", ")} deliberately differs` : ""})`);
 
   assert(pageErrors.length === 0, `page errors: ${pageErrors.join("; ")}`);
   await context.close();
