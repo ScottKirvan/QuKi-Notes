@@ -53,10 +53,10 @@ export function resolveBuildInfo({ git, env, now }: BuildInfoInputs): BuildInfo 
 
 const UNCOMMITTED = "uncommitted changes";
 
-export function formatBuildLine(info: BuildInfo): string {
+export function buildLineParts(info: BuildInfo): string[] {
   const parts = [info.commit, info.branch, info.builtAt];
   if (info.dirty) parts.push(UNCOMMITTED);
-  return parts.join(" · ");
+  return parts;
 }
 
 export function formatBuildString(version: string, info: BuildInfo): string {
