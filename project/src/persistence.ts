@@ -178,6 +178,74 @@ export class AutoSaveController {
     await this.save();
   }
 
+  /**
+   * User-initiated escape hatch from the conflict banner (STORAGE_CONTRACT.md
+   * rule 17's explicit-overwrite carve-out - see the note on that rule).
+   * This is the ONLY path that ever sets SaveParams.force; the debounce and
+   * interval paths above never do, so an automatic save still refuses to
+   * overwrite exactly as before. Only reachable for an existing id (a
+   * conflict can only happen after at least one successful save), so a null
+   * id is a no-op rather than an error.
+   *
+   * Waits out any save already in flight before writing, so a normal save
+   * and a forced overwrite can never race each other - reusing the same
+   * saveInFlight/resaveRequested single-flight machinery runSave() uses, so
+   * a save that arrives *during* the overwrite queues behind it instead of
+   * interleaving. getBody() is read fresh only once the overwrite actually
+   * starts, so it captures whatever the user has typed up to that moment,
+   * not whatever was live when the conflict first fired.
+   */
+  async overwrite(): Promise<void> {
+    if (this.id === null) return;
+
+    while (this.saveInFlight) {
+      await this.saveInFlight.catch(() => {});
+    }
+
+    if (this.debounceTimer !== null) {
+      clearTimeout(this.debounceTimer);
+      this.debounceTimer = null;
+    }
+
+    this.saveInFlight = this.runOverwrite().finally(() => {
+      this.saveInFlight = null;
+      if (this.resaveRequested) {
+        this.resaveRequested = false;
+        void this.save();
+      }
+    });
+    await this.saveInFlight;
+  }
+
+  private async runOverwrite(): Promise<void> {
+    const body = this.getBody();
+
+    let result;
+    try {
+      result = await this.store.save({
+        id: this.id,
+        body,
+        expectedModifiedAt: this.modifiedAt ?? undefined,
+        force: true,
+      });
+    } catch (error) {
+      console.error("QuKi overwrite save failed unexpectedly:", error);
+      this.onSaveError(error);
+      return;
+    }
+
+    if (result.status === "saved") {
+      this.id = result.id;
+      this.modifiedAt = result.modifiedAt;
+      this.lastSavedBody = body;
+      this.onSaved({ id: result.id, modifiedAt: result.modifiedAt });
+    }
+    // "skipped-empty": rule 16 still applies under force - leave the
+    // baseline untouched, same as a normal save's skipped-empty branch.
+    // "conflict" is unreachable here since force skips both conflict
+    // branches in QuKiStore.updateExisting.
+  }
+
   private async save(): Promise<void> {
     if (this.saveInFlight) {
       this.resaveRequested = true;
