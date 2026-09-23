@@ -228,6 +228,98 @@ async function main(): Promise<void> {
     console.log("[e2e] PASS: the editor still initialized blank and usable after the failed initial load");
 
     await loadErrorContext.close();
+
+    // --- Scenario 5: the conflict banner's "Overwrite" action is the
+    // explicit, user-initiated escape hatch (STORAGE_CONTRACT.md rule 17) -
+    // this reproduces a real conflict the same way scenario 2 does, then
+    // clicks Overwrite and checks: the file gets the LATEST live content
+    // (not whatever was live when the conflict first fired), the banner
+    // clears, and a further normal edit afterwards saves cleanly rather
+    // than staying stuck retrying. ---
+    const overwriteContext = await browser.newContext();
+    const overwriteSeedPage = await overwriteContext.newPage();
+    await overwriteSeedPage.goto(url);
+    await overwriteSeedPage.waitForSelector(".cm-content");
+    await overwriteSeedPage.click(".cm-content");
+    await overwriteSeedPage.keyboard.press("Control+A");
+    await overwriteSeedPage.keyboard.type("Overwrite scenario: seed content");
+    await overwriteSeedPage.waitForTimeout(2500);
+    await overwriteSeedPage.close();
+
+    const overwritePageA = await overwriteContext.newPage();
+    const overwritePageB = await overwriteContext.newPage();
+    await overwritePageA.goto(url);
+    await overwritePageA.waitForSelector(".cm-content");
+    await overwritePageB.goto(url);
+    await overwritePageB.waitForSelector(".cm-content");
+
+    await overwritePageA.click(".cm-content");
+    await overwritePageA.keyboard.press("Control+A");
+    await overwritePageA.keyboard.type("Overwrite scenario: written from tab A");
+    await overwritePageA.waitForTimeout(2500); // let A's save land first
+
+    await overwritePageB.click(".cm-content");
+    await overwritePageB.keyboard.press("Control+A");
+    await overwritePageB.keyboard.type("Overwrite scenario: tab B's first conflicting edit");
+    await overwritePageB.waitForTimeout(2500); // B's save now conflicts against A's write
+
+    const conflictHiddenAttr = await overwritePageB.getAttribute("#save-status", "hidden");
+    assert(conflictHiddenAttr === null, "conflict banner should be visible before Overwrite is clicked");
+    const overwriteButtonVisible = await overwritePageB.isVisible("#save-status .save-status-action");
+    assert(overwriteButtonVisible, "the conflict banner should show a visible Overwrite button");
+    console.log("[e2e] PASS: the conflict banner shows a visible Overwrite button");
+
+    // More typing after the conflict banner appeared, before clicking
+    // Overwrite - this later text must be what gets saved, not the text
+    // that was live when the conflict first fired.
+    await overwritePageB.click(".cm-content");
+    await overwritePageB.keyboard.press("Control+A");
+    await overwritePageB.keyboard.type("Overwrite scenario: tab B's LATER edit, typed after the conflict banner appeared");
+
+    await overwritePageB.click("#save-status .save-status-action");
+    await overwritePageB.waitForTimeout(500); // the forced write is plain async I/O, not debounced
+
+    const afterOverwriteHiddenAttr = await overwritePageB.getAttribute("#save-status", "hidden");
+    assert(afterOverwriteHiddenAttr !== null, "the conflict banner should clear once Overwrite succeeds");
+    console.log("[e2e] PASS: clicking Overwrite cleared the conflict banner");
+
+    await overwritePageA.reload();
+    await overwritePageA.waitForSelector(".cm-content");
+    const afterOverwriteBody = await overwritePageA.evaluate(
+      () => (window as unknown as { qukiView: { state: { doc: { toString(): string } } } }).qukiView.state.doc.toString(),
+    );
+    assert(
+      afterOverwriteBody.includes("tab B's LATER edit"),
+      `on-disk content should be tab B's later edit after Overwrite, got: ${afterOverwriteBody}`,
+    );
+    assert(
+      !afterOverwriteBody.includes("first conflicting edit"),
+      "the text live when the conflict first fired must not be what Overwrite saved",
+    );
+    console.log("[e2e] PASS: Overwrite wrote the LATEST live content, not the content from when the conflict first fired");
+
+    // A further normal edit afterwards must save cleanly - the baseline is
+    // correctly re-established, not stuck retrying against the old conflict.
+    await overwritePageB.click(".cm-content");
+    await overwritePageB.keyboard.press("Control+A");
+    await overwritePageB.keyboard.type("Overwrite scenario: one more normal edit after Overwrite");
+    await overwritePageB.waitForTimeout(2500);
+
+    const afterFollowUpHiddenAttr = await overwritePageB.getAttribute("#save-status", "hidden");
+    assert(afterFollowUpHiddenAttr !== null, "a normal save after Overwrite should not re-trigger the conflict banner");
+
+    await overwritePageB.reload();
+    await overwritePageB.waitForSelector(".cm-content");
+    const followUpBody = await overwritePageB.evaluate(
+      () => (window as unknown as { qukiView: { state: { doc: { toString(): string } } } }).qukiView.state.doc.toString(),
+    );
+    assert(
+      followUpBody.includes("one more normal edit after Overwrite"),
+      `a normal save after Overwrite should have landed on disk, got: ${followUpBody}`,
+    );
+    console.log("[e2e] PASS: a further normal edit after Overwrite saves cleanly - the baseline was correctly re-established");
+
+    await overwriteContext.close();
   } finally {
     await browser.close();
     server.close();
