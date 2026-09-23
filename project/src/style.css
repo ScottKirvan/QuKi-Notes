@@ -187,7 +187,6 @@ body {
 
 .view-header {
   padding: 6px 16px;
-  border-bottom: 1px solid var(--background-modifier-border);
   background: var(--background-primary-alt);
   display: flex;
   align-items: center;
@@ -257,7 +256,6 @@ body {
 .list-row {
   position: relative;
   overflow: hidden;
-  border-bottom: 1px solid var(--background-modifier-border);
 }
 
 /*
