@@ -101,7 +101,6 @@ body {
 
 .app-header {
   padding: 6px 24px;
-  border-bottom: 1px solid var(--background-modifier-border);
   background: var(--background-primary-alt);
   display: flex;
   align-items: center;
@@ -585,13 +584,17 @@ button.settings-row {
   max-width: 760px;
   margin: 24px auto;
   box-sizing: border-box;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: 6px;
   overflow: hidden;
+  /* Fills whatever height .view (the flex column above) has left after the
+     app header, in every mode - not a fixed fraction of the viewport, which
+     left dead space in reading mode and didn't account for the on-screen
+     keyboard shrinking the visible area in edit mode. */
+  flex: 1 1 auto;
+  min-height: 0;
 }
 
 .cm-editor {
-  height: 70vh;
+  height: 100%;
 }
 
 /*
