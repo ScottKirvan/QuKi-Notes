@@ -132,7 +132,9 @@ export class QuKiStore {
       return this.createNew(params.body);
     }
     const id = params.id;
-    return this.runExclusive(id, () => this.updateExisting(id, params.body, params.expectedModifiedAt));
+    return this.runExclusive(id, () =>
+      this.updateExisting(id, params.body, params.expectedModifiedAt, params.force ?? false),
+    );
   }
 
   private async createNew(body: string): Promise<SaveResult> {
@@ -154,33 +156,57 @@ export class QuKiStore {
     };
   }
 
-  private async updateExisting(id: string, body: string, expectedModifiedAt: string | undefined): Promise<SaveResult> {
+  private async updateExisting(
+    id: string,
+    body: string,
+    expectedModifiedAt: string | undefined,
+    force: boolean,
+  ): Promise<SaveResult> {
     if (expectedModifiedAt === undefined) {
       throw new TypeError(
         'QuKiStore.save: expectedModifiedAt is required when updating an existing QuKi. Read the QuKi first and pass back its modifiedAt.',
       );
     }
     const mdPath = `${id}.md`;
-    if (!(await this.backend.exists(mdPath))) {
-      return { status: 'conflict', id, reason: 'deleted', currentModifiedAt: null, currentBody: null };
+    const exists = await this.backend.exists(mdPath);
+
+    // force (STORAGE_CONTRACT.md rule 17's explicit, user-initiated
+    // escape hatch): skip both conflict branches below and write
+    // unconditionally - creating the file if it was deleted, overwriting it
+    // if it was modified. Rule 16 (never write an empty body) still applies
+    // unconditionally further down, so force can never wipe a QuKi via an
+    // accidental empty overwrite.
+    let priorStat: FileStat | undefined;
+    if (!force) {
+      if (!exists) {
+        return { status: 'conflict', id, reason: 'deleted', currentModifiedAt: null, currentBody: null };
+      }
+      priorStat = await this.backend.stat(mdPath);
+      const currentModifiedAt = toIso(priorStat.mtimeMs);
+      if (currentModifiedAt !== expectedModifiedAt) {
+        const currentBody = await this.backend.readText(mdPath);
+        return { status: 'conflict', id, reason: 'modified', currentModifiedAt, currentBody };
+      }
+    } else if (exists) {
+      // Preserve the original createdAt (via birthtimeMs fallback in
+      // resolveCreatedAt) across a forced overwrite of a file that still
+      // exists - forcing a write is about the content, not about resetting
+      // the QuKi's creation time.
+      priorStat = await this.backend.stat(mdPath);
     }
-    const stat = await this.backend.stat(mdPath);
-    const currentModifiedAt = toIso(stat.mtimeMs);
-    if (currentModifiedAt !== expectedModifiedAt) {
-      const currentBody = await this.backend.readText(mdPath);
-      return { status: 'conflict', id, reason: 'modified', currentModifiedAt, currentBody };
-    }
+
     if (body === '') {
       return { status: 'skipped-empty', id };
     }
+
+    const sidecar = await readSidecar(this.backend, `.meta/${id}.json`);
     await this.backend.writeTextAtomic(mdPath, body);
     const newStat = await this.backend.stat(mdPath);
-    const sidecar = await readSidecar(this.backend, `.meta/${id}.json`);
     return {
       status: 'saved',
       id,
       filename: `${id}.md`,
-      createdAt: this.resolveCreatedAt(stat, sidecar),
+      createdAt: this.resolveCreatedAt(priorStat ?? newStat, sidecar),
       modifiedAt: toIso(newStat.mtimeMs),
     };
   }
