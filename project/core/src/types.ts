@@ -32,6 +32,15 @@ export interface SaveParams {
   id: string | null;
   body: string;
   expectedModifiedAt?: string;
+  /**
+   * Explicit, user-initiated escape hatch from a conflict (STORAGE_CONTRACT.md
+   * rule 17): skips the expectedModifiedAt comparison and the deleted-file
+   * conflict branch, writing unconditionally. Only ever set by a user
+   * clicking "Overwrite" on an already-shown conflict banner - never by the
+   * automatic debounce/interval save path, which must stay exactly as
+   * strict as before.
+   */
+  force?: boolean;
 }
 
 export interface DeleteOptions {

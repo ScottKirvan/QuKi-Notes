@@ -119,4 +119,95 @@ describe('QuKiStore.save', () => {
     const trash = await store.listTrash();
     expect(trash.find((q) => q.id === created.id)).toBeDefined();
   });
+
+  it('force: true writes through a real "modified" conflict instead of reporting it', async () => {
+    const created = await store.save({ id: null, body: 'v1' });
+    if (created.status !== 'saved') throw new Error('unreachable');
+
+    const mdPath = path.join(dir, `${created.id}.md`);
+    const future = new Date(Date.now() + 5000);
+    await fsp.writeFile(mdPath, 'edited outside QuKi Notes');
+    await fsp.utimes(mdPath, future, future);
+
+    const result = await store.save({
+      id: created.id,
+      body: 'forced overwrite content',
+      expectedModifiedAt: created.modifiedAt,
+      force: true,
+    });
+
+    expect(result.status).toBe('saved');
+    if (result.status !== 'saved') throw new Error('unreachable');
+
+    const detail = await store.read(created.id);
+    expect(detail.body).toBe('forced overwrite content');
+    expect(detail.modifiedAt).toBe(result.modifiedAt);
+  });
+
+  it('force: true recreates the file after a real "deleted" conflict instead of reporting it', async () => {
+    const created = await store.save({ id: null, body: 'v1' });
+    if (created.status !== 'saved') throw new Error('unreachable');
+
+    await store.moveToTrash(created.id);
+
+    const result = await store.save({
+      id: created.id,
+      body: 'recreated after deletion',
+      expectedModifiedAt: created.modifiedAt,
+      force: true,
+    });
+
+    expect(result.status).toBe('saved');
+    if (result.status !== 'saved') throw new Error('unreachable');
+
+    const detail = await store.read(created.id);
+    expect(detail.body).toBe('recreated after deletion');
+  });
+
+  it('force: true with an empty body is still skipped-empty and does not touch the file (rule 16)', async () => {
+    const created = await store.save({ id: null, body: 'keep me' });
+    if (created.status !== 'saved') throw new Error('unreachable');
+
+    const mdPath = path.join(dir, `${created.id}.md`);
+    const future = new Date(Date.now() + 5000);
+    await fsp.writeFile(mdPath, 'edited outside QuKi Notes');
+    await fsp.utimes(mdPath, future, future);
+
+    const result = await store.save({
+      id: created.id,
+      body: '',
+      expectedModifiedAt: created.modifiedAt,
+      force: true,
+    });
+
+    expect(result.status).toBe('skipped-empty');
+
+    const onDisk = await fsp.readFile(mdPath, 'utf8');
+    expect(onDisk).toBe('edited outside QuKi Notes');
+  });
+
+  it('a forced save still goes through the same per-id runExclusive queue as a normal save', async () => {
+    const created = await store.save({ id: null, body: 'v1' });
+    if (created.status !== 'saved') throw new Error('unreachable');
+
+    // Issued back to back, unawaited, so both are queued on the same id at
+    // once: this exercises queue ordering, not real concurrency.
+    const normalPromise = store.save({ id: created.id, body: 'from normal save', expectedModifiedAt: created.modifiedAt });
+    const forcedPromise = store.save({
+      id: created.id,
+      body: 'from forced save',
+      expectedModifiedAt: created.modifiedAt,
+      force: true,
+    });
+
+    const [normalResult, forcedResult] = await Promise.all([normalPromise, forcedPromise]);
+
+    // Whichever ran second in the queue determines what's on disk; both
+    // must be clean, sequential results, never an interleaved/torn write.
+    expect(['saved', 'conflict']).toContain(normalResult.status);
+    expect(forcedResult.status).toBe('saved');
+
+    const detail = await store.read(created.id);
+    expect(['from normal save', 'from forced save']).toContain(detail.body);
+  });
 });
