@@ -40,7 +40,7 @@ import { createSettingsView } from "./screens/settingsView";
 import { createSetupView } from "./screens/setupView";
 import { createAndroidPermissionView } from "./screens/androidPermissionView";
 import { createTrashView } from "./screens/trashView";
-import { createToast } from "./screens/toast";
+import { createToast, type ToastAction } from "./screens/toast";
 import { createConfirmDialog } from "./screens/confirmDialog";
 import { createAboutDialog } from "./screens/aboutDialog";
 
@@ -222,10 +222,55 @@ async function createCapacitorBackend(overlayHost: HTMLElement, onMkdirpError: (
 
 const saveStatus = document.querySelector<HTMLDivElement>("#save-status");
 
-function showSaveStatus(message: string): void {
+// #save-status's own text node and (optional) action button, built once and
+// reused - mirrors screens/toast.ts's ToastAction shape, but unlike the
+// toast there is no auto-dismiss timer here: this banner stays until
+// showSaveStatus() replaces it or hideSaveStatus() explicitly clears it.
+let saveStatusMessageEl: HTMLSpanElement | null = null;
+let saveStatusActionBtn: HTMLButtonElement | null = null;
+
+function ensureSaveStatusChildren(): void {
+  if (!saveStatus || saveStatusMessageEl) return;
+  saveStatusMessageEl = document.createElement("span");
+  saveStatus.appendChild(saveStatusMessageEl);
+  saveStatusActionBtn = document.createElement("button");
+  saveStatusActionBtn.type = "button";
+  saveStatusActionBtn.className = "save-status-action";
+  saveStatusActionBtn.hidden = true;
+  saveStatus.appendChild(saveStatusActionBtn);
+}
+
+function showSaveStatus(message: string, action?: ToastAction): void {
   if (!saveStatus) return;
-  saveStatus.textContent = message;
+  ensureSaveStatusChildren();
+  saveStatusMessageEl!.textContent = message;
   saveStatus.hidden = false;
+
+  if (action) {
+    saveStatusActionBtn!.textContent = action.label;
+    saveStatusActionBtn!.hidden = false;
+    saveStatusActionBtn!.onclick = (): void => action.onClick();
+  } else {
+    saveStatusActionBtn!.hidden = true;
+    saveStatusActionBtn!.textContent = "";
+    saveStatusActionBtn!.onclick = null;
+  }
+}
+
+/**
+ * Clears the persistent conflict/error banner. Previously nothing ever
+ * called this - once any save-status message showed, it stayed forever,
+ * even after a later save succeeded normally. Wired into the auto-save
+ * controller's onSaved handler below so a stale "could not save" message
+ * doesn't linger once saving is working again.
+ */
+function hideSaveStatus(): void {
+  if (!saveStatus) return;
+  saveStatus.hidden = true;
+  if (saveStatusActionBtn) {
+    saveStatusActionBtn.hidden = true;
+    saveStatusActionBtn.onclick = null;
+  }
 }
 
 /**
@@ -476,12 +521,28 @@ async function init(): Promise<void> {
   // logged") for this slice. It is not a merge UI or a real notification
   // system - just enough that a conflict, or an unexpected save error, is
   // never silently dropped.
+  //
+  // A conflict also offers an explicit "Overwrite" action - the only way
+  // out once auto-save starts refusing to write (rule 17 forbids an
+  // *automatic* overwrite, not a user-chosen one). overwritePending tracks
+  // whether the next onSaved is the result of that click, since onSaved
+  // alone can't tell an overwrite's success apart from a routine
+  // debounce/interval save's - only the former should toast a confirmation.
+  let overwritePending = false;
   const autoSave = new AutoSaveController(
     store,
     () => view.state.doc.toString(),
     (info) => {
       const detail = info.reason === "deleted" ? "it was deleted elsewhere" : "it changed elsewhere";
-      showSaveStatus(`Could not save — ${detail}. Your latest edits have not been written to disk.`);
+      showSaveStatus(`Could not save — ${detail}. Your latest edits have not been written to disk.`, {
+        label: "Overwrite",
+        onClick: () => {
+          overwritePending = true;
+          void autoSave.overwrite().finally(() => {
+            overwritePending = false;
+          });
+        },
+      });
     },
     initial,
     {
@@ -489,6 +550,11 @@ async function init(): Promise<void> {
         showSaveStatus("Could not save — an unexpected error occurred. Your latest edits have not been written to disk.");
       },
       onSaved: () => {
+        hideSaveStatus();
+        if (overwritePending) {
+          overwritePending = false;
+          showToast("Saved.", 2000);
+        }
         updateDeleteButtonState();
         void refreshQuKisButton();
       },

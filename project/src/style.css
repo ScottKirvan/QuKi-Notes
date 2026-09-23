@@ -548,12 +548,34 @@ button.settings-row {
   padding: 8px 12px;
   border-radius: 6px;
   font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   background: color-mix(in srgb, var(--background-modifier-error) 15%, var(--background-primary));
   color: var(--text-normal);
   border: 1px solid color-mix(in srgb, var(--background-modifier-error) 45%, var(--background-primary));
 }
 
 #save-status[hidden] {
+  display: none;
+}
+
+/* Same shape as .toast-action, adapted to this banner's own tint: the
+   toast's white-on-dark button text would be unreadable here, so this
+   inherits #save-status's --text-normal colour instead of hard-coding one. */
+.save-status-action {
+  font: inherit;
+  font-weight: 600;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.save-status-action[hidden] {
   display: none;
 }
 
