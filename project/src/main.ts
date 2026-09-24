@@ -51,6 +51,16 @@ import { createToast, type ToastAction } from "./screens/toast";
 import { createConfirmDialog } from "./screens/confirmDialog";
 import { createAboutDialog } from "./screens/aboutDialog";
 
+// Service worker is only registered in browser/PWA context, not when running
+// as a Capacitor native app. In native context the APK bundle serves assets
+// directly; a pre-caching SW would survive APK updates and serve stale content
+// until its lifecycle completes (typically 2-3 app opens).
+if (!Capacitor.isNativePlatform()) {
+  import("virtual:pwa-register").then(({ registerSW }) => {
+    registerSW({ immediate: true });
+  });
+}
+
 // basicSetup's defaultHighlightStyle (from @codemirror/language) hardcodes
 // colors tuned for a light background — most notably tags.meta at #404740,
 // which is what markdown delimiter marks (the `**`, `#`, backtick, etc.
