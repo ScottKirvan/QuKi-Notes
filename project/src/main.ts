@@ -41,7 +41,7 @@ import {
 } from "./editMode";
 import { imageResolver } from "./reveal/imageResolver";
 import { createImagePastePlugin } from "./pasteImage";
-import { AutoSaveController, loadInitialQuKi, type InitialQuKi } from "./persistence";
+import { AutoSaveController, blankInitialQuKi, type InitialQuKi } from "./persistence";
 import { sendQuKi, selectShareTransport } from "./send";
 import { shareTextViaAndroid } from "./androidShare";
 import { onSharedTextReceived } from "./shareIn";
@@ -482,15 +482,10 @@ async function init(): Promise<void> {
     console.error("QuKi trash purge failed unexpectedly:", error);
   });
 
-  // Still a stand-in for real deep-linking (e.g. reopening the last-open
-  // QuKi via a URL or session-restore) - there is no such mechanism yet, so
-  // launch continues to load whichever active QuKi was modified most
-  // recently, or starts blank if none exist. Once the list/editor id state
-  // exists (see `autoSave.currentId` below), this is the only remaining
-  // "no explicit selection" fallback.
-  const initial = await loadInitialQuKi(store, () => {
-    showSaveStatus("Could not load your QuKi — an unexpected error occurred. Starting with a blank QuKi.");
-  });
+  // BEHAVIOR_SPEC.md §4: "A blank canvas on launch" - every app start opens
+  // a fresh, empty QuKi. See blankInitialQuKi's own doc comment for why
+  // there's nothing here to load from storage.
+  const initial = blankInitialQuKi();
 
   // Set once per editor content swap (loading a different QuKi, New QuKi,
   // clearing on delete) to suppress the change-notification below -
@@ -722,10 +717,9 @@ async function init(): Promise<void> {
   window.addEventListener("pagehide", flushOnHide);
 
   // BEHAVIOR_SPEC.md §4: "a new, blank QuKi takes focus (edit mode), an
-  // existing QuKi does not (reading mode)." At launch `initial` is
-  // whichever QuKi loadInitialQuKi resolved (most-recently-modified, or
-  // blank if none exist) - shouldFocusOnOpen's null-id check applies here
-  // exactly as it does to startNewQuKi/openQuKiInEditor below.
+  // existing QuKi does not (reading mode)." At launch `initial` is always
+  // the blank case (blankInitialQuKi) - shouldFocusOnOpen's null-id check
+  // applies here exactly as it does to startNewQuKi/openQuKiInEditor below.
   editModeTracker = createEditModeTracker(view, shouldFocusOnOpen(initial.id), (isEditMode) => {
     updateModeToggleIcon();
     toolbarController?.setVisible(isEditMode);
@@ -1008,18 +1002,10 @@ async function init(): Promise<void> {
   /**
    * Wired into Settings -> Change location (Electron only; settingsView's
    * `storage` callbacks are undefined on the web build, so this is never
-   * reachable there). BEHAVIOR_SPEC.md §3 says only "returning from it
-   * refreshes the QuKi list" - it doesn't spell out what happens to
-   * whatever QuKi is open in the editor when the root folder changes
-   * mid-session.
-   *
-   * PROPOSAL: treat this like a fresh launch against the new folder -
-   * reload whichever QuKi is most-recently-modified there (or start blank
-   * if none exist), the same fallback loadInitialQuKi uses at real launch.
-   * The alternative (silently leave the editor showing the old folder's
-   * QuKi) would leave it pointed at content that may not even exist at the
-   * new root, and would disagree with what the QuKis button / list /
-   * delete button state say about it.
+   * reachable there). BEHAVIOR_SPEC.md §4's "a blank canvas on launch"
+   * applies here too: the new folder gets exactly the same fresh, empty,
+   * focused editor a real launch would, not whatever was open against the
+   * old folder.
    */
   async function changeStorageLocation(): Promise<void> {
     if (!setupView) return;
@@ -1033,11 +1019,9 @@ async function init(): Promise<void> {
     });
     if (chosenPath === null) return; // cancelled; nothing changed
 
-    const reloaded = await loadInitialQuKi(store, () => {
-      showSaveStatus("Could not load your QuKi — an unexpected error occurred. Starting with a blank QuKi.");
-    });
-    loadDocumentIntoEditor(reloaded.body);
-    autoSave.resetBaseline(reloaded);
+    const blank = blankInitialQuKi();
+    loadDocumentIntoEditor(blank.body);
+    autoSave.resetBaseline(blank);
     updateDeleteButtonState();
     void refreshQuKisButton();
   }

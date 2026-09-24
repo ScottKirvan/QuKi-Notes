@@ -140,14 +140,24 @@ async function main(): Promise<void> {
     assert((await page.getAttribute("#btn-delete", "disabled")) === null, "Delete should be enabled once the Bold press's edit has auto-saved");
     console.log("[e2e-formattingToolbar] PASS: a toolbar button press triggered a real (non-suppressed) auto-save");
 
-    // --- Reloading loads the most-recently-modified QuKi, which — being a
-    // real, already-saved QuKi rather than a blank one — does not take
-    // focus (reading mode), so the toolbar should now be hidden. ---
-    await page.reload();
+    // --- Confirm the Bold edit was really persisted (not a suppressed save)
+    // by starting a brand-new QuKi (BEHAVIOR_SPEC.md §4: every launch and
+    // every "New QuKi" opens blank - there is no reopening the last-edited
+    // QuKi), then opening the saved one back up from the list. Opening an
+    // existing QuKi does not take focus (reading mode), so the toolbar
+    // should be hidden once it's open. ---
+    await page.click("#btn-new-quki");
+    assert((await editorBody(page)) === "", "New QuKi should start blank");
+    assert(await isToolbarVisible(page), "toolbar should be visible on the fresh blank QuKi (edit mode)");
+
+    await page.click("#btn-quki-list");
+    const savedRow = page.locator(".list-row-preview", { hasText: "****" });
+    await savedRow.waitFor({ timeout: 5000 });
+    await savedRow.click();
     await page.waitForSelector(".cm-content");
-    assert((await editorBody(page)) === "****", "the Bold edit should have persisted across reload (confirms the save was real, not suppressed)");
-    assert(!(await isToolbarVisible(page)), "toolbar should be hidden on load for an existing (unfocused, reading-mode) QuKi");
-    console.log("[e2e-formattingToolbar] PASS: toolbar hidden on load for an existing QuKi (reading mode)");
+    assert((await editorBody(page)) === "****", "opening the saved QuKi from the list should show the persisted Bold edit (confirms the save was real, not suppressed)");
+    assert(!(await isToolbarVisible(page)), "toolbar should be hidden on opening an existing (unfocused, reading-mode) QuKi");
+    console.log("[e2e-formattingToolbar] PASS: toolbar hidden on opening an existing QuKi (reading mode)");
 
     // --- Toolbar visibility tracks editor focus/blur directly (editMode.ts's
     // tracker), not some separate listener. ---

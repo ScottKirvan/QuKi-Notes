@@ -6,65 +6,33 @@ import { NodeFsBackend } from "quki-core/node";
 import { QuKiStore, type SaveParams, type SaveResult } from "quki-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AutoSaveController, loadInitialQuKi } from "./persistence.js";
+import { AutoSaveController, blankInitialQuKi } from "./persistence.js";
 
 async function makeTempDir(): Promise<string> {
   return fsp.mkdtemp(path.join(tmpdir(), "quki-persistence-test-"));
 }
 
-describe("loadInitialQuKi", () => {
-  let dir: string;
-  let store: QuKiStore;
+describe("blankInitialQuKi", () => {
+  it("is always blank, regardless of what QuKis already exist on disk", async () => {
+    const dir = await makeTempDir();
+    try {
+      const store = new QuKiStore(new NodeFsBackend(dir));
+      const first = await store.save({ id: null, body: "older" });
+      if (first.status !== "saved") throw new Error("unreachable");
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      const second = await store.save({ id: null, body: "newer" });
+      if (second.status !== "saved") throw new Error("unreachable");
 
-  beforeEach(async () => {
-    dir = await makeTempDir();
-    store = new QuKiStore(new NodeFsBackend(dir));
+      // BEHAVIOR_SPEC.md §4: "A blank canvas on launch" - existing QuKis on
+      // disk (however recently modified) are never reopened automatically.
+      expect(blankInitialQuKi()).toEqual({ id: null, body: "", modifiedAt: null });
+    } finally {
+      await fsp.rm(dir, { recursive: true, force: true });
+    }
   });
 
-  afterEach(async () => {
-    await fsp.rm(dir, { recursive: true, force: true });
-  });
-
-  it("starts blank when no QuKis exist", async () => {
-    const initial = await loadInitialQuKi(store);
-    expect(initial).toEqual({ id: null, body: "", modifiedAt: null });
-  });
-
-  it("loads the most-recently-modified active QuKi", async () => {
-    const first = await store.save({ id: null, body: "older" });
-    if (first.status !== "saved") throw new Error("unreachable");
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    const second = await store.save({ id: null, body: "newer" });
-    if (second.status !== "saved") throw new Error("unreachable");
-
-    const initial = await loadInitialQuKi(store);
-    expect(initial.id).toBe(second.id);
-    expect(initial.body).toBe("newer");
-    expect(initial.modifiedAt).toBe(second.modifiedAt);
-  });
-
-  it("surfaces a thrown error via onLoadError and falls back to blank instead of rejecting", async () => {
-    const thrown = new Error("list() blew up");
-    vi.spyOn(store, "list").mockRejectedValueOnce(thrown);
-    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    const errors: unknown[] = [];
-
-    const initial = await loadInitialQuKi(store, (error) => errors.push(error));
-
-    expect(initial).toEqual({ id: null, body: "", modifiedAt: null });
-    expect(errors).toEqual([thrown]);
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("initial load"), thrown);
-
-    consoleSpy.mockRestore();
-  });
-
-  it("does not throw when store.list() rejects and no onLoadError is given", async () => {
-    vi.spyOn(store, "list").mockRejectedValueOnce(new Error("list() blew up"));
-    vi.spyOn(console, "error").mockImplementation(() => {});
-
-    await expect(loadInitialQuKi(store)).resolves.toEqual({ id: null, body: "", modifiedAt: null });
-
-    vi.restoreAllMocks();
+  it("starts blank when no QuKis exist", () => {
+    expect(blankInitialQuKi()).toEqual({ id: null, body: "", modifiedAt: null });
   });
 });
 
