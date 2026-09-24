@@ -103,6 +103,32 @@ describe("createAndroidSetupApi", () => {
 
       expect((await api.getState()).unreachablePath).toBeNull();
     });
+
+    it("waits for onLocationResolved to finish before resolving - a caller reloading from the new root right after must not race its own directory creation", async () => {
+      let deferredResolve!: () => void;
+      const deferred = new Promise<void>((resolve) => {
+        deferredResolve = resolve;
+      });
+      const deps = baseDeps({ onLocationResolved: vi.fn(() => deferred) });
+      const api = await createAndroidSetupApi(deps);
+
+      let settled = false;
+      const choosePromise = api.chooseFilesystem().then((path) => {
+        settled = true;
+        return path;
+      });
+
+      // Flush several microtask turns without resolving `deferred`: if
+      // chooseFilesystem awaited onLocationResolved as required, it cannot
+      // have settled yet, no matter how many turns pass, since `deferred`
+      // is the only thing that can unblock it.
+      for (let i = 0; i < 10; i++) await Promise.resolve();
+      expect(settled).toBe(false);
+
+      deferredResolve();
+      await choosePromise;
+      expect(settled).toBe(true);
+    });
   });
 
   describe("chooseAppStorage", () => {

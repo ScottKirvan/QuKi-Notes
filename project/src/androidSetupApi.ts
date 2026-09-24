@@ -41,8 +41,14 @@ export interface AndroidSetupApiDeps {
    * (CapacitorFsBackend.setRoot) and re-run mkdirp. A no-op before the
    * backend exists yet - main.ts's own createCapacitorBackend call already
    * mkdirp's the initial root once it's constructed.
+   *
+   * Awaited by chooseFilesystem/chooseAppStorage below: the caller (e.g.
+   * main.ts's changeStorageLocation) reloads from the new root immediately
+   * after either resolves, so the new directory must already exist by then
+   * - firing this without awaiting it would let that reload race the mkdirp
+   * it depends on.
    */
-  onLocationResolved(path: string): void;
+  onLocationResolved(path: string): Promise<void>;
   exitApp(): Promise<void>;
 }
 
@@ -78,7 +84,7 @@ export async function createAndroidSetupApi(deps: AndroidSetupApiDeps): Promise<
       await deps.settingsStore.setStorageLocation(path);
       currentPath = path;
       unreachablePath = null;
-      deps.onLocationResolved(path);
+      await deps.onLocationResolved(path);
       return path;
     },
 
@@ -86,7 +92,7 @@ export async function createAndroidSetupApi(deps: AndroidSetupApiDeps): Promise<
       await deps.settingsStore.setStorageLocation(appStoragePath);
       currentPath = appStoragePath;
       unreachablePath = null;
-      deps.onLocationResolved(appStoragePath);
+      await deps.onLocationResolved(appStoragePath);
       return appStoragePath;
     },
 
