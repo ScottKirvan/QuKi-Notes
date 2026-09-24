@@ -27,7 +27,7 @@ import { createFormattingToolbar, type FormattingToolbarHandle } from "./screens
 import { revealPlugin } from "./reveal/decorations";
 import { hangingIndent } from "./reveal/hangingIndent";
 import { plainTextMode, setPlainTextMode } from "./reveal/plainTextMode";
-import { createEditModeTracker, resolveModeIconState, shouldFocusOnOpen } from "./editMode";
+import { createEditModeTracker, resolveModeIconState, shouldFocusOnOpen, type EditModeTracker } from "./editMode";
 import { imageResolver } from "./reveal/imageResolver";
 import { createImagePastePlugin } from "./pasteImage";
 import { AutoSaveController, loadInitialQuKi, type InitialQuKi } from "./persistence";
@@ -398,6 +398,19 @@ async function init(): Promise<void> {
   // reaches these callbacks - which can only happen after `init()`'s
   // synchronous setup below has finished running.
   let toolbarController: FormattingToolbarHandle | undefined;
+  // Same forward-declared pattern, for the scroll-margin fix on the update
+  // listener below.
+  let editModeTracker: EditModeTracker | undefined;
+  // Set for exactly one update once reading mode transitions to edit mode
+  // (the toolbar appearing may have covered the caret - see the update
+  // listener below), and consumed by the first selection change after
+  // that, whenever it arrives. Deliberately NOT re-checked on every later
+  // selection change while already editing - CodeMirror's own automatic
+  // scroll-into-view already handles that steady-state case correctly
+  // (the toolbar's been visible, and its scroll margin accounted for, the
+  // whole time), and re-running this on every keystroke's caret move was
+  // found to occasionally nudge the scroll position for no reason.
+  let pendingToolbarScrollCheck = false;
 
   // BEHAVIOR_SPEC.md §12 "Indentation": "Indent and dedent act on whole
   // lines, and are bound to both the toolbar buttons and Tab / Shift-Tab."
@@ -456,6 +469,36 @@ async function init(): Promise<void> {
       EditorView.updateListener.of((update) => {
         if (update.docChanged && !suppressAutoSaveNotify) autoSave.notifyChange();
         toolbarController?.onUpdate(update);
+        // The first selection change after reading mode just switched to
+        // edit mode (pendingToolbarScrollCheck, set below) may be the very
+        // tap that caused the switch: the toolbar was hidden - scroll
+        // margin zero - when that tap's own selection-set was processed,
+        // and only became visible once focus followed a moment later, so
+        // CodeMirror's own automatic scroll-into-view for that transaction
+        // ran against the stale margin and left the caret hidden behind the
+        // toolbar once it appeared. Becoming visible is plain DOM, not a
+        // transaction, so nothing else re-checks afterward. The one-shot
+        // flag (rather than reacting to every selection change, or to a
+        // bare timer past focus) means this never fires for an ordinary
+        // selection change made while already editing - CodeMirror's own
+        // handling is already correct there, since the toolbar's margin was
+        // accounted for throughout - and never acts on a stale caret
+        // position from before the tap that caused this transition.
+        //
+        // update.selectionSet is true whenever a transaction's spec
+        // explicitly supplied a selection at all, whether or not its value
+        // actually differs from before - the checkbox toggle explicitly
+        // re-asserts the unchanged selection to preserve the cursor
+        // (checkboxTap.ts), which otherwise satisfies selectionSet without
+        // the caret having actually moved. Requiring the head to have
+        // genuinely changed leaves the flag pending through that (and any
+        // other selection-preserving transaction) rather than consuming it
+        // on the wrong one. effects-only, so it can't retrigger this check.
+        const headMoved = update.startState.selection.main.head !== update.state.selection.main.head;
+        if (update.selectionSet && headMoved && pendingToolbarScrollCheck) {
+          pendingToolbarScrollCheck = false;
+          update.view.dispatch({ effects: EditorView.scrollIntoView(update.state.selection.main.head) });
+        }
       }),
       // The formatting toolbar overlays the scroller's own bottom edge
       // rather than pushing it up (style.css's .formatting-toolbar is
@@ -575,9 +618,14 @@ async function init(): Promise<void> {
   // whichever QuKi loadInitialQuKi resolved (most-recently-modified, or
   // blank if none exist) - shouldFocusOnOpen's null-id check applies here
   // exactly as it does to startNewQuKi/openQuKiInEditor below.
-  const editModeTracker = createEditModeTracker(view, shouldFocusOnOpen(initial.id), (isEditMode) => {
+  editModeTracker = createEditModeTracker(view, shouldFocusOnOpen(initial.id), (isEditMode) => {
     updateModeToggleIcon();
     toolbarController?.setVisible(isEditMode);
+    // See pendingToolbarScrollCheck's declaration and the update listener
+    // above. Cleared on leaving edit mode too, so a flag left pending by a
+    // focus with no following selection change (rare, but possible) can't
+    // reach across into some later, unrelated edit session.
+    pendingToolbarScrollCheck = isEditMode;
   });
   if (shouldFocusOnOpen(initial.id)) view.focus();
   // Seeds the toolbar's initial shown/hidden state the same way
@@ -646,7 +694,7 @@ async function init(): Promise<void> {
    */
   function updateModeToggleIcon(): void {
     const isPlainText = view.state.field(plainTextMode);
-    const iconState = resolveModeIconState(isPlainText, editModeTracker.isEditMode());
+    const iconState = resolveModeIconState(isPlainText, editModeTracker?.isEditMode() ?? false);
     const icon =
       iconState === "plain-text"
         ? createElement(CodeXml, { width: 24, height: 24, "aria-hidden": "true", focusable: "false" })
