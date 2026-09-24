@@ -2,8 +2,24 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!--
+      allowBackup is deliberately true, not the simple false a previous fix
+      set to solve a real stale-first-launch bug (a restored
+      quki_settings.json made a fresh install look like a returning one).
+      Turning backup off entirely also silently stopped protecting the
+      app-storage QuKi content across uninstall/reinstall - a real
+      regression, since the old Flutter app never set allowBackup at all
+      (defaulting to the platform's own true) and users have relied on that
+      actual behaviour regardless of what the in-app storage warning says.
+      fullBackupContent/dataExtractionRules scope backup instead of
+      disabling it: QuKi content stays backed up, quki_settings.json (the
+      actual cause of the original bug) does not. See backup_rules.xml and
+      data_extraction_rules.xml for the excluded paths and why.
+    -->
     <application
-        android:allowBackup="false"
+        android:allowBackup="true"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
