@@ -227,7 +227,7 @@ const androidFlutterMigrationDeps: AndroidFlutterMigrationDeps = {
  * -> first-launch), mirroring Electron's app.whenReady() resolving the
  * storage root before the renderer calls quki:setup:getState.
  */
-async function createAndroidSetupApiForMain(overlayHost: HTMLElement, onLocationResolved: (path: string) => void): Promise<ElectronSetupApi> {
+async function createAndroidSetupApiForMain(overlayHost: HTMLElement, onLocationResolved: (path: string) => Promise<void>): Promise<ElectronSetupApi> {
   const { path: privateStoragePath } = await CapacitorStorage.getPrivateStoragePath();
   const settingsStore = new AndroidSettingsStore(
     {
@@ -395,13 +395,19 @@ async function init(): Promise<void> {
   // mid-session (Settings -> Change location); see capacitorBackend.ts's
   // CapacitorFsBackend.setRoot.
   let androidBackend: CapacitorFsBackend | undefined;
-  const onAndroidLocationResolved = (path: string): void => {
+  const onAndroidLocationResolved = async (path: string): Promise<void> => {
     if (!androidBackend) return; // first-launch/genuine-first-run: mkdirp already runs once createCapacitorBackend constructs it below.
     androidBackend.setRoot(path);
-    void androidBackend.mkdirp("").catch((error: unknown) => {
+    // Awaited (not fire-and-forget): androidSetupApi.ts's chooseFilesystem/
+    // chooseAppStorage await this before resolving, and changeStorageLocation
+    // reloads from the new root immediately after either resolves - the new
+    // directory must already exist by then, not just be on its way.
+    try {
+      await androidBackend.mkdirp("");
+    } catch (error) {
       console.error("QuKi Android storage root change: mkdirp failed unexpectedly:", error);
       showSaveStatus("Could not create the QuKi Notes folder — an unexpected error occurred. Your QuKis will not load or save until it is.");
-    });
+    }
   };
 
   // Electron's preload script (project/electron/src/preload.ts) exposes
