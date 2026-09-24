@@ -3,9 +3,14 @@ import { ArrowLeft } from "lucide";
 import { setIconButton } from "./icons";
 import type { ShowToast } from "./toast";
 
+export interface StorageLocationInfo {
+  path: string;
+  isAppStorage: boolean;
+}
+
 export interface SettingsStorageCallbacks {
   /** Reads the current storage location fresh each time (main.ts's setup IPC is the source of truth, not a value cached at construction). */
-  getCurrentPath: () => Promise<string>;
+  getCurrentPath: () => Promise<StorageLocationInfo>;
   /**
    * Reopens the setup screen in its cancelable mode and, if the user
    * actually changes the location, does whatever the app needs to do to
@@ -44,14 +49,21 @@ export interface SettingsView {
 const STORAGE_NOTE =
   "QuKis are stored in this browser, not in a folder you choose. Clearing this site's browser data will delete them.";
 
+// Ported verbatim from lib/features/settings/settings_screen.dart's Storage
+// ListTile, which switches title and (colour-coded) subtitle on isAppStorage
+// rather than always showing a plain path.
+const FILESYSTEM_STORAGE_TITLE = "Filesystem storage";
+const APP_STORAGE_TITLE = "App storage (private)";
+const APP_STORAGE_SUBTITLE = "Files will be removed on uninstall. Change location.";
+
 export function createSettingsView(container: HTMLElement, callbacks: SettingsViewCallbacks): SettingsView {
   const storageSectionHtml = callbacks.storage
     ? `
       <section class="settings-section">
         <h2>Storage</h2>
-        <div class="settings-row">
-          <span>Location</span>
-          <span class="settings-value storage-location-value">…</span>
+        <div class="settings-row settings-row-stacked storage-status">
+          <span class="storage-status-title"></span>
+          <span class="storage-status-subtitle storage-location-value">…</span>
         </div>
         <button type="button" class="settings-row settings-link change-location-btn">
           <span>Change location</span>
@@ -108,16 +120,21 @@ export function createSettingsView(container: HTMLElement, callbacks: SettingsVi
 
   if (callbacks.storage) {
     const storage = callbacks.storage;
+    const statusTitleEl = container.querySelector<HTMLElement>(".storage-status-title")!;
     const locationValueEl = container.querySelector<HTMLElement>(".storage-location-value")!;
     const changeLocationBtn = container.querySelector<HTMLButtonElement>(".change-location-btn")!;
 
     const refreshLocation = (): void => {
       void storage.getCurrentPath().then(
-        (path) => {
-          locationValueEl.textContent = path;
+        ({ path, isAppStorage }) => {
+          statusTitleEl.textContent = isAppStorage ? APP_STORAGE_TITLE : FILESYSTEM_STORAGE_TITLE;
+          locationValueEl.textContent = isAppStorage ? APP_STORAGE_SUBTITLE : path;
+          locationValueEl.classList.toggle("storage-status-warning", isAppStorage);
         },
         () => {
+          statusTitleEl.textContent = FILESYSTEM_STORAGE_TITLE;
           locationValueEl.textContent = "Unknown";
+          locationValueEl.classList.remove("storage-status-warning");
         },
       );
     };

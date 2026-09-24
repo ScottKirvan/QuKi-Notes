@@ -426,7 +426,7 @@ async function init(): Promise<void> {
       : isAndroid
         ? await createAndroidSetupApiForMain(overlayHost, onAndroidLocationResolved)
         : undefined;
-  const setupView = setupApi ? createSetupView(overlayHost, setupApi) : undefined;
+  const setupView = setupApi ? createSetupView(overlayHost, setupApi, { isAndroid }) : undefined;
 
   // BEHAVIOR_SPEC.md §3: "if no storage location has ever been chosen, the
   // setup screen appears instead of the editor" - nothing below this may
@@ -1062,7 +1062,7 @@ async function init(): Promise<void> {
       ? {
           getCurrentPath: async () => {
             const state = await setupApi.getState();
-            return state.path ?? "Unknown";
+            return { path: state.path ?? "Unknown", isAppStorage: state.isAppStorage };
           },
           onChangeLocation: changeStorageLocation,
         }

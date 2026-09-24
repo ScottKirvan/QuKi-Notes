@@ -142,6 +142,7 @@ function registerSetupIpc(prefsStore: PreferencesStore): void {
   ipcMain.handle(SETUP_CHANNELS.getState, () => ({
     chosen: backend !== undefined,
     path: currentRoot,
+    isAppStorage: currentRoot !== null && currentRoot === resolveAppStorageDir(),
     unreachablePath: unreachableStoragePath,
   }));
 

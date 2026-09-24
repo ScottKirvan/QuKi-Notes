@@ -369,6 +369,25 @@ button.settings-row {
   color: var(--text-muted);
 }
 
+/* Storage section's status row: Flutter's ListTile shows a title above a
+   subtitle, both left-aligned, unlike every other settings-row's
+   label-left/value-right layout. */
+.settings-row-stacked {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.storage-status-subtitle {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* Matches Flutter's colorScheme.error on the app-storage warning subtitle. */
+.storage-status-warning {
+  color: var(--text-error);
+}
+
 .settings-note {
   color: var(--text-muted);
   font-size: 13px;
