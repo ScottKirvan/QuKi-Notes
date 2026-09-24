@@ -130,13 +130,11 @@ async function runScenario(browser: Browser, url: string, scheme: "light" | "dar
   assert(versionText === `Version ${expectedVersion}`, `dialog must show "Version ${expectedVersion}", got "${versionText}"`);
   const buildText = (await dialog.locator(".about-build").textContent()) ?? "";
   const buildParts = buildText.split(" · ");
-  assert(buildParts[0] === expectedCommit, `dialog's build commit must equal git rev-parse --short=7 HEAD (${expectedCommit}), got "${buildParts[0]}" in "${buildText}"`);
   if (expectedBranch !== "") {
-    assert(buildParts[1] === expectedBranch, `dialog's branch must be "${expectedBranch}", got "${buildParts[1]}" in "${buildText}"`);
+    assert(buildParts[0] === expectedBranch, `dialog's branch must be "${expectedBranch}", got "${buildParts[0]}" in "${buildText}"`);
   }
-  assert(/^\d{4}-\d\d-\d\d \d\d:\d\d UTC$/.test(buildParts[2] ?? ""), `build time must look like "YYYY-MM-DD HH:MM UTC", got "${buildParts[2]}"`);
-  const showsDirty = buildParts[3] === "uncommitted changes";
-  assert(showsDirty === expectedDirty, `uncommitted-changes flag must be ${expectedDirty}, dialog shows ${showsDirty} ("${buildText}")`);
+  assert(/^\d{4}-\d\d-\d\d \d\d:\d\d UTC$/.test(buildParts[1] ?? ""), `build time must look like "YYYY-MM-DD HH:MM UTC", got "${buildParts[1]}"`);
+  assert(buildParts.length === 2, `dialog must show only branch and build time (no commit hash, no uncommitted-changes flag), got "${buildText}"`);
   const timeHeight = await dialog.locator(".about-build-part", { hasText: " UTC" }).first().evaluate((el) => el.getBoundingClientRect().height);
   assert(timeHeight < 20, `the build time must not be split across lines, its box is ${timeHeight}px tall`);
   console.log(`${tag} PASS: dialog shows "${versionText}" and build "${buildText}"`);
@@ -173,9 +171,11 @@ async function runScenario(browser: Browser, url: string, scheme: "light" | "dar
   const toastText = await page.textContent(".toast");
   assert(toastText === "Copied to clipboard.", `expected the usual copy toast, got "${toastText}"`);
   const clipboard = await page.evaluate(() => navigator.clipboard.readText());
-  const expectedCopy = `QuKi Notes ${expectedVersion} (commit ${expectedCommit}, branch ${expectedBranch === "" ? "unknown" : expectedBranch}`;
+  const expectedCopy = `QuKi Notes ${expectedVersion} (branch ${expectedBranch === "" ? "unknown" : expectedBranch}`;
   assert(clipboard.startsWith(expectedCopy), `clipboard must hold the full build string starting "${expectedCopy}", got "${clipboard}"`);
   assert(clipboard.endsWith(")"), `clipboard build string must be closed, got "${clipboard}"`);
+  assert(!clipboard.includes("commit "), `clipboard must not include the commit hash, got "${clipboard}"`);
+  assert(!clipboard.includes("uncommitted changes"), `clipboard must not include the uncommitted-changes flag, got "${clipboard}"`);
   const toastOnTop = await page.evaluate(() => {
     const toast = document.querySelector(".toast")!.getBoundingClientRect();
     const hit = document.elementFromPoint(toast.left + toast.width / 2, toast.top + toast.height / 2);
