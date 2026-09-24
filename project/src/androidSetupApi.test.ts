@@ -38,7 +38,7 @@ describe("createAndroidSetupApi", () => {
 
     const api = await createAndroidSetupApi(deps);
 
-    expect(await api.getState()).toEqual({ chosen: false, path: null, unreachablePath: null });
+    expect(await api.getState()).toEqual({ chosen: false, path: null, isAppStorage: false, unreachablePath: null });
   });
 
   it("reports the already-chosen path from a valid settings file without touching migration or the permission gate", async () => {
@@ -48,7 +48,7 @@ describe("createAndroidSetupApi", () => {
 
     const api = await createAndroidSetupApi(deps);
 
-    expect(await api.getState()).toEqual({ chosen: true, path: "/storage/emulated/0/Documents/QuKi_Notes", unreachablePath: null });
+    expect(await api.getState()).toEqual({ chosen: true, path: "/storage/emulated/0/Documents/QuKi_Notes", isAppStorage: false, unreachablePath: null });
     expect(deps.requestFilesystemAccess).not.toHaveBeenCalled();
     expect(deps.resolveMigratedStorageRoot).not.toHaveBeenCalled();
   });
@@ -63,7 +63,7 @@ describe("createAndroidSetupApi", () => {
 
     const api = await createAndroidSetupApi(deps);
 
-    expect(await api.getState()).toEqual({ chosen: false, path: null, unreachablePath: "/moved-or-deleted-folder" });
+    expect(await api.getState()).toEqual({ chosen: false, path: null, isAppStorage: false, unreachablePath: "/moved-or-deleted-folder" });
   });
 
   it("silently adopts a migrated path and persists it", async () => {
@@ -71,8 +71,18 @@ describe("createAndroidSetupApi", () => {
 
     const api = await createAndroidSetupApi(deps);
 
-    expect(await api.getState()).toEqual({ chosen: true, path: "/data/data/com.quki.quki_notes/app_flutter/qukis", unreachablePath: null });
+    expect(await api.getState()).toEqual({ chosen: true, path: "/data/data/com.quki.quki_notes/app_flutter/qukis", isAppStorage: false, unreachablePath: null });
     expect(await deps.settingsStore.read()).toEqual({ storagePath: "/data/data/com.quki.quki_notes/app_flutter/qukis", storageChosen: true });
+  });
+
+  it("reports isAppStorage true only when the chosen path is exactly the private app-storage directory", async () => {
+    const { store, files } = fakeSettingsStore();
+    await store.setStorageLocation(`${PRIVATE_STORAGE_PATH}/QuKi_Notes`);
+    const deps = baseDeps({ settingsStore: new AndroidSettingsStore({ exists: async (p) => p in files, readText: async (p) => files[p]!, writeTextAtomic: async () => undefined }, SETTINGS_PATH) });
+
+    const api = await createAndroidSetupApi(deps);
+
+    expect((await api.getState()).isAppStorage).toBe(true);
   });
 
   describe("chooseFilesystem", () => {
@@ -84,7 +94,7 @@ describe("createAndroidSetupApi", () => {
 
       expect(path).toBe("/storage/emulated/0/Documents/QuKi_Notes");
       expect(deps.requestFilesystemAccess).toHaveBeenCalledTimes(1);
-      expect(await api.getState()).toEqual({ chosen: true, path: "/storage/emulated/0/Documents/QuKi_Notes", unreachablePath: null });
+      expect(await api.getState()).toEqual({ chosen: true, path: "/storage/emulated/0/Documents/QuKi_Notes", isAppStorage: false, unreachablePath: null });
       expect(await deps.settingsStore.read()).toEqual({ storagePath: "/storage/emulated/0/Documents/QuKi_Notes", storageChosen: true });
       expect(deps.onLocationResolved).toHaveBeenCalledWith("/storage/emulated/0/Documents/QuKi_Notes");
     });
@@ -139,7 +149,7 @@ describe("createAndroidSetupApi", () => {
       const path = await api.chooseAppStorage();
 
       expect(path).toBe(`${PRIVATE_STORAGE_PATH}/QuKi_Notes`);
-      expect(await api.getState()).toEqual({ chosen: true, path: `${PRIVATE_STORAGE_PATH}/QuKi_Notes`, unreachablePath: null });
+      expect(await api.getState()).toEqual({ chosen: true, path: `${PRIVATE_STORAGE_PATH}/QuKi_Notes`, isAppStorage: true, unreachablePath: null });
       expect(await deps.settingsStore.read()).toEqual({ storagePath: `${PRIVATE_STORAGE_PATH}/QuKi_Notes`, storageChosen: true });
       expect(deps.onLocationResolved).toHaveBeenCalledWith(`${PRIVATE_STORAGE_PATH}/QuKi_Notes`);
     });

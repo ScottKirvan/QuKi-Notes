@@ -8,6 +8,8 @@
 export interface StorageLocationState {
   chosen: boolean;
   path: string | null;
+  /** Whether `path` is the app's own private-storage default, not a user-picked folder. Meaningless when `path` is null. */
+  isAppStorage: boolean;
   /**
    * Set when this app's own preferences.json already recorded a chosen
    * storagePath but it failed re-validation at this launch (see

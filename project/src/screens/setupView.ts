@@ -35,6 +35,28 @@ export interface SetupView {
   show(options: SetupViewShowOptions): Promise<string | null>;
 }
 
+export interface SetupViewOptions {
+  /**
+   * Ported verbatim from lib/features/setup/storage_setup_screen.dart's
+   * `filesystemTitle`/`filesystemSubtitle`, which branch on `Platform.isAndroid`:
+   * Android names the exact destination and reassures the user their files
+   * are reachable from any file manager; desktop describes an open-ended
+   * folder choice instead, since there is no single fixed destination there.
+   */
+  isAndroid: boolean;
+}
+
+const FILESYSTEM_CARD_COPY = {
+  android: {
+    title: "Filesystem storage — Documents/QuKi_Notes",
+    subtitle: "Your QuKis are saved as plain files in your Documents folder. They survive uninstall and are accessible with any file manager.",
+  },
+  desktop: {
+    title: "Choose a folder",
+    subtitle: "Your QuKis are saved as plain files you can access anytime. They survive uninstall.",
+  },
+};
+
 /**
  * BEHAVIOR_SPEC.md §3's setup screen. Not part of the Navigator push/pop
  * stack (§2/§3: "this replaces the whole app UI until resolved" on first
@@ -42,7 +64,9 @@ export interface SetupView {
  * overlay host, the same layer toast/confirmDialog already use, rather than
  * as one of Navigator's managed view sections.
  */
-export function createSetupView(container: HTMLElement, api: ElectronSetupApi): SetupView {
+export function createSetupView(container: HTMLElement, api: ElectronSetupApi, options: SetupViewOptions): SetupView {
+  const filesystemCopy = options.isAndroid ? FILESYSTEM_CARD_COPY.android : FILESYSTEM_CARD_COPY.desktop;
+
   const overlay = document.createElement("div");
   overlay.className = "setup-overlay";
   overlay.hidden = true;
@@ -53,8 +77,8 @@ export function createSetupView(container: HTMLElement, api: ElectronSetupApi): 
       <p class="setup-subtitle">Choose once. You can change this later in Settings.</p>
       <div class="setup-cards">
         <button type="button" class="setup-card setup-card-filesystem">
-          <h2>Filesystem storage</h2>
-          <p>Choose a folder on this computer.</p>
+          <h2>${filesystemCopy.title}</h2>
+          <p>${filesystemCopy.subtitle}</p>
         </button>
         <button type="button" class="setup-card setup-card-appstorage">
           <h2>Use app storage</h2>

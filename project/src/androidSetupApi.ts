@@ -76,7 +76,7 @@ export async function createAndroidSetupApi(deps: AndroidSetupApiDeps): Promise<
 
   return {
     async getState(): Promise<StorageLocationState> {
-      return { chosen: currentPath !== null, path: currentPath, unreachablePath };
+      return { chosen: currentPath !== null, path: currentPath, isAppStorage: currentPath === appStoragePath, unreachablePath };
     },
 
     async chooseFilesystem(): Promise<string | null> {

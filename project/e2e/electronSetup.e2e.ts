@@ -128,6 +128,17 @@ async function main(): Promise<void> {
   assert(cancelHidden !== null, "first-launch setup screen must not offer a cancel option");
   console.log("[e2e-setup] PASS: fresh app shows the setup screen (not the editor), exact copy, no cancel option");
 
+  // Desktop's "Filesystem storage" card copy - ported verbatim from Flutter's
+  // storage_setup_screen.dart, desktop (non-Android) branch.
+  const filesystemCardTitle = await page.textContent(".setup-card-filesystem h2");
+  const filesystemCardSubtitle = await page.textContent(".setup-card-filesystem p");
+  assert(filesystemCardTitle === "Choose a folder", `unexpected desktop filesystem card title: ${filesystemCardTitle}`);
+  assert(
+    filesystemCardSubtitle === "Your QuKis are saved as plain files you can access anytime. They survive uninstall.",
+    `unexpected desktop filesystem card subtitle: ${filesystemCardSubtitle}`,
+  );
+  console.log("[e2e-setup] PASS: desktop's Filesystem storage card matches Flutter's desktop copy exactly");
+
   // --- Scenario 2: choosing "Use app storage" proceeds to the editor, and
   // a QuKi created afterward lands in the app-private qukis/ folder. ---
   await page.click(".setup-card-appstorage");
@@ -146,6 +157,23 @@ async function main(): Promise<void> {
   assert(mdFiles.length === 1, `expected exactly one .md file in ${appStorageDir}, found: ${mdFiles.join(", ")}`);
   assert(fs.readFileSync(path.join(appStorageDir, mdFiles[0]!), "utf8") === markerA, "on-disk file should equal the typed marker");
   console.log(`[e2e-setup] PASS: "Use app storage" proceeded to the editor; QuKi landed in ${appStorageDir}`);
+
+  // Settings must show the app-storage title and Flutter's exact red-toned
+  // uninstall warning, not the plain path a filesystem-storage choice shows.
+  await page.click("#btn-settings");
+  await page.waitForSelector("#view-settings:not([hidden])");
+  const appStorageTitle = await page.textContent(".storage-status-title");
+  const appStorageSubtitle = await page.textContent(".storage-location-value");
+  assert(appStorageTitle === "App storage (private)", `unexpected app-storage title: ${appStorageTitle}`);
+  assert(
+    appStorageSubtitle === "Files will be removed on uninstall. Change location.",
+    `unexpected app-storage subtitle: ${appStorageSubtitle}`,
+  );
+  const hasWarningClass = await page.evaluate(() => document.querySelector(".storage-location-value")?.classList.contains("storage-status-warning") ?? false);
+  assert(hasWarningClass, "the app-storage subtitle must carry the warning colour class");
+  console.log("[e2e-setup] PASS: Settings shows the app-storage title and Flutter's exact uninstall warning, colour-flagged");
+  await page.click("#view-settings .back-btn");
+  await page.waitForSelector(".cm-content");
 
   await app.close();
 
@@ -227,9 +255,13 @@ async function main(): Promise<void> {
 
   await page.click("#btn-settings");
   await page.waitForSelector("#view-settings:not([hidden])");
+  const shownTitleBefore = await page.textContent(".storage-status-title");
+  assert(shownTitleBefore === "Filesystem storage", `unexpected filesystem-storage title: ${shownTitleBefore}`);
   const shownPathBefore = await page.textContent(".storage-location-value");
   assert(shownPathBefore === initialFolder, `Settings should show the current folder, got: ${shownPathBefore}`);
-  console.log(`[e2e-setup] PASS: Settings shows the current storage location: ${shownPathBefore}`);
+  const hasWarningClassBefore = await page.evaluate(() => document.querySelector(".storage-location-value")?.classList.contains("storage-status-warning") ?? false);
+  assert(!hasWarningClassBefore, "filesystem storage must not carry the app-storage warning colour class");
+  console.log(`[e2e-setup] PASS: Settings shows the "Filesystem storage" title and the current storage location: ${shownPathBefore}`);
 
   // Change location is reachable and cancelable; cancelling changes nothing.
   await page.click(".change-location-btn");

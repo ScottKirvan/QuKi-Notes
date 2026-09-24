@@ -61,6 +61,8 @@ export const SETUP_CHANNELS = {
 export interface StorageLocationState {
   chosen: boolean;
   path: string | null;
+  /** Whether `path` is the app's own private-storage default (resolveAppStorageDir), not a user-picked folder. Meaningless when `path` is null. */
+  isAppStorage: boolean;
   /**
    * Set when this app's own preferences.json already recorded a chosen
    * storagePath but it failed re-validation at this launch (folder moved,
