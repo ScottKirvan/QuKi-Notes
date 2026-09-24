@@ -62,6 +62,7 @@ type WindowWithQukiView = typeof window & {
     dispatch: (spec: unknown) => void;
     focus: () => void;
     contentDOM: HTMLElement;
+    coordsAtPos: (pos: number, side?: -1 | 1) => { top: number; bottom: number; left: number; right: number } | null;
   };
 };
 
@@ -248,6 +249,67 @@ async function main(): Promise<void> {
     await page.keyboard.press("Shift+Tab");
     assert((await editorBody(page)) === "paragraph", `expected Shift-Tab to remove it again, got: ${JSON.stringify(await editorBody(page))}`);
     console.log("[e2e-formattingToolbar] PASS: Tab and Shift-Tab still indent/dedent in the editor");
+
+    // --- A caret that was visible while reading (toolbar hidden) must not
+    // end up hidden behind the toolbar once it appears. The toolbar is
+    // plain DOM outside CodeMirror, so becoming visible is not a
+    // transaction - main.ts explicitly re-checks the caret against the
+    // editor's scrollMargins facet when edit mode is entered, since nothing
+    // else would trigger that recheck. This must target an ordinary line,
+    // not the QuKi's actual last line: .cm-content's own bottom padding
+    // (main.ts's EditorView.theme) permanently reserves space for the
+    // toolbar there regardless of whether it's shown, so the true last line
+    // is already safe by construction and would pass even without the fix.
+    // Scrolling only partway down and tapping whatever line currently sits
+    // at the bottom of the visible viewport (with plenty of the document
+    // still unscrolled below it) is the realistic "tap the last line I can
+    // currently see while reading" gesture, and has no such protection. ---
+    await page.setViewportSize({ width: 400, height: 500 });
+    const manyLines = Array.from({ length: 80 }, (_, i) => `line ${i + 1}`).join("\n");
+    await setDocAndSelection(page, manyLines, 0, 0); // dispatch also focuses (edit mode)
+    await page.evaluate(() => (window as WindowWithQukiView).qukiView.contentDOM.blur());
+    assert(!(await isToolbarVisible(page)), "toolbar should be hidden after blur, before the scroll-margin scenario");
+
+    await page.evaluate(() => {
+      const scroller = (window as WindowWithQukiView).qukiView.contentDOM.closest(".cm-scroller") as HTMLElement;
+      scroller.scrollTop = scroller.scrollHeight / 2;
+    });
+
+    const targetLine = await page.evaluate(() => {
+      const scroller = (window as WindowWithQukiView).qukiView.contentDOM.closest(".cm-scroller") as HTMLElement;
+      const scrollerBottom = scroller.getBoundingClientRect().bottom;
+      let best: { top: number; bottom: number; left: number } | null = null;
+      for (const line of Array.from(document.querySelectorAll(".cm-line"))) {
+        const box = line.getBoundingClientRect();
+        if (box.bottom <= scrollerBottom && (best === null || box.bottom > best.bottom)) {
+          best = { top: box.top, bottom: box.bottom, left: box.left };
+        }
+      }
+      return best;
+    });
+    assert(targetLine !== null, "should find a line sitting at the bottom of the current scroll position");
+
+    // A real click, not a dispatched selection - the same gesture a user
+    // would use to place the caret while reading. page.mouse.click (not a
+    // locator click) so Playwright can't "helpfully" scroll the target into
+    // view first - it's already visible, which is the whole point.
+    await page.mouse.click(targetLine!.left + 5, (targetLine!.top + targetLine!.bottom) / 2);
+    assert(await isToolbarVisible(page), "toolbar should appear once the tap focuses the editor");
+
+    // The fix's own corrective scroll is deliberately deferred a tick past
+    // the click (see main.ts's comment on this), so give it a moment to run
+    // and repaint before checking.
+    await page.waitForTimeout(100);
+
+    const clearance = await page.evaluate(() => {
+      const view = (window as WindowWithQukiView).qukiView;
+      const coords = view.coordsAtPos(view.state.selection.main.head);
+      const toolbarTop = document.querySelector(".formatting-toolbar")!.getBoundingClientRect().top;
+      return coords === null ? null : toolbarTop - coords.bottom;
+    });
+    assert(clearance !== null, "coordsAtPos should resolve a visible caret position");
+    assert(clearance! >= 0, `caret should be scrolled clear of the toolbar (gap between caret bottom and toolbar top), got ${clearance}`);
+    console.log("[e2e-formattingToolbar] PASS: a caret revealed by the toolbar on focus is scrolled clear of it, not hidden behind it");
 
     console.log("[e2e-formattingToolbar] ALL SCENARIOS PASSED");
   } finally {
