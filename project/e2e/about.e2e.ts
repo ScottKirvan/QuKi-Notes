@@ -186,15 +186,53 @@ async function runScenario(browser: Browser, url: string, scheme: "light" | "dar
   if (screenshotDir !== undefined) await page.screenshot({ path: path.join(screenshotDir, `about-${scheme}-copied.png`) });
   console.log(`${tag} PASS: tapping the version/build copied "${clipboard}" and toasted above the backdrop`);
 
+  const expectedLinkRows: Array<{ row: string; title: string; description: string; label: string; url: string; accent: boolean }> = [
+    { row: "docs", title: "Documentation", description: "Official guide and setup instructions.", label: "Visit", url: "https://www.scottkirvan.com/QuKi-Notes/", accent: true },
+    { row: "discord", title: "Discord", description: "Chat with other QuKi-Notes users and get support.", label: "Join", url: "https://discord.gg/TN6XJSNK5Y", accent: false },
+    { row: "github", title: "GitHub", description: "Source code, issues, and release notes.", label: "View", url: "https://github.com/ScottKirvan/QuKi-Notes", accent: false },
+    { row: "kofi", title: "Buy me a coffee", description: "Show your love. Support QuKi-Notes and the author.", label: "Give", url: "https://ko-fi.com/ScottKirvan", accent: false },
+  ];
+  for (const expected of expectedLinkRows) {
+    const row = dialog.locator(`.about-link-row:has(.about-link-btn[data-row="${expected.row}"])`);
+    const title = await row.locator(".about-link-title").textContent();
+    assert(title === expected.title, `${expected.row} link row title should be "${expected.title}", got "${title}"`);
+    const description = await row.locator(".about-link-desc").textContent();
+    assert(description === expected.description, `${expected.row} link row description should be "${expected.description}", got "${description}"`);
+    const link = row.locator(".about-link-btn");
+    const label = await link.textContent();
+    assert(label === expected.label, `${expected.row} link button label should be "${expected.label}", got "${label}"`);
+    const href = await link.getAttribute("href");
+    assert(href === expected.url, `${expected.row} link href should be "${expected.url}", got "${href}"`);
+    assert((await link.getAttribute("target")) === "_blank", `${expected.row} link must open externally (target=_blank)`);
+    assert((await link.getAttribute("rel")) === "noopener noreferrer", `${expected.row} link must have rel="noopener noreferrer"`);
+    const hasAccent = (await link.getAttribute("class"))?.includes("accent") ?? false;
+    assert(hasAccent === expected.accent, `${expected.row} link's accent styling should be ${expected.accent}, got ${hasAccent}`);
+    const iconChildCount = await row.locator(".about-link-icon").evaluate((el) => el.children.length + (el.textContent?.trim() ? 1 : 0));
+    assert(iconChildCount > 0, `${expected.row} link row must render an icon`);
+  }
+  console.log(`${tag} PASS: all four Help-dialog link rows render with the expected title, description, label, url and styling`);
+
   await dialog.locator(".about-copy").focus();
   const focusOrder: string[] = [await activeElementDescription(page)];
-  for (const key of ["Tab", "Tab", "Shift+Tab", "Shift+Tab"]) {
+  for (const key of ["Tab", "Tab", "Tab", "Tab", "Tab", "Shift+Tab", "Shift+Tab", "Shift+Tab", "Shift+Tab", "Shift+Tab"]) {
     await page.keyboard.press(key);
     focusOrder.push(await activeElementDescription(page));
   }
-  const expectedOrder = ["button.about-copy", "button.about-close", "button.about-copy", "button.about-close", "button.about-copy"];
-  assert(JSON.stringify(focusOrder) === JSON.stringify(expectedOrder), `Tab must cycle copy -> close -> copy, Shift+Tab back, inside the dialog; got ${focusOrder.join(" -> ")}`);
-  console.log(`${tag} PASS: keyboard focus stays trapped in the dialog (${focusOrder.join(" -> ")})`);
+  const expectedOrder = [
+    "button.about-copy",
+    "a.about-link-btn.accent",
+    "a.about-link-btn",
+    "a.about-link-btn",
+    "a.about-link-btn",
+    "button.about-close",
+    "a.about-link-btn",
+    "a.about-link-btn",
+    "a.about-link-btn",
+    "a.about-link-btn.accent",
+    "button.about-copy",
+  ];
+  assert(JSON.stringify(focusOrder) === JSON.stringify(expectedOrder), `Tab must cycle copy -> the 4 link buttons -> close -> back, Shift+Tab reverses it, inside the dialog; got ${focusOrder.join(" -> ")}`);
+  console.log(`${tag} PASS: keyboard focus stays trapped in the dialog, cycling through all 4 link buttons (${focusOrder.join(" -> ")})`);
 
   await dialog.locator(".about-close").click();
   await assertDialogHidden(page, "after Close");
