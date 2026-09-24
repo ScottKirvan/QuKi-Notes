@@ -22,6 +22,9 @@ import { cleanupStaleServiceWorker } from "./staleServiceWorkerCleanup";
 import { CapacitorFsBackend, CapacitorStorage } from "./capacitorBackend";
 import { createStorageAccessGate } from "./androidStorageAccess";
 import { resolveMigratedStorageRoot, type AndroidFlutterMigrationDeps } from "./androidFlutterMigration";
+import { createAndroidSetupApi } from "./androidSetupApi";
+import { AndroidSettingsStore } from "./androidSettingsStore";
+import type { ElectronSetupApi } from "./electronSetupApi";
 import { applyDedent, applyIndent } from "./toolbar/indentDedent";
 import { runToolbarCommand } from "./toolbarAdapter";
 import { createFormattingToolbar, type FormattingToolbarHandle } from "./screens/formattingToolbar";
@@ -216,35 +219,70 @@ const androidFlutterMigrationDeps: AndroidFlutterMigrationDeps = {
 };
 
 /**
- * `<external Documents>/QuKi_Notes`, matching the Flutter app's own
- * StoragePlugin.kt — the plain fixed default used once a migrated folder
- * isn't found below. All-files access is confirmed granted by the time this
- * runs (ensureAndroidStorageAccess above), on every platform this is
- * reachable from (see main() below) — so an mkdirp failure here is a
- * genuine unexpected error, not a missing-permission case.
+ * Constructs androidSetupApi.ts's platform-free ElectronSetupApi
+ * implementation, wiring its deps to the real Capacitor plugin calls and to
+ * ensureAndroidStorageAccess above. Runs once, before the setup screen (if
+ * any) is even shown — the async factory itself runs
+ * androidSetupDecision.ts's precedence (settings file -> Flutter migration
+ * -> first-launch), mirroring Electron's app.whenReady() resolving the
+ * storage root before the renderer calls quki:setup:getState.
  */
-async function resolveAndroidStoragePath(overlayHost: HTMLElement): Promise<string> {
-  // STORAGE_CONTRACT.md's migration section, Android side: a returning
-  // Flutter user skips straight to their existing content — no permission
-  // screen, no onboarding — the same outcome the desktop migration chunk
-  // achieves. resolveMigratedStorageRoot only ever returns a path that
-  // already passed a real write-probe (see androidFlutterMigration.ts), so
-  // reaching the all-files-access permission screen below means neither a
-  // recorded Flutter choice nor an existing app-storage folder validated.
-  const migratedPath = await resolveMigratedStorageRoot(androidFlutterMigrationDeps);
-  if (migratedPath !== null) return migratedPath;
+async function createAndroidSetupApiForMain(overlayHost: HTMLElement, onLocationResolved: (path: string) => void): Promise<ElectronSetupApi> {
+  const { path: privateStoragePath } = await CapacitorStorage.getPrivateStoragePath();
+  const settingsStore = new AndroidSettingsStore(
+    {
+      exists: async (path) => (await CapacitorStorage.exists({ path })).exists,
+      readText: async (path) => (await CapacitorStorage.readText({ path })).content,
+      writeTextAtomic: async (path, content) => CapacitorStorage.writeTextAtomic({ path, content }),
+    },
+    `${privateStoragePath}/quki_settings.json`,
+  );
 
-  await ensureAndroidStorageAccess(overlayHost);
-  const { path } = await CapacitorStorage.getExternalDocumentsPath();
-  return path;
+  return createAndroidSetupApi({
+    privateStoragePath,
+    settingsStore,
+    // Only reached from api.chooseFilesystem() — i.e. only when the user
+    // explicitly picks "Filesystem storage", not unconditionally at boot.
+    requestFilesystemAccess: async () => {
+      await ensureAndroidStorageAccess(overlayHost);
+      return (await CapacitorStorage.getExternalDocumentsPath()).path;
+    },
+    isValidWritableDirectory: async (path) => (await CapacitorStorage.isValidWritableDirectory({ path })).valid,
+    resolveMigratedStorageRoot: () => resolveMigratedStorageRoot(androidFlutterMigrationDeps),
+    onLocationResolved,
+    exitApp: () => CapacitorApp.exitApp(),
+  });
 }
 
-async function createCapacitorBackend(overlayHost: HTMLElement, onMkdirpError: (message: string) => void): Promise<StorageBackend> {
-  const path =
-    Capacitor.getPlatform() === "android"
-      ? await resolveAndroidStoragePath(overlayHost)
-      : (await CapacitorStorage.getExternalDocumentsPath()).path;
+/**
+ * `<external Documents>/QuKi_Notes` on the non-Android native-Capacitor
+ * fallback path (no such platform is a current build target, but this
+ * mirrors what was here before rather than deleting an existing branch).
+ * On Android, `androidSetupApi` has already resolved the real root (setup
+ * screen, settings file, or migration adoption — see main() below); this
+ * just reads that outcome rather than re-deciding anything.
+ */
+async function createCapacitorBackend(
+  onMkdirpError: (message: string) => void,
+  androidSetupApi: ElectronSetupApi | undefined,
+  onAndroidBackendCreated: (backend: CapacitorFsBackend) => void,
+): Promise<StorageBackend> {
+  const isAndroidPlatform = Capacitor.getPlatform() === "android";
+  let path: string;
+  if (isAndroidPlatform) {
+    if (!androidSetupApi) {
+      throw new Error("QuKi Android storage setup did not run before backend construction");
+    }
+    const state = await androidSetupApi.getState();
+    if (state.path === null) {
+      throw new Error("QuKi Android storage location was not resolved before backend construction");
+    }
+    path = state.path;
+  } else {
+    path = (await CapacitorStorage.getExternalDocumentsPath()).path;
+  }
   const backend = new CapacitorFsBackend(CapacitorStorage, path);
+  if (isAndroidPlatform) onAndroidBackendCreated(backend);
   try {
     await backend.mkdirp("");
   } catch (error) {
@@ -345,22 +383,50 @@ async function init(): Promise<void> {
   const confirm = createConfirmDialog(overlayHost);
   const aboutDialog = createAboutDialog(overlayHost, { version: __APP_VERSION__, buildInfo: __BUILD_INFO__, showToast });
 
+  // Capacitor.getPlatform() reports "android" only inside the native
+  // Android wrapper (Capacitor.isNativePlatform() implied) - used both to
+  // build the Android setup API below and later for Send/share-in, which is
+  // why it's hoisted here rather than declared closer to those later uses.
+  const isAndroid = Capacitor.getPlatform() === "android";
+
+  // Set once createCapacitorBackend (below) constructs the live Android
+  // backend - androidSetupApi's onLocationResolved callback needs this to
+  // update that same object's root in place when the user changes location
+  // mid-session (Settings -> Change location); see capacitorBackend.ts's
+  // CapacitorFsBackend.setRoot.
+  let androidBackend: CapacitorFsBackend | undefined;
+  const onAndroidLocationResolved = (path: string): void => {
+    if (!androidBackend) return; // first-launch/genuine-first-run: mkdirp already runs once createCapacitorBackend constructs it below.
+    androidBackend.setRoot(path);
+    void androidBackend.mkdirp("").catch((error: unknown) => {
+      console.error("QuKi Android storage root change: mkdirp failed unexpectedly:", error);
+      showSaveStatus("Could not create the QuKi Notes folder — an unexpected error occurred. Your QuKis will not load or save until it is.");
+    });
+  };
+
   // Electron's preload script (project/electron/src/preload.ts) exposes
   // window.electronAPI/window.electronSetupAPI only when this app is
-  // running inside the Electron wrapper; both are absent in the plain
-  // browser/PWA build, which keeps using OPFS exactly as before and has no
-  // concept of a storage-location setup screen at all (STORAGE_CONTRACT.md:
-  // "the web app has no storage-location onboarding step; it simply
-  // starts"). setupApi/setupView stay undefined on the web build, and
-  // every use of them below is gated on that.
-  const setupApi = window.electronAPI && window.electronSetupAPI ? window.electronSetupAPI : undefined;
+  // running inside the Electron wrapper. On Android, androidSetupApi.ts
+  // implements the same ElectronSetupApi contract against the real
+  // Capacitor plugins. Both are absent in the plain browser/PWA build,
+  // which keeps using OPFS exactly as before and has no concept of a
+  // storage-location setup screen at all (STORAGE_CONTRACT.md: "the web app
+  // has no storage-location onboarding step; it simply starts"). setupApi/
+  // setupView stay undefined on the web build, and every use of them below
+  // is gated on that.
+  const setupApi =
+    window.electronAPI && window.electronSetupAPI
+      ? window.electronSetupAPI
+      : isAndroid
+        ? await createAndroidSetupApiForMain(overlayHost, onAndroidLocationResolved)
+        : undefined;
   const setupView = setupApi ? createSetupView(overlayHost, setupApi) : undefined;
 
   // BEHAVIOR_SPEC.md §3: "if no storage location has ever been chosen, the
   // setup screen appears instead of the editor" - nothing below this may
   // construct a backend, a QuKiStore, or touch a file until a location is
-  // known, on Electron. The web build has no such gate (setupApi is
-  // undefined there) and proceeds immediately, unchanged from before.
+  // known, on Electron and Android. The web build has no such gate (setupApi
+  // is undefined there) and proceeds immediately, unchanged from before.
   if (setupApi && setupView) {
     const state = await setupApi.getState();
     if (!state.chosen) {
@@ -397,7 +463,9 @@ async function init(): Promise<void> {
   const backend: StorageBackend = window.electronAPI
     ? new ElectronIpcBackend(window.electronAPI)
     : Capacitor.isNativePlatform()
-      ? await createCapacitorBackend(overlayHost, showSaveStatus)
+      ? await createCapacitorBackend(showSaveStatus, setupApi, (b) => {
+          androidBackend = b;
+        })
       : new OpfsBackend("quki");
   const store = new QuKiStore(backend);
 
@@ -727,7 +795,8 @@ async function init(): Promise<void> {
   // sheet (androidShare.ts, via the native Share plugin), matching
   // BEHAVIOR_SPEC.md's "Send becomes one action: the system share sheet
   // where one exists" for the one platform where it already exists here.
-  const isAndroid = Capacitor.getPlatform() === "android";
+  // (isAndroid is declared earlier in this function, for the Android setup
+  // API construction above.)
   sendBtn.disabled = !isAndroid && window.electronPlatform !== "linux" && window.electronPlatform !== "win32";
   setButtonIcon(settingsBtn, Settings, "Settings");
   setButtonIcon(deleteBtn, Trash2, "Delete");
