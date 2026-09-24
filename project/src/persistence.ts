@@ -17,32 +17,17 @@ export interface InitialQuKi {
 export type StorageErrorHandler = (error: unknown) => void;
 
 /**
- * There is no QuKi list screen yet (that's a later step), so there is no
- * real "which QuKi is open" selection. This is a temporary stand-in: load
- * whichever active QuKi was modified most recently, or start blank if none
- * exist. QuKiStore.list() already sorts most-recently-modified first.
- *
- * If store.list()/store.read() throws, onLoadError is invoked with the raw
- * error and this falls back to a blank QuKi rather than leaving the caller
- * with an unhandled rejection and a silently blank, uninitialized editor.
+ * BEHAVIOR_SPEC.md §4: "A blank canvas on launch." Every app start, and
+ * Settings -> Change location, opens a fresh, empty, unsaved QuKi - there
+ * is no "reopen whatever was last edited" behavior. (An earlier version of
+ * this function loaded whichever QuKi was most recently modified; that was
+ * never a real design decision - just a stand-in written before the QuKi
+ * list existed and never revisited - and has been removed.) Since nothing
+ * here touches storage, there is no failure mode to report through a
+ * StorageErrorHandler.
  */
-export async function loadInitialQuKi(
-  store: QuKiStore,
-  onLoadError?: StorageErrorHandler,
-): Promise<InitialQuKi> {
-  try {
-    const list = await store.list();
-    if (list.length === 0) {
-      return { id: null, body: "", modifiedAt: null };
-    }
-    const mostRecent = list[0]!;
-    const detail = await store.read(mostRecent.id);
-    return { id: detail.id, body: detail.body, modifiedAt: detail.modifiedAt };
-  } catch (error) {
-    console.error("QuKi initial load failed unexpectedly:", error);
-    onLoadError?.(error);
-    return { id: null, body: "", modifiedAt: null };
-  }
+export function blankInitialQuKi(): InitialQuKi {
+  return { id: null, body: "", modifiedAt: null };
 }
 
 export interface SaveConflictInfo {

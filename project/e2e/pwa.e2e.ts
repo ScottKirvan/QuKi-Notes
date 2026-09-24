@@ -135,14 +135,26 @@ async function main(): Promise<void> {
     const offlineHiddenAttr = await page.getAttribute("#save-status", "hidden");
     assert(offlineHiddenAttr !== null, `no error banner should appear on a clean offline reload, but #save-status is visible: "${await page.textContent("#save-status")}"`);
 
-    const bodyAfterOfflineReload = await page.evaluate(
+    // BEHAVIOR_SPEC.md §4: "a blank canvas on launch" - the reload itself
+    // must not reopen the pre-offline content. What this scenario actually
+    // proves is that the earlier save really landed in OPFS and survives a
+    // fully offline reload; checked here via the QuKi list's per-row
+    // preview (a real read off local storage, no network involved) rather
+    // than via what the editor shows on open.
+    const bodyRightAfterOfflineReload = await page.evaluate(
       () => (window as unknown as { qukiView: { state: { doc: { toString(): string } } } }).qukiView.state.doc.toString(),
     );
     assert(
-      bodyAfterOfflineReload.includes(marker),
-      `offline reload should recover the pre-offline OPFS save, got: ${bodyAfterOfflineReload}`,
+      bodyRightAfterOfflineReload === "",
+      `the editor should be blank on reload per BEHAVIOR_SPEC.md §4, got: ${bodyRightAfterOfflineReload}`,
     );
-    console.log("[e2e-pwa] PASS: previously-saved content survived an offline reload (OPFS, no network involved)");
+
+    await page.click("#btn-quki-list");
+    await page.locator(".list-row-preview", { hasText: marker }).waitFor({ timeout: 5000 });
+    console.log("[e2e-pwa] PASS: previously-saved content survived an offline reload (OPFS, no network involved), visible in the QuKi list");
+
+    await page.click("#view-list .back-btn");
+    await page.waitForSelector("#view-editor:not([hidden])");
 
     // The editor must still be a live, working editor while offline - not
     // just a static cached shell. OPFS is local storage, not a network
@@ -166,10 +178,16 @@ async function main(): Promise<void> {
       () => (window as unknown as { qukiView: { state: { doc: { toString(): string } } } }).qukiView.state.doc.toString(),
     );
     assert(
-      bodyAfterSecondOfflineReload.includes(offlineMarker),
-      `edit made while offline should have been auto-saved to OPFS and survive a further offline reload, got: ${bodyAfterSecondOfflineReload}`,
+      bodyAfterSecondOfflineReload === "",
+      `the editor should be blank on reload per BEHAVIOR_SPEC.md §4, got: ${bodyAfterSecondOfflineReload}`,
     );
-    console.log("[e2e-pwa] PASS: the editor stayed fully functional (typed, auto-saved, reloaded) with the network offline throughout");
+
+    await page.click("#btn-quki-list");
+    await page.locator(".list-row-preview", { hasText: offlineMarker }).waitFor({ timeout: 5000 });
+    console.log("[e2e-pwa] PASS: the editor stayed fully functional (typed, auto-saved, retrievable from the list) with the network offline throughout");
+
+    await page.click("#view-list .back-btn");
+    await page.waitForSelector("#view-editor:not([hidden])");
 
     await context.setOffline(false);
     await context.close();
