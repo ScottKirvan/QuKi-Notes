@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveModeIconState, shouldFocusOnOpen, usesKeyboardSignal } from "./editMode.js";
+import {
+  resolveModeIconState,
+  shouldFocusOnOpen,
+  toolbarScrollCorrectionTiming,
+  usesKeyboardSignal,
+} from "./editMode.js";
 
 describe("usesKeyboardSignal", () => {
   it("is true only for a native Android platform", () => {
@@ -25,6 +30,16 @@ describe("shouldFocusOnOpen", () => {
 
   it("is false for an existing QuKi (real id)", () => {
     expect(shouldFocusOnOpen("some-id")).toBe(false);
+  });
+});
+
+describe("toolbarScrollCorrectionTiming", () => {
+  it("is immediate on the keyboard signal (Android) - the selection has already settled by then", () => {
+    expect(toolbarScrollCorrectionTiming(true)).toBe("immediate");
+  });
+
+  it("is deferred on the focus/blur signal (everywhere else) - it must wait for the tap's own selection-set transaction", () => {
+    expect(toolbarScrollCorrectionTiming(false)).toBe("deferred");
   });
 });
 

@@ -27,7 +27,14 @@ import { createFormattingToolbar, type FormattingToolbarHandle } from "./screens
 import { revealPlugin } from "./reveal/decorations";
 import { hangingIndent } from "./reveal/hangingIndent";
 import { plainTextMode, setPlainTextMode } from "./reveal/plainTextMode";
-import { createEditModeTracker, resolveModeIconState, shouldFocusOnOpen, type EditModeTracker } from "./editMode";
+import {
+  createEditModeTracker,
+  resolveModeIconState,
+  shouldFocusOnOpen,
+  toolbarScrollCorrectionTiming,
+  usesKeyboardSignal,
+  type EditModeTracker,
+} from "./editMode";
 import { imageResolver } from "./reveal/imageResolver";
 import { createImagePastePlugin } from "./pasteImage";
 import { AutoSaveController, loadInitialQuKi, type InitialQuKi } from "./persistence";
@@ -625,7 +632,23 @@ async function init(): Promise<void> {
     // above. Cleared on leaving edit mode too, so a flag left pending by a
     // focus with no following selection change (rare, but possible) can't
     // reach across into some later, unrelated edit session.
-    pendingToolbarScrollCheck = isEditMode;
+    if (!isEditMode) {
+      pendingToolbarScrollCheck = false;
+      return;
+    }
+    // toolbarScrollCorrectionTiming: on the keyboard signal (Android),
+    // keyboardDidShow fires after the tap that caused it already landed
+    // its selection change, so there's no future selection change left to
+    // catch this on - the correction has to run right here, immediately,
+    // rather than being deferred to the update listener above.
+    const timing = toolbarScrollCorrectionTiming(
+      usesKeyboardSignal(Capacitor.getPlatform(), Capacitor.isNativePlatform()),
+    );
+    if (timing === "immediate") {
+      view.dispatch({ effects: EditorView.scrollIntoView(view.state.selection.main.head) });
+    } else {
+      pendingToolbarScrollCheck = true;
+    }
   });
   if (shouldFocusOnOpen(initial.id)) view.focus();
   // Seeds the toolbar's initial shown/hidden state the same way
