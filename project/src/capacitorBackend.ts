@@ -41,6 +41,14 @@ export interface CapacitorStoragePlugin {
   getFlutterMigrationInfo(): Promise<{ locationChosen: boolean; basePath: string | null; appDocumentsPath: string }>;
   /** Real write-probe validation of a candidate migrated storage root - see storageValidation.ts's isValidWritableDirectory for the desktop equivalent this mirrors. */
   isValidWritableDirectory(options: { path: string }): Promise<{ valid: boolean }>;
+  /**
+   * `context.filesDir.absolutePath` - bare, unsuffixed. androidSetupApi.ts
+   * composes "/QuKi_Notes" (app storage) or "/quki_settings.json" (the
+   * storage-choice settings file) on top of this; the plugin itself does no
+   * path joining, matching this file's own path-joining-stays-in-TypeScript
+   * philosophy.
+   */
+  getPrivateStoragePath(): Promise<{ path: string }>;
 }
 
 /**
@@ -87,14 +95,31 @@ function posixResolve(root: string, relPath: string): string {
   return `/${resolved.join("/")}`;
 }
 
+function normalizeRoot(rootDir: string): string {
+  return rootDir.length > 1 && rootDir.endsWith("/") ? rootDir.slice(0, -1) : rootDir;
+}
+
 export class CapacitorFsBackend implements StorageBackend {
-  private readonly root: string;
+  private root: string;
 
   constructor(
     private readonly plugin: CapacitorStoragePlugin,
     rootDir: string,
   ) {
-    this.root = rootDir.length > 1 && rootDir.endsWith("/") ? rootDir.slice(0, -1) : rootDir;
+    this.root = normalizeRoot(rootDir);
+  }
+
+  /**
+   * Mutates the live root in place rather than requiring callers to
+   * construct a new backend/store - Settings -> Change location on Android
+   * has no separate main process to hold the "real" root the way Electron
+   * does (electron/src/main.ts's setBackendRoot), so this object instance is
+   * the only place that state lives. CapacitorFsBackend-only: StorageBackend
+   * (quki-core) stays unchanged, since no other platform's backend needs
+   * this.
+   */
+  setRoot(newRoot: string): void {
+    this.root = normalizeRoot(newRoot);
   }
 
   resolvePath(relPath: string): string {

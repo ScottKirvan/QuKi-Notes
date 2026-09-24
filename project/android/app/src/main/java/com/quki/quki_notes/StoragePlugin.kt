@@ -194,6 +194,22 @@ class StoragePlugin : Plugin() {
         call.resolve(ret)
     }
 
+    /**
+     * `context.filesDir.absolutePath` - the app's private internal storage
+     * directory, bare and unsuffixed. Callers in TypeScript (androidSetupApi.ts)
+     * compose "/QuKi_Notes" (the app-storage choice) or "/quki_settings.json"
+     * (the storage-choice settings file) on top of this, matching this
+     * plugin's existing philosophy of thin, path-agnostic native I/O -
+     * mirrors getExternalDocumentsPath above in only resolving a path, never
+     * creating a directory.
+     */
+    @PluginMethod
+    fun getPrivateStoragePath(call: PluginCall) {
+        val ret = JSObject()
+        ret.put("path", context.filesDir.absolutePath)
+        call.resolve(ret)
+    }
+
     @PluginMethod
     fun requestAllFilesAccess(call: PluginCall) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {

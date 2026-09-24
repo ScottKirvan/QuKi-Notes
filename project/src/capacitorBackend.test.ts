@@ -21,6 +21,7 @@ function fakePlugin(): CapacitorStoragePlugin {
     requestAllFilesAccess: vi.fn().mockResolvedValue(undefined),
     getFlutterMigrationInfo: vi.fn().mockResolvedValue({ locationChosen: false, basePath: null, appDocumentsPath: "/data/data/com.quki.quki_notes/app_flutter" }),
     isValidWritableDirectory: vi.fn().mockResolvedValue({ valid: true }),
+    getPrivateStoragePath: vi.fn().mockResolvedValue({ path: "/data/data/com.quki.quki_notes/files" }),
   };
 }
 
@@ -80,5 +81,38 @@ describe("CapacitorFsBackend", () => {
     expect(() => backend.resolvePath("..")).toThrow(/escapes QuKi folder/);
     expect(() => backend.resolvePath("../elsewhere.md")).toThrow(/escapes QuKi folder/);
     expect(() => backend.resolvePath("../../etc/passwd")).toThrow(/escapes QuKi folder/);
+  });
+
+  describe("setRoot", () => {
+    it("changes which root later calls resolve against", async () => {
+      const plugin = fakePlugin();
+      const backend = new CapacitorFsBackend(plugin, ROOT);
+      const NEW_ROOT = "/data/data/com.quki.quki_notes/files/QuKi_Notes";
+
+      backend.setRoot(NEW_ROOT);
+
+      expect(backend.resolvePath("a.md")).toBe(`${NEW_ROOT}/a.md`);
+      await backend.readText("a.md");
+      expect(plugin.readText).toHaveBeenCalledWith({ path: `${NEW_ROOT}/a.md` });
+    });
+
+    it("normalizes a trailing slash on the new root, same as the constructor does", () => {
+      const backend = new CapacitorFsBackend(fakePlugin(), ROOT);
+
+      backend.setRoot("/some/other/root/");
+
+      expect(backend.resolvePath("a.md")).toBe("/some/other/root/a.md");
+      expect(backend.resolvePath("")).toBe("/some/other/root");
+    });
+
+    it("enforces containment against the new root, not the old one", () => {
+      const backend = new CapacitorFsBackend(fakePlugin(), ROOT);
+      backend.setRoot("/new/root");
+
+      expect(() => backend.resolvePath("../elsewhere.md")).toThrow(/escapes QuKi folder/);
+      // A path that would have escaped the *old* root no longer needs to be
+      // considered - only the new root's containment matters going forward.
+      expect(backend.resolvePath("a.md")).toBe("/new/root/a.md");
+    });
   });
 });
