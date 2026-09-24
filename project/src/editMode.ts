@@ -15,6 +15,29 @@ export function usesKeyboardSignal(platform: string, isNativePlatform: boolean):
   return isNativePlatform && platform === "android";
 }
 
+export type ToolbarScrollCorrectionTiming = "immediate" | "deferred";
+
+/**
+ * When edit mode turns on and the formatting toolbar appears, should the
+ * caret's scroll-clear-of-the-toolbar correction (main.ts's
+ * pendingToolbarScrollCheck mechanism) run right away, or wait for the
+ * next selection change that actually moves the caret?
+ *
+ * On the focus/blur signal (everywhere but Android), `focus` can fire
+ * before the same click's own selection-set transaction has landed, so the
+ * correction has to wait for that transaction and act on its final
+ * position - acting immediately would use the stale, pre-click selection.
+ *
+ * On the keyboard signal (Android), `keyboardDidShow` fires asynchronously,
+ * well after the tap that triggered it already landed its selection
+ * change - the OS keyboard animates in over real time. There is no future
+ * selection change left to catch it on, so the correction has to run
+ * immediately, using the selection as it already stands.
+ */
+export function toolbarScrollCorrectionTiming(usesKeyboardSignal: boolean): ToolbarScrollCorrectionTiming {
+  return usesKeyboardSignal ? "immediate" : "deferred";
+}
+
 /**
  * BEHAVIOR_SPEC.md §4: "a new, blank QuKi takes focus (edit mode), an
  * existing QuKi does not (reading mode)." `initial.id` is null only for a
