@@ -580,7 +580,11 @@ button.settings-row {
   position: relative;
   width: 100%;
   max-width: 760px;
-  margin: 24px auto;
+  /* No vertical margin: with the card border gone (removed above) there's
+     no visual boundary left to justify the gap it used to sit inside, so it
+     just read as unexplained dead space top and bottom. auto keeps the
+     horizontal centering for a wide desktop window. */
+  margin: 0 auto;
   box-sizing: border-box;
   overflow: hidden;
   /* Fills whatever height .view (the flex column above) has left after the
