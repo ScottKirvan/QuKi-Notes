@@ -944,6 +944,7 @@ async function init(): Promise<void> {
     onOpenQuKi: openQuKiInEditor,
     onNewQuKi: startNewQuKi,
     onOpenSettings: () => navigator_.push("settings", { plain: true }),
+    onOpenHelp: (opener) => aboutDialog.open(opener),
     onDeleteQuKi: deleteQuKi,
     onBack: popView,
   });

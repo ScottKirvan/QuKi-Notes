@@ -281,18 +281,19 @@ async function runWebScenario(browser: Browser, url: string, scheme: "light" | "
   await page.waitForTimeout(300);
   const listBack = await assertIconButton(list.locator(".back-btn"), "list back button", "Back to editor");
   const listNew = await assertIconButton(list.locator(".new-btn"), "list New button", "New");
+  const listHelp = await assertIconButton(list.locator(".help-btn"), "list Help button", "Help");
   const listSettings = await assertIconButton(list.locator(".settings-btn"), "list Settings button", "Settings");
-  for (const [name, f] of [["list back", listBack], ["list New", listNew], ["list Settings", listSettings]] as const) {
+  for (const [name, f] of [["list back", listBack], ["list New", listNew], ["list Help", listHelp], ["list Settings", listSettings]] as const) {
     assertSizes(f, name, ICON_BUTTON_SIZE, ICON_SIZE);
   }
   await assertHeaderHeight(page, "#view-list .view-header", BASE_VIEW_HEADER_HEIGHT, "list");
-  const listTitles = await list.locator(".back-btn, .new-btn, .settings-btn").evaluateAll((els) => els.map((el) => (el as HTMLElement).title));
-  assert(listTitles.join("|") === "Back to editor|New|Settings", `list buttons must carry tooltips matching their labels, got ${listTitles.join("|")}`);
+  const listTitles = await list.locator(".back-btn, .new-btn, .help-btn, .settings-btn").evaluateAll((els) => els.map((el) => (el as HTMLElement).title));
+  assert(listTitles.join("|") === "Back to editor|New|Help|Settings", `list buttons must carry tooltips matching their labels, got ${listTitles.join("|")}`);
   await assertHoverAndFocusFeedback(page, list.locator(".back-btn"), "list back button");
   await assertKeyboardFocusRing(page, "#view-list .back-btn", "list back button");
   await assertSwipeBackground(list.locator(".list-row").first(), "list row");
   await assertMidSwipeIconVisible(page, list.locator(".list-row").first(), "list row");
-  console.log(`${tag} PASS: list header back/New/Settings are icon-only SVG, labelled, borderless, focusable; swipe background holds a currentColor SVG, visible mid-swipe`);
+  console.log(`${tag} PASS: list header back/New/Help/Settings are icon-only SVG, labelled, borderless, focusable; swipe background holds a currentColor SVG, visible mid-swipe`);
 
   // --- New (list header) still creates a fresh QuKi in the editor ---
   await list.locator(".new-btn").click();
