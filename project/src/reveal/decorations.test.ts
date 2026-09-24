@@ -12,6 +12,8 @@ interface Deco {
   cls: string | null;
   style: string | null;
   checked: boolean | null;
+  label: string | undefined;
+  url: string | undefined;
 }
 
 function decorationsFor(doc: string, caret: number, plain = false): Deco[] {
@@ -26,7 +28,7 @@ function decorationsFor(doc: string, caret: number, plain = false): Deco[] {
   const out: Deco[] = [];
   buildDecorations(state).between(0, doc.length, (from, to, value) => {
     const spec = value.spec as {
-      widget?: { checked?: boolean };
+      widget?: { checked?: boolean; label?: string; url?: string };
       class?: string;
       attributes?: { style?: string };
     };
@@ -37,6 +39,8 @@ function decorationsFor(doc: string, caret: number, plain = false): Deco[] {
       cls: spec.class ?? null,
       style: spec.attributes?.style ?? null,
       checked: spec.widget?.checked ?? null,
+      label: spec.widget?.label,
+      url: spec.widget?.url,
     });
   });
   return out;
@@ -431,6 +435,71 @@ describe("raw list-style lines hang their wrapped rows", () => {
   it("given a marked line, then the mark carries no inline style of its own (the measured offset is applied at layout time)", () => {
     const [deco] = byClass(decorationsFor("- a", 1), "cm-quki-hang");
     expect(deco.style).toBeNull();
+  });
+});
+
+describe("bare autolinks", () => {
+  it("given a bare http(s) URL and the caret elsewhere, when decorated, then it becomes a link widget with the matched text as its href", () => {
+    const doc = "plain\nvisit http://example.com now";
+    const [link] = widgets(decorationsFor(doc, 0), "LinkWidget");
+    expect(link.from).toBe(12);
+    expect(link.to).toBe(30);
+    expect(link.label).toBe("http://example.com");
+    expect(link.url).toBe("http://example.com");
+  });
+
+  it("given a bare https URL, when decorated, then the href is unchanged from the matched text", () => {
+    const doc = "plain\nvisit https://example.com now";
+    const [link] = widgets(decorationsFor(doc, 0), "LinkWidget");
+    expect(link.url).toBe("https://example.com");
+  });
+
+  it("given a bare www. URL, when decorated, then http:// is prepended to the href but not the label", () => {
+    const doc = "plain\nvisit www.example.com now";
+    const [link] = widgets(decorationsFor(doc, 0), "LinkWidget");
+    expect(link.label).toBe("www.example.com");
+    expect(link.url).toBe("http://www.example.com");
+  });
+
+  it("given a bare email address, when decorated, then mailto: is prepended to the href but not the label", () => {
+    const doc = "plain\nemail me foo@bar.com please";
+    const [link] = widgets(decorationsFor(doc, 0), "LinkWidget");
+    expect(link.label).toBe("foo@bar.com");
+    expect(link.url).toBe("mailto:foo@bar.com");
+  });
+
+  it("given a mailto: autolink, when decorated, then its href is used as-is with no double prefix", () => {
+    const doc = "plain\nmailto:foo@bar.com";
+    const [link] = widgets(decorationsFor(doc, 0), "LinkWidget");
+    expect(link.url).toBe("mailto:foo@bar.com");
+  });
+
+  it("given an xmpp: autolink, when decorated, then its href is used as-is with no double prefix", () => {
+    const doc = "plain\nxmpp:foo@bar.com";
+    const [link] = widgets(decorationsFor(doc, 0), "LinkWidget");
+    expect(link.url).toBe("xmpp:foo@bar.com");
+  });
+
+  it("given the caret inside the autolink, when decorated, then it stays plain editable text with no widget", () => {
+    const doc = "visit http://example.com now";
+    const inside = doc.indexOf("example");
+    expect(widgets(decorationsFor(doc, inside), "LinkWidget")).toEqual([]);
+  });
+
+  it("given the caret one character outside the autolink's span on either side, when decorated, then the widget is drawn", () => {
+    const doc = "visit http://example.com now";
+    const start = doc.indexOf("http://");
+    const end = start + "http://example.com".length;
+    expect(widgets(decorationsFor(doc, start - 1), "LinkWidget")).toHaveLength(1);
+    expect(widgets(decorationsFor(doc, end + 1), "LinkWidget")).toHaveLength(1);
+  });
+
+  it("given a bracketed link whose label contains what looks like a bare URL, when decorated, then only the outer Link widget is drawn, not a second nested one", () => {
+    const doc = "plain\n[see https://example.com here](http://target.com)";
+    const decos = decorationsFor(doc, 0);
+    expect(widgets(decos, "LinkWidget")).toHaveLength(1);
+    const [link] = widgets(decos, "LinkWidget");
+    expect(link.label).toBe("see https://example.com here");
   });
 });
 

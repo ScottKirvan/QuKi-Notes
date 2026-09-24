@@ -137,6 +137,25 @@ function selectedCodeText(
   return ranges;
 }
 
+// The Autolink extension's matched text carries its own scheme for
+// http(s)/mailto/xmpp, but a bare "www." match and a bare email address have
+// none — those two need a scheme prepended before the text is usable as an
+// href.
+function autolinkHref(raw: string): string {
+  if (
+    raw.startsWith("http://") ||
+    raw.startsWith("https://") ||
+    raw.startsWith("mailto:") ||
+    raw.startsWith("xmpp:")
+  ) {
+    return raw;
+  }
+  if (raw.startsWith("www.")) {
+    return `http://${raw}`;
+  }
+  return `mailto:${raw}`;
+}
+
 function readLabelAndUrl(
   node: SyntaxNode,
   state: EditorState,
@@ -323,6 +342,18 @@ export function buildDecorations(state: EditorState): DecorationSet {
               element.start,
               element.end,
             ),
+          );
+        }
+        break;
+      }
+
+      case "URL": {
+        if (!revealed) {
+          const raw = state.sliceDoc(element.start, element.end);
+          ranges.push(
+            Decoration.replace({
+              widget: new LinkWidget(raw, autolinkHref(raw)),
+            }).range(element.start, element.end),
           );
         }
         break;
