@@ -48,7 +48,7 @@ export interface SetupViewOptions {
 
 const FILESYSTEM_CARD_COPY = {
   android: {
-    title: "Filesystem storage — Documents/QuKi_Notes",
+    title: "Filesystem storage (recommended) — Documents/QuKi_Notes",
     subtitle: "Your QuKis are saved as plain files in your Documents folder. They survive uninstall and are accessible with any file manager.",
   },
   desktop: {
