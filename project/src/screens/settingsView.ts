@@ -86,12 +86,6 @@ export function createSettingsView(container: HTMLElement, callbacks: SettingsVi
         </button>
       </section>
       <section class="settings-section">
-        <h2>Sync</h2>
-        <div class="settings-row settings-row-disabled">
-          <span>No sync backends installed</span>
-        </div>
-      </section>
-      <section class="settings-section">
         <h2>About</h2>
         <div class="settings-row">
           <span>QuKi Notes</span>
