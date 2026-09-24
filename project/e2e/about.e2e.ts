@@ -262,6 +262,26 @@ async function runScenario(browser: Browser, url: string, scheme: "light" | "dar
   await page.keyboard.press("Escape");
   console.log(`${tag} PASS: the dialog reopens cleanly after every way of closing it`);
 
+  // BEHAVIOR_SPEC.md §5: "Actions: New, Help, Settings" - the QuKi list has
+  // its own Help action opening the same dialog.
+  await page.click(".cm-content");
+  await page.keyboard.type(`List Help E2E ${scheme} ${Date.now()}`);
+  await page.waitForTimeout(2500);
+  await page.click("#btn-quki-list");
+  const list = page.locator("#view-list");
+  await list.locator(".list-row").first().waitFor({ timeout: 5000 });
+  const listHelp = list.locator(".help-btn");
+  assert((await listHelp.getAttribute("aria-label")) === "Help", "the list's Help button must carry the Help label");
+  await listHelp.click();
+  await dialog.waitFor({ state: "visible" });
+  assert(await dialog.isVisible(), "the list's Help button must open the same dialog");
+  await dialog.locator(".about-close").click();
+  await assertDialogHidden(page, "after closing the dialog opened from the list");
+  const activeAfterListClose = await activeElementDescription(page);
+  assert(activeAfterListClose === "button.help-btn", `closing the dialog opened from the list must return focus to the list's Help button, got ${activeAfterListClose}`);
+  await list.locator(".back-btn").click();
+  console.log(`${tag} PASS: the QuKi list screen's own Help button opens the same dialog and returns focus to it on close`);
+
   assert(consoleErrors.length === 0, `page errors: ${consoleErrors.join("; ")}`);
   await context.close();
 }

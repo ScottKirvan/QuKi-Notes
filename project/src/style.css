@@ -125,6 +125,7 @@ body {
 .app-bar-btn,
 .back-btn,
 .new-btn,
+.help-btn,
 .settings-btn,
 .toolbar-btn {
   display: inline-flex;
@@ -142,6 +143,7 @@ body {
 .app-bar-btn:hover:not(:disabled),
 .back-btn:hover:not(:disabled),
 .new-btn:hover:not(:disabled),
+.help-btn:hover:not(:disabled),
 .settings-btn:hover:not(:disabled),
 .toolbar-btn:hover:not(:disabled) {
   background: var(--background-modifier-hover);
@@ -150,6 +152,7 @@ body {
 .app-bar-btn:active:not(:disabled),
 .back-btn:active:not(:disabled),
 .new-btn:active:not(:disabled),
+.help-btn:active:not(:disabled),
 .settings-btn:active:not(:disabled),
 .toolbar-btn:active:not(:disabled) {
   background: var(--background-modifier-active-hover);
@@ -158,6 +161,7 @@ body {
 .app-bar-btn:focus-visible,
 .back-btn:focus-visible,
 .new-btn:focus-visible,
+.help-btn:focus-visible,
 .settings-btn:focus-visible,
 .toolbar-btn:focus-visible {
   outline: 2px solid var(--background-modifier-border-focus);
@@ -167,6 +171,7 @@ body {
 .app-bar-btn:disabled,
 .back-btn:disabled,
 .new-btn:disabled,
+.help-btn:disabled,
 .settings-btn:disabled,
 .toolbar-btn:disabled {
   opacity: 0.45;
@@ -207,6 +212,7 @@ body {
 
 .back-btn,
 .new-btn,
+.help-btn,
 .settings-btn {
   width: 36px;
   height: 36px;
@@ -465,6 +471,16 @@ button.settings-row {
 }
 
 .about-dialog {
+  /* Flutter's Dialog widget sets no insetPadding of its own here, so it
+     falls back to the framework default: EdgeInsets.symmetric(horizontal:
+     40.0, vertical: 24.0) - 40px margin each side, wider than the other
+     confirm dialogs' 24px. box-sizing: border-box makes this width the
+     actual on-screen footprint (padding/border included), matching how
+     Flutter's insetPadding describes the margin from the screen edge -
+     .confirm-dialog's content-box default would otherwise add padding and
+     border on top of it. */
+  box-sizing: border-box;
+  width: calc(100% - 80px);
   border-radius: 28px;
   border: 1px solid var(--modal-border-color);
 }

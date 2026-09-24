@@ -1,4 +1,4 @@
-import { ArrowLeft, Plus, Settings, Trash2 } from "lucide";
+import { ArrowLeft, CircleHelp, Plus, Settings, Trash2 } from "lucide";
 import type { QuKiStore, QuKiSummary } from "quki-core";
 
 import { guardLatest } from "../asyncGuard";
@@ -13,6 +13,8 @@ export interface ListViewCallbacks {
   /** Flushes the current editor and resets it to a blank, unsaved QuKi. */
   onNewQuKi: () => Promise<void>;
   onOpenSettings: () => void;
+  /** BEHAVIOR_SPEC.md §5: the list's own Help action, opening the same help/about dialog as the editor's. */
+  onOpenHelp: (opener: HTMLElement) => void;
   /** Moves a QuKi to Trash; if it's the one open in the editor, resets the editor first. */
   onDeleteQuKi: (id: string) => Promise<void>;
   onBack: () => void;
@@ -31,6 +33,7 @@ export function createListView(store: QuKiStore, container: HTMLElement, callbac
       <h1>QuKis</h1>
       <div class="view-actions">
         <button type="button" class="new-btn"></button>
+        <button type="button" class="help-btn"></button>
         <button type="button" class="settings-btn"></button>
       </div>
     </header>
@@ -42,13 +45,16 @@ export function createListView(store: QuKiStore, container: HTMLElement, callbac
 
   const backBtn = container.querySelector<HTMLButtonElement>(".back-btn")!;
   const newBtn = container.querySelector<HTMLButtonElement>(".new-btn")!;
+  const helpBtn = container.querySelector<HTMLButtonElement>(".help-btn")!;
   const settingsBtn = container.querySelector<HTMLButtonElement>(".settings-btn")!;
   const searchInput = container.querySelector<HTMLInputElement>(".search-input")!;
   const listBody = container.querySelector<HTMLDivElement>(".list-body")!;
 
   setIconButton(backBtn, ArrowLeft, "Back to editor");
   setIconButton(newBtn, Plus, "New");
+  setIconButton(helpBtn, CircleHelp, "Help");
   setIconButton(settingsBtn, Settings, "Settings");
+  helpBtn.addEventListener("click", () => callbacks.onOpenHelp(helpBtn));
 
   let currentQuery = "";
 
