@@ -94,18 +94,16 @@ describe("display strings", () => {
   const clean: BuildInfo = { commit: "0123456", branch: "feat/about-box", builtAt: "2026-09-21 08:32 UTC", dirty: false };
   const dirty: BuildInfo = { ...clean, dirty: true };
 
-  it("buildLineParts lists commit, branch and build time - the pieces the dialog keeps unbroken when it wraps", () => {
-    expect(buildLineParts(clean)).toEqual(["0123456", "feat/about-box", "2026-09-21 08:32 UTC"]);
+  it("buildLineParts lists branch and build time - the pieces the dialog keeps unbroken when it wraps", () => {
+    expect(buildLineParts(clean)).toEqual(["feat/about-box", "2026-09-21 08:32 UTC"]);
   });
 
-  it("buildLineParts appends the uncommitted-changes flag only when set", () => {
-    expect(buildLineParts(dirty)).toEqual(["0123456", "feat/about-box", "2026-09-21 08:32 UTC", "uncommitted changes"]);
+  it("buildLineParts does not show the commit hash or the uncommitted-changes flag, dirty or not", () => {
+    expect(buildLineParts(dirty)).toEqual(["feat/about-box", "2026-09-21 08:32 UTC"]);
   });
 
-  it("formatBuildString is the full self-describing string that gets copied", () => {
-    expect(formatBuildString("0.1.0", clean)).toBe("QuKi Notes 0.1.0 (commit 0123456, branch feat/about-box, built 2026-09-21 08:32 UTC)");
-    expect(formatBuildString("0.1.0", dirty)).toBe(
-      "QuKi Notes 0.1.0 (commit 0123456, branch feat/about-box, built 2026-09-21 08:32 UTC, uncommitted changes)",
-    );
+  it("formatBuildString is the full self-describing string that gets copied, without the commit hash or the uncommitted-changes flag", () => {
+    expect(formatBuildString("0.1.0", clean)).toBe("QuKi Notes 0.1.0 (branch feat/about-box, built 2026-09-21 08:32 UTC)");
+    expect(formatBuildString("0.1.0", dirty)).toBe("QuKi Notes 0.1.0 (branch feat/about-box, built 2026-09-21 08:32 UTC)");
   });
 });

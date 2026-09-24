@@ -51,16 +51,10 @@ export function resolveBuildInfo({ git, env, now }: BuildInfoInputs): BuildInfo 
   };
 }
 
-const UNCOMMITTED = "uncommitted changes";
-
 export function buildLineParts(info: BuildInfo): string[] {
-  const parts = [info.commit, info.branch, info.builtAt];
-  if (info.dirty) parts.push(UNCOMMITTED);
-  return parts;
+  return [info.branch, info.builtAt];
 }
 
 export function formatBuildString(version: string, info: BuildInfo): string {
-  const parts = [`commit ${info.commit}`, `branch ${info.branch}`, `built ${info.builtAt}`];
-  if (info.dirty) parts.push(UNCOMMITTED);
-  return `QuKi Notes ${version} (${parts.join(", ")})`;
+  return `QuKi Notes ${version} (branch ${info.branch}, built ${info.builtAt})`;
 }

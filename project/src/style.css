@@ -17,6 +17,10 @@ body.theme-dark {
   --background-modifier-form-field: #010409;
   --interactive-normal: #3d444d;
   --interactive-accent: #9ea7b3;
+  /* GitHubDHC's actual CTA/primary-button colour (its "mod-cta" green), distinct
+     from the neutral-grey --interactive-accent above. */
+  --color-btn-primary-bg: #09b43a;
+  --color-btn-primary-hover-bg: #0c8e33;
   --text-normal: #ffffff;
   --text-muted: #b7bdc8;
   --text-accent: #71b7ff;
@@ -52,6 +56,8 @@ body.theme-light {
   --background-modifier-form-field: #f6f8fa;
   --interactive-normal: #f6f8fa;
   --interactive-accent: #0a72e9;
+  --color-btn-primary-bg: #1f883d;
+  --color-btn-primary-hover-bg: #1a7f37;
   --text-normal: #1f2328;
   --text-muted: #424a53;
   --text-accent: #0969da;
@@ -459,14 +465,16 @@ button.settings-row {
 }
 
 .about-dialog {
-  max-width: 400px;
+  border-radius: 28px;
   border: 1px solid var(--modal-border-color);
 }
 
 .about-header {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 16px;
+  text-align: center;
+  gap: 10px;
   margin-bottom: 20px;
 }
 
@@ -478,8 +486,7 @@ button.settings-row {
 }
 
 .about-heading {
-  min-width: 0;
-  flex: 1 1 auto;
+  width: 100%;
 }
 
 .about-name {
@@ -497,7 +504,7 @@ button.settings-row {
   background: transparent;
   color: var(--text-muted);
   font: inherit;
-  text-align: left;
+  text-align: center;
   cursor: pointer;
 }
 
@@ -530,6 +537,24 @@ button.settings-row {
   display: inline-block;
   max-width: 100%;
   overflow-wrap: anywhere;
+}
+
+/* Flutter's Close is a TextButton: a plain link, not a bordered/filled
+   button like the confirm dialogs' Cancel/OK. */
+.about-dialog .about-close {
+  padding: 8px 4px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-accent);
+}
+
+.about-dialog .about-close:hover {
+  background: var(--background-modifier-hover);
+}
+
+.about-dialog .about-close:active {
+  background: var(--background-modifier-active-hover);
 }
 
 .about-links {
@@ -583,8 +608,21 @@ button.settings-row {
 }
 
 .about-link-btn.accent {
-  background: var(--interactive-accent);
+  background: var(--color-btn-primary-bg);
+  border-color: var(--color-btn-primary-bg);
   color: var(--text-on-accent);
+}
+
+/* GitHubDHC's --text-on-accent (black) is unreadable on light mode's darker
+   green CTA background; every other --text-on-accent use (danger buttons,
+   the Android permission button) keeps the shared default. */
+body.theme-light .about-link-btn.accent {
+  color: #ffffff;
+}
+
+.about-link-btn.accent:hover {
+  background: var(--color-btn-primary-hover-bg);
+  border-color: var(--color-btn-primary-hover-bg);
 }
 
 /*
