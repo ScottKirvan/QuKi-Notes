@@ -249,6 +249,61 @@ describe("task items", () => {
   });
 });
 
+describe("bare autolinks", () => {
+  function urlElements(doc: string): RevealElement[] {
+    return elementsFor(doc).filter((el) => el.type === "URL");
+  }
+
+  it("given a bare http(s) URL, then it is an inline element spanning the matched text", () => {
+    const doc = "visit http://example.com now";
+    const [el] = urlElements(doc);
+    expect(el.category).toBe("inline");
+    expect(el.checkStart).toBe(6);
+    expect(el.checkEnd).toBe(24);
+    expect(el.start).toBe(6);
+    expect(el.end).toBe(24);
+    expect(el.parentId).toBeNull();
+  });
+
+  it("given a bare www. URL, then it is still one URL element over just the matched text", () => {
+    const doc = "visit www.example.com now";
+    const [el] = urlElements(doc);
+    expect(el.start).toBe(6);
+    expect(el.end).toBe(21);
+  });
+
+  it("given a bare email address, then it is a URL element", () => {
+    const [el] = urlElements("email me foo@bar.com please");
+    expect(el.start).toBe(9);
+    expect(el.end).toBe(20);
+  });
+
+  it("given mailto: and xmpp: autolinks, then each is its own URL element", () => {
+    const els = urlElements("mailto:foo@bar.com and xmpp:foo@bar.com/res");
+    expect(els).toHaveLength(2);
+  });
+
+  it("given an autolink nested inside emphasis, then its parent is the emphasis element", () => {
+    const doc = "cursor http://x.com inside **bold http://y.com text**";
+    const els = elementsFor(doc);
+    const bold = els.find((el) => el.type === "StrongEmphasis");
+    const [outer, inner] = els.filter((el) => el.type === "URL");
+    expect(outer.parentId).toBeNull();
+    expect(inner.parentId).toBe(bold?.id);
+  });
+
+  it("given a bracketed link whose label contains what looks like a bare URL, then no separate URL element is extracted for it", () => {
+    const doc = "[see https://example.com here](http://target.com)";
+    expect(urlElements(doc)).toEqual([]);
+    expect(elementsFor(doc).map((el) => el.type)).toEqual(["Link"]);
+  });
+
+  it("given an image whose alt text and destination look like bare URLs, then no separate URL element is extracted for either", () => {
+    const doc = "![alt http://img.com](http://dest.com)";
+    expect(urlElements(doc)).toEqual([]);
+  });
+});
+
 describe("list item indent depth", () => {
   function depthOf(doc: string, line: number): number | undefined {
     const items = elementsFor(doc).filter((el) => ["BulletItem", "OrderedItem", "TaskItem"].includes(el.type));

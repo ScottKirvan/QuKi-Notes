@@ -29,6 +29,26 @@ const NESTING_INLINE_TYPES = new Set([
 // node instead of a marker substring.
 const WHOLE_LINE_TYPES = new Set(["Image", "HorizontalRule"]);
 
+// GFM's Autolink extension emits a leaf "URL" node for a bare http(s)/www/
+// mailto/xmpp URL or a bare email address. It nests under an enclosing
+// inline ancestor exactly like the NESTING_INLINE_TYPES above, but — being a
+// leaf — never becomes an ancestor itself.
+//
+// The same node type also names a Link's or Image's own destination (the
+// text inside its trailing parens), and the Autolink inline parser also
+// fires inside a Link's label. Both are descendants of a Link/Image node, so
+// walking up from the URL node and finding one there is how "is this a real
+// bare autolink, not part of an existing link/image" gets decided — matching
+// BEHAVIOR_SPEC.md's "not a nested link or autolink" rule for link labels,
+// and avoiding a second, redundant element over the destination text a
+// Link/Image element already collapses as a whole.
+function hasLinkOrImageAncestor(node: SyntaxNode): boolean {
+  for (let parent = node.parent; parent; parent = parent.parent) {
+    if (parent.name === "Link" || parent.name === "Image") return true;
+  }
+  return false;
+}
+
 interface ListItemMarker {
   type: "BulletItem" | "OrderedItem" | "TaskItem";
   start: number;
@@ -221,6 +241,29 @@ export function extractElements(state: EditorState): ExtractResult {
           checkStart: node.from,
           checkEnd: node.to,
           parentId: null,
+        });
+        nodes.set(id, node.node);
+        return true;
+      }
+
+      if (type === "URL") {
+        if (hasLinkOrImageAncestor(node.node)) {
+          return true;
+        }
+        const parentId =
+          inlineAncestorStack.length > 0
+            ? inlineAncestorStack[inlineAncestorStack.length - 1]
+            : null;
+        const id = nextId++;
+        elements.push({
+          id,
+          type,
+          category: "inline",
+          start: node.from,
+          end: node.to,
+          checkStart: node.from,
+          checkEnd: node.to,
+          parentId,
         });
         nodes.set(id, node.node);
         return true;
