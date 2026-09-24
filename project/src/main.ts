@@ -18,6 +18,7 @@ import { App as CapacitorApp } from "@capacitor/app";
 import { QuKiStore, type StorageBackend } from "quki-core";
 import { OpfsBackend } from "quki-core/opfs";
 import { ElectronIpcBackend } from "./electronIpcBackend";
+import { cleanupStaleServiceWorker } from "./staleServiceWorkerCleanup";
 import { CapacitorFsBackend, CapacitorStorage } from "./capacitorBackend";
 import { createStorageAccessGate } from "./androidStorageAccess";
 import { resolveMigratedStorageRoot, type AndroidFlutterMigrationDeps } from "./androidFlutterMigration";
@@ -58,6 +59,22 @@ import { createAboutDialog } from "./screens/aboutDialog";
 if (!Capacitor.isNativePlatform()) {
   import("virtual:pwa-register").then(({ registerSW }) => {
     registerSW({ immediate: true });
+  });
+} else if ("serviceWorker" in navigator && "caches" in window) {
+  // A build from before the branch above existed may already have
+  // registered a service worker on this exact device - not registering a
+  // new one on native doesn't unregister an old one, and once registered a
+  // service worker keeps controlling the page and serving whatever it
+  // precached indefinitely, regardless of what a later APK update actually
+  // contains. Runs unconditionally on every native launch; a no-op when
+  // nothing is registered, so there is no "already cleaned up" state to
+  // track. See staleServiceWorkerCleanup.ts.
+  void cleanupStaleServiceWorker({
+    getRegistrations: () => navigator.serviceWorker.getRegistrations(),
+    cacheKeys: () => caches.keys(),
+    deleteCache: (key) => caches.delete(key),
+  }).catch((error: unknown) => {
+    console.warn("QuKi native service worker cleanup failed unexpectedly:", error);
   });
 }
 
