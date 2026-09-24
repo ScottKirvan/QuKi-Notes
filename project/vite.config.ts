@@ -33,6 +33,11 @@ export default defineConfig({
       // iOS-eviction rationale actually needs (an installable, working-
       // offline app), not just a manifest.
       registerType: "autoUpdate",
+      // Registration is handled manually in main.ts so it can be skipped when
+      // running as a Capacitor native app. In native context assets are served
+      // from the APK bundle directly; a service worker that pre-caches them
+      // persists across APK updates and causes stale-content on every install.
+      injectRegister: false,
       manifest: {
         name: "QuKi Notes",
         short_name: "QuKi Notes",
