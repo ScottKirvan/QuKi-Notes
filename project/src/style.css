@@ -532,6 +532,61 @@ button.settings-row {
   overflow-wrap: anywhere;
 }
 
+.about-links {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.about-link-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.about-link-icon {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  color: var(--text-muted);
+}
+
+.about-link-text {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.about-link-title {
+  font-size: 14px;
+  color: var(--text-normal);
+}
+
+.about-link-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.about-link-btn {
+  flex: none;
+  font: inherit;
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.about-link-btn.accent {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
 /*
  * Every message this banner shows (a save conflict, a thrown save/load
  * error) is a real problem, not a soft warning, so it is tinted from the
