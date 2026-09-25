@@ -336,6 +336,57 @@ async function main(): Promise<void> {
     );
     console.log(`[e2e-image-paste] PASS (already-saved QuKi): media/${filenameSaved} on OPFS contains exactly the bytes delivered by the paste event (${storedBytesSaved.length} bytes)`);
 
+    // --- Scenario 4: two images pasted back-to-back, with no wait between
+    // them - a bug repro (Scott, 2026-09-25). Pasting a second image before
+    // the first one's async write finishes must not lose or corrupt either
+    // link: the pre-fix plugin captured {from, to} once and reused it after
+    // the async gap, so a second paste racing the first could land at a
+    // position the document had already moved past. ---
+    await page.click("#btn-new-quki");
+    // startNewQuKi() flushes the pending save from Scenario 3 before
+    // clearing the editor - wait for that to actually land rather than
+    // asserting immediately after the click event fires.
+    await page.waitForFunction(() => (window as unknown as { qukiView: { state: { doc: { toString(): string } } } }).qukiView.state.doc.toString() === "", { timeout: 5000 });
+    await page.click(".cm-content");
+
+    // A real selection, not a bare cursor: both pastes below replace it,
+    // which is the dangerous case a stale, unmapped position corrupts -
+    // whichever paste resolves second must land after the first paste's
+    // link, not delete part of it by replacing the same stale range twice.
+    await page.keyboard.type("X");
+    await page.keyboard.press("Home");
+    await page.keyboard.press("Shift+End");
+
+    await page.evaluate(async (b64) => {
+      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+      const blob = new Blob([bytes], { type: "image/png" });
+      await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+    }, ONE_PX_PNG_BASE64);
+    await page.keyboard.press("Control+V"); // fires the paste handler; NOT awaited to settle before the next paste
+
+    await page.evaluate(async (b64) => {
+      const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+      const blob = new Blob([bytes], { type: "image/png" });
+      await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+    }, ONE_PX_PNG_BASE64);
+    await page.keyboard.press("Control+V"); // second paste, racing the first's still-pending write
+
+    await page.waitForFunction(
+      () => ((window as unknown as { qukiView: { state: { doc: { toString(): string } } } }).qukiView.state.doc.toString().match(/!\[\]\(media\//g) ?? []).length >= 2,
+      { timeout: 5000 },
+    );
+
+    const bodyAfterRacingPastes = await editorBody(page);
+    const allMarkdown = [...bodyAfterRacingPastes.matchAll(/!\[\]\(media\/[0-9a-f-]+\.png\)/g)];
+    assert(allMarkdown.length === 2, `expected exactly 2 image links after two racing pastes, got ${allMarkdown.length}: ${JSON.stringify(bodyAfterRacingPastes)}`);
+
+    const relPathsRacing = allMarkdown.map((m) => /\((media\/[0-9a-f-]+\.png)\)/.exec(m[0])![1]!);
+    assert(relPathsRacing[0] !== relPathsRacing[1], "the two racing pastes should each get their own generated filename");
+
+    const remainder = bodyAfterRacingPastes.replaceAll(/!\[\]\(media\/[0-9a-f-]+\.png\)/g, "");
+    assert(remainder === "", `body should be composed of exactly the two image links with nothing else lost or corrupted between them, got remainder: ${JSON.stringify(remainder)}`);
+    console.log(`[e2e-image-paste] PASS: two images pasted back-to-back with no wait between them both landed intact, neither lost nor corrupted: ${JSON.stringify(bodyAfterRacingPastes)}`);
+
     console.log("[e2e-image-paste] ALL SCENARIOS PASSED");
   } finally {
     await browser.close();
