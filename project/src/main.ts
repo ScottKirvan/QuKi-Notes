@@ -15,6 +15,7 @@ import { tags } from "@lezer/highlight";
 import { createElement, FileStack, CodeXml, BookOpen, Plus, CircleHelp, Send, Settings, Trash2 } from "lucide";
 import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
+import { Keyboard } from "@capacitor/keyboard";
 import { QuKiStore, type StorageBackend } from "quki-core";
 import { OpfsBackend } from "quki-core/opfs";
 import { ElectronIpcBackend } from "./electronIpcBackend";
@@ -745,7 +746,19 @@ async function init(): Promise<void> {
       pendingToolbarScrollCheck = true;
     }
   });
-  if (shouldFocusOnOpen(initial.id)) view.focus();
+  if (shouldFocusOnOpen(initial.id)) {
+    view.focus();
+    // A cold launch has no preceding user gesture, so the WebView will not
+    // reliably auto-show the soft keyboard from this plain DOM focus() call
+    // alone (confirmed on-device; matches Capacitor's own issue #3115).
+    // Keyboard.show() asks Android's InputMethodManager directly instead of
+    // going through DOM focus, so it isn't subject to that same gesture
+    // requirement. Android-only (usesKeyboardSignal) - other platforms show
+    // the keyboard from focus() correctly already.
+    if (usesKeyboardSignal(Capacitor.getPlatform(), Capacitor.isNativePlatform())) {
+      void Keyboard.show();
+    }
+  }
   // Seeds the toolbar's initial shown/hidden state the same way
   // updateModeToggleIcon() below seeds the mode icon from
   // editModeTracker.isEditMode() - both read the one tracker, so the
