@@ -1,11 +1,44 @@
 import { describe, expect, it } from "vitest";
 
-import { cycleHeading } from "./heading";
+import { cycleHeading, nextHeadingLevel } from "./heading";
 import type { EditorValue } from "./types";
 
 function v(text: string, anchor: number, head = anchor): EditorValue {
   return { text, selection: { anchor, head } };
 }
+
+// Direct coverage of the exported transition rule itself, independent of
+// cycleHeading's text-splicing - this is what screens/formattingToolbar.ts's
+// icon computation now relies on too.
+describe("nextHeadingLevel", () => {
+  it("normal (0) -> H1 (1)", () => {
+    expect(nextHeadingLevel(0)).toBe(1);
+  });
+
+  it("H1 (1) -> H2 (2)", () => {
+    expect(nextHeadingLevel(1)).toBe(2);
+  });
+
+  it("H2 (2) -> H3 (3)", () => {
+    expect(nextHeadingLevel(2)).toBe(3);
+  });
+
+  it("H3 (3) -> normal (0)", () => {
+    expect(nextHeadingLevel(3)).toBe(0);
+  });
+
+  it("H4 (4) -> normal (0)", () => {
+    expect(nextHeadingLevel(4)).toBe(0);
+  });
+
+  it("H5 (5) -> normal (0)", () => {
+    expect(nextHeadingLevel(5)).toBe(0);
+  });
+
+  it("H6 (6) -> normal (0)", () => {
+    expect(nextHeadingLevel(6)).toBe(0);
+  });
+});
 
 // New behavior — no Dart source or test to port (see the [Proposed —
 // unconfirmed] note in heading.ts for the multi-line "topmost line"

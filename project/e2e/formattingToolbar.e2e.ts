@@ -204,12 +204,13 @@ async function main(): Promise<void> {
     console.log("[e2e-formattingToolbar] PASS: Inline code wrapped the selection with backticks");
 
     // --- Heading cycles normal -> H1 -> H2 -> H3 -> normal, and the
-    // button's icon changes to reflect the level (BEHAVIOR_SPEC.md: "The
-    // icon tracks the current level"). The exact lucide icon isn't
-    // asserted by name (it's an implementation detail of lucide's icon
-    // set) - what's checked is that the rendered icon markup actually
-    // changes between levels, proving the toolbar reacts to the caret's
-    // line rather than showing one fixed icon. ---
+    // button's icon changes to reflect the NEXT level a click will produce
+    // (not the current level under the caret - reported directly by Scott).
+    // The exact lucide icon isn't asserted by name (it's an implementation
+    // detail of lucide's icon set) - what's checked here is that the
+    // rendered icon markup actually changes between levels, proving the
+    // toolbar reacts to the caret's line rather than showing one fixed
+    // icon. The next-vs-current distinction itself is checked below. ---
     await setDocAndSelection(page, "Title", 0, 0);
     const headingIconAtNormal = await page.locator('.formatting-toolbar .toolbar-btn[aria-label="Heading"] svg').innerHTML();
     await toolbarButton(page, "Heading").click();
@@ -222,6 +223,28 @@ async function main(): Promise<void> {
     const headingIconAtH2 = await page.locator('.formatting-toolbar .toolbar-btn[aria-label="Heading"] svg').innerHTML();
     assert(headingIconAtH2 !== headingIconAtH1, "the heading button's icon should change again for H2");
     console.log("[e2e-formattingToolbar] PASS: Heading cycles normal -> H1 -> H2 and its icon changes with the level");
+
+    // --- The icon must show the NEXT state, not the current one. An H3
+    // line and an H4 line (typed directly - H4 is never produced by this
+    // button) both have the identical next-press outcome, "drop to normal"
+    // (toolbar/heading.ts's nextHeadingLevel maps both 3 and 4 to 0), so a
+    // NEXT-state icon must render identically for both. This is a real
+    // regression check, not just "the icon changes": under the bug (icon
+    // driven by the CURRENT level) these two lines showed different icons -
+    // H3 its own Heading3 icon, H4 the generic fallback "Heading" icon. ---
+    await setDocAndSelection(page, "### Already H3", 0, 0);
+    const headingIconAtH3Line = await page.locator('.formatting-toolbar .toolbar-btn[aria-label="Heading"] svg').innerHTML();
+    await setDocAndSelection(page, "#### Already H4", 0, 0);
+    const headingIconAtH4Line = await page.locator('.formatting-toolbar .toolbar-btn[aria-label="Heading"] svg').innerHTML();
+    assert(
+      headingIconAtH3Line === headingIconAtH4Line,
+      "an H3 line and an H4 line must show the identical icon - both cycle to normal on the next press",
+    );
+    assert(
+      headingIconAtH3Line !== headingIconAtH2,
+      "the H3/H4 lines' 'next is normal' icon must differ from the H2 line's icon (next is H3)",
+    );
+    console.log("[e2e-formattingToolbar] PASS: an H3 line and an H4 line show the same next-is-normal icon (proves the icon tracks next state, not current)");
 
     // --- List-toggle buttons convert in place (BEHAVIOR_SPEC.md "Toolbar
     // toggle semantics"): pressing again removes what was just added. ---
