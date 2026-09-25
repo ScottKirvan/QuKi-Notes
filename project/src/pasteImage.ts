@@ -1,3 +1,4 @@
+import type { ChangeSet } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
 
 /**
@@ -57,6 +58,46 @@ export interface ImagePasteHost {
 }
 
 /**
+ * Maps a paste's still-pending insertion range forward through one document
+ * change - a bug found on-device (Scott, 2026-09-25): pasting several
+ * images in quick succession, or just a slow writeImage(), lost or
+ * mis-placed earlier images' links, because the original code captured
+ * `{from, to}` once, synchronously, and used that same fixed pair after the
+ * async file-read-and-write gap with no regard for whatever the document
+ * had done in the meantime - including another pending paste's own insert
+ * landing at that exact position.
+ *
+ * Two cases, handled differently:
+ *
+ * - The change doesn't touch this range at all (ordinary typing elsewhere,
+ *   or an insertion entirely before/after it): map both ends independently
+ *   with `mapPos(pos, 1)`, which correctly shifts a still-valid selection
+ *   forward or leaves it alone.
+ * - The change touches or overlaps this range - typically another pending
+ *   paste's own insert landing at/inside the exact spot this one was also
+ *   targeting. Whatever this range meant to replace may already be gone,
+ *   so mapping `from` and `to` independently is unsafe: `mapPos`
+ *   resolves a position sitting exactly at the START of an overlapping
+ *   replacement to a point BEFORE its inserted content regardless of
+ *   `assoc` (only a position at the END of one moves after it), so
+ *   independent mapping here would make `from` and `to` straddle the other
+ *   change's entire inserted text - replacing it outright on this paste's
+ *   own dispatch. Collapse to a single cursor instead, positioned right
+ *   after whichever touching change inserted the most, so this paste
+ *   appends after it rather than colliding with it.
+ */
+export function mapPasteRange(range: { from: number; to: number }, change: ChangeSet): { from: number; to: number } {
+  if (change.touchesRange(range.from, range.to)) {
+    let after = range.to;
+    change.iterChanges((fromA: number, toA: number, _fromB: number, toB: number) => {
+      if (toA >= range.from && fromA <= range.to) after = Math.max(after, toB);
+    });
+    return { from: after, to: after };
+  }
+  return { from: change.mapPos(range.from, 1), to: change.mapPos(range.to, 1) };
+}
+
+/**
  * A CodeMirror extension: intercepts a paste that carries an image and
  * writes it into the shared media/ folder, then inserts the generated
  * `![](media/<name>)` link as literal text at the cursor position the
@@ -69,7 +110,22 @@ export interface ImagePasteHost {
  * current QuKi has never been saved (id: null) or already exists on disk.
  */
 export function createImagePastePlugin(host: ImagePasteHost) {
-  return EditorView.domEventHandlers({
+  // Every in-flight paste's insertion range, kept current against the live
+  // document by trackChanges below (see mapPasteRange) until its own
+  // dispatch removes it. A plain mutable object per paste, not a value -
+  // trackChanges updates it in place as changes land.
+  const pending = new Set<{ from: number; to: number }>();
+
+  const trackChanges = EditorView.updateListener.of((update) => {
+    if (!update.docChanged || pending.size === 0) return;
+    for (const range of pending) {
+      const mapped = mapPasteRange(range, update.changes);
+      range.from = mapped.from;
+      range.to = mapped.to;
+    }
+  });
+
+  const handlePaste = EditorView.domEventHandlers({
     paste(event, view) {
       const dataTransfer = event.clipboardData;
       if (!dataTransfer) return false;
@@ -85,39 +141,47 @@ export function createImagePastePlugin(host: ImagePasteHost) {
       const file = item.getAsFile();
       if (!file) return true;
 
-      // Captured synchronously, before any await, so the insertion lands
-      // where the cursor was at paste time even if it moves before the
-      // async write finishes.
+      // Captured synchronously, at paste time - then kept current by
+      // trackChanges above across the async gap below, rather than used as
+      // a fixed pair the way the pre-fix version did.
       const { from, to } = view.state.selection.main;
+      const range = { from, to };
+      pending.add(range);
       const extension = extensionForImageMime(item.type);
 
       void (async () => {
-        let bytes: Uint8Array;
         try {
-          bytes = new Uint8Array(await file.arrayBuffer());
-        } catch (error) {
-          console.error("QuKi image paste (reading clipboard file) failed unexpectedly:", error);
-          host.onError(error);
-          return;
-        }
+          let bytes: Uint8Array;
+          try {
+            bytes = new Uint8Array(await file.arrayBuffer());
+          } catch (error) {
+            console.error("QuKi image paste (reading clipboard file) failed unexpectedly:", error);
+            host.onError(error);
+            return;
+          }
 
-        let result: { relativePath: string };
-        try {
-          result = await host.writeImage(bytes, extension);
-        } catch (error) {
-          console.error("QuKi image paste (writeImage) failed unexpectedly:", error);
-          host.onError(error);
-          return;
-        }
+          let result: { relativePath: string };
+          try {
+            result = await host.writeImage(bytes, extension);
+          } catch (error) {
+            console.error("QuKi image paste (writeImage) failed unexpectedly:", error);
+            host.onError(error);
+            return;
+          }
 
-        const markdown = `![](${result.relativePath})`;
-        view.dispatch({
-          changes: { from, to, insert: markdown },
-          selection: { anchor: from + markdown.length },
-        });
+          const markdown = `![](${result.relativePath})`;
+          view.dispatch({
+            changes: { from: range.from, to: range.to, insert: markdown },
+            selection: { anchor: range.from + markdown.length },
+          });
+        } finally {
+          pending.delete(range);
+        }
       })();
 
       return true;
     },
   });
+
+  return [handlePaste, trackChanges];
 }
