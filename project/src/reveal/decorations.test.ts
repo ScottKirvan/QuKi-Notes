@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { EditorState } from "@codemirror/state";
+import { type Extension, EditorState } from "@codemirror/state";
 import { markdown } from "@codemirror/lang-markdown";
 import { GFM } from "@lezer/markdown";
 import { buildDecorations } from "./decorations";
 import { plainTextMode, setPlainTextMode } from "./plainTextMode";
+import { editModeField } from "./editModeField";
 
 interface Deco {
   from: number;
@@ -16,11 +17,19 @@ interface Deco {
   url: string | undefined;
 }
 
-function decorationsFor(doc: string, caret: number, plain = false): Deco[] {
+// `editMode` left undefined omits the field entirely, matching every
+// pre-existing call site here: buildDecorations then falls back to its own
+// "unwired" default (true), so those callers keep exercising reveal driven
+// purely by caret position, exactly as before editModeField existed.
+function decorationsFor(doc: string, caret: number, plain = false, editMode?: boolean): Deco[] {
+  const extensions: Extension[] = [markdown({ extensions: GFM }), plainTextMode];
+  if (editMode !== undefined) {
+    extensions.push(editModeField.init(() => editMode));
+  }
   let state = EditorState.create({
     doc,
     selection: { anchor: caret },
-    extensions: [markdown({ extensions: GFM }), plainTextMode],
+    extensions,
   });
   if (plain) {
     state = state.update({ effects: setPlainTextMode.of(true) }).state;
@@ -129,6 +138,54 @@ describe("plain-text mode", () => {
     const doc = "- a\n1. b\n\n- c";
     expect(decorationsFor(doc, 0, true)).toEqual([]);
     expect(decorationsFor(doc, doc.length, true)).toEqual([]);
+  });
+});
+
+// Reading mode has no real cursor position at all (BEHAVIOR_SPEC.md §4), but
+// main.ts's loadDocumentIntoEditor always resets the caret to { anchor: 0 }
+// on load regardless - including for an existing QuKi opened straight into
+// reading mode. Without editModeField gating it, that default position gets
+// mistaken for the user genuinely editing there, so whatever sits at
+// document position 0 (most commonly a first-line heading, but nothing
+// about the bug is heading-specific) renders revealed even though nobody is
+// actually positioned there.
+describe("reveal requires a real edit-mode caret, not just wherever it defaults to", () => {
+  it("given a first-line heading and edit mode off, when decorated, then the marker stays collapsed even with the caret sitting inside it", () => {
+    const decos = decorationsFor("# test", 0, false, false);
+    expect(hiddenRanges(decos)).toEqual([[0, 2]]);
+    expect(byClass(decos, "cm-quki-heading cm-quki-heading-1")).toHaveLength(1);
+  });
+
+  it("given the same first-line heading and edit mode on, when decorated, then the caret at that same position reveals the marker as before", () => {
+    const decos = decorationsFor("# test", 0, false, true);
+    expect(hiddenRanges(decos)).toEqual([]);
+  });
+
+  it("given a first-line bold run and edit mode off, when decorated, then its marks stay collapsed - the bug is not heading-specific", () => {
+    const decos = decorationsFor("**bold** rest", 0, false, false);
+    expect(hiddenRanges(decos)).toEqual([[0, 2], [6, 8]]);
+    expect(byClass(decos, "cm-quki-strong")).toHaveLength(1);
+  });
+
+  it("given a first-line bold run and edit mode on, when decorated, then the caret at that same position reveals its marks as before", () => {
+    const decos = decorationsFor("**bold** rest", 0, false, true);
+    expect(hiddenRanges(decos)).toEqual([]);
+  });
+
+  it("given a first-line list item and edit mode off, when decorated, then its marker still collapses to a widget", () => {
+    const decos = decorationsFor("- apple", 0, false, false);
+    expect(widgets(decos, "BulletWidget")).toHaveLength(1);
+  });
+
+  it("given edit mode off and the caret on the blank line between them, when decorated, then a checkbox and an image still render as their normal widgets", () => {
+    const doc = "- [x] done\n\n![alt](img.png)";
+    const decos = decorationsFor(doc, doc.indexOf("\n\n") + 1, false, false);
+    expect(widgets(decos, "CheckboxWidget")).toHaveLength(1);
+    expect(widgets(decos, "ImageWidget")).toHaveLength(1);
+  });
+
+  it("given no edit-mode field is wired in at all, when decorated, then reveal still follows the caret directly - unaffected pre-existing callers", () => {
+    expect(hiddenRanges(decorationsFor("# test", 0))).toEqual([]);
   });
 });
 
