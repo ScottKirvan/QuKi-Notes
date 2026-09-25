@@ -1,7 +1,18 @@
 import type { EditorValue, EditorSelection } from "./types";
 import { clamp, collectTouchedLineStarts, headingLevel, lineBoundsAt } from "./lines";
 
-function nextHeadingLevel(level: number): number {
+/**
+ * The heading level `cycleHeading` produces on the NEXT press, given the
+ * CURRENT level of the line the cycle would act on: normal (0) -> H1 (1) ->
+ * H2 (2) -> H3 (3) -> normal (0), with any level above 3 (an H4-H6 line
+ * reachable by typing "#### " etc. directly, never produced by this cycle)
+ * also dropping straight to normal - matching `cycleHeadingCollapsed` and
+ * `cycleHeadingMultiLine` below, which both fall through to
+ * `prefixForLevel(0)` for any `level > 2`. Exported so the toolbar button's
+ * icon (screens/formattingToolbar.ts) can show what a click will produce
+ * without reimplementing this transition rule a second time.
+ */
+export function nextHeadingLevel(level: number): number {
   if (level === 0) return 1;
   if (level === 1) return 2;
   if (level === 2) return 3;

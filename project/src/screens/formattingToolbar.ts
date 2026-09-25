@@ -17,7 +17,7 @@ import {
 } from "lucide";
 
 import { applyDedent, applyIndent } from "../toolbar/indentDedent";
-import { cycleHeading } from "../toolbar/heading";
+import { cycleHeading, nextHeadingLevel } from "../toolbar/heading";
 import { toggleCheckboxList, toggleOrderedList, toggleUnorderedList } from "../toolbar/listToggle";
 import type { EditorValue } from "../toolbar/types";
 import { wrapSelection } from "../toolbar/wrap";
@@ -25,16 +25,24 @@ import { currentHeadingLevel, runToolbarCommand } from "../toolbarAdapter";
 
 type IconNode = Parameters<typeof createElement>[0];
 
+// No Lucide icon reads as "plain text, not a heading" on its own — its own
+// `Heading` icon is a bare "H" and would still look like some kind of
+// heading. Drawn as a lowercase "n" (two vertical strokes joined by a
+// rounded arch, same 24x24/stroke-2/round-cap style `createElement`'s
+// defaults already give every Lucide icon here) purely so the "normal text"
+// state of the button reads as unambiguously not-a-heading-level.
+const NORMAL_TEXT_ICON: IconNode = [["path", { d: "M6 18V10C6 8.5 7.5 7 9 7C10.5 7 12 8.5 12 10V18" }]];
+
 /**
  * BEHAVIOR_SPEC.md's heading-cycle rewrite ("normal -> H1 -> H2 -> H3 ->
- * normal... The icon tracks the current level") — `cycleHeading`
- * (toolbar/heading.ts) never produces a level past 3, so levels 4-6 never
- * reach this map; `currentHeadingLevel` can still return them for a line
- * the toolbar didn't create (typed by hand, or ported content), which the
- * `?? Heading` fallback below treats the same as "normal".
+ * normal") pairs with "the icon explains itself": the button should show
+ * what clicking WILL produce next, not the level currently under the caret.
+ * Keyed by `nextHeadingLevel`'s result, which is always 0-3 — it already
+ * collapses H3 and any hand-typed H4-H6 line alike down to 0 ("normal"),
+ * matching `cycleHeading`'s own next-press behavior on such a line.
  */
 const HEADING_ICONS: Record<number, IconNode> = {
-  0: Heading,
+  0: NORMAL_TEXT_ICON,
   1: Heading1,
   2: Heading2,
   3: Heading3,
@@ -126,8 +134,8 @@ export function createFormattingToolbar(view: EditorView, container: HTMLElement
   container.appendChild(element);
 
   function updateHeadingIcon(): void {
-    const level = currentHeadingLevel(view.state);
-    headingButton.replaceChildren(iconElement(HEADING_ICONS[level] ?? Heading));
+    const nextLevel = nextHeadingLevel(currentHeadingLevel(view.state));
+    headingButton.replaceChildren(iconElement(HEADING_ICONS[nextLevel] ?? NORMAL_TEXT_ICON));
   }
   updateHeadingIcon();
 
