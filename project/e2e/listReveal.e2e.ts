@@ -537,6 +537,44 @@ async function main(): Promise<void> {
       await context.close();
     }
 
+    // --- Opening an existing QuKi lands in reading mode with no focus
+    // (BEHAVIOR_SPEC.md §4) - main.ts's loadDocumentIntoEditor always resets
+    // the caret to { anchor: 0 } on load, even here, so a first-line element
+    // must not read that default reset position as the user genuinely
+    // editing there. ---
+    {
+      const context = await browser.newContext();
+      const page = await openFreshPage(context, url);
+
+      await blurEditor(page);
+      await setDocAndSelection(page, "# test\n\nbody text", 0);
+      await page.waitForTimeout(150);
+
+      assert(!(await editorHasFocus(page)), "opening an existing QuKi must not focus the editor");
+      const headingLine = await page.locator(".cm-line", { hasText: "test" }).first().textContent();
+      assert(headingLine === "test", `a first-line heading opened straight into reading mode should show collapsed ("test"), not raw markdown, got ${JSON.stringify(headingLine)}`);
+      assert((await page.locator(".cm-quki-heading-1").count()) === 1, "the heading should still carry its styled heading class");
+      console.log("[e2e-listReveal] PASS: a first-line heading opened straight into reading mode shows collapsed, not raw");
+
+      // Same root cause, not heading-specific: a first-line bold run must
+      // also stay collapsed rather than revealing its ** marks.
+      await setDocAndSelection(page, "**bold** rest\n\nbody text", 0);
+      await page.waitForTimeout(150);
+      const boldLine = await page.locator(".cm-line", { hasText: "bold" }).first().textContent();
+      assert(boldLine === "bold rest", `a first-line bold run opened straight into reading mode should show collapsed ("bold rest"), not raw, got ${JSON.stringify(boldLine)}`);
+      console.log("[e2e-listReveal] PASS: a first-line bold run opened straight into reading mode shows collapsed, not raw (bug is not heading-specific)");
+
+      // Genuinely focusing at that same position must still reveal
+      // normally - the fix must not break real in-editor reveal at 0.
+      await focusEditor(page);
+      await page.waitForTimeout(150);
+      const focusedLine = await page.locator(".cm-line", { hasText: "bold" }).first().textContent();
+      assert(focusedLine === "**bold** rest", `focusing with the caret genuinely at position 0 should reveal the marker, got ${JSON.stringify(focusedLine)}`);
+      console.log("[e2e-listReveal] PASS: focusing at that same position still reveals normally");
+
+      await context.close();
+    }
+
     console.log("[e2e-listReveal] ALL SCENARIOS PASSED");
   } finally {
     await browser.close();

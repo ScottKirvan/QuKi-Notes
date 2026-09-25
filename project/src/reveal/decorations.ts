@@ -10,6 +10,7 @@ import type { SyntaxNode } from "@lezer/common";
 import { extractElements } from "./extractElements";
 import { computeRevealedIds, caretForReveal } from "./computeReveal";
 import { plainTextMode } from "./plainTextMode";
+import { editModeField, isEditMode } from "./editModeField";
 import { listPrefixLength } from "./listPrefix";
 import {
   BulletWidget,
@@ -178,7 +179,15 @@ export function buildDecorations(state: EditorState): DecorationSet {
   }
 
   const { elements, nodes } = extractElements(state);
-  const caret = caretForReveal(state.selection.main);
+  // Rule 6's caret===null contract, reused here: outside real edit mode the
+  // caret's position (main.ts's loadDocumentIntoEditor always resets it to
+  // { anchor: 0 } on load, including for an existing QuKi opened straight
+  // into reading mode) is not a meaningful editing position, so nothing
+  // should reveal on account of it - every other decoration below (list
+  // collapse, checkboxes, images, ...) still applies normally, since it
+  // only depends on `revealed`, not on plain-text mode's separate
+  // Decoration.none early return above.
+  const caret = isEditMode(state) ? caretForReveal(state.selection.main) : null;
   const revealedIds = computeRevealedIds(elements, caret);
 
   const ranges: Range<Decoration>[] = [];
@@ -381,7 +390,10 @@ export const revealPlugin = ViewPlugin.fromClass(
       const plainTextChanged =
         update.startState.field(plainTextMode) !==
         update.state.field(plainTextMode);
-      if (update.docChanged || update.selectionSet || plainTextChanged) {
+      const editModeChanged =
+        update.startState.field(editModeField, false) !==
+        update.state.field(editModeField, false);
+      if (update.docChanged || update.selectionSet || plainTextChanged || editModeChanged) {
         this.decorations = buildDecorations(update.state);
       }
     }

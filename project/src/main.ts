@@ -32,6 +32,7 @@ import { createFormattingToolbar, type FormattingToolbarHandle } from "./screens
 import { revealPlugin } from "./reveal/decorations";
 import { hangingIndent } from "./reveal/hangingIndent";
 import { plainTextMode, setPlainTextMode } from "./reveal/plainTextMode";
+import { editModeField, setEditMode } from "./reveal/editModeField";
 import {
   createEditModeTracker,
   resolveModeIconState,
@@ -556,6 +557,11 @@ async function init(): Promise<void> {
       markdown({ extensions: GFM }),
       syntaxHighlighting(qukiSyntaxHighlighting),
       plainTextMode,
+      // Seeded from the same shouldFocusOnOpen check editModeTracker below
+      // uses, so the very first buildDecorations call (the revealPlugin's
+      // constructor, run before the tracker's own focus/keyboard listeners
+      // ever fire) already agrees with it - see editModeField.ts.
+      editModeField.init(() => shouldFocusOnOpen(initial.id)),
       imageResolver.of((relPath) => backend.readBinary(relPath)),
       revealPlugin,
       hangingIndent,
@@ -722,6 +728,10 @@ async function init(): Promise<void> {
   // the blank case (blankInitialQuKi) - shouldFocusOnOpen's null-id check
   // applies here exactly as it does to startNewQuKi/openQuKiInEditor below.
   editModeTracker = createEditModeTracker(view, shouldFocusOnOpen(initial.id), (isEditMode) => {
+    // Keeps reveal/decorations.ts's editModeField in sync with the real
+    // signal (see its own comment) - reveal must react to this exact
+    // tracker, not to focus/blur it might independently observe.
+    view.dispatch({ effects: setEditMode.of(isEditMode) });
     updateModeToggleIcon();
     toolbarController?.setVisible(isEditMode);
     // See pendingToolbarScrollCheck's declaration and the update listener
