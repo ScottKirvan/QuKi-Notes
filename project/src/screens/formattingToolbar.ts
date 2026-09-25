@@ -27,11 +27,26 @@ type IconNode = Parameters<typeof createElement>[0];
 
 // No Lucide icon reads as "plain text, not a heading" on its own — its own
 // `Heading` icon is a bare "H" and would still look like some kind of
-// heading. Drawn as a lowercase "n" (two vertical strokes joined by a
-// rounded arch, same 24x24/stroke-2/round-cap style `createElement`'s
-// defaults already give every Lucide icon here) purely so the "normal text"
-// state of the button reads as unambiguously not-a-heading-level.
-const NORMAL_TEXT_ICON: IconNode = [["path", { d: "M6 18V10C6 8.5 7.5 7 9 7C10.5 7 12 8.5 12 10V18" }]];
+// heading. A hand-drawn single-stroke "n" (two curved legs, matching every
+// other icon's outline style) turned out to be genuinely unrecognisable as
+// the letter "n" at this size — confirmed directly, it read as an upside-
+// down "u" instead. This is the actual lowercase "n" glyph from Arial
+// (extracted via opentype.js's real glyph outline, not hand-drawn), scaled
+// into the 24x24 icon grid. It's filled rather than stroked — fill/stroke
+// are set explicitly on this one path, overriding the stroke-only default
+// every other icon here inherits from `createElement`'s root <svg>, because
+// an outline-only rendering of real letterform curves is exactly what read
+// as ambiguous in the first place.
+const NORMAL_TEXT_ICON: IconNode = [
+  [
+    "path",
+    {
+      d: "M9.38 19L7.45 19L7.45 7.59L9.19 7.59L9.19 9.21Q10.45 7.33 12.82 7.33Q13.85 7.33 14.72 7.70Q15.58 8.08 16.01 8.68Q16.44 9.28 16.61 10.11Q16.72 10.64 16.72 11.99L16.72 19L14.79 19L14.79 12.06Q14.79 10.88 14.56 10.29Q14.34 9.71 13.76 9.36Q13.19 9.01 12.41 9.01Q11.18 9.01 10.28 9.79Q9.38 10.58 9.38 12.77Z",
+      fill: "currentColor",
+      stroke: "none",
+    },
+  ],
+];
 
 /**
  * BEHAVIOR_SPEC.md's heading-cycle rewrite ("normal -> H1 -> H2 -> H3 ->
