@@ -1,20 +1,27 @@
 import { type EditorView, WidgetType } from "@codemirror/view";
 import { imageResolver } from "./imageResolver";
 import { acquireImageUrl, releaseImageUrl } from "./imageUrlCache";
+import { remoteImageFetcher } from "./remoteImageFetcher";
+import { fetchRemoteImageBytes } from "./remoteImageCache";
 import { toggleCheckboxAt } from "./checkboxTap";
 
+const REMOTE_URL_PATTERN = /^https?:\/\//i;
+
 /**
- * `this.src` is a markdown image path (e.g. "media/<name>.png"), not a URL
- * the browser can request — OPFS serves nothing over HTTP. toDOM() must
- * return synchronously, so the <img> is created immediately with no `src`
- * and the real blob: URL is attached once the configured imageResolver
- * (wired up in main.ts, backed by OpfsBackend) finishes reading the bytes.
- * A read failure (missing file, storage error) or no resolver being
- * configured at all both fall back to the same broken-image state rather
- * than throwing or leaving the promise to reject uncaught.
+ * `this.src` is either a local markdown image path (e.g. "media/<name>.png")
+ * or a remote `http(s)://` URL. toDOM() must return synchronously, so the
+ * <img> is created immediately with no `src`, and the two kinds of source
+ * are resolved through entirely separate facets/caches (imageResolver +
+ * imageUrlCache for local OPFS reads, remoteImageFetcher + remoteImageCache
+ * for network fetches — see remoteImageFetcher.ts for why these aren't one
+ * resolver branching internally). Either path's failure (missing file,
+ * storage error, network error, non-image response, or no
+ * resolver/fetcher configured at all) falls back to the same broken-image
+ * state rather than throwing or leaving the promise to reject uncaught.
  */
 export class ImageWidget extends WidgetType {
   private acquiredPath: string | null = null;
+  private remoteObjectUrl: string | null = null;
 
   constructor(
     readonly alt: string,
@@ -31,6 +38,27 @@ export class ImageWidget extends WidgetType {
     const img = document.createElement("img");
     img.alt = this.alt;
     img.className = "cm-quki-image";
+
+    if (REMOTE_URL_PATTERN.test(this.src)) {
+      const fetcher = view.state.facet(remoteImageFetcher);
+      if (!fetcher) {
+        img.classList.add("cm-quki-image-broken");
+        return img;
+      }
+
+      fetchRemoteImageBytes(this.src, fetcher).then(
+        ({ bytes, contentType }) => {
+          const blob = new Blob([bytes as unknown as BlobPart], { type: contentType });
+          this.remoteObjectUrl = URL.createObjectURL(blob);
+          img.src = this.remoteObjectUrl;
+        },
+        () => {
+          img.classList.add("cm-quki-image-broken");
+        },
+      );
+
+      return img;
+    }
 
     const resolve = view.state.facet(imageResolver);
     if (!resolve) {
@@ -55,6 +83,10 @@ export class ImageWidget extends WidgetType {
     if (this.acquiredPath !== null) {
       releaseImageUrl(this.acquiredPath);
       this.acquiredPath = null;
+    }
+    if (this.remoteObjectUrl !== null) {
+      URL.revokeObjectURL(this.remoteObjectUrl);
+      this.remoteObjectUrl = null;
     }
   }
 }
