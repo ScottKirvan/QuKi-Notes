@@ -95,3 +95,51 @@ jobs:
       - name: Test (mcp)
         run: npm test
         working-directory: project/mcp
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            project/package-lock.json
+            project/core/package-lock.json
+
+      # core's own OPFS browser test runs straight from src/ — no build needed first
+      - name: Install (core)
+        run: npm ci
+        working-directory: project/core
+
+      - name: Install Playwright browsers (core)
+        run: npx playwright install --with-deps chromium
+        working-directory: project/core
+
+      - name: Browser test (core)
+        run: npm run test:browser
+        working-directory: project/core
+
+      # core must be built before the web app — it imports from core/dist/
+      - name: Build (core)
+        run: npm run build
+        working-directory: project/core
+
+      - name: Install (app)
+        run: npm ci
+        working-directory: project
+
+      - name: Install Playwright browsers (app)
+        run: npx playwright install --with-deps chromium
+        working-directory: project
+
+      # the e2e scripts serve project/dist/ over a local http server
+      - name: Build web app
+        run: npm run build
+        working-directory: project
+
+      - name: Run e2e (web)
+        run: npm run test:e2e
+        working-directory: project
