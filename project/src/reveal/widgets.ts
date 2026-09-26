@@ -1,8 +1,6 @@
 import { type EditorView, WidgetType } from "@codemirror/view";
 import { imageResolver } from "./imageResolver";
 import { acquireImageUrl, releaseImageUrl } from "./imageUrlCache";
-import { remoteImageFetcher } from "./remoteImageFetcher";
-import { fetchRemoteImageBytes } from "./remoteImageCache";
 import { toggleCheckboxAt } from "./checkboxTap";
 import type { InlineSpan, TableAlign, TableModel } from "./tableModel";
 
@@ -10,19 +8,21 @@ const REMOTE_URL_PATTERN = /^https?:\/\//i;
 
 /**
  * `this.src` is either a local markdown image path (e.g. "media/<name>.png")
- * or a remote `http(s)://` URL. toDOM() must return synchronously, so the
- * <img> is created immediately with no `src`, and the two kinds of source
- * are resolved through entirely separate facets/caches (imageResolver +
- * imageUrlCache for local OPFS reads, remoteImageFetcher + remoteImageCache
- * for network fetches — see remoteImageFetcher.ts for why these aren't one
- * resolver branching internally). Either path's failure (missing file,
- * storage error, network error, non-image response, or no
- * resolver/fetcher configured at all) falls back to the same broken-image
- * state rather than throwing or leaving the promise to reject uncaught.
+ * or a remote `http(s)://` URL. A remote URL is set directly as the <img>'s
+ * `src` and left to the browser to load: displaying an image via <img> never
+ * needs CORS (only reading its bytes/pixels back into JS would), so this
+ * works for any host regardless of what Access-Control-Allow-Origin it does
+ * or doesn't send, and the browser's own HTTP cache handles caching across
+ * reveals without any bytes needing to pass through this process at all. A
+ * local path instead goes through imageResolver + imageUrlCache, because
+ * OPFS reads have no URL of their own for an <img> to load — they need to be
+ * read into bytes and turned into a blob: URL first. Either path's failure
+ * (missing file, storage error, network error, non-image response, or no
+ * resolver configured for a local path) falls back to the same broken-image
+ * state via the <img>'s own `error` event rather than throwing.
  */
 export class ImageWidget extends WidgetType {
   private acquiredPath: string | null = null;
-  private remoteObjectUrl: string | null = null;
 
   constructor(
     readonly alt: string,
@@ -41,23 +41,10 @@ export class ImageWidget extends WidgetType {
     img.className = "cm-quki-image";
 
     if (REMOTE_URL_PATTERN.test(this.src)) {
-      const fetcher = view.state.facet(remoteImageFetcher);
-      if (!fetcher) {
+      img.addEventListener("error", () => {
         img.classList.add("cm-quki-image-broken");
-        return img;
-      }
-
-      fetchRemoteImageBytes(this.src, fetcher).then(
-        ({ bytes, contentType }) => {
-          const blob = new Blob([bytes as unknown as BlobPart], { type: contentType });
-          this.remoteObjectUrl = URL.createObjectURL(blob);
-          img.src = this.remoteObjectUrl;
-        },
-        () => {
-          img.classList.add("cm-quki-image-broken");
-        },
-      );
-
+      });
+      img.src = this.src;
       return img;
     }
 
@@ -84,10 +71,6 @@ export class ImageWidget extends WidgetType {
     if (this.acquiredPath !== null) {
       releaseImageUrl(this.acquiredPath);
       this.acquiredPath = null;
-    }
-    if (this.remoteObjectUrl !== null) {
-      URL.revokeObjectURL(this.remoteObjectUrl);
-      this.remoteObjectUrl = null;
     }
   }
 }

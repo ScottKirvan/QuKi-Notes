@@ -93,21 +93,24 @@ async function main(): Promise<void> {
       const imgState = await waitForImageSettled(page);
       assert(imgState !== null, "expected a .cm-quki-image element once the caret moved off the image's span");
       assert(!imgState!.broken, `expected the remote image to resolve successfully, got broken state for src=${imgState!.src}`);
-      assert(imgState!.src.startsWith("blob:"), `expected the <img> src to be a resolved blob: URL, got: ${imgState!.src}`);
+      assert(
+        imgState!.src === "https://fake.quki-notes.test/pic.png",
+        `expected the <img> src to be set directly to the remote URL (no fetch/blob indirection), got: ${imgState!.src}`,
+      );
       assert(imgState!.complete, "expected the <img> to finish decoding");
       assert(imgState!.naturalWidth > 0, `expected decoded pixel data (naturalWidth>0), got ${imgState!.naturalWidth}`);
       assert(requestCount === 1, `expected exactly 1 network request for the image, got ${requestCount}`);
-      console.log(`[e2e-remote-image] PASS: remote http(s) image URL fetched and rendered as a real <img> (naturalWidth=${imgState!.naturalWidth})`);
+      console.log(`[e2e-remote-image] PASS: remote http(s) image URL set directly as <img src> and rendered (naturalWidth=${imgState!.naturalWidth})`);
 
       // --- Caching: revealing then re-collapsing the same URL must not
-      // refetch - the bytes cache is session-lifetime, not tied to a
-      // widget's mount lifetime. ---
+      // refetch over the network - the browser's own HTTP/in-memory image
+      // cache serves the second load, with no app-level cache involved. ---
       await moveCaretTo(page, doc.indexOf("pic.png"));
       await page.waitForFunction(() => document.querySelector(".cm-quki-image") === null, { timeout: 5000 });
       await moveCaretTo(page, doc.length);
       await waitForImageSettled(page);
-      assert(requestCount === 1, `expected the cached bytes to be reused rather than refetched, got ${requestCount} requests`);
-      console.log("[e2e-remote-image] PASS: re-revealing the same remote image reused cached bytes instead of refetching");
+      assert(requestCount === 1, `expected the browser's own cache to serve the second load rather than refetching, got ${requestCount} requests`);
+      console.log("[e2e-remote-image] PASS: re-revealing the same remote image reused the browser's own cache instead of refetching");
 
       await context.close();
     }
@@ -197,7 +200,10 @@ async function main(): Promise<void> {
         })),
       );
       assert(states.length === 2, `expected 2 image widgets, got ${states.length}`);
-      assert(!states[0]!.broken && states[0]!.src.startsWith("blob:"), `expected the remote image to resolve, got: ${JSON.stringify(states[0])}`);
+      assert(
+        !states[0]!.broken && states[0]!.src === "https://fake.quki-notes.test/mixed.png",
+        `expected the remote image to resolve via its own URL, got: ${JSON.stringify(states[0])}`,
+      );
       assert(states[1]!.broken, `expected the missing local image to fall back to broken, got: ${JSON.stringify(states[1])}`);
       assert(requestCount === 1, `expected exactly 1 network request for the remote image, got ${requestCount}`);
       console.log("[e2e-remote-image] PASS: a remote image and a failing local image in the same document resolve independently");
