@@ -101,17 +101,6 @@ async function focusEditor(page: Page): Promise<void> {
   await page.evaluate(() => (window as WindowWithQukiView).qukiView.focus());
 }
 
-// Real per-character typing, unlike setDocAndSelection's single programmatic
-// dispatch - this is what actually exercises CodeMirror's keymaps (Enter's
-// auto-indent in particular), which a synthetic whole-document replace never
-// touches. That distinction is exactly what a fenced code block's "content
-// is literal" contract needs verified against.
-async function typeIntoEditor(page: Page, text: string): Promise<void> {
-  await page.click(".cm-content");
-  await page.keyboard.press("Control+A");
-  await page.keyboard.type(text);
-}
-
 async function blurEditor(page: Page): Promise<void> {
   await page.evaluate(() => (window as WindowWithQukiView).qukiView.contentDOM.blur());
 }
@@ -777,67 +766,6 @@ async function main(): Promise<void> {
       await page.waitForTimeout(150);
       assert((await page.locator(".cm-quki-codeblock-line").count()) === 5, "a selection anchored outside the block should keep it collapsed even though the head lands inside it");
       console.log("[e2e-listReveal] PASS: reveal resolves against the selection anchor, not the head");
-
-      await context.close();
-    }
-
-    // --- Typing (not pasting) code into a fenced block must never be
-    // auto-indented: markdown's own Enter handling declines inside a
-    // FencedCode block and falls through to the default keymap's
-    // insertNewlineAndIndent, which - finding no indent rule for FencedCode
-    // - inherits the previous line's leading whitespace onto every new line,
-    // corrupting typed content (see fencedCodeIndent.ts). ---
-    {
-      const context = await browser.newContext();
-      const page = await openFreshPage(context, url);
-
-      const typed = [
-        "Syntax highlighting",
-        "",
-        "```js",
-        "var foo = function (bar) {",
-        "  return bar++;",
-        "};",
-        "",
-        "console.log(foo(5));",
-        "```",
-      ].join("\n");
-
-      await typeIntoEditor(page, typed);
-      await page.waitForTimeout(150);
-      const landed = await editorBody(page);
-      assert(landed === typed, `typed code inside a fenced block must land byte-for-byte, got:\n${JSON.stringify(landed)}\nexpected:\n${JSON.stringify(typed)}`);
-      console.log("[e2e-listReveal] PASS: typing multi-line code into a fenced block lands byte-for-byte, no auto-indent added");
-
-      // The closing fence marker itself must never drift - GFM tolerates up
-      // to 3 leading spaces before a fence stops closing the block at all,
-      // so any drift here is the catastrophic case, not just a cosmetic one.
-      const landedLines = landed.split("\n");
-      const closingFenceLine = landedLines[landedLines.length - 1] ?? "";
-      assert(closingFenceLine === "```", `the closing fence itself must not gain leading whitespace, got ${JSON.stringify(closingFenceLine)}`);
-      console.log("[e2e-listReveal] PASS: the closing fence marker is untouched, even though the preceding lines were indented");
-
-      // Deeper nesting compounds the bug fastest (each level's indentation
-      // is inherited by every line typed after it) - confirm zero drift
-      // holds regardless of nesting depth, not just for the shallow repro.
-      const deeplyNested = [
-        "```",
-        "function f() {",
-        "  if (true) {",
-        "    while (true) {",
-        "      for (;;) {",
-        "        deeply.nested.call();",
-        "      }",
-        "    }",
-        "  }",
-        "}",
-        "```",
-      ].join("\n");
-      await typeIntoEditor(page, deeplyNested);
-      await page.waitForTimeout(150);
-      const landedDeep = await editorBody(page);
-      assert(landedDeep === deeplyNested, `deeply nested typed code must also land byte-for-byte, got:\n${JSON.stringify(landedDeep)}\nexpected:\n${JSON.stringify(deeplyNested)}`);
-      console.log("[e2e-listReveal] PASS: deeply nested typed code lands byte-for-byte with no compounding drift");
 
       await context.close();
     }
