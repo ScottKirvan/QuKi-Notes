@@ -10,5 +10,6 @@ export type {
   DeleteOptions,
   WriteImageResult,
   ExportResult,
+  RestoreResult,
 } from './types.js';
 export { NotFoundError } from './types.js';

@@ -89,4 +89,93 @@ describe('trash', () => {
     expect(result.deletedCount).toBe(2);
     expect(await store.listTrash()).toHaveLength(0);
   });
+
+  // Ids are normally opaque UUIDs (createNew always calls crypto.randomUUID()),
+  // but STORAGE_CONTRACT.md rule 1 makes any .md file placed directly in the
+  // folder a QuKi too, so two different files can legitimately share the same
+  // basename ("todo") over time. These tests write directly through the
+  // backend to simulate that user-dropped-file scenario without going through
+  // save()'s UUID-generating path.
+  describe('name collisions', () => {
+    it('trashing a second same-named QuKi does not destroy an earlier trashed copy with the same name', async () => {
+      const backend = new NodeFsBackend(dir);
+
+      // An earlier trashed copy already occupies .trash/todo.md.
+      await backend.writeTextAtomic('.trash/todo.md', 'old trashed content');
+      await backend.mkdirp('.trash/.meta');
+      await backend.writeTextAtomic(
+        '.trash/.meta/todo.json',
+        JSON.stringify({ createdAt: '2020-01-01T00:00:00.000Z', deletedAt: '2020-01-02T00:00:00.000Z' }),
+      );
+
+      // A second, unrelated active file also named todo.md.
+      await backend.writeTextAtomic('todo.md', 'new active content');
+
+      await store.moveToTrash('todo');
+
+      const trashItems = await store.listTrash();
+      expect(trashItems).toHaveLength(2);
+
+      const bodies = await Promise.all(trashItems.map((item) => store.readTrash(item.id)));
+      const contents = bodies.map((b) => b.body).sort();
+      expect(contents).toEqual(['new active content', 'old trashed content']);
+
+      // Both entries report their real original name for display, even
+      // though only one of them still occupies that name on disk.
+      for (const item of trashItems) expect(item.originalId).toBe('todo');
+
+      // The two on-disk entries must have distinct storage ids/filenames -
+      // the collision must not have been silently overwritten.
+      const storageIds = trashItems.map((item) => item.id);
+      expect(new Set(storageIds).size).toBe(2);
+    });
+
+    it('restoring a QuKi whose original name collides with an active file restores it under a new name instead of overwriting', async () => {
+      const backend = new NodeFsBackend(dir);
+
+      await backend.writeTextAtomic('todo.md', 'trash me');
+      await store.moveToTrash('todo');
+
+      // A different active file now occupies the original name.
+      await backend.writeTextAtomic('todo.md', 'unrelated new content');
+
+      const result = await store.restore('todo');
+
+      expect(result.renamed).toBe(true);
+      expect(result.id).not.toBe('todo');
+
+      // The active file that was already there must survive untouched.
+      const stillActive = await store.read('todo');
+      expect(stillActive.body).toBe('unrelated new content');
+
+      // The restored QuKi must exist, intact, under its new name.
+      const restored = await store.read(result.id);
+      expect(restored.body).toBe('trash me');
+    });
+
+    it('restore reports renamed: false and keeps the original name when there is no collision', async () => {
+      const created = await store.save({ id: null, body: 'no collision here' });
+      if (created.status !== 'saved') throw new Error('unreachable');
+
+      await store.moveToTrash(created.id);
+      const result = await store.restore(created.id);
+
+      expect(result.renamed).toBe(false);
+      expect(result.id).toBe(created.id);
+    });
+
+    it('falls back to the storage id as the original name when the trash sidecar predates originalId', async () => {
+      const backend = new NodeFsBackend(dir);
+      await backend.writeTextAtomic('.trash/legacy.md', 'pre-fix trashed content');
+      await backend.mkdirp('.trash/.meta');
+      await backend.writeTextAtomic(
+        '.trash/.meta/legacy.json',
+        JSON.stringify({ createdAt: '2020-01-01T00:00:00.000Z', deletedAt: '2020-01-02T00:00:00.000Z' }),
+      );
+
+      const trashItems = await store.listTrash();
+      expect(trashItems).toHaveLength(1);
+      expect(trashItems[0]!.originalId).toBe('legacy');
+    });
+  });
 });

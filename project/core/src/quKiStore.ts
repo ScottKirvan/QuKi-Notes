@@ -8,6 +8,7 @@ import {
   type ExportResult,
   type QuKiDetail,
   type QuKiSummary,
+  type RestoreResult,
   type SaveParams,
   type SaveResult,
   type TrashedQuKiSummary,
@@ -42,6 +43,22 @@ export class QuKiStore {
     if (sidecar.createdAt) return sidecar.createdAt;
     const birthMs = stat.birthtimeMs > 0 ? stat.birthtimeMs : stat.mtimeMs;
     return toIso(birthMs);
+  }
+
+  /**
+   * Finds a filename-safe id for `baseId` inside `dir` ('' for the active
+   * root, '.trash' for the trash folder) that no existing .md file already
+   * occupies. Returns `baseId` itself when it's free. No collision-safe
+   * uniquing helper existed anywhere in the codebase before this, so this is
+   * a new, small addition rather than a reuse of an existing one.
+   */
+  private async uniqueId(dir: string, baseId: string): Promise<string> {
+    const pathFor = (candidate: string): string => (dir === '' ? `${candidate}.md` : `${dir}/${candidate}.md`);
+    if (!(await this.backend.exists(pathFor(baseId)))) return baseId;
+    for (let n = 2; ; n++) {
+      const candidate = `${baseId} (${n})`;
+      if (!(await this.backend.exists(pathFor(candidate)))) return candidate;
+    }
   }
 
   private async listActiveIds(): Promise<string[]> {
@@ -87,6 +104,7 @@ export class QuKiStore {
     return {
       id,
       filename: `${id}.md`,
+      originalId: sidecar.originalId ?? id,
       createdAt: this.resolveCreatedAt(stat, sidecar),
       modifiedAt: toIso(stat.mtimeMs),
       deletedAt: sidecar.deletedAt ?? null,
@@ -221,28 +239,43 @@ export class QuKiStore {
       const sidecar = await readSidecar(this.backend, metaPath);
       const createdAt = this.resolveCreatedAt(stat, sidecar);
 
-      await this.backend.rename(mdPath, `.trash/${id}.md`);
+      // The active id may already be taken in .trash/ by an earlier trashed
+      // QuKi of the same name - never overwrite it (rename() silently would).
+      // The original id is preserved in the trash sidecar regardless, so
+      // restore() and the Trash screen still know the real name.
+      const trashId = await this.uniqueId('.trash', id);
+
+      await this.backend.rename(mdPath, `.trash/${trashId}.md`);
       if (await this.backend.exists(metaPath)) await this.backend.remove(metaPath);
-      await writeSidecar(this.backend, `.trash/.meta/${id}.json`, {
+      await writeSidecar(this.backend, `.trash/.meta/${trashId}.json`, {
         createdAt,
         deletedAt: new Date().toISOString(),
+        originalId: id,
       });
     });
   }
 
-  async restore(id: string): Promise<void> {
-    await this.runExclusive(id, async () => {
+  async restore(id: string): Promise<RestoreResult> {
+    return this.runExclusive(id, async () => {
       const trashMdPath = `.trash/${id}.md`;
       const trashMetaPath = `.trash/.meta/${id}.json`;
       if (!(await this.backend.exists(trashMdPath))) throw new NotFoundError(`Trashed QuKi not found: ${id}`);
 
       const sidecar = await readSidecar(this.backend, trashMetaPath);
+      const originalId = sidecar.originalId ?? id;
 
-      await this.backend.rename(trashMdPath, `${id}.md`);
+      // The QuKi's original name may since have been taken by a different
+      // active file - restore under a new, unique name rather than
+      // overwriting it (rename() silently would) or refusing.
+      const restoredId = await this.uniqueId('', originalId);
+
+      await this.backend.rename(trashMdPath, `${restoredId}.md`);
       if (await this.backend.exists(trashMetaPath)) await this.backend.remove(trashMetaPath);
       if (sidecar.createdAt) {
-        await writeSidecar(this.backend, `.meta/${id}.json`, { createdAt: sidecar.createdAt });
+        await writeSidecar(this.backend, `.meta/${restoredId}.json`, { createdAt: sidecar.createdAt });
       }
+
+      return { id: restoredId, renamed: restoredId !== originalId };
     });
   }
 
