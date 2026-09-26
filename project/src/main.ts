@@ -900,6 +900,34 @@ async function init(): Promise<void> {
   }
 
   /**
+   * Flushes auto-save and reports whether it's safe for the caller to go on
+   * to replace the editor's document / reset the baseline. STORAGE_CONTRACT.md
+   * rule 18: a failed save must be surfaced, not just logged - and a conflict
+   * or thrown error means the current QuKi's latest edit was never actually
+   * written, so switching away from it now (openQuKiInEditor, startNewQuKi,
+   * deleteQuKi, handleSharedText, changeStorageLocation all do this
+   * immediately after flushing) would silently discard it. On "conflict" or
+   * "error" this blocks the caller (returns false) and leaves the editor
+   * exactly as it was - the existing onConflict/onSaveError banner (already
+   * shown by the callbacks passed to AutoSaveController below) stays up and
+   * still correctly describes the QuKi that's still open, since nothing
+   * navigated away from it. On any other outcome ("saved", "skipped-empty",
+   * "skipped-unchanged", "stale" - all of which mean nothing is at risk of
+   * being lost) it hides any leftover banner before returning true, so a
+   * stale message from an earlier, since-resolved problem can't linger on
+   * screen describing a QuKi that's about to be replaced.
+   */
+  async function flushAutoSaveOrBlock(blockedMessage: string): Promise<boolean> {
+    const result = await autoSave.flush();
+    if (result.status === "conflict" || result.status === "error") {
+      showToast(blockedMessage, 3000);
+      return false;
+    }
+    hideSaveStatus();
+    return true;
+  }
+
+  /**
    * Shared by the editor's own Delete button and the QuKi list's per-row
    * delete affordance. BEHAVIOR_SPEC.md §4: flush is one of the explicit
    * auto-save triggers ("before switching QuKis, opening the list,
@@ -911,11 +939,20 @@ async function init(): Promise<void> {
    * trashed).
    */
   async function deleteQuKi(id: string): Promise<void> {
-    await autoSave.flush();
+    // Only the "deleting the currently open QuKi" branch below discards
+    // anything (it's the only one that replaces the editor/resets the
+    // baseline) - deleting a different QuKi from the list doesn't touch what's
+    // on screen, so a flush failure there has nothing of the open QuKi's to
+    // protect and must not block deleting an unrelated one.
     if (autoSave.currentId === id) {
+      if (!(await flushAutoSaveOrBlock("Could not save your changes — resolve the save issue before deleting this QuKi."))) {
+        return;
+      }
       loadDocumentIntoEditor("");
       autoSave.resetBaseline({ id: null, body: "", modifiedAt: null });
       updateDeleteButtonState();
+    } else {
+      await autoSave.flush();
     }
     try {
       await store.moveToTrash(id);
@@ -946,7 +983,9 @@ async function init(): Promise<void> {
   }
 
   async function openQuKiInEditor(id: string): Promise<void> {
-    await autoSave.flush();
+    if (!(await flushAutoSaveOrBlock("Could not save your changes — resolve the save issue before switching QuKis."))) {
+      return;
+    }
     let detail;
     try {
       detail = await store.read(id);
@@ -962,7 +1001,9 @@ async function init(): Promise<void> {
   }
 
   async function startNewQuKi(): Promise<void> {
-    await autoSave.flush();
+    if (!(await flushAutoSaveOrBlock("Could not save your changes — resolve the save issue before starting a new QuKi."))) {
+      return;
+    }
     const blank: InitialQuKi = { id: null, body: "", modifiedAt: null };
     loadDocumentIntoEditor("");
     autoSave.resetBaseline(blank);
@@ -988,7 +1029,9 @@ async function init(): Promise<void> {
    * replaced with the shared text, or that edit would be lost.
    */
   async function handleSharedText(text: string): Promise<void> {
-    await autoSave.flush();
+    if (!(await flushAutoSaveOrBlock("Could not save your changes — the shared text was not opened."))) {
+      return;
+    }
     let result;
     try {
       result = await store.save({ id: null, body: text });
@@ -1042,7 +1085,9 @@ async function init(): Promise<void> {
     // The currently open QuKi still belongs to the *old* folder - flush it
     // there before the root swaps underneath this same store/backend, or a
     // pending edit would otherwise get written into the new folder instead.
-    await autoSave.flush();
+    if (!(await flushAutoSaveOrBlock("Could not save your changes — resolve the save issue before changing storage location."))) {
+      return;
+    }
     const chosenPath = await setupView.show({
       cancelable: true,
       onError: (message) => showSaveStatus(message),

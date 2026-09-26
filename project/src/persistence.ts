@@ -44,6 +44,30 @@ export interface SavedInfo {
 
 export type SavedHandler = (info: SavedInfo) => void;
 
+/**
+ * What a save attempt (flush(), or the debounce/interval timers internally)
+ * actually did - returned by flush() so a caller can tell a real write apart
+ * from one that never landed, instead of the old `Promise<void>` that looked
+ * identical whether the save succeeded, conflicted, or threw. See rule 18's
+ * "a failed save is surfaced, not just logged": a caller that's about to
+ * replace the editor's content or reset the baseline must be able to check
+ * this before doing so, not find out only via a side-channel banner.
+ *
+ * "stale" means this particular save's own result was discarded because
+ * resetBaseline() moved the controller on to a different QuKi before the
+ * write finished - nothing was lost (the save either wrote harmlessly to the
+ * QuKi it started against, or is indistinguishable from that to the
+ * caller), so callers should treat it exactly like "saved" for the purpose
+ * of deciding whether it's safe to proceed.
+ */
+export type SaveOutcome =
+  | { status: "saved"; id: string; modifiedAt: string }
+  | { status: "skipped-empty" }
+  | { status: "skipped-unchanged" }
+  | { status: "conflict"; reason: "modified" | "deleted"; currentBody: string | null }
+  | { status: "error"; error: unknown }
+  | { status: "stale" };
+
 export interface AutoSaveOptions {
   debounceMs?: number;
   intervalMs?: number;
@@ -91,8 +115,20 @@ export class AutoSaveController {
   private readonly onSaved: SavedHandler;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   private intervalTimer: ReturnType<typeof setInterval> | null = null;
-  private saveInFlight: Promise<void> | null = null;
+  private saveInFlight: Promise<SaveOutcome> | null = null;
   private resaveRequested = false;
+  /**
+   * Bumped on every resetBaseline() call. A save's own generation is
+   * captured at the moment it starts (in save()/overwrite()) and compared
+   * again once its I/O resolves (in runSave()/runOverwrite()) - if the two
+   * don't match, resetBaseline() moved the controller on to a different
+   * QuKi while this save was in flight, and applying its result now would
+   * silently re-point id/modifiedAt/lastSavedBody back at the abandoned
+   * QuKi. See the fix for the auto-save generation race: a save started
+   * against QuKi A must never retroactively re-point the controller at A
+   * after resetBaseline() has already moved it to B.
+   */
+  private generation = 0;
 
   constructor(
     private readonly store: QuKiStore,
@@ -129,6 +165,7 @@ export class AutoSaveController {
       clearTimeout(this.debounceTimer);
       this.debounceTimer = null;
     }
+    this.generation++;
     this.id = initial.id;
     this.modifiedAt = initial.modifiedAt;
     this.lastSavedBody = initial.body;
@@ -154,13 +191,23 @@ export class AutoSaveController {
     }, this.debounceMs);
   }
 
-  /** Forces an immediate save, bypassing the debounce timer. Used on lifecycle signals. */
-  async flush(): Promise<void> {
+  /**
+   * Forces an immediate save, bypassing the debounce timer. Used on
+   * lifecycle signals, and by callers about to switch/discard the current
+   * QuKi (see SaveOutcome) - it waits out the *entire* save chain, including
+   * a resave queued behind an already-in-flight save, not just whichever
+   * save happened to be in flight when flush() was called. Returning early
+   * from the first save while a queued resave was still running underneath
+   * it was the root cause of the generation race this fixes: a caller could
+   * resetBaseline() onto a new QuKi while that resave was still targeting
+   * the old one.
+   */
+  async flush(): Promise<SaveOutcome> {
     if (this.debounceTimer !== null) {
       clearTimeout(this.debounceTimer);
       this.debounceTimer = null;
     }
-    await this.save();
+    return this.save();
   }
 
   /**
@@ -192,7 +239,8 @@ export class AutoSaveController {
       this.debounceTimer = null;
     }
 
-    this.saveInFlight = this.runOverwrite().finally(() => {
+    const generation = this.generation;
+    this.saveInFlight = this.runOverwrite(generation).finally(() => {
       this.saveInFlight = null;
       if (this.resaveRequested) {
         this.resaveRequested = false;
@@ -202,7 +250,7 @@ export class AutoSaveController {
     await this.saveInFlight;
   }
 
-  private async runOverwrite(): Promise<void> {
+  private async runOverwrite(generation: number): Promise<SaveOutcome> {
     const body = this.getBody();
 
     let result;
@@ -215,8 +263,14 @@ export class AutoSaveController {
       });
     } catch (error) {
       console.error("QuKi overwrite save failed unexpectedly:", error);
-      this.onSaveError(error);
-      return;
+      if (generation === this.generation) this.onSaveError(error);
+      return { status: "error", error };
+    }
+
+    if (generation !== this.generation) {
+      // resetBaseline() moved the controller on to a different QuKi while
+      // this overwrite was in flight - see the `generation` field comment.
+      return { status: "stale" };
     }
 
     if (result.status === "saved") {
@@ -224,31 +278,46 @@ export class AutoSaveController {
       this.modifiedAt = result.modifiedAt;
       this.lastSavedBody = body;
       this.onSaved({ id: result.id, modifiedAt: result.modifiedAt });
+      return { status: "saved", id: result.id, modifiedAt: result.modifiedAt };
     }
     // "skipped-empty": rule 16 still applies under force - leave the
     // baseline untouched, same as a normal save's skipped-empty branch.
     // "conflict" is unreachable here since force skips both conflict
     // branches in QuKiStore.updateExisting.
+    return { status: "skipped-empty" };
   }
 
-  private async save(): Promise<void> {
+  /**
+   * Single-flight save, chained through resaveRequested: a caller that
+   * arrives while a save is already running never starts a second,
+   * overlapping I/O call - it just flags resaveRequested and shares the
+   * in-flight promise. The critical piece (previously missing) is that the
+   * *queued* resave, once it actually runs, is chained back into that same
+   * shared promise by returning it from the `.then()` below rather than
+   * firing it with `void` - so a caller awaiting this call (flush(), most
+   * importantly) genuinely waits for the whole chain, not just whichever
+   * save happened to be first.
+   */
+  private save(): Promise<SaveOutcome> {
     if (this.saveInFlight) {
       this.resaveRequested = true;
       return this.saveInFlight;
     }
-    this.saveInFlight = this.runSave().finally(() => {
+    const generation = this.generation;
+    this.saveInFlight = this.runSave(generation).then((outcome) => {
       this.saveInFlight = null;
       if (this.resaveRequested) {
         this.resaveRequested = false;
-        void this.save();
+        return this.save();
       }
+      return outcome;
     });
     return this.saveInFlight;
   }
 
-  private async runSave(): Promise<void> {
+  private async runSave(generation: number): Promise<SaveOutcome> {
     const body = this.getBody();
-    if (body === this.lastSavedBody) return;
+    if (body === this.lastSavedBody) return { status: "skipped-unchanged" };
 
     let result;
     try {
@@ -259,8 +328,16 @@ export class AutoSaveController {
       });
     } catch (error) {
       console.error("QuKi auto-save failed unexpectedly:", error);
-      this.onSaveError(error);
-      return;
+      if (generation === this.generation) this.onSaveError(error);
+      return { status: "error", error };
+    }
+
+    if (generation !== this.generation) {
+      // resetBaseline() moved the controller on to a different QuKi while
+      // this save was in flight - see the `generation` field comment. Do
+      // not apply this result: it would silently re-point id/modifiedAt/
+      // lastSavedBody back at the QuKi this controller just left.
+      return { status: "stale" };
     }
 
     if (result.status === "saved") {
@@ -268,11 +345,14 @@ export class AutoSaveController {
       this.modifiedAt = result.modifiedAt;
       this.lastSavedBody = body;
       this.onSaved({ id: result.id, modifiedAt: result.modifiedAt });
+      return { status: "saved", id: result.id, modifiedAt: result.modifiedAt };
     } else if (result.status === "skipped-empty") {
       // Deliberate no-op (STORAGE_CONTRACT.md rule 16): leave the baseline
       // as-is so a later non-empty edit is still recognised as a change.
+      return { status: "skipped-empty" };
     } else {
       this.onConflict({ reason: result.reason, currentBody: result.currentBody });
+      return { status: "conflict", reason: result.reason, currentBody: result.currentBody };
     }
   }
 }

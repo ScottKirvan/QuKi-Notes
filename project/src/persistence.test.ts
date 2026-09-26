@@ -477,7 +477,7 @@ describe("AutoSaveController surfaces a thrown save error distinctly from a conf
       modifiedAt: null,
     });
 
-    await expect(controller.flush()).resolves.toBeUndefined();
+    await expect(controller.flush()).resolves.toEqual({ status: "error", error: expect.any(Error) });
 
     vi.restoreAllMocks();
   });
@@ -747,5 +747,170 @@ describe("AutoSaveController.overwrite", () => {
       const onDisk = await store.read(created.id);
       expect(onDisk.body).toBe("final content the user wants written");
     });
+  });
+});
+
+describe("AutoSaveController: the auto-save generation race", () => {
+  it("flush() waits for a resave queued behind an in-flight save, not just the first save to settle", async () => {
+    const store = makeControllableStore();
+    let body = "first edit";
+    const controller = new AutoSaveController(store, () => body, () => {}, {
+      id: null,
+      body: "",
+      modifiedAt: null,
+    });
+
+    const firstFlush = controller.flush();
+    expect(store.calls).toHaveLength(1);
+
+    // A second change arrives while the first save is still in flight -
+    // exactly what the periodic interval timer or a debounce firing
+    // independently of this flush() call would do. Represented directly as
+    // a second, unawaited call into the same single-flight machinery.
+    body = "second edit, queued behind the first save";
+    void controller.flush();
+
+    store.resolvers[0]!({
+      status: "saved",
+      id: "new-id",
+      filename: "new-id.md",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      modifiedAt: "2026-01-01T00:00:00.001Z",
+    });
+    await flushMicrotasks();
+
+    // The queued resave must have started - proving it exists to wait for.
+    expect(store.calls).toHaveLength(2);
+
+    let firstFlushSettled = false;
+    void firstFlush.then(() => {
+      firstFlushSettled = true;
+    });
+    await flushMicrotasks();
+    expect(firstFlushSettled).toBe(false); // must not resolve before the queued resave does
+
+    store.resolvers[1]!({
+      status: "saved",
+      id: "new-id",
+      filename: "new-id.md",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      modifiedAt: "2026-01-01T00:00:00.002Z",
+    });
+    const result = await firstFlush;
+
+    expect(firstFlushSettled).toBe(true);
+    expect(result).toEqual({ status: "saved", id: "new-id", modifiedAt: "2026-01-01T00:00:00.002Z" });
+  });
+
+  it("does not let a save that started against QuKi A re-point the controller at A after resetBaseline has already moved it to B", async () => {
+    const store = makeControllableStore();
+    let body = "A - edited once";
+    const controller = new AutoSaveController(store, () => body, () => {}, {
+      id: "A",
+      body: "A - original",
+      modifiedAt: "tA0",
+    });
+
+    const firstFlush = controller.flush();
+    expect(store.calls).toHaveLength(1);
+
+    // A second change queues a resave behind the first save, still
+    // targeting QuKi A.
+    body = "A - edited twice, the queued resave's payload";
+    void controller.flush();
+
+    store.resolvers[0]!({
+      status: "saved",
+      id: "A",
+      filename: "A.md",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      modifiedAt: "tA1",
+    });
+    await flushMicrotasks();
+
+    // The queued resave is now in flight, still targeting the old id "A".
+    expect(store.calls).toHaveLength(2);
+    expect(store.calls[1]).toMatchObject({ id: "A" });
+
+    // The caller switches to a different QuKi before the queued resave
+    // settles - openQuKiInEditor's `await autoSave.flush(); ...; resetBaseline(...)`
+    // shape, except here the resave is still pending when resetBaseline runs.
+    controller.resetBaseline({ id: "B", body: "B - loaded content", modifiedAt: "tB0" });
+
+    // The stale resave (still targeting "A") now finally completes.
+    store.resolvers[1]!({
+      status: "saved",
+      id: "A",
+      filename: "A.md",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      modifiedAt: "tA2",
+    });
+    await flushMicrotasks();
+
+    expect(controller.currentId).toBe("B");
+
+    await firstFlush.catch(() => {});
+  });
+});
+
+describe("AutoSaveController.flush() reports what actually happened, instead of resolving void either way", () => {
+  let dir: string;
+  let store: QuKiStore;
+
+  beforeEach(async () => {
+    dir = await makeTempDir();
+    store = new QuKiStore(new NodeFsBackend(dir));
+  });
+
+  afterEach(async () => {
+    await fsp.rm(dir, { recursive: true, force: true });
+  });
+
+  it("resolves with a 'conflict' result instead of void, so a caller can avoid discarding the unsaved edit", async () => {
+    const created = await store.save({ id: null, body: "original" });
+    if (created.status !== "saved") throw new Error("unreachable");
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    await store.save({ id: created.id, body: "changed elsewhere", expectedModifiedAt: created.modifiedAt });
+
+    const body = "local edit that must not be silently discarded";
+    const controller = new AutoSaveController(store, () => body, () => {}, {
+      id: created.id,
+      body: "original",
+      modifiedAt: created.modifiedAt,
+    });
+
+    const result = await controller.flush();
+    expect(result).toEqual({ status: "conflict", reason: "modified", currentBody: "changed elsewhere" });
+  });
+
+  it("resolves with an 'error' result instead of void when store.save() throws", async () => {
+    const randomUUIDSpy = vi.spyOn(globalThis.crypto, "randomUUID").mockImplementation(() => {
+      throw new TypeError("crypto.randomUUID is not a function");
+    });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const controller = new AutoSaveController(store, () => "unsaved edit that must not be discarded", () => {}, {
+      id: null,
+      body: "",
+      modifiedAt: null,
+    });
+
+    const result = await controller.flush();
+    expect(result).toEqual({ status: "error", error: expect.any(TypeError) });
+
+    randomUUIDSpy.mockRestore();
+    vi.restoreAllMocks();
+  });
+
+  it("resolves with a 'saved' result carrying the id and modifiedAt on a real write", async () => {
+    const body = "hello";
+    const controller = new AutoSaveController(store, () => body, () => {}, {
+      id: null,
+      body: "",
+      modifiedAt: null,
+    });
+
+    const result = await controller.flush();
+    expect(result).toEqual({ status: "saved", id: controller.currentId, modifiedAt: expect.any(String) });
   });
 });
