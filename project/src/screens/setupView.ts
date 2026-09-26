@@ -58,6 +58,29 @@ const FILESYSTEM_CARD_COPY = {
 };
 
 /**
+ * Android's "Use app storage" lands in the app's genuine private data
+ * directory (androidSetupApi.ts's appStoragePath) - deleted on uninstall and
+ * inaccessible outside the app (developer.android.com/training/data-storage/
+ * app-specific), so the private/uninstall-removed copy is accurate there.
+ * Desktop's "Use app storage" instead resolves to Documents/qukis
+ * (electron/src/main.ts's resolveAppStorageDir) - an ordinary, visible
+ * folder that behaves exactly like a user-picked filesystem folder and
+ * survives uninstalling the app, so it gets the same "plain files, survives
+ * uninstall" wording as the filesystem card above, naming the fixed folder
+ * the way Android's filesystem card names its own fixed destination.
+ */
+const APP_STORAGE_CARD_COPY = {
+  android: {
+    title: "Use app storage",
+    subtitle: "QuKis are kept private to this app. They will be removed if you uninstall.",
+  },
+  desktop: {
+    title: "Use app storage",
+    subtitle: "Your QuKis are saved as plain files in your Documents/qukis folder. They survive uninstall.",
+  },
+};
+
+/**
  * BEHAVIOR_SPEC.md §3's setup screen. Not part of the Navigator push/pop
  * stack (§2/§3: "this replaces the whole app UI until resolved" on first
  * launch) - rendered as a full-screen overlay appended to the shared
@@ -66,6 +89,7 @@ const FILESYSTEM_CARD_COPY = {
  */
 export function createSetupView(container: HTMLElement, api: ElectronSetupApi, options: SetupViewOptions): SetupView {
   const filesystemCopy = options.isAndroid ? FILESYSTEM_CARD_COPY.android : FILESYSTEM_CARD_COPY.desktop;
+  const appStorageCopy = options.isAndroid ? APP_STORAGE_CARD_COPY.android : APP_STORAGE_CARD_COPY.desktop;
 
   const overlay = document.createElement("div");
   overlay.className = "setup-overlay";
@@ -81,8 +105,8 @@ export function createSetupView(container: HTMLElement, api: ElectronSetupApi, o
           <p>${filesystemCopy.subtitle}</p>
         </button>
         <button type="button" class="setup-card setup-card-appstorage">
-          <h2>Use app storage</h2>
-          <p>QuKis are kept private to this app. They will be removed if you uninstall.</p>
+          <h2>${appStorageCopy.title}</h2>
+          <p>${appStorageCopy.subtitle}</p>
         </button>
       </div>
     </div>

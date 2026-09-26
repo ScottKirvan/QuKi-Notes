@@ -54,6 +54,38 @@ export interface AndroidSetupApiDeps {
 
 const APP_STORAGE_DIR_NAME = "QuKi_Notes";
 
+/**
+ * The app's private data directory (e.g. /data/data/com.quki.quki_notes) -
+ * `privateStoragePath` (context.filesDir.absolutePath, per StoragePlugin.kt's
+ * getPrivateStoragePath) is always that directory's own "files" child, the
+ * same assumption androidFlutterMigration.ts's getFlutterMigrationInfo
+ * already relies on (`context.filesDir.parentFile`) to locate the sibling
+ * "app_flutter" directory.
+ */
+function privateDataRoot(privateStoragePath: string): string {
+  const lastSlash = privateStoragePath.lastIndexOf("/");
+  return lastSlash === -1 ? privateStoragePath : privateStoragePath.slice(0, lastSlash);
+}
+
+/**
+ * Everything under the app's private data directory is deleted when the app
+ * is uninstalled and inaccessible to other apps or the user's own file
+ * manager (developer.android.com/training/data-storage/app-specific: "When
+ * the user uninstalls your app, the files saved in app-specific storage are
+ * removed" / "The system prevents other apps from accessing these
+ * locations"). That covers both this app's own "Use app storage" choice
+ * (<privateStoragePath>/QuKi_Notes) and a migrated Flutter app-storage
+ * user's folder (a sibling "app_flutter/qukis" directory under the same
+ * private root - see androidFlutterMigration.ts), so this checks path
+ * *membership* in the private root rather than equality with one specific
+ * known subfolder - the resolved path's actual guarantees don't depend on
+ * which route produced it.
+ */
+function isUnderPrivateStorage(path: string, privateStoragePath: string): boolean {
+  const root = privateDataRoot(privateStoragePath);
+  return path === root || path.startsWith(`${root}/`);
+}
+
 export async function createAndroidSetupApi(deps: AndroidSetupApiDeps): Promise<ElectronSetupApi> {
   let currentPath: string | null = null;
   let unreachablePath: string | null = null;
@@ -76,7 +108,12 @@ export async function createAndroidSetupApi(deps: AndroidSetupApiDeps): Promise<
 
   return {
     async getState(): Promise<StorageLocationState> {
-      return { chosen: currentPath !== null, path: currentPath, isAppStorage: currentPath === appStoragePath, unreachablePath };
+      return {
+        chosen: currentPath !== null,
+        path: currentPath,
+        isAppStorage: currentPath !== null && isUnderPrivateStorage(currentPath, deps.privateStoragePath),
+        unreachablePath,
+      };
     },
 
     async chooseFilesystem(): Promise<string | null> {

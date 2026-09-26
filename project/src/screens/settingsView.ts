@@ -52,6 +52,16 @@ const STORAGE_NOTE =
 // Ported verbatim from lib/features/settings/settings_screen.dart's Storage
 // ListTile, which switches title and (colour-coded) subtitle on isAppStorage
 // rather than always showing a plain path.
+//
+// isAppStorage reflects the resolved storage path's actual guarantees
+// (survives uninstall or not, visible outside the app or not), not which
+// setup-screen card the user happened to click - see electron/src/main.ts's
+// getState handler (always false: Electron has no private storage tier at
+// all) and androidSetupApi.ts's isUnderPrivateStorage (true for any path
+// inside the app's real private data directory, including one reached via
+// Flutter migration rather than the "Use app storage" card). So the
+// private/uninstall-removal copy below only ever renders where it's
+// actually true.
 const FILESYSTEM_STORAGE_TITLE = "Filesystem storage";
 const APP_STORAGE_TITLE = "App storage (private)";
 const APP_STORAGE_SUBTITLE = "Files will be removed on uninstall. Change location.";

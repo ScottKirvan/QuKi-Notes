@@ -139,6 +139,21 @@ async function main(): Promise<void> {
   );
   console.log("[e2e-setup] PASS: desktop's Filesystem storage card matches Flutter's desktop copy exactly");
 
+  // Desktop's "Use app storage" card resolves to Documents/qukis - an
+  // ordinary, visible folder that survives uninstall, not a hidden
+  // app-private one - so its copy must say that, not claim privacy or
+  // uninstall removal.
+  const appStorageCardSubtitle = await page.textContent(".setup-card-appstorage p");
+  assert(
+    appStorageCardSubtitle === "Your QuKis are saved as plain files in your Documents/qukis folder. They survive uninstall.",
+    `unexpected desktop app-storage card subtitle: ${appStorageCardSubtitle}`,
+  );
+  assert(
+    !/private|removed if you uninstall/i.test(appStorageCardSubtitle ?? ""),
+    `desktop's app-storage card must not claim privacy or uninstall-removal, got: ${appStorageCardSubtitle}`,
+  );
+  console.log("[e2e-setup] PASS: desktop's Use app storage card describes Documents/qukis truthfully, no false privacy claim");
+
   // --- Scenario 2: choosing "Use app storage" proceeds to the editor, and
   // a QuKi created afterward lands in the app-private qukis/ folder. ---
   await page.click(".setup-card-appstorage");
@@ -158,20 +173,20 @@ async function main(): Promise<void> {
   assert(fs.readFileSync(path.join(appStorageDir, mdFiles[0]!), "utf8") === markerA, "on-disk file should equal the typed marker");
   console.log(`[e2e-setup] PASS: "Use app storage" proceeded to the editor; QuKi landed in ${appStorageDir}`);
 
-  // Settings must show the app-storage title and Flutter's exact red-toned
-  // uninstall warning, not the plain path a filesystem-storage choice shows.
+  // Documents/qukis is an ordinary, visible folder that survives
+  // uninstalling the app - not private, not removed on uninstall - so
+  // Settings must show it exactly like any other filesystem location (plain
+  // title, the real path, no uninstall warning), never the private/uninstall
+  // -removed copy that's only true of Android's genuine app-private storage.
   await page.click("#btn-settings");
   await page.waitForSelector("#view-settings:not([hidden])");
   const appStorageTitle = await page.textContent(".storage-status-title");
   const appStorageSubtitle = await page.textContent(".storage-location-value");
-  assert(appStorageTitle === "App storage (private)", `unexpected app-storage title: ${appStorageTitle}`);
-  assert(
-    appStorageSubtitle === "Files will be removed on uninstall. Change location.",
-    `unexpected app-storage subtitle: ${appStorageSubtitle}`,
-  );
+  assert(appStorageTitle === "Filesystem storage", `unexpected app-storage title: ${appStorageTitle}`);
+  assert(appStorageSubtitle === appStorageDir, `expected Settings to show the real Documents/qukis path, got: ${appStorageSubtitle}`);
   const hasWarningClass = await page.evaluate(() => document.querySelector(".storage-location-value")?.classList.contains("storage-status-warning") ?? false);
-  assert(hasWarningClass, "the app-storage subtitle must carry the warning colour class");
-  console.log("[e2e-setup] PASS: Settings shows the app-storage title and Flutter's exact uninstall warning, colour-flagged");
+  assert(!hasWarningClass, "Documents/qukis is not app-private storage and must not carry the uninstall-warning colour class");
+  console.log("[e2e-setup] PASS: Settings shows Documents/qukis truthfully - plain title, real path, no false uninstall warning");
   await page.click("#view-settings .back-btn");
   await page.waitForSelector(".cm-content");
 
