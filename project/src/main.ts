@@ -42,6 +42,8 @@ import {
   type EditModeTracker,
 } from "./editMode";
 import { imageResolver } from "./reveal/imageResolver";
+import { remoteImageFetcher } from "./reveal/remoteImageFetcher";
+import { fetchRemoteImage } from "./reveal/fetchRemoteImage";
 import { createImagePastePlugin } from "./pasteImage";
 import { AutoSaveController, blankInitialQuKi, type InitialQuKi } from "./persistence";
 import { sendQuKi, selectShareTransport } from "./send";
@@ -563,6 +565,7 @@ async function init(): Promise<void> {
       // ever fire) already agrees with it - see editModeField.ts.
       editModeField.init(() => shouldFocusOnOpen(initial.id)),
       imageResolver.of((relPath) => backend.readBinary(relPath)),
+      remoteImageFetcher.of(fetchRemoteImage),
       revealPlugin,
       hangingIndent,
       // STORAGE_CONTRACT.md rule 12 / web-specific "images paste in the
