@@ -66,8 +66,4 @@ Open Trash from **Settings → Notes → Trash**. Rows show the same preview and
 
 Permanently deleting a QuKi also deletes images in the `media` folder that no other QuKi, whether in your list or in Trash, still links to. An image used by a trashed QuKi stays until that QuKi is gone for good, so restoring brings its images back with it.
 
-::: warning
-Restoring a QuKi replaces any QuKi in your list that has the same file name, and trashing a QuKi replaces any QuKi in Trash with the same name. QuKis created in QuKi Notes have unique names, so this only affects files you've named yourself, such as a `todo.md` you added to the folder. If you trash and restore files like that, rename one of the copies first.
-:::
-
 If a restore or delete fails in Trash, no message appears. The row simply stays where it was.

@@ -18,10 +18,6 @@ Tap **Change location** to open the same choice you saw on first launch. Tap the
 Changing the location doesn't move anything. Your existing QuKis, Trash and images stay in the old folder, and QuKi Notes starts using the new one straight away with a blank editor. To bring QuKis along, move or copy the files yourself, including the hidden `.meta` and `.trash` folders and the `media` folder, while QuKi Notes is closed.
 
 ::: warning
-On Windows and Linux, "App storage" is the `Documents/qukis` folder. It's an ordinary folder, not private to the app, and it isn't removed on uninstall, even though Settings shows the uninstall warning.
-:::
-
-::: info
 On Android, if QuKi Notes picked up your QuKis from an earlier version that kept them in its private storage, Settings shows that location as **Filesystem storage** with a path, and no uninstall warning. Those files are still private to the app and would still be removed on uninstall. Use **Change location** → **Filesystem storage** if you want them in `Documents`, and move the files across.
 :::
 

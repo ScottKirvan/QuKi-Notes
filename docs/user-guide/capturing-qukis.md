@@ -2,7 +2,7 @@
 
 ## The editor
 
-The editor is the first thing you see when you open the app, and it's always home. Open QuKi Notes, type, done. That's the whole capture workflow.
+The editor is the first thing you see when you open the app, and it's always home. Open, type, done. That's the whole capture workflow.
 
 Tap **+** in the top bar to start another new QuKi.
 
@@ -16,13 +16,6 @@ There's no save button. A QuKi is saved:
 - when you switch away from the app or close it
 
 A new QuKi doesn't become a file until its first save. A blank QuKi you never type in never creates a file.
-
-**Clearing all the text doesn't save.** If you select everything and delete it, the file keeps its last non-empty version. This protects against a stray select-all-and-delete. To get rid of a QuKi, delete it instead (see [Deleting a QuKi](#deleting-a-quki)).
-
-::: warning
-On Windows and Linux, closing the window within a second or two of your last keystroke can lose that last bit of typing. Pause for a moment before closing.
-:::
-
 ### When a save fails
 
 If a QuKi's file was changed or deleted by another program since QuKi Notes last saved it, QuKi Notes won't overwrite it automatically. A banner appears at the top of the editor:
@@ -59,10 +52,6 @@ While you're editing, headings look like headings, links show their label, image
 - **If you select text**, what reveals follows where the selection *started*, not where you dragged to.
 
 Tapping a rendered link opens it. To edit a link, move into it with the arrow keys. A revealed link is plain text and doesn't open.
-
-::: warning
-On Windows and Linux, links (including the ones in the Help dialog) currently open in a separate QuKi Notes window rather than your default web browser.
-:::
 
 ### Plain-text mode
 

@@ -33,9 +33,6 @@ On Android, Windows and Linux, the first launch asks where your QuKis should liv
 - **Choose a folder**: pick any folder. QuKis are saved there as plain `.md` files you can open, back up or sync with anything you like.
 - **Use app storage**: QuKis go in a `qukis` folder inside your Documents folder.
 
-::: warning
-The **Use app storage** card on Windows and Linux says the QuKis are private to the app and will be removed if you uninstall. That's not accurate on desktop: the `Documents/qukis` folder is an ordinary, visible folder, and uninstalling QuKi Notes leaves it in place.
-:::
 
 **Android**
 

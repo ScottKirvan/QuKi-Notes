@@ -14,7 +14,7 @@ If you want your previous QuKis, the list is one tap away. It just isn't the def
 
 QuKi Notes has no way to put QuKis into folders, tag them, link them to each other, or archive them. This isn't a missing feature; it's a deliberate constraint.
 
-Organization takes time. Deciding where something goes, maintaining a taxonomy, keeping it consistent: these slow down capture and turn a note app into a productivity system. QuKi Notes isn't a productivity system.
+Organization takes time. Deciding where something goes, maintaining a taxonomy, keeping it consistent: these are distracting activities, slow down real note taking, and turn a note app into a productivity system. QuKi Notes isn't designed as productivity system -- other tools exist for this and do an excellent job -- QuKi Notes can be part of that system, but it's the "capture" part, not the organization part.
 
 Most QuKis don't need to go anywhere. Sometimes a thought just needs somewhere to live: off your mind, available if it ever turns out to be useful. If something does need to live somewhere specific, send it there.
 
@@ -22,7 +22,7 @@ Most QuKis don't need to go anywhere. Sometimes a thought just needs somewhere t
 
 On Android, Windows and Linux, every QuKi is a plain-text `.md` file in a folder on your device. There's no proprietary format and no cloud account between you and your own notes. You can read, copy, edit or move the files without opening the app, and any `.md` file you drop into the folder shows up as a QuKi.
 
-The web version is the exception for now: it keeps QuKis inside your browser, where other programs can't reach them (see [Settings → Storage](/user-guide/settings#storage)).
+The web version is the exception for now: it keeps QuKis inside your browser, where other programs easily can't reach them (see [Settings → Storage](/user-guide/settings#storage)).
 
 ## Deleting takes two steps
 
@@ -38,6 +38,6 @@ A QuKi that never gets sent is fine. It stays available, searchable and editable
 
 ## The QuKi Manifesto
 
-This is the original statement of what QuKi Notes is for, reproduced as written.
+This is the original statement of what QuKi Notes is for, reproduced as written:
 
 <!--@include: ./_manifesto.md{3,}-->
