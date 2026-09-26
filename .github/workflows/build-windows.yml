@@ -14,58 +14,58 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: subosito/flutter-action@v2
+      - uses: actions/setup-node@v4
         with:
-          channel: stable
-          cache: true
+          node-version: 22
 
-      - name: Install dependencies
-        run: flutter pub get
+      # core must be built first — the web app and electron both import from core/dist/
+      - name: Install (core)
+        run: npm ci
+        working-directory: project/core
 
-      - name: Build Windows release
-        run: flutter build windows --release
+      - name: Build (core)
+        run: npm run build
+        working-directory: project/core
 
-      - name: Install WiX 4
-        run: |
-          dotnet tool install --global wix --version "4.*"
-          $wixVersion = (wix --version).Trim()
-          wix extension add "WixToolset.UI.wixext/$wixVersion"
+      - name: Install (app)
+        run: npm ci
+        working-directory: project
 
-      - name: Get version from pubspec
-        id: version
-        shell: bash
-        run: |
-          version=$(grep '^version:' pubspec.yaml | sed 's/version: //' | sed 's/+.*//')
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Build web app
+        run: npm run build
+        working-directory: project
 
-      - name: Generate app file manifest
-        run: powershell installer\harvest.ps1
+      - name: Install (electron)
+        run: npm ci
+        working-directory: project/electron
 
-      - name: Build MSI
-        run: >
-          wix build installer\Product.wxs installer\AppFiles.wxs
-          -arch x64
-          -d Version=${{ steps.version.outputs.version }}
-          -ext WixToolset.UI.wixext
-          -o quki-notes-windows.msi
+      - name: Build electron main process
+        run: npm run build
+        working-directory: project/electron
 
-      - name: Upload MSI as artifact (manual dispatch)
+      - name: Package Windows installer
+        run: npm run dist:win
+        working-directory: project/electron
+
+      - name: Upload installer as artifact (manual dispatch)
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: quki-notes-windows
-          path: quki-notes-windows.msi
+          path: project/electron/release/*.exe
           retention-days: 14
 
-      - name: Rename MSI with version tag
+      - name: Rename installer with version tag
         if: github.event_name != 'workflow_dispatch'
         shell: bash
         env:
           TAG: ${{ github.event.release.tag_name }}
-        run: mv quki-notes-windows.msi "quki-notes-windows-${TAG}.msi"
+        run: |
+          SRC=$(find project/electron/release -maxdepth 1 -name "*.exe" | head -1)
+          mv "$SRC" "project/electron/release/quki-notes-windows-${TAG}.exe"
 
       - name: Upload to GitHub Release
         if: github.event_name != 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
-          files: quki-notes-windows-${{ github.event.release.tag_name }}.msi
+          files: project/electron/release/quki-notes-windows-${{ github.event.release.tag_name }}.exe

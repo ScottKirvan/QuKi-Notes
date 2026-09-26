@@ -1,0 +1,1126 @@
+:root {
+  color-scheme: light dark;
+}
+
+/* Defaults for the Obsidian variables the app uses: GitHubDHC's own values
+   (notes/dev/reference/GitHubDHC-theme.css) with its var() chains resolved.
+   --caret-color is the one variable GitHubDHC leaves undefined. */
+body.theme-dark {
+  color-scheme: dark;
+  --background-primary: #010409;
+  --background-primary-alt: #151b23;
+  --background-modifier-border: #b7bdc8;
+  --background-modifier-border-focus: #b7bdc8;
+  --background-modifier-hover: rgba(183, 189, 200, 0.12);
+  --background-modifier-active-hover: rgba(169, 175, 188, 0.15);
+  --background-modifier-error: #ff9492;
+  --background-modifier-form-field: #010409;
+  --interactive-normal: #3d444d;
+  --interactive-accent: #9ea7b3;
+  /* GitHubDHC's actual CTA/primary-button colour (its "mod-cta" green), distinct
+     from the neutral-grey --interactive-accent above. */
+  --color-btn-primary-bg: #09b43a;
+  --color-btn-primary-hover-bg: #0c8e33;
+  --text-normal: #ffffff;
+  --text-muted: #b7bdc8;
+  --text-accent: #71b7ff;
+  --text-on-accent: black;
+  --text-error: #ff9492;
+  /* github.com dark selection, measured from a phone screenshot: blends to #33649C on #010409 */
+  --text-selection: rgba(88, 166, 255, 0.6);
+  --caret-color: var(--text-accent);
+  --link-color: #71b7ff;
+  --blockquote-border-color: #7a828e;
+  --code-background: #161b22;
+  --hr-color: #7a828e;
+  --table-background: transparent;
+  --table-border-width: 1px;
+  --table-border-color: var(--background-modifier-border);
+  --table-header-background: var(--table-background);
+  --table-header-border-width: var(--table-border-width);
+  --table-header-border-color: var(--table-border-color);
+  /* GitHubDHC's --table-header-weight resolves to its --font-semibold, 600. */
+  --table-header-weight: 600;
+  --table-header-color: var(--text-normal);
+  --table-text-color: inherit;
+  --modal-background: #010409;
+  --modal-border-color: #b7bdc8;
+  --font-interface-theme: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  --font-text-theme: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  /* not GitHubDHC's 'DM Mono', 'Fira Code', Courier, monospace: those fonts are not shipped */
+  --font-monospace-theme: ui-monospace, SFMono-Regular, Consolas, monospace;
+  --font-interface: var(--font-interface-theme), sans-serif;
+  --font-text: var(--font-text-theme), sans-serif;
+  --font-monospace: var(--font-monospace-theme), monospace;
+}
+
+body.theme-light {
+  color-scheme: light;
+  --background-primary: #ffffff;
+  --background-primary-alt: #f6f8fa;
+  --background-modifier-border: #d1d9e0;
+  --background-modifier-border-focus: #096cdc;
+  --background-modifier-hover: rgba(208, 215, 222, 0.1);
+  --background-modifier-active-hover: rgba(9, 108, 220, 0.15);
+  --background-modifier-error: #cf222e;
+  --background-modifier-form-field: #f6f8fa;
+  --interactive-normal: #f6f8fa;
+  --interactive-accent: #0a72e9;
+  --color-btn-primary-bg: #1f883d;
+  --color-btn-primary-hover-bg: #1a7f37;
+  --text-normal: #1f2328;
+  --text-muted: #424a53;
+  --text-accent: #0969da;
+  --text-on-accent: black;
+  --text-error: #cf222e;
+  --text-selection: rgba(9, 108, 220, 0.2);
+  --caret-color: var(--text-accent);
+  --link-color: #0969da;
+  --blockquote-border-color: #6e7781;
+  --code-background: #afb8c1;
+  --hr-color: #6e7781;
+  --table-background: transparent;
+  --table-border-width: 1px;
+  --table-border-color: var(--background-modifier-border);
+  --table-header-background: var(--table-background);
+  --table-header-border-width: var(--table-border-width);
+  --table-header-border-color: var(--table-border-color);
+  --table-header-weight: 600;
+  --table-header-color: var(--text-normal);
+  --table-text-color: inherit;
+  --modal-background: #ffffff;
+  --modal-border-color: #d1d9e0;
+  --font-interface-theme: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  --font-text-theme: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji';
+  --font-monospace-theme: ui-monospace, SFMono-Regular, Consolas, monospace;
+  --font-interface: var(--font-interface-theme), sans-serif;
+  --font-text: var(--font-text-theme), sans-serif;
+  --font-monospace: var(--font-monospace-theme), monospace;
+}
+
+body {
+  margin: 0;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-family: var(--font-interface);
+}
+
+#app {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+.view {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--background-primary);
+  overflow-y: auto;
+}
+
+.view[hidden] {
+  display: none !important;
+}
+
+.app-header {
+  padding: 6px 24px;
+  background: var(--background-primary-alt);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.app-header-spacer {
+  flex: 1 1 auto;
+}
+
+/*
+ * Every icon-only button shares this look: no border, a subtle tint on
+ * hover/press, and a focus ring for keyboard users. Sizes are set per class
+ * below.
+ */
+.app-bar-btn,
+.back-btn,
+.new-btn,
+.help-btn,
+.settings-btn,
+.toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-normal);
+  font: inherit;
+  cursor: pointer;
+}
+
+.app-bar-btn:hover:not(:disabled),
+.back-btn:hover:not(:disabled),
+.new-btn:hover:not(:disabled),
+.help-btn:hover:not(:disabled),
+.settings-btn:hover:not(:disabled),
+.toolbar-btn:hover:not(:disabled) {
+  background: var(--background-modifier-hover);
+}
+
+.app-bar-btn:active:not(:disabled),
+.back-btn:active:not(:disabled),
+.new-btn:active:not(:disabled),
+.help-btn:active:not(:disabled),
+.settings-btn:active:not(:disabled),
+.toolbar-btn:active:not(:disabled) {
+  background: var(--background-modifier-active-hover);
+}
+
+.app-bar-btn:focus-visible,
+.back-btn:focus-visible,
+.new-btn:focus-visible,
+.help-btn:focus-visible,
+.settings-btn:focus-visible,
+.toolbar-btn:focus-visible {
+  outline: 2px solid var(--background-modifier-border-focus);
+  outline-offset: 2px;
+}
+
+.app-bar-btn:disabled,
+.back-btn:disabled,
+.new-btn:disabled,
+.help-btn:disabled,
+.settings-btn:disabled,
+.toolbar-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.back-btn[hidden] {
+  display: none;
+}
+
+.app-bar-btn-danger {
+  color: var(--text-error);
+}
+
+.app-bar-btn-icon {
+  width: 36px;
+  height: 36px;
+}
+
+.app-bar-btn-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
+.view-header {
+  padding: 6px 16px;
+  background: var(--background-primary-alt);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.view-header h1 {
+  font-size: 16px;
+  margin: 0;
+  flex: 1 1 auto;
+}
+
+.back-btn,
+.new-btn,
+.help-btn,
+.settings-btn {
+  width: 36px;
+  height: 36px;
+}
+
+.view-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.empty-trash-btn {
+  font: inherit;
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  cursor: pointer;
+}
+
+.search-bar {
+  padding: 12px 16px;
+}
+
+.search-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-modifier-form-field);
+  color: var(--text-normal);
+  font: inherit;
+  font-size: 14px;
+}
+
+.list-body {
+  padding: 0 16px 24px;
+  max-width: 760px;
+  width: 100%;
+  margin: 0 auto;
+  box-sizing: border-box;
+}
+
+.empty-state {
+  color: var(--text-muted);
+  white-space: pre-line;
+  padding: 32px 4px;
+  text-align: center;
+}
+
+.list-row {
+  position: relative;
+  overflow: hidden;
+}
+
+/*
+ * BEHAVIOR_SPEC.md §5/§6: swiping right-to-left reveals a red background
+ * with a trash icon behind the row as it's dragged. This sits underneath
+ * `.list-row-content` at all times; it's only ever seen through the gap
+ * the drag opens up.
+ */
+.list-row-swipe-bg {
+  position: absolute;
+  inset: 0;
+  background: var(--background-modifier-error);
+  color: var(--text-on-accent);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 20px;
+}
+
+.list-row-content {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 4px;
+  background: var(--background-primary);
+  cursor: pointer;
+  /* Only vertical panning is left to the browser; horizontal drags are
+     read by the pointer-event swipe handler in swipeToDelete.ts. */
+  touch-action: pan-y;
+}
+
+.list-row-content:focus-visible {
+  outline: 2px solid var(--background-modifier-border-focus);
+  outline-offset: -2px;
+}
+
+.list-row-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.list-row-preview {
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.list-row-time {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.settings-body {
+  max-width: 640px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 8px 16px 32px;
+  box-sizing: border-box;
+}
+
+.settings-section {
+  margin: 20px 0;
+}
+
+.settings-section h2 {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-accent);
+  margin: 0 0 8px;
+}
+
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 4px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  font: inherit;
+  background: none;
+  color: var(--text-normal);
+  text-align: left;
+}
+
+button.settings-row {
+  width: 100%;
+  border: none;
+  cursor: pointer;
+}
+
+.settings-row-disabled {
+  color: var(--text-muted);
+}
+
+.settings-value {
+  color: var(--text-muted);
+}
+
+/* Storage section's status row: Flutter's ListTile shows a title above a
+   subtitle, both left-aligned, unlike every other settings-row's
+   label-left/value-right layout. */
+.settings-row-stacked {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.storage-status-subtitle {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* Matches Flutter's colorScheme.error on the app-storage warning subtitle. */
+.storage-status-warning {
+  color: var(--text-error);
+}
+
+.settings-note {
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.4;
+  margin: 0;
+}
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--text-normal);
+  color: var(--background-primary);
+  padding: 10px 18px;
+  border-radius: 6px;
+  font-size: 13px;
+  z-index: 1150;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.toast[hidden] {
+  display: none;
+}
+
+.toast-action {
+  font: inherit;
+  font-weight: 600;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--background-primary);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.toast-action[hidden] {
+  display: none;
+}
+
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1100;
+}
+
+.confirm-overlay[hidden] {
+  display: none !important;
+}
+
+.confirm-dialog {
+  background: var(--modal-background);
+  color: var(--text-normal);
+  border-radius: 8px;
+  padding: 20px;
+  max-width: 340px;
+  width: calc(100% - 48px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+.confirm-title {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+
+.confirm-message {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.confirm-actions button {
+  font: inherit;
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  cursor: pointer;
+}
+
+.confirm-actions button.danger {
+  background: var(--background-modifier-error);
+  border-color: var(--background-modifier-error);
+  color: var(--text-on-accent);
+}
+
+.about-dialog {
+  /* Flutter's Dialog widget sets no insetPadding of its own here, so it
+     falls back to the framework default: EdgeInsets.symmetric(horizontal:
+     40.0, vertical: 24.0) - 40px margin each side, wider than the other
+     confirm dialogs' 24px. box-sizing: border-box makes this width the
+     actual on-screen footprint (padding/border included), matching how
+     Flutter's insetPadding describes the margin from the screen edge -
+     .confirm-dialog's content-box default would otherwise add padding and
+     border on top of it. */
+  box-sizing: border-box;
+  width: calc(100% - 80px);
+  border-radius: 28px;
+  border: 1px solid var(--modal-border-color);
+}
+
+.about-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.about-icon {
+  flex: none;
+  width: 64px;
+  height: 64px;
+  border-radius: 14px;
+}
+
+.about-heading {
+  width: 100%;
+}
+
+.about-name {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+
+.about-copy {
+  display: block;
+  width: calc(100% + 12px);
+  margin: 0 -6px;
+  padding: 4px 6px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+
+.about-copy:hover {
+  background: var(--background-modifier-hover);
+}
+
+.about-copy:active {
+  background: var(--background-modifier-active-hover);
+}
+
+.about-copy:focus-visible {
+  outline: 2px solid var(--background-modifier-border-focus);
+  outline-offset: 2px;
+}
+
+.about-version {
+  display: block;
+  font-size: 14px;
+  color: var(--text-normal);
+}
+
+.about-build {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+}
+
+.about-build-part {
+  display: inline-block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+/* Flutter's Close is a TextButton: a plain link, not a bordered/filled
+   button like the confirm dialogs' Cancel/OK. */
+.about-dialog .about-close {
+  padding: 8px 4px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-accent);
+}
+
+.about-dialog .about-close:hover {
+  background: var(--background-modifier-hover);
+}
+
+.about-dialog .about-close:active {
+  background: var(--background-modifier-active-hover);
+}
+
+.about-links {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.about-link-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.about-link-icon {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  color: var(--text-muted);
+}
+
+.about-link-text {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.about-link-title {
+  font-size: 14px;
+  color: var(--text-normal);
+}
+
+.about-link-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.about-link-btn {
+  flex: none;
+  font: inherit;
+  font-size: 13px;
+  padding: 8px 14px;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--interactive-normal);
+  color: var(--text-normal);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.about-link-btn.accent {
+  background: var(--color-btn-primary-bg);
+  border-color: var(--color-btn-primary-bg);
+  color: var(--text-on-accent);
+}
+
+/* GitHubDHC's --text-on-accent (black) is unreadable on light mode's darker
+   green CTA background; every other --text-on-accent use (danger buttons,
+   the Android permission button) keeps the shared default. */
+body.theme-light .about-link-btn.accent {
+  color: #ffffff;
+}
+
+.about-link-btn.accent:hover {
+  background: var(--color-btn-primary-hover-bg);
+  border-color: var(--color-btn-primary-hover-bg);
+}
+
+/*
+ * Every message this banner shows (a save conflict, a thrown save/load
+ * error) is a real problem, not a soft warning, so it is tinted from the
+ * error colour. color-mix() against the page background (rather than a fixed
+ * hex tint) makes the tint track any palette. Message text stays
+ * --text-normal: mixing the error colour down to a readable tint leaves too
+ * little contrast for the error colour itself to double as body text.
+ */
+#save-status {
+  margin: 12px 24px 0;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: color-mix(in srgb, var(--background-modifier-error) 15%, var(--background-primary));
+  color: var(--text-normal);
+  border: 1px solid color-mix(in srgb, var(--background-modifier-error) 45%, var(--background-primary));
+}
+
+#save-status[hidden] {
+  display: none;
+}
+
+/* Same shape as .toast-action, adapted to this banner's own tint: the
+   toast's white-on-dark button text would be unreadable here, so this
+   inherits #save-status's --text-normal colour instead of hard-coding one. */
+.save-status-action {
+  font: inherit;
+  font-weight: 600;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.save-status-action[hidden] {
+  display: none;
+}
+
+#editor-host {
+  position: relative;
+  width: 100%;
+  max-width: 760px;
+  /* No vertical margin: with the card border gone (removed above) there's
+     no visual boundary left to justify the gap it used to sit inside, so it
+     just read as unexplained dead space top and bottom. auto keeps the
+     horizontal centering for a wide desktop window. */
+  margin: 0 auto;
+  box-sizing: border-box;
+  overflow: hidden;
+  /* Fills whatever height .view (the flex column above) has left after the
+     app header, in every mode - not a fixed fraction of the viewport, which
+     left dead space in reading mode and didn't account for the on-screen
+     keyboard shrinking the visible area in edit mode. */
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.cm-editor {
+  height: 100%;
+}
+
+/*
+ * cm-content's padding is set from main.ts's EditorView.theme(), not here.
+ * CodeMirror ships its own baseTheme rule for `.cm-content` (padding: 4px
+ * 0) using a two-class selector (its generated theme class plus
+ * .cm-content) - a plain `.cm-content { padding-bottom: ... }` rule in this
+ * stylesheet loses to it on specificity regardless of source order or
+ * !important, and CodeMirror's own internal layout measurements (line
+ * positions, scrollHeight) are cached from its own theme mechanism, not
+ * re-read from a later external override even when one wins on paper.
+ * Confirmed on a real device: content authored this way never actually
+ * gets the intended bottom clearance (chunk 3's report has the
+ * measurements). EditorView.theme() is CodeMirror's own sanctioned
+ * mechanism for exactly this, so that's where it has to live.
+ */
+
+/*
+ * BEHAVIOR_SPEC.md §4: the formatting toolbar is shown in edit mode, hidden
+ * in reading mode. It's pinned to the bottom of #editor-host (its
+ * `position: relative` anchor, above) rather than pushed into normal flow
+ * below the editor, so `.cm-content`'s own bottom padding (main.ts) is what
+ * keeps the last line of real content clear of it - the two are sized to
+ * match on purpose.
+ */
+.formatting-toolbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 5;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 6px;
+  box-sizing: border-box;
+  overflow-x: auto;
+  background: var(--background-primary-alt);
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.formatting-toolbar[hidden] {
+  display: none !important;
+}
+
+.toolbar-btn {
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+}
+
+.toolbar-btn:focus-visible {
+  outline-offset: -2px;
+}
+
+.toolbar-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.cm-quki-heading {
+  font-weight: 600;
+}
+
+.cm-quki-heading-1 {
+  font-size: 1.6em;
+}
+
+.cm-quki-heading-2 {
+  font-size: 1.35em;
+}
+
+.cm-quki-heading-3 {
+  font-size: 1.15em;
+}
+
+.cm-quki-strong {
+  font-weight: 700;
+}
+
+.cm-quki-em {
+  font-style: italic;
+}
+
+.cm-quki-strike {
+  text-decoration: line-through;
+}
+
+.cm-quki-code {
+  font-family: var(--font-monospace);
+  background: var(--code-background);
+  border-radius: 3px;
+  padding: 0 3px;
+}
+
+.cm-quki-code-selected {
+  background-color: var(--background-primary);
+  background-image: linear-gradient(var(--text-selection), var(--text-selection));
+}
+
+.cm-quki-code-selected-start {
+  margin-left: -3px;
+  padding-left: 3px;
+}
+
+.cm-quki-code-selected-end {
+  margin-right: -3px;
+  padding-right: 3px;
+}
+
+.cm-quki-codeblock-line {
+  font-family: var(--font-monospace);
+  background: var(--code-background);
+}
+
+.cm-quki-link {
+  color: var(--link-color);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.cm-quki-image {
+  max-width: 100%;
+  border-radius: 4px;
+  vertical-align: middle;
+}
+
+.cm-quki-image-broken {
+  display: inline-block;
+  min-width: 32px;
+  min-height: 32px;
+  border: 1px dashed var(--background-modifier-error);
+  border-radius: 4px;
+  vertical-align: middle;
+}
+
+.cm-quki-hr {
+  border: none;
+  border-top: 1px solid var(--hr-color);
+  margin: 8px 0;
+}
+
+.cm-quki-quote-text {
+  color: var(--text-muted);
+}
+
+/*
+ * Exactly 24px wide (20px box plus 4px gap): a list line's wrapped rows are
+ * indented by that same 24px, so a marker wider or narrower than it would
+ * leave the first row's content out of line with them. text-indent is reset
+ * because the list line's negative hanging indent is inherited by this
+ * inline-block. A label wider than the box (a two-digit number) grows to the
+ * left, into the gutter, rather than pushing the content right.
+ */
+.cm-quki-marker {
+  display: inline-block;
+  box-sizing: border-box;
+  width: 24px;
+  padding-right: 4px;
+  text-align: right;
+  text-indent: 0;
+  white-space: nowrap;
+}
+
+/*
+ * A list-style line shown as raw source: hangingIndent.ts sizes a float that
+ * pushes every row after the first to the right, so the wrapped rows start
+ * under the text after the marker while the first row (and its tab stops) is
+ * laid out as plain source is. shape-outside makes the float's area its border
+ * box, so its margin-top keeps it clear of the first row. flow-root keeps a
+ * float that ends up a hair too tall from reaching into the next line.
+ */
+.cm-line.cm-quki-hang {
+  display: flow-root;
+}
+
+.cm-quki-hang::before {
+  content: "";
+  float: left;
+  width: var(--quki-hang-width, 0);
+  height: var(--quki-hang-height, 0);
+  margin-top: var(--quki-hang-top, 0);
+  shape-outside: border-box;
+}
+
+.cm-quki-ordered {
+  display: inline-flex;
+  justify-content: flex-end;
+}
+
+.cm-quki-checkbox {
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.cm-quki-checkbox svg {
+  width: 1.2544em;
+  height: 1.2544em;
+  vertical-align: -0.3em;
+}
+
+.cm-quki-checked-text {
+  text-decoration: line-through;
+}
+
+/* Render-only GFM table (issue #245) - see reveal/widgets.ts's TableWidget. */
+.cm-quki-table-wrap {
+  overflow-x: auto;
+  margin: 8px 0;
+}
+
+.cm-quki-table {
+  border-collapse: collapse;
+  background: var(--table-background);
+  color: var(--table-text-color);
+}
+
+.cm-quki-table th,
+.cm-quki-table td {
+  border: var(--table-border-width) solid var(--table-border-color);
+  padding: 4px 10px;
+}
+
+.cm-quki-table th {
+  background: var(--table-header-background);
+  border-bottom-width: var(--table-header-border-width);
+  border-bottom-color: var(--table-header-border-color);
+  color: var(--table-header-color);
+  font-weight: var(--table-header-weight);
+  text-align: left;
+}
+
+/*
+ * BEHAVIOR_SPEC.md §3: shown "instead of the editor" on first launch, so
+ * this is fully opaque (not a translucent modal backdrop like
+ * .confirm-overlay) and sits above everything, including the app bar.
+ */
+.setup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.setup-overlay[hidden] {
+  display: none !important;
+}
+
+.setup-panel {
+  position: relative;
+  max-width: 480px;
+  width: 100%;
+}
+
+.setup-cancel-btn {
+  position: absolute;
+  top: -44px;
+  left: -6px;
+}
+
+.setup-title {
+  font-size: 22px;
+  margin: 0 0 8px;
+}
+
+.setup-subtitle {
+  color: var(--text-muted);
+  font-size: 14px;
+  margin: 0 0 24px;
+}
+
+.setup-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.setup-card {
+  font: inherit;
+  text-align: left;
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  cursor: pointer;
+}
+
+.setup-card:hover:not(:disabled) {
+  background: var(--background-primary-alt);
+}
+
+.setup-card:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.setup-card h2 {
+  font-size: 15px;
+  margin: 0 0 4px;
+}
+
+.setup-card p {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+/*
+ * Android-only: BEHAVIOR_SPEC.md §3's all-files-access flow. Same full-
+ * screen "replaces the whole app UI until resolved" treatment as
+ * .setup-overlay, kept as its own class rather than shared with it so this
+ * Android-specific screen can evolve independently of Electron's desktop
+ * setup screen.
+ */
+.android-permission-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.android-permission-overlay[hidden] {
+  display: none !important;
+}
+
+.android-permission-panel {
+  max-width: 480px;
+  width: 100%;
+}
+
+.android-permission-title {
+  font-size: 22px;
+  margin: 0 0 8px;
+}
+
+.android-permission-body {
+  color: var(--text-muted);
+  font-size: 14px;
+  margin: 0 0 24px;
+}
+
+.android-permission-btn {
+  font: inherit;
+  padding: 12px 20px;
+  border-radius: 8px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  cursor: pointer;
+}
+
+.android-permission-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.android-permission-waiting {
+  color: var(--text-muted);
+  font-size: 13px;
+  margin: 16px 0 0;
+}

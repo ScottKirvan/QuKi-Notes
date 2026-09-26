@@ -1,6 +1,5 @@
 {
-  "release-type": "dart",
-  "package-name": "quki_notes",
+  "release-type": "simple",
   "bump-minor-pre-major": true,
   "packages": {
     ".": {}

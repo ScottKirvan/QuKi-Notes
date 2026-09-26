@@ -1,0 +1,27 @@
+{
+  "name": "quki-mcp",
+  "private": true,
+  "version": "0.1.0",
+  "description": "MCP server exposing quki-core operations as tools.",
+  "type": "module",
+  "bin": {
+    "quki-mcp": "dist/server.js"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "start": "tsc -b && node dist/server.js",
+    "pretest": "tsc -b",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "quki-core": "file:../core",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  }
+}

@@ -1,0 +1,82 @@
+apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
+
+android {
+    namespace = "com.quki.quki_notes"
+    compileSdk = rootProject.ext.compileSdkVersion
+    defaultConfig {
+        applicationId "com.quki.quki_notes"
+        minSdkVersion rootProject.ext.minSdkVersion
+        targetSdkVersion rootProject.ext.targetSdkVersion
+        versionCode (System.getenv("BUILD_NUMBER") as Integer) ?: 1
+        versionName System.getenv("BUILD_NAME") ?: "1.0"
+        testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        aaptOptions {
+             // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
+             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
+            ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+        }
+    }
+    // Same STORE_FILE/STORE_PASSWORD/KEY_ALIAS/KEY_PASSWORD env vars the real
+    // Flutter app's release build reads (../../android/app/build.gradle.kts,
+    // read directly to confirm this), ported from its Kotlin DSL to this
+    // project's Groovy DSL. Falls back to debug signing when STORE_PASSWORD
+    // isn't set, matching that file's own comment ("Local dev: fall back to
+    // debug so `flutter run --release` still works") - this repo has no
+    // signing secrets configured yet, so today every local build takes that
+    // fallback; setting these same env vars (in CI, or locally) is what
+    // makes a real release build pick up the real keystore, with no code
+    // change needed here when that happens.
+    signingConfigs {
+        release {
+            storeFile file(System.getenv("STORE_FILE") ?: "keystore.jks")
+            storePassword System.getenv("STORE_PASSWORD")
+            keyAlias System.getenv("KEY_ALIAS")
+            keyPassword System.getenv("KEY_PASSWORD")
+        }
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            def hasSigningEnv = System.getenv("STORE_PASSWORD") != null
+            signingConfig hasSigningEnv ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+}
+
+repositories {
+    flatDir{
+        dirs '../capacitor-cordova-android-plugins/src/main/libs', 'libs'
+    }
+}
+
+dependencies {
+    implementation fileTree(include: ['*.jar'], dir: 'libs')
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+    implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
+    implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
+    implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
+    implementation project(':capacitor-android')
+    testImplementation "junit:junit:$junitVersion"
+    androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
+    androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
+    implementation project(':capacitor-cordova-android-plugins')
+}
+
+apply from: 'capacitor.build.gradle'
+
+// See the root build.gradle's subprojects{} block for why every module
+// (including this one) gets its Java/Kotlin target forced back to 17 -
+// capacitor.build.gradle (generated, not hand-edited) sets 21 here, and
+// @capacitor/android's own vendored build.gradle (project/node_modules,
+// outside this app's control) sets 21 too.
+
+try {
+    def servicesJSON = file('google-services.json')
+    if (servicesJSON.text) {
+        apply plugin: 'com.google.gms.google-services'
+    }
+} catch(Exception e) {
+    logger.info("google-services.json not found, google-services plugin not applied. Push Notifications won't work")
+}

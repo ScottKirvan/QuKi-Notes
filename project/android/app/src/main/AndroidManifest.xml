@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!--
+      allowBackup is deliberately true, not the simple false a previous fix
+      set to solve a real stale-first-launch bug (a restored
+      quki_settings.json made a fresh install look like a returning one).
+      Turning backup off entirely also silently stopped protecting the
+      app-storage QuKi content across uninstall/reinstall - a real
+      regression, since the old Flutter app never set allowBackup at all
+      (defaulting to the platform's own true) and users have relied on that
+      actual behaviour regardless of what the in-app storage warning says.
+      fullBackupContent/dataExtractionRules scope backup instead of
+      disabling it: QuKi content stays backed up, quki_settings.json (the
+      actual cause of the original bug) does not. See backup_rules.xml and
+      data_extraction_rules.xml for the excluded paths and why.
+    -->
+    <application
+        android:allowBackup="true"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
+            android:name=".MainActivity"
+            android:label="@string/title_activity_main"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:launchMode="singleTask"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!--
+              Share-in (BEHAVIOR_SPEC.md §8), mirroring the Flutter app's own
+              AndroidManifest.xml exactly: two singular ACTION_SEND filters,
+              text/plain and text/*, no ACTION_SEND_MULTIPLE. See
+              ShareInPlugin.kt for what receives these.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/*" />
+            </intent-filter>
+
+        </activity>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths"></meta-data>
+        </provider>
+    </application>
+
+    <!-- Permissions -->
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!--
+      Ported from the Flutter app's own AndroidManifest.xml, which already
+      carries the approved MANAGE_EXTERNAL_STORAGE permission for this exact
+      package id (see StoragePlugin.kt's class doc comment). The
+      tools:ignore matches the Flutter manifest's own suppression of the
+      ScopedStorage lint, for the same reason: this is a deliberate,
+      already-reviewed choice to use real all-files access, not an
+      oversight.
+    -->
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
+        tools:ignore="ScopedStorage" />
+</manifest>
