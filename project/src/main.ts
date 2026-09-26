@@ -31,7 +31,6 @@ import { runToolbarCommand } from "./toolbarAdapter";
 import { createFormattingToolbar, type FormattingToolbarHandle } from "./screens/formattingToolbar";
 import { revealPlugin, blockRevealField } from "./reveal/decorations";
 import { hangingIndent } from "./reveal/hangingIndent";
-import { fencedCodeNoIndent } from "./reveal/fencedCodeIndent";
 import { plainTextMode, setPlainTextMode } from "./reveal/plainTextMode";
 import { editModeField, setEditMode } from "./reveal/editModeField";
 import {
@@ -558,10 +557,6 @@ async function init(): Promise<void> {
       indentOnInput(),
       keymap.of([...indentDedentKeymap, ...defaultKeymap, ...historyKeymap]),
       markdown({ extensions: GFM }),
-      // Markdown's own Enter handling declines inside a fenced code block
-      // and falls through to the default keymap's auto-indent, which would
-      // otherwise mangle typed code - see fencedCodeIndent.ts.
-      fencedCodeNoIndent,
       syntaxHighlighting(qukiSyntaxHighlighting),
       plainTextMode,
       // Seeded from the same shouldFocusOnOpen check editModeTracker below
