@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { type Extension, EditorState } from "@codemirror/state";
 import { markdown } from "@codemirror/lang-markdown";
 import { GFM } from "@lezer/markdown";
-import { buildDecorations } from "./decorations";
+import { ensureSyntaxTree, syntaxTree } from "@codemirror/language";
+import { buildDecorations, blockRevealField } from "./decorations";
 import { plainTextMode, setPlainTextMode } from "./plainTextMode";
 import { editModeField } from "./editModeField";
 
@@ -836,5 +837,57 @@ describe("fenced code block under a selection", () => {
       if ((value.spec as { class?: string }).class === "cm-quki-code-selected") out.push([from, to]);
     });
     expect(out).toEqual([]);
+  });
+});
+
+function hasTableNode(state: EditorState): boolean {
+  let found = false;
+  syntaxTree(state).iterate({
+    enter(node) {
+      if (node.name === "Table") found = true;
+    },
+  });
+  return found;
+}
+
+describe("reveal after the background parser catches up", () => {
+  // @codemirror/language only parses the first ~3000 characters of a freshly
+  // created document synchronously; anything past that is finished later,
+  // off a requestIdleCallback, by the language package's own parseWorker.
+  // That worker's completion is delivered to the view as a transaction that
+  // touches neither the doc, the selection nor either mode field - so
+  // revealInputsChanged (shared by blockRevealField and revealPlugin) must
+  // itself notice the syntax tree changed, or content past the initial parse
+  // boundary stays rendered against the stale tree the field was seeded
+  // with until something unrelated (a caret move, a mode toggle) happens to
+  // force a recompute. This is what reached Scott as fenced code blocks
+  // rendering as raw markdown on a freshly opened QuKi.
+  it("given a table recognised only once the parser finishes, when the tree completes, then the block field recomputes and reveals it", () => {
+    const padding = "x".repeat(3500) + "\n\n";
+    const table = "| a | b |\n| - | - |\n| 1 | 2 |";
+    const doc = padding + table;
+    const tableStart = padding.length;
+
+    let state = EditorState.create({
+      doc,
+      extensions: [markdown({ extensions: GFM }), plainTextMode, blockRevealField],
+    });
+
+    expect(hasTableNode(state)).toBe(false);
+    const before: Array<[number, number]> = [];
+    state.field(blockRevealField).between(0, doc.length, (from, to) => {
+      before.push([from, to]);
+    });
+    expect(before).toEqual([]);
+
+    ensureSyntaxTree(state, doc.length, 5000);
+    state = state.update({}).state;
+
+    expect(hasTableNode(state)).toBe(true);
+    const after: Array<[number, number]> = [];
+    state.field(blockRevealField).between(0, doc.length, (from, to) => {
+      after.push([from, to]);
+    });
+    expect(after).toEqual([[tableStart, doc.length]]);
   });
 });

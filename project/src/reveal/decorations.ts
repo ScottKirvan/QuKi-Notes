@@ -6,6 +6,7 @@ import {
   type ViewUpdate,
 } from "@codemirror/view";
 import { StateField, type EditorState, type Range } from "@codemirror/state";
+import { syntaxTree } from "@codemirror/language";
 import type { SyntaxNode } from "@lezer/common";
 import { extractElements } from "./extractElements";
 import { computeRevealedIds, caretForReveal } from "./computeReveal";
@@ -489,7 +490,13 @@ function revealInputsChanged(prev: EditorState, next: EditorState): boolean {
     !prev.doc.eq(next.doc) ||
     !prev.selection.eq(next.selection) ||
     prev.field(plainTextMode) !== next.field(plainTextMode) ||
-    prev.field(editModeField, false) !== next.field(editModeField, false)
+    prev.field(editModeField, false) !== next.field(editModeField, false) ||
+    // @codemirror/language only parses a document's opening slice
+    // synchronously; the rest completes later off an idle callback and
+    // reaches the view as a transaction that touches none of the above -
+    // without this, content past that initial slice stays rendered against
+    // the stale, incomplete tree the field was first created with.
+    syntaxTree(prev) !== syntaxTree(next)
   );
 }
 
