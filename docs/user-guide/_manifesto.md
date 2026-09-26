@@ -4,7 +4,7 @@
 
 A **QuKi** is a short note, a picture, a thought, a temporary list, a rough draft — captured, quickly and easily, in the moment.
 
-QuKis live in the now. They are not filed, tagged, organized, foldered, or curated. They surface what's current while older QuKis age into irrelevance. They can be a starting point before being sent off to become more important things — temporary lists, things to remember, a whiteboard or pasteboard, a stopping point on their way to becoming emails, notes, skeets, or whatever you need them to be.
+QuKi Notes live in the now. They are not filed, tagged, organized, foldered, or curated. They surface what's current while older QuKis age into irrelevance. They can be a starting point before being sent off to become more important things — temporary lists, things to remember, a whiteboard or pasteboard, a stopping point on their way to becoming emails, notes, skeets, or whatever you need them to be.
 
 QuKis, and this app, embody four key principles:
 
@@ -17,7 +17,7 @@ QuKis, and this app, embody four key principles:
 
 ## What is QuKi-Notes?
 
-**QuKi-Notes** is the capture surface, a scratchpad, a pasteboard. A blank canvas on launch. Just type and go.  Your QuKis are always there when you want them. Transports plugins are there when you're ready to send.
+**QuKi-Notes** is the capture surface and your collection of QuKis -- It's a scratchpad, a pasteboard. A blank canvas on launch. Just type and go.  Your QuKis are always there when you want them, and gone when you say so.
 
 ---
 
@@ -32,4 +32,4 @@ QuKis, and this app, embody four key principles:
 
 ---
 
-**Last Updated**: 2026-06-24
+**Last Updated**: 2026-09-26
