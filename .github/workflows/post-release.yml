@@ -132,8 +132,8 @@ jobs:
           jq -n \
             --arg version "$TAG" \
             --arg android "$BASE_URL/quki-notes-android-${TAG}.apk" \
-            --arg windows "$BASE_URL/quki-notes-windows-${TAG}.msi" \
-            --arg linux "$BASE_URL/quki-notes-linux-${TAG}.tar.gz" \
+            --arg windows "$BASE_URL/quki-notes-windows-${TAG}.exe" \
+            --arg linux "$BASE_URL/quki-notes-linux-${TAG}.AppImage" \
             '{version: $version, android: $android, windows: $windows, linux: $linux}' \
             > docs/public/latest.json
 
