@@ -618,3 +618,68 @@ describe("inline code under a selection", () => {
     expect(marks(0, doc.length, "cm-quki-code")).toEqual([[chipStart, chipEnd]]);
   });
 });
+
+describe("GFM table collapse", () => {
+  const doc = "plain\n\n| A | B |\n|---|---|\n| 1 | 2 |";
+  const tableStart = doc.indexOf("| A");
+  const tableEnd = doc.length;
+
+  it("given a table and the caret elsewhere, when decorated, then it collapses to one table widget spanning the whole table", () => {
+    const decos = widgets(decorationsFor(doc, 0), "TableWidget");
+    expect(decos).toEqual([expect.objectContaining({ from: tableStart, to: tableEnd })]);
+  });
+
+  it("given the caret at the very start of the table, when decorated, then it reveals as raw source", () => {
+    expect(widgets(decorationsFor(doc, tableStart), "TableWidget")).toEqual([]);
+  });
+
+  it("given the caret inside a body cell, when decorated, then the whole table reveals, not just that cell", () => {
+    const insideCell = doc.indexOf("| 1 | 2 |") + 2;
+    expect(widgets(decorationsFor(doc, insideCell), "TableWidget")).toEqual([]);
+  });
+
+  it("given the caret one character past the table's last character, when decorated, then it still reveals (rule 2's inclusive end)", () => {
+    expect(widgets(decorationsFor(doc, tableEnd), "TableWidget")).toEqual([]);
+  });
+
+  it("given the caret one character past that boundary, when decorated, then the table is collapsed again", () => {
+    // A blank line, not just a newline, before "end": GFM's table leaf parser
+    // otherwise absorbs an immediately-following non-blank line as another
+    // row (verified directly against @lezer/markdown's Table extension),
+    // which would move the table's own end past this test's boundary.
+    const beyond = `${doc}\n\nend`;
+    expect(widgets(decorationsFor(beyond, tableEnd + 1), "TableWidget")).toHaveLength(1);
+  });
+
+  it("given a selection anchored outside the table with its head inside it, when decorated, then the table stays collapsed (rule 5: anchor, not head)", () => {
+    const state = EditorState.create({
+      doc,
+      selection: { anchor: 0, head: tableStart + 5 },
+      extensions: [markdown({ extensions: GFM }), plainTextMode],
+    });
+    const found: string[] = [];
+    buildDecorations(state).between(0, doc.length, (_from, _to, value) => {
+      const widget = (value.spec as { widget?: { constructor: { name: string } } }).widget;
+      if (widget) found.push(widget.constructor.name);
+    });
+    expect(found).toContain("TableWidget");
+  });
+
+  it("given a selection anchored inside the table with its head outside it, when decorated, then the table reveals raw (rule 5: anchor, not head)", () => {
+    const state = EditorState.create({
+      doc,
+      selection: { anchor: tableStart + 5, head: doc.length },
+      extensions: [markdown({ extensions: GFM }), plainTextMode],
+    });
+    const found: string[] = [];
+    buildDecorations(state).between(0, doc.length, (_from, _to, value) => {
+      const widget = (value.spec as { widget?: { constructor: { name: string } } }).widget;
+      if (widget) found.push(widget.constructor.name);
+    });
+    expect(found).not.toContain("TableWidget");
+  });
+
+  it("given plain-text mode, when decorated, then the table gets no widget at all", () => {
+    expect(widgets(decorationsFor(doc, 0, true), "TableWidget")).toEqual([]);
+  });
+});

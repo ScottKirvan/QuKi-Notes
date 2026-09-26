@@ -29,7 +29,7 @@ import type { ElectronSetupApi } from "./electronSetupApi";
 import { applyDedent, applyIndent } from "./toolbar/indentDedent";
 import { runToolbarCommand } from "./toolbarAdapter";
 import { createFormattingToolbar, type FormattingToolbarHandle } from "./screens/formattingToolbar";
-import { revealPlugin } from "./reveal/decorations";
+import { revealPlugin, blockRevealField } from "./reveal/decorations";
 import { hangingIndent } from "./reveal/hangingIndent";
 import { plainTextMode, setPlainTextMode } from "./reveal/plainTextMode";
 import { editModeField, setEditMode } from "./reveal/editModeField";
@@ -564,6 +564,10 @@ async function init(): Promise<void> {
       editModeField.init(() => shouldFocusOnOpen(initial.id)),
       imageResolver.of((relPath) => backend.readBinary(relPath)),
       revealPlugin,
+      // Block-level widgets (e.g. a rendered table, issue #245) can only be
+      // supplied by a StateField, never a ViewPlugin - see blockRevealField's
+      // own comment in decorations.ts.
+      blockRevealField,
       hangingIndent,
       // STORAGE_CONTRACT.md rule 12 / web-specific "images paste in the
       // same way [as text]": a pasted image is written into the shared

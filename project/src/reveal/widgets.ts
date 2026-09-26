@@ -2,6 +2,7 @@ import { type EditorView, WidgetType } from "@codemirror/view";
 import { imageResolver } from "./imageResolver";
 import { acquireImageUrl, releaseImageUrl } from "./imageUrlCache";
 import { toggleCheckboxAt } from "./checkboxTap";
+import type { InlineSpan, TableAlign, TableModel } from "./tableModel";
 
 /**
  * `this.src` is a markdown image path (e.g. "media/<name>.png"), not a URL
@@ -205,5 +206,105 @@ export class CheckboxWidget extends WidgetType {
       toggleCheckboxAt(view, view.posAtDOM(box));
     });
     return box;
+  }
+}
+
+function appendSpans(parent: HTMLElement, spans: readonly InlineSpan[]): void {
+  for (const span of spans) appendSpan(parent, span);
+}
+
+function appendSpan(parent: HTMLElement, span: InlineSpan): void {
+  switch (span.kind) {
+    case "text":
+      parent.appendChild(document.createTextNode(span.text));
+      break;
+    case "strong": {
+      const el = document.createElement("strong");
+      appendSpans(el, span.children);
+      parent.appendChild(el);
+      break;
+    }
+    case "em": {
+      const el = document.createElement("em");
+      appendSpans(el, span.children);
+      parent.appendChild(el);
+      break;
+    }
+    case "strike": {
+      const el = document.createElement("del");
+      appendSpans(el, span.children);
+      parent.appendChild(el);
+      break;
+    }
+    case "code": {
+      const el = document.createElement("code");
+      el.textContent = span.text;
+      parent.appendChild(el);
+      break;
+    }
+    case "link": {
+      const a = document.createElement("a");
+      a.href = span.url;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.className = "cm-quki-link";
+      appendSpans(a, span.children);
+      parent.appendChild(a);
+      break;
+    }
+  }
+}
+
+function applyAlign(el: HTMLElement, align: TableAlign): void {
+  if (align) el.style.textAlign = align;
+}
+
+// Render-only (issue #245): a table renders as a real <table>, but is never
+// itself editable in this form - the reveal mechanism (rule 4, whole-element
+// reveal like Image/HorizontalRule) is what lets its raw markdown be edited,
+// by showing the source instead of this widget whenever the caret is inside
+// it. An always-editable grid is a separate, later feature (issue #446).
+export class TableWidget extends WidgetType {
+  constructor(readonly model: TableModel) {
+    super();
+  }
+
+  override eq(other: TableWidget): boolean {
+    return JSON.stringify(other.model) === JSON.stringify(this.model);
+  }
+
+  toDOM(): HTMLElement {
+    const wrap = document.createElement("div");
+    wrap.className = "cm-quki-table-wrap";
+
+    const table = document.createElement("table");
+    table.className = "cm-quki-table";
+
+    const thead = document.createElement("thead");
+    const headRow = document.createElement("tr");
+    for (const cell of this.model.header.cells) {
+      const th = document.createElement("th");
+      applyAlign(th, cell.align);
+      appendSpans(th, cell.spans);
+      headRow.appendChild(th);
+    }
+    thead.appendChild(headRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement("tbody");
+    for (const row of this.model.rows) {
+      const tr = document.createElement("tr");
+      for (const cell of row.cells) {
+        const td = document.createElement("td");
+        applyAlign(td, cell.align);
+        appendSpans(td, cell.spans);
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+
+    wrap.appendChild(table);
+    return wrap;
   }
 }

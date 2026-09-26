@@ -575,6 +575,96 @@ async function main(): Promise<void> {
       await context.close();
     }
 
+    // --- GFM tables (issue #245): render-only, whole-element reveal ---
+    {
+      const context = await browser.newContext();
+      const page = await openFreshPage(context, url);
+
+      const tableDoc = [
+        "intro paragraph",
+        "",
+        "| Left | Center | Right |",
+        "|:-----|:------:|------:|",
+        "| **bold** *italic* | [link](https://example.com) | `code` |",
+        "| a | b | c |",
+        "",
+        "end paragraph",
+      ].join("\n");
+      await setDocAndSelection(page, tableDoc, 0);
+      await page.waitForTimeout(150);
+
+      const table = page.locator(".cm-quki-table");
+      assert((await table.count()) === 1, "a pipe table should render as a real <table>, not raw pipe text");
+      assert((await page.locator(".cm-quki-table-wrap .cm-line").count()) === 0, "the table widget must not leave any raw pipe line visible while collapsed");
+      console.log("[e2e-listReveal] PASS: a GFM pipe table renders as a real <table>");
+
+      const headerCells = table.locator("thead th");
+      assert(JSON.stringify(await headerCells.allTextContents()) === JSON.stringify(["Left", "Center", "Right"]), "header cell text should match the source, pipes stripped");
+      const aligns = await headerCells.evaluateAll((els) => els.map((el) => getComputedStyle(el).textAlign));
+      assert(JSON.stringify(aligns) === JSON.stringify(["left", "center", "right"]), `column alignment should follow the delimiter row, got ${JSON.stringify(aligns)}`);
+      console.log("[e2e-listReveal] PASS: column alignment (:---, :---:, ---:) is respected per column");
+
+      const firstBodyRow = table.locator("tbody tr").first();
+      assert((await firstBodyRow.locator("strong", { hasText: "bold" }).count()) === 1, "bold markdown inside a cell should render as <strong>");
+      assert((await firstBodyRow.locator("em", { hasText: "italic" }).count()) === 1, "italic markdown inside a cell should render as <em>");
+      const link = firstBodyRow.locator("a", { hasText: "link" });
+      assert((await link.count()) === 1, "link markdown inside a cell should render as a real link");
+      assert((await link.getAttribute("href")) === "https://example.com", "the rendered link should keep its href");
+      assert((await firstBodyRow.locator("code", { hasText: "code" }).count()) === 1, "a code span inside a cell should render as <code>");
+      console.log("[e2e-listReveal] PASS: cell content supports inline markdown (bold, italic, link, code)");
+
+      assert((await editorBody(page)) === tableDoc, "rendering the table must not rewrite the source");
+      console.log("[e2e-listReveal] PASS: rendering the table leaves the underlying source untouched");
+
+      // Caret entering the table reveals the whole thing as raw source -
+      // the same whole-element reveal mechanism as an image or a horizontal
+      // rule, not a per-cell or per-marker reveal.
+      const insideCell = tableDoc.indexOf("| a | b | c |") + 3;
+      await setDocAndSelection(page, tableDoc, insideCell);
+      await page.waitForTimeout(150);
+      assert((await page.locator(".cm-quki-table").count()) === 0, "the caret inside a cell should revert the whole table to raw source");
+      const rawTableLine = await page.locator(".cm-line", { hasText: "| a | b | c |" }).textContent();
+      assert(rawTableLine === "| a | b | c |", `the revealed row should show its raw pipes, got ${JSON.stringify(rawTableLine)}`);
+      console.log("[e2e-listReveal] PASS: the caret entering any part of the table reveals the whole table as raw markdown");
+
+      await setDocAndSelection(page, tableDoc, 0);
+      await page.waitForTimeout(150);
+      assert((await page.locator(".cm-quki-table").count()) === 1, "moving the caret away should collapse the table back to a rendered table");
+      console.log("[e2e-listReveal] PASS: moving the caret away re-collapses the table");
+
+      // Rule 5: a selection resolves reveal against its anchor, not its head.
+      await page.evaluate(
+        ({ anchor, head }) => {
+          const view = (window as WindowWithQukiView).qukiView;
+          view.dispatch({ selection: { anchor, head } });
+        },
+        { anchor: 0, head: insideCell },
+      );
+      await page.waitForTimeout(150);
+      assert((await page.locator(".cm-quki-table").count()) === 1, "a selection anchored outside the table with its head inside it should keep the table collapsed");
+
+      await page.evaluate(
+        ({ anchor, head }) => {
+          const view = (window as WindowWithQukiView).qukiView;
+          view.dispatch({ selection: { anchor, head } });
+        },
+        { anchor: insideCell, head: 0 },
+      );
+      await page.waitForTimeout(150);
+      assert((await page.locator(".cm-quki-table").count()) === 0, "a selection anchored inside the table with its head outside it should reveal the table raw");
+      console.log("[e2e-listReveal] PASS: table reveal follows the selection's anchor, not its head (rule 5)");
+
+      await setDocAndSelection(page, tableDoc, 0);
+      await page.evaluate(() => document.querySelector<HTMLButtonElement>("#btn-mode-toggle")!.click());
+      await page.waitForTimeout(150);
+      assert((await page.locator(".cm-quki-table").count()) === 0, "plain-text mode should show the table's raw source, not the rendered table");
+      const plainTextLine = await page.locator(".cm-line", { hasText: "| Left" }).first().textContent();
+      assert(!!plainTextLine?.startsWith("| Left"), `plain-text mode should show the raw table markup, got ${JSON.stringify(plainTextLine)}`);
+      console.log("[e2e-listReveal] PASS: plain-text mode shows the table as raw source");
+
+      await context.close();
+    }
+
     console.log("[e2e-listReveal] ALL SCENARIOS PASSED");
   } finally {
     await browser.close();
