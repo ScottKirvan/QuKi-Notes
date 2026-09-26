@@ -1,4 +1,4 @@
-# Contributing to QuKi-Notes
+# Contributing to QuKi Notes
 
 Thank you for your interest in contributing. This document covers everything you need to get oriented before opening a PR or filing an issue.
 
@@ -6,17 +6,18 @@ Thank you for your interest in contributing. This document covers everything you
 
 ## Before You Start
 
-Read the [manifesto](notes/dev/manifesto.md) first. It is short. It defines what QuKi-Notes is and — critically — what it is not. The manifesto is normative: if a proposed change conflicts with it, it will not be accepted regardless of implementation quality.
+Read the [manifesto](notes/archive/dev/manifesto.md) first. It is short. It defines what QuKi Notes is and — critically — what it is not. The manifesto is normative: if a proposed change conflicts with it, it will not be accepted regardless of implementation quality.
 
 The hard constraints, summarized:
 
-- **No vault-like features** — no folders, no tags, no backlinks, no archive, no pinning
-- **The editor is always home** — it does not have a back button; navigation depth is intentionally shallow
+- **No vault-like features** — no folders, no tags, no backlinks, no pinning
+- **The editor is always home** — it has no back button; navigation depth is intentionally shallow
 - **Send is user-initiated** — nothing is automatically dispatched; auto-save is separate from sending
-- **Nothing auto-deletes** — ephemerality is a framing choice, not a timer
 - **No telemetry, ever** — no analytics, crash reporting, or tracking of any kind; this is not deferred, it is out of scope permanently
 
-If you want to understand *why* these constraints exist, the manifesto explains the reasoning. If you are unsure whether your idea fits, open an issue and ask before writing code.
+If you want to understand *why* these constraints exist, the manifesto explains the reasoning. If you're unsure whether your idea fits, open an issue and ask before writing code.
+
+For anything touching files, the QuKi list, images, or the trash folder, [`STORAGE_CONTRACT.md`](notes/dev/STORAGE_CONTRACT.md) is binding — read it before proposing a change in that area. For what a screen or interaction should actually do, [`BEHAVIOR_SPEC.md`](notes/dev/BEHAVIOR_SPEC.md) is the reference.
 
 ---
 
@@ -26,14 +27,11 @@ Use these terms consistently in code, commit messages, issues, and PRs:
 
 | Write | Never write |
 |---|---|
-| QuKi (singular), QuKis (plural) | note, document, file |
-| QuKis list | stream, library, inbox |
-| Send (user-facing action) | Toss (user-facing) |
-| Transport | Toss, workflow, integration |
-| Recently Deleted | trash, archive |
+| QuKi (singular), QuKis (plural) | note, document, file, item |
+| The QuKi list | stream, library, inbox |
+| The QuKi editor | the note screen |
+| Send (user-facing action) | Toss |
 | The app | the vault |
-
-Transport plugin code names (`ClipboardTransport`, `ShareSheetTransport`, `TransportPickerSheet`) previously used a "Toss" prefix, predating the vocabulary lock — renamed throughout the codebase (2026-08-09) so "Toss" no longer appears anywhere in `lib/`, `test/`, or docs. Use "send" for user-facing strings and "transport" for the concept; "toss" is never correct in new code, docs, or commits.
 
 ---
 
@@ -41,105 +39,99 @@ Transport plugin code names (`ClipboardTransport`, `ShareSheetTransport`, `Trans
 
 **Prerequisites:**
 
-- [Flutter SDK](https://docs.flutter.dev/get-started/install) — stable channel
-- [just](https://github.com/casey/just) task runner
-- Android: Android SDK + connected device or emulator
-- Windows desktop: Visual Studio 2022 Build Tools with "Desktop development with C++"
-
-Full Windows 11 setup walkthrough: [notes/dev/dev_env_setup.md](notes/dev/dev_env_setup.md)
+- [Node.js](https://nodejs.org/) 22, with npm
+- Android: Android Studio / SDK, JDK 17
+- No extra native toolchain is needed for Electron itself; packaging (`dist:win` / `dist:linux`) runs through `electron-builder`
 
 **Quick start:**
 
 ```sh
 git clone https://github.com/ScottKirvan/QuKi-Notes.git
-cd QuKi-Notes
-flutter pub get
-just android    # or: just windows / just linux
+cd QuKi-Notes/project
+
+# the storage core must be built first — the app, Electron, the CLI and
+# the MCP server all import from core/dist/
+npm --prefix core ci
+npm --prefix core run build
+
+npm ci
+npm run dev
 ```
 
-**Common tasks:**
+**Common tasks**, run from `project/` unless noted:
 
 | Command | Description |
 |---|---|
-| `just test` | Run the test suite |
-| `just lint` | `flutter analyze` + `dart format` check |
-| `just gen` | Regenerate Riverpod + Drift code after schema or provider changes |
-| `just android` | Run on connected Android device |
-| `just windows` | Run Windows desktop build |
-
-Run `just gen` any time you touch a `@riverpod`-annotated provider or a Drift table / DAO.
+| `npm run build` | Type-check and build the web app |
+| `npm test` | Unit tests (Vitest) |
+| `npm run test:e2e` | Full Playwright end-to-end suite (needs `npm run build` first) |
+| `npm run electron:start` | Build and launch the Electron desktop app |
+| `npm run capacitor:sync` | Build the web app and sync it into the Android project |
+| `npm --prefix core test` / `npm --prefix electron test` / `npm --prefix cli test` / `npm --prefix mcp test` | Each package's own unit tests |
 
 ---
 
 ## Testing
 
-Tests ship with the code in every PR (ADR-13). For bug fixes, write a failing regression test first, then fix it. See [notes/dev/testing.md](notes/dev/testing.md) for the full test strategy.
+Unit tests are written alongside all new code. Bug fixes require a red/green pair — a failing test that reproduces the bug, then the fix that makes it pass.
 
-Before pushing:
+Before pushing, from `project/`:
 
 ```sh
-just lint && just test
+npm test && npm run build && npm run test:e2e
 ```
+
+CI (`.github/workflows/ci.yml`) runs the same checks — type-check, test, and build — across `core`, the app, `electron`, `cli`, and `mcp`, in that dependency order.
+
+Some things genuinely can't be verified by an automated suite: keyboard-aware layout, the feel of live reveal while typing, paste-to-image, selection handles, and share targets all need a real device. Say so plainly in a PR if something falls into that category rather than claiming it from a green suite alone.
 
 ---
 
 ## Commit Convention
 
-This project uses [Conventional Commits](https://www.conventionalcommits.org/). release-please reads every message to drive version bumps and the CHANGELOG — the scope and type both matter.
-
-**Format:** `type(scope): description`
+This project uses [Conventional Commits](https://www.conventionalcommits.org/). release-please reads every message to drive version bumps and the CHANGELOG.
 
 | Type | When to use | Version bump |
 |---|---|---|
-| `feat` | New user-visible behavior | Minor |
-| `fix` | Bug fix | Patch |
-| `fix(docs)` | Documentation change | Patch + triggers docs build |
+| `feat` | A genuinely new user-facing capability | Minor |
+| `fix` | A bug fix or behavior correction — **including one that closes a tracked issue** | Patch |
+| `docs` | Documentation only | Patch |
 | `refactor` | No behavior change | None |
-| `test` | Adding or updating tests | None |
+| `test` | Adding or updating tests only | None |
 | `chore` | CI, build config, maintenance | None |
 
-**Scope** is the affected area: `editor`, `stream`, `transport`, `database`, `settings`, `ci`, `docs`, etc.
+`feat` is reserved for capability that didn't exist before. A correction to existing, already-shipped behavior is `fix`, even if it happens to close a feature request.
 
-**Examples:**
+Breaking changes use `!` after the type (`feat!:`) and include a `BREAKING CHANGE:` footer.
 
-```
-feat(editor): add WYSIWYG markdown rendering
-fix(stream): guarantee undo snackbar dismissal via explicit Timer
-fix(docs): add philosophy page to user guide
-refactor(transport): extract shared context into separate class
-test(database): add regression test for soft-delete restore
-chore(ci): pin flutter-action to v2
-feat!: change TransportPlugin interface — breaking
-```
-
-Breaking changes use `!` after the type and include a `BREAKING CHANGE:` footer.
+No AI attribution of any kind — no "Generated with," `Co-Authored-By`, or similar — in commit messages, PR bodies, or issue text.
 
 ---
 
 ## PR Workflow
 
 1. Fork the repo and create a branch from `main`
-2. Keep the branch focused — one logical change per PR
-3. Run `just lint && just test` before pushing
-4. Open a PR; CI runs automatically on every push
+2. Keep the branch focused — one concern per branch and PR
+3. Run the full check from [Testing](#testing) before pushing
+4. Open a PR — fill in the template's checklist, including on-device testing steps for anything user-facing that a device is needed to confirm
 5. One approving review required before merge
 6. Rebase-and-merge (no merge commits on `main`)
-
-Branch naming conventions: `feat/...`, `fix/...`, `docs/...`, `chore/...`
 
 ---
 
 ## Design Documentation
 
-Before proposing structural changes, read the relevant planning docs in `notes/dev/`:
+Read the relevant document in `notes/` before proposing a structural change:
 
 | Document | Purpose |
 |---|---|
-| [manifesto.md](notes/dev/manifesto.md) | Normative philosophy — read this first |
-| [design_spec.md](notes/dev/design_spec.md) | Feature spec, vocabulary, development phases |
-| [decisions.md](notes/dev/decisions.md) | Architecture Decision Records (ADR-1 → ADR-23) |
-| [open_questions.md](notes/dev/open_questions.md) | Active blockers and unresolved questions |
-| [testing.md](notes/dev/testing.md) | Test strategy and conventions |
+| [manifesto.md](notes/archive/dev/manifesto.md) | Normative philosophy — read this first |
+| [BEHAVIOR_SPEC.md](notes/dev/BEHAVIOR_SPEC.md) | What a screen or interaction does |
+| [STORAGE_CONTRACT.md](notes/dev/STORAGE_CONTRACT.md) | Binding rules for QuKis, images, and trash on disk |
+| [quki-rewrite-path.md](notes/dev/quki-rewrite-path.md) | The Flutter → TypeScript migration's design record |
+| [rewrite_TODO.md](notes/dev/rewrite_TODO.md) | Running list of open work |
+
+Prior planning documents, architecture decision records, and issue history beyond what's listed above are not authoritative — treat them as historical narrative, not a source of truth, if you come across them.
 
 ---
 
