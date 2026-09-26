@@ -12,6 +12,8 @@ export interface TrashViewCallbacks {
   onBack: () => void;
   showToast: ShowToast;
   confirm: Confirm;
+  /** STORAGE_CONTRACT.md rule 13's user-facing "delete orphaned images" setting. */
+  getDeleteOrphanedImages: () => boolean;
 }
 
 export interface TrashView {
@@ -142,7 +144,7 @@ export function createTrashView(store: QuKiStore, container: HTMLElement, callba
             await refresh();
             return;
           }
-          await store.permanentlyDelete(item.id);
+          await store.permanentlyDelete(item.id, { deleteOrphanedImages: callbacks.getDeleteOrphanedImages() });
           await refresh();
         })();
       },
@@ -162,7 +164,7 @@ export function createTrashView(store: QuKiStore, container: HTMLElement, callba
         danger: true,
       });
       if (!confirmed) return;
-      await store.emptyTrash();
+      await store.emptyTrash({ deleteOrphanedImages: callbacks.getDeleteOrphanedImages() });
       await refresh();
     })();
   });

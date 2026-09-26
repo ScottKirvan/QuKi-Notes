@@ -25,6 +25,7 @@ import { createStorageAccessGate } from "./androidStorageAccess";
 import { resolveMigratedStorageRoot, type AndroidFlutterMigrationDeps } from "./androidFlutterMigration";
 import { createAndroidSetupApi } from "./androidSetupApi";
 import { AndroidSettingsStore } from "./androidSettingsStore";
+import { AppSettingsStore } from "./appSettings";
 import type { ElectronSetupApi } from "./electronSetupApi";
 import { applyDedent, applyIndent } from "./toolbar/indentDedent";
 import { runToolbarCommand } from "./toolbarAdapter";
@@ -478,11 +479,14 @@ async function init(): Promise<void> {
         })
       : new OpfsBackend("quki");
   const store = new QuKiStore(backend);
+  const appSettings = new AppSettingsStore(window.localStorage);
 
   // STORAGE_CONTRACT.md rule 14 / BEHAVIOR_SPEC.md §6: the 30-day trash
   // hold is purged automatically at app launch, before anything (the list,
-  // Trash itself) needs to read trash state.
-  await store.purgeExpiredTrash().catch((error: unknown) => {
+  // Trash itself) needs to read trash state. Gated on rule 13's
+  // "delete orphaned images" setting, same as every other orphan-cleanup
+  // call site.
+  await store.purgeExpiredTrash({ deleteOrphanedImages: appSettings.getDeleteOrphanedImages() }).catch((error: unknown) => {
     console.error("QuKi trash purge failed unexpectedly:", error);
   });
 
@@ -1081,12 +1085,17 @@ async function init(): Promise<void> {
           onChangeLocation: changeStorageLocation,
         }
       : undefined,
+    deleteOrphanedImages: {
+      get: () => appSettings.getDeleteOrphanedImages(),
+      set: (value) => appSettings.setDeleteOrphanedImages(value),
+    },
   });
 
   const trashView = createTrashView(store, viewElements.trash, {
     onBack: popView,
     showToast,
     confirm,
+    getDeleteOrphanedImages: () => appSettings.getDeleteOrphanedImages(),
   });
 
   quKiListBtn.addEventListener("click", () => {
