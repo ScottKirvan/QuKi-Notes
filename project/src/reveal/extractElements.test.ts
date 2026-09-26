@@ -341,3 +341,41 @@ describe("list item indent depth", () => {
     expect(els.every((el) => el.indentDepth === undefined)).toBe(true);
   });
 });
+
+describe("GFM tables", () => {
+  function tableElements(doc: string): RevealElement[] {
+    return elementsFor(doc).filter((el) => el.type === "Table");
+  }
+
+  it("given a pipe table, then it is one block-marker element spanning the whole table", () => {
+    const doc = "| A | B |\n|---|---|\n| 1 | 2 |";
+    const [table] = tableElements(doc);
+    expect(table.category).toBe("block-marker");
+    expect(table.start).toBe(0);
+    expect(table.end).toBe(doc.length);
+    expect(table.checkStart).toBe(0);
+    expect(table.checkEnd).toBe(doc.length);
+    expect(table.parentId).toBeNull();
+  });
+
+  it("given a table with several rows, then it is still exactly one element for the whole table", () => {
+    const doc = "| A |\n|---|\n| 1 |\n| 2 |\n| 3 |";
+    expect(tableElements(doc)).toHaveLength(1);
+  });
+
+  it("given a table whose cells contain bold, links and code, then no separate inline elements are extracted for them", () => {
+    const doc = "| A |\n|---|\n| **bold** [link](https://x.com) `code` |";
+    const els = elementsFor(doc);
+    expect(els.map((el) => el.type)).toEqual(["Table"]);
+  });
+
+  it("given a table beside a heading and a paragraph, then only the table itself becomes a Table element", () => {
+    const doc = "# heading\n\nplain text\n\n| A |\n|---|\n| 1 |\n\nmore text";
+    const types = elementsFor(doc).map((el) => el.type);
+    expect(types.filter((t) => t === "Table")).toEqual(["Table"]);
+  });
+
+  it("given text that merely contains a pipe character, then it is not a table", () => {
+    expect(tableElements("a | b | c")).toEqual([]);
+  });
+});

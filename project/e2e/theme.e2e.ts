@@ -57,8 +57,24 @@ function assert(condition: boolean, message: string): asserts condition {
 
 type Scheme = "light" | "dark";
 
-// GitHubDHC leaves --caret-color undefined, so it has no colour to compare against.
-const NOT_A_GITHUBDHC_COLOUR = ["--caret-color"];
+// GitHubDHC leaves --caret-color undefined, so it has no colour to compare
+// against. --table-border-width and --table-header-border-width are
+// dimensions, and --table-header-weight a font-weight number - none are
+// colours at all, so probing them as background-color is meaningless (and,
+// for --table-header-weight specifically, actively misleading: GitHubDHC's
+// own huge stylesheet has some unrelated rule that makes a bare probe div's
+// background-color pick up a real colour for that property name, which a
+// small app stylesheet with no such rule never would). --table-text-color's
+// declared value is the literal keyword `inherit`, which for a custom
+// property resolves by walking up to <html> - where GitHubDHC (like the app)
+// never sets it - so, like --caret-color, it computes to nothing there.
+const NOT_A_GITHUBDHC_COLOUR = [
+  "--caret-color",
+  "--table-border-width",
+  "--table-header-border-width",
+  "--table-header-weight",
+  "--table-text-color",
+];
 
 // Defaults chosen on purpose to differ from GitHubDHC. The exact value is still asserted, so drift fails.
 const DELIBERATE_DEFAULTS: Record<Scheme, Record<string, { value: string; reason: string }>> = {

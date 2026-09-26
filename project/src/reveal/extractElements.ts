@@ -246,6 +246,30 @@ export function extractElements(state: EditorState): ExtractResult {
         return true;
       }
 
+      // A GFM table reveals wholly, like Image/HorizontalRule above (issue
+      // #245) - but unlike them, its children (TableCell etc.) are never
+      // walked: a cell's own nested formatting (bold, a link, ...) is
+      // rendered by the table widget itself from the syntax tree
+      // (tableModel.ts), not by the general inline reveal mechanism, so it
+      // must not also surface here as independent inline elements that could
+      // reveal on their own while the table around them stays collapsed, or
+      // sit half-hidden by mark decorations while the table itself reveals.
+      if (type === "Table") {
+        const id = nextId++;
+        elements.push({
+          id,
+          type,
+          category: "block-marker",
+          start: node.from,
+          end: node.to,
+          checkStart: node.from,
+          checkEnd: node.to,
+          parentId: null,
+        });
+        nodes.set(id, node.node);
+        return false;
+      }
+
       if (type === "URL") {
         if (hasLinkOrImageAncestor(node.node)) {
           return true;

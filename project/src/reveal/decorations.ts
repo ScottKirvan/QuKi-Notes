@@ -5,13 +5,14 @@ import {
   ViewPlugin,
   type ViewUpdate,
 } from "@codemirror/view";
-import type { EditorState, Range } from "@codemirror/state";
+import { StateField, type EditorState, type Range } from "@codemirror/state";
 import type { SyntaxNode } from "@lezer/common";
 import { extractElements } from "./extractElements";
 import { computeRevealedIds, caretForReveal } from "./computeReveal";
 import { plainTextMode } from "./plainTextMode";
 import { editModeField, isEditMode } from "./editModeField";
 import { listPrefixLength } from "./listPrefix";
+import { buildTableModel } from "./tableModel";
 import {
   BulletWidget,
   CheckboxWidget,
@@ -19,6 +20,7 @@ import {
   ImageWidget,
   LinkWidget,
   OrderedMarkerWidget,
+  TableWidget,
 } from "./widgets";
 
 function headingLevel(type: string): number {
@@ -368,6 +370,23 @@ export function buildDecorations(state: EditorState): DecorationSet {
         break;
       }
 
+      // Render-only, issue #245: the table renders as a real <table> widget
+      // while collapsed and reverts wholly to raw source the moment the
+      // caret enters it, same as Image/HorizontalRule above. Spans multiple
+      // lines, so the replace decoration must be block-level.
+      case "Table": {
+        if (!revealed) {
+          const model = buildTableModel(state, node);
+          ranges.push(
+            Decoration.replace({ widget: new TableWidget(model), block: true }).range(
+              element.start,
+              element.end,
+            ),
+          );
+        }
+        break;
+      }
+
       default:
         break;
     }
@@ -378,23 +397,44 @@ export function buildDecorations(state: EditorState): DecorationSet {
   return Decoration.set(ranges, true);
 }
 
+// CodeMirror forbids a ViewPlugin from supplying block-level decorations
+// (the table widget, spanning multiple lines, needs one) - only a StateField
+// may. buildDecorations() itself stays the single pure source of truth (and
+// what the test suite exercises directly); this just partitions its output
+// for the two different extension points that actually register it with the
+// live view. Written generically over any `block: true` spec, not
+// table-specific, so another whole-element block widget added later needs no
+// change here.
+function splitByBlock(decorations: DecorationSet, docLength: number): { line: DecorationSet; block: DecorationSet } {
+  const line: Range<Decoration>[] = [];
+  const block: Range<Decoration>[] = [];
+  decorations.between(0, docLength, (from, to, value) => {
+    const isBlock = (value.spec as { block?: boolean }).block === true;
+    (isBlock ? block : line).push(value.range(from, to));
+  });
+  return { line: Decoration.set(line, true), block: Decoration.set(block, true) };
+}
+
+function revealInputsChanged(prev: EditorState, next: EditorState): boolean {
+  return (
+    !prev.doc.eq(next.doc) ||
+    !prev.selection.eq(next.selection) ||
+    prev.field(plainTextMode) !== next.field(plainTextMode) ||
+    prev.field(editModeField, false) !== next.field(editModeField, false)
+  );
+}
+
 export const revealPlugin = ViewPlugin.fromClass(
   class {
     decorations: DecorationSet;
 
     constructor(view: EditorView) {
-      this.decorations = buildDecorations(view.state);
+      this.decorations = splitByBlock(buildDecorations(view.state), view.state.doc.length).line;
     }
 
     update(update: ViewUpdate): void {
-      const plainTextChanged =
-        update.startState.field(plainTextMode) !==
-        update.state.field(plainTextMode);
-      const editModeChanged =
-        update.startState.field(editModeField, false) !==
-        update.state.field(editModeField, false);
-      if (update.docChanged || update.selectionSet || plainTextChanged || editModeChanged) {
-        this.decorations = buildDecorations(update.state);
+      if (revealInputsChanged(update.startState, update.state)) {
+        this.decorations = splitByBlock(buildDecorations(update.state), update.state.doc.length).line;
       }
     }
   },
@@ -402,3 +442,14 @@ export const revealPlugin = ViewPlugin.fromClass(
     decorations: (instance) => instance.decorations,
   },
 );
+
+export const blockRevealField = StateField.define<DecorationSet>({
+  create(state) {
+    return splitByBlock(buildDecorations(state), state.doc.length).block;
+  },
+  update(value, tr) {
+    if (!revealInputsChanged(tr.startState, tr.state)) return value;
+    return splitByBlock(buildDecorations(tr.state), tr.state.doc.length).block;
+  },
+  provide: (field) => EditorView.decorations.from(field),
+});
