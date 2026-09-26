@@ -15,9 +15,9 @@ features:
   - title: Open and go
     details: Tap the icon, start typing. No title, no template, no folder to pick first.
   - title: Send when ready
-    details: Clipboard, share sheet, or any transport you wire up. A QuKi goes somewhere when you decide — not before.
+    details: One button. The share sheet on Android, the clipboard on Windows and Linux. A QuKi goes somewhere when you decide — not before.
   - title: Plain files, always yours
-    details: Every QuKi is a plain .md file on your device. No cloud, no account, no lock-in. Read or move them without ever opening the app.
+    details: On Android, Windows and Linux, every QuKi is a plain .md file in a folder on your device. No cloud, no account, no lock-in. Read or move them without ever opening the app.
 ---
 
 <script setup>
