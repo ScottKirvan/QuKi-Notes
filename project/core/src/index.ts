@@ -1,5 +1,5 @@
 export { QuKiStore } from './quKiStore.js';
-export { findImageReferences } from './media.js';
+export { findImageReferences, isOrphanCandidate } from './media.js';
 export type { StorageBackend, FileStat } from './storageBackend.js';
 export type {
   QuKiSummary,
