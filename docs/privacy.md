@@ -2,7 +2,7 @@
 
 **App**: QuKi Notes
 **Developer**: Scott Kirvan  
-**Effective date**: 2026-06-05
+**Effective date**: 2026-09-26
 
 ---
 
@@ -47,7 +47,7 @@ On Android, if you use app storage and your device's backup is turned on, Androi
 
 ## Analytics, crash reporting, and telemetry
 
-None. Not now, not in a future release. This is a permanent design decision, not a deferred feature.
+None. This is a current design decision.
 
 ## Permissions
 
