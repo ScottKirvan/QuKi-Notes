@@ -683,3 +683,29 @@ describe("GFM table collapse", () => {
     expect(widgets(decorationsFor(doc, 0, true), "TableWidget")).toEqual([]);
   });
 });
+
+// @lezer/markdown's GFM Table extension absorbs an immediately-following
+// non-blank line as a bogus extra row (see tableModel.ts's comment); a table
+// right before ordinary paragraph text, with no blank line between them, is
+// an ordinary case and must not corrupt or hide that paragraph.
+describe("a table immediately followed by non-table text (no blank line)", () => {
+  const doc = "plain\n\n| A | B |\n|---|---|\n| 1 | 2 |\nAfter.\nMore text after.";
+  const tableStart = doc.indexOf("| A");
+  const lastRowEnd = doc.indexOf("| 1 | 2 |") + "| 1 | 2 |".length;
+
+  it("given the caret elsewhere, when decorated, then the table widget covers only the real table, not the following text", () => {
+    const [tableWidget] = widgets(decorationsFor(doc, 0), "TableWidget");
+    expect(tableWidget).toEqual(expect.objectContaining({ from: tableStart, to: lastRowEnd }));
+  });
+
+  it("given the caret elsewhere, when decorated, then nothing replaces or hides the following paragraph text", () => {
+    const decos = decorationsFor(doc, 0);
+    const touchingTail = decos.filter((d) => d.to > lastRowEnd);
+    expect(touchingTail).toEqual([]);
+  });
+
+  it("given the caret inside the following paragraph, when decorated, then the table still collapses normally - that text was never part of it", () => {
+    const insideAfter = doc.indexOf("After.") + 2;
+    expect(widgets(decorationsFor(doc, insideAfter), "TableWidget")).toHaveLength(1);
+  });
+});

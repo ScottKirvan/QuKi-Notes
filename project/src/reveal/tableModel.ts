@@ -167,16 +167,57 @@ function buildRow(state: EditorState, rowNode: SyntaxNode | null, align: TableAl
   return { cells };
 }
 
+// @lezer/markdown's GFM Table extension's row-continuation parsing is
+// permissive to a fault (confirmed directly against its source,
+// TableParser.nextLine in @lezer/markdown/dist/index.js): once a table is
+// recognised, EVERY following non-blank line becomes another TableRow
+// unconditionally, with no re-check that it still looks like one - even a
+// line with no pipe character at all. So a table immediately followed by an
+// ordinary paragraph, with no blank line between them, gets that paragraph
+// silently absorbed as bogus extra rows. Nothing in @lezer/markdown or
+// @codemirror/lang-markdown configures this, and the parser's own row/pipe
+// helpers aren't exported, so it's corrected here: a genuine row needs at
+// least one pipe to delimit its cells, and row-taking stops at the first
+// line that has none - not a filter, since a later coincidental pipe further
+// down must not un-truncate the table once a real break has been found.
+function isGenuineRow(state: EditorState, row: SyntaxNode): boolean {
+  return state.sliceDoc(row.from, row.to).includes("|");
+}
+
+export function genuineTableRows(state: EditorState, table: SyntaxNode): SyntaxNode[] {
+  const rows: SyntaxNode[] = [];
+  for (const row of table.getChildren("TableRow")) {
+    if (!isGenuineRow(state, row)) break;
+    rows.push(row);
+  }
+  return rows;
+}
+
+/**
+ * Where the table actually ends once any bogus trailing rows (see
+ * genuineTableRows above) are excluded: the end of the last genuine row, or
+ * the delimiter row if the table has no genuine body rows at all.
+ */
+export function tableRealEnd(state: EditorState, table: SyntaxNode): number {
+  const rows = genuineTableRows(state, table);
+  if (rows.length > 0) return rows[rows.length - 1]!.to;
+  const delimiter = table.getChild("TableDelimiter");
+  return delimiter ? delimiter.to : table.to;
+}
+
 /**
  * Builds the render model for one `Table` syntax node. `table` must be a
  * node named `"Table"` from the GFM Table extension's tree shape: a
  * `TableHeader`, one direct-child `TableDelimiter` (the alignment row), and
- * zero or more `TableRow` children.
+ * zero or more `TableRow` children - only the genuine ones (see
+ * genuineTableRows) are rendered; any bogus trailing rows are excluded so
+ * this always agrees with tableRealEnd, which extractElements.ts uses for
+ * the element's own span.
  */
 export function buildTableModel(state: EditorState, table: SyntaxNode): TableModel {
   const delimiter = table.getChild("TableDelimiter");
   const align = delimiter ? parseTableAlignment(state.sliceDoc(delimiter.from, delimiter.to)) : [];
   const header = buildRow(state, table.getChild("TableHeader"), align);
-  const rows = table.getChildren("TableRow").map((row) => buildRow(state, row, align));
+  const rows = genuineTableRows(state, table).map((row) => buildRow(state, row, align));
   return { align, header, rows };
 }
