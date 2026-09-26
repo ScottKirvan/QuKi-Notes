@@ -317,6 +317,34 @@ export class QuKiStore {
     }
   }
 
+  /**
+   * A full pass over media/, independent of any single QuKi's
+   * deletion/trash lifecycle: removes every file under media/ that no
+   * active or trashed QuKi's body currently references.
+   *
+   * This exists because the candidate-based cleanup above only ever
+   * considers images that *were* referenced by a QuKi that is now being
+   * deleted - an image pasted into a QuKi that is never saved (rule 16: an
+   * empty body is never written) never becomes a candidate there, since no
+   * .md file ever referenced it in the first place. Callers are expected to
+   * run this at points other than deletion - e.g. app startup - so those
+   * images still get cleaned up eventually.
+   */
+  async sweepOrphanedImages(): Promise<{ removedCount: number }> {
+    const files = await this.backend.listDir('media');
+    if (files.length === 0) return { removedCount: 0 };
+    const referenced = await this.collectAllImageReferences();
+    let removedCount = 0;
+    for (const name of files) {
+      const ref = `media/${name}`;
+      if (!referenced.has(ref)) {
+        await this.backend.remove(ref);
+        removedCount++;
+      }
+    }
+    return { removedCount };
+  }
+
   private async collectAllImageReferences(): Promise<Set<string>> {
     const refs = new Set<string>();
     for (const id of await this.listActiveIds()) {

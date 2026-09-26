@@ -490,6 +490,20 @@ async function init(): Promise<void> {
     console.error("QuKi trash purge failed unexpectedly:", error);
   });
 
+  // STORAGE_CONTRACT.md rule 13: an image pasted into a QuKi that is never
+  // saved (rule 16 - an empty body is never written) has no .md file that
+  // ever references it, so it can never become a candidate for the
+  // deletion-triggered cleanup inside purgeExpiredTrash/permanentlyDelete/
+  // emptyTrash above and in trashView.ts. Sweeping media/ against every
+  // active and trashed QuKi's actual references, once per app launch, is
+  // what gives that image a real path to eventual cleanup regardless of
+  // whether any QuKi is ever deleted or Trash is ever opened.
+  if (appSettings.getDeleteOrphanedImages()) {
+    await store.sweepOrphanedImages().catch((error: unknown) => {
+      console.error("QuKi orphaned-image sweep (startup) failed unexpectedly:", error);
+    });
+  }
+
   // BEHAVIOR_SPEC.md §4: "A blank canvas on launch" - every app start opens
   // a fresh, empty QuKi. See blankInitialQuKi's own doc comment for why
   // there's nothing here to load from storage.

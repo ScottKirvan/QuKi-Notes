@@ -51,6 +51,19 @@ export function createTrashView(store: QuKiStore, container: HTMLElement, callba
   setIconButton(backBtn, ArrowLeft, "Back to Settings");
 
   async function refresh(): Promise<void> {
+    // Trash is where a user goes to reason about deleted/cleaned-up state,
+    // and every entry point here (opening Trash, restoring, permanently
+    // deleting, emptying) already calls this - so this is also where a full
+    // media/ sweep runs for images an active/trashed QuKi never referenced
+    // in the first place (e.g. pasted into a QuKi that was never saved -
+    // STORAGE_CONTRACT.md rule 16), which the candidate-based cleanup below
+    // can never catch on its own. Gated on the same setting as the rest of
+    // orphan cleanup (rule 13).
+    if (callbacks.getDeleteOrphanedImages()) {
+      await store.sweepOrphanedImages().catch((error: unknown) => {
+        console.error("QuKi orphaned-image sweep (Trash refresh) failed unexpectedly:", error);
+      });
+    }
     const items = await store.listTrash();
     render(items);
   }

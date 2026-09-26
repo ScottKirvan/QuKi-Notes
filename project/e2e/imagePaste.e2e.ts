@@ -387,6 +387,52 @@ async function main(): Promise<void> {
     assert(remainder === "", `body should be composed of exactly the two image links with nothing else lost or corrupted between them, got remainder: ${JSON.stringify(remainder)}`);
     console.log(`[e2e-image-paste] PASS: two images pasted back-to-back with no wait between them both landed intact, neither lost nor corrupted: ${JSON.stringify(bodyAfterRacingPastes)}`);
 
+    // --- Scenario 5: an image pasted into a QuKi that is then cleared back
+    // to empty and never saved (STORAGE_CONTRACT.md rule 16 - an empty body
+    // is never written) has no .md file that will ever reference it. It
+    // must not stay in media/ forever: the next app startup sweeps it away
+    // (STORAGE_CONTRACT.md rule 13, gated on its "delete orphaned images"
+    // setting, which defaults on). ---
+    await page.click("#btn-new-quki");
+    await page.waitForFunction(() => (window as unknown as { qukiView: { state: { doc: { toString(): string } } } }).qukiView.state.doc.toString() === "", { timeout: 5000 });
+    await page.click(".cm-content");
+
+    await pasteImageViaClipboard(page, ONE_PX_PNG_BASE64);
+    await page.waitForFunction(() => /!\[\]\(media\//.test((window as unknown as { qukiView: { state: { doc: { toString(): string } } } }).qukiView.state.doc.toString()), { timeout: 5000 });
+
+    const bodyWithOrphanImage = await editorBody(page);
+    const { relativePath: orphanRelPath } = extractImageMarkdown(bodyWithOrphanImage);
+    const orphanFilename = orphanRelPath.split("/")[1]!;
+
+    // Confirm the paste really landed in media/ before we abandon it.
+    const orphanBytesBeforeSweep = await readOpfsMediaFileBytes(page, orphanFilename);
+    assert(orphanBytesBeforeSweep.length > 0, "expected the pasted image to be written to media/ before the QuKi is ever saved");
+    console.log(`[e2e-image-paste] media/${orphanFilename} exists on OPFS immediately after paste, before this QuKi has ever been saved`);
+
+    // Clear the editor back to empty. auto-save's debounce still fires, but
+    // save() skips writing (rule 16) - no .md file is ever created, so no
+    // file anywhere will ever reference this image.
+    await page.keyboard.press("Control+A");
+    await page.keyboard.press("Delete");
+    await page.waitForFunction(() => (window as unknown as { qukiView: { state: { doc: { toString(): string } } } }).qukiView.state.doc.toString() === "", { timeout: 5000 });
+    await page.waitForTimeout(2500); // let the (skipped) auto-save cycle pass
+    assert((await page.getAttribute("#btn-delete", "disabled")) !== null, "the abandoned QuKi should never have been saved, so Delete should still be disabled");
+
+    // Simulate a fresh app launch - where the startup sweep now runs -
+    // rather than any Trash/delete action, since this image was never
+    // referenced by any QuKi in the first place.
+    await page.reload();
+    await page.waitForSelector(".cm-content");
+
+    let orphanStillExists = true;
+    try {
+      await readOpfsMediaFileBytes(page, orphanFilename);
+    } catch {
+      orphanStillExists = false;
+    }
+    assert(!orphanStillExists, `expected media/${orphanFilename} (pasted into a QuKi that was never saved) to be swept away on the next app startup, but it still exists`);
+    console.log(`[e2e-image-paste] PASS: media/${orphanFilename}, pasted into a QuKi that was never saved, was swept away on the next app startup`);
+
     console.log("[e2e-image-paste] ALL SCENARIOS PASSED");
   } finally {
     await browser.close();

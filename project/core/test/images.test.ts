@@ -75,4 +75,44 @@ describe('images', () => {
 
     await expect(fsp.access(image.absolutePath)).resolves.toBeUndefined();
   });
+
+  describe('sweepOrphanedImages', () => {
+    it('removes an image that no QuKi has ever referenced (e.g. pasted into a QuKi that was never saved)', async () => {
+      const image = await store.writeImage(new Uint8Array([5, 5, 5]), 'png');
+
+      const result = await store.sweepOrphanedImages();
+
+      expect(result.removedCount).toBe(1);
+      await expect(fsp.access(image.absolutePath)).rejects.toThrow();
+    });
+
+    it('leaves an image referenced by an active QuKi alone', async () => {
+      const image = await store.writeImage(new Uint8Array([6, 6, 6]), 'png');
+      const body = `![alt](${image.relativePath})`;
+      const quki = await store.save({ id: null, body });
+      if (quki.status !== 'saved') throw new Error('unreachable');
+
+      const result = await store.sweepOrphanedImages();
+
+      expect(result.removedCount).toBe(0);
+      await expect(fsp.access(image.absolutePath)).resolves.toBeUndefined();
+    });
+
+    it('leaves an image referenced only by a trashed QuKi alone', async () => {
+      const image = await store.writeImage(new Uint8Array([7, 7, 7]), 'png');
+      const body = `![alt](${image.relativePath})`;
+      const quki = await store.save({ id: null, body });
+      if (quki.status !== 'saved') throw new Error('unreachable');
+      await store.moveToTrash(quki.id);
+
+      const result = await store.sweepOrphanedImages();
+
+      expect(result.removedCount).toBe(0);
+      await expect(fsp.access(image.absolutePath)).resolves.toBeUndefined();
+    });
+
+    it('is a no-op when media/ does not exist yet', async () => {
+      await expect(store.sweepOrphanedImages()).resolves.toEqual({ removedCount: 0 });
+    });
+  });
 });
