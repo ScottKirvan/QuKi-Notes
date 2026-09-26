@@ -665,6 +665,48 @@ async function main(): Promise<void> {
       await context.close();
     }
 
+    // --- A table immediately followed by non-table text, no blank line
+    // between them (@lezer/markdown's GFM Table extension otherwise absorbs
+    // any following non-blank line as a bogus extra row - confirmed directly
+    // against its source; see tableModel.ts's comment) ---
+    {
+      const context = await browser.newContext();
+      const page = await openFreshPage(context, url);
+
+      const abuttingDoc = ["| A | B |", "|---|---|", "| 1 | 2 |", "After.", "More text after."].join("\n");
+      // Caret at the end (inside "More text after.", itself outside the
+      // table once corrected) rather than at 0, which sits right at the
+      // table's own start boundary and would reveal it per rule 2.
+      await setDocAndSelection(page, abuttingDoc, abuttingDoc.length);
+      await page.waitForTimeout(150);
+
+      const table = page.locator(".cm-quki-table");
+      assert((await table.count()) === 1, "the table should still render even with no blank line before the following text");
+      const bodyRows = table.locator("tbody tr");
+      assert((await bodyRows.count()) === 1, `the table should have exactly its one real data row, not one per following line, got ${await bodyRows.count()}`);
+      const tableText = await table.textContent();
+      assert(!tableText?.includes("After."), `"After." must not be swallowed into the table as a bogus row, table text was ${JSON.stringify(tableText)}`);
+      assert(!tableText?.includes("More text after."), `"More text after." must not be swallowed into the table as a bogus row, table text was ${JSON.stringify(tableText)}`);
+      console.log("[e2e-listReveal] PASS: a table with no blank line before it does not absorb the following text as bogus rows");
+
+      const afterLine = await page.locator(".cm-line", { hasText: "After." }).first().textContent();
+      assert(afterLine === "After.", `the line after the table should render as its own ordinary, untouched line, got ${JSON.stringify(afterLine)}`);
+      const moreLine = await page.locator(".cm-line", { hasText: "More text after." }).first().textContent();
+      assert(moreLine === "More text after.", `the second following line should also render untouched, got ${JSON.stringify(moreLine)}`);
+      assert((await editorBody(page)) === abuttingDoc, "rendering must not rewrite the source");
+      console.log("[e2e-listReveal] PASS: the text immediately after the table renders as its own separate, untouched paragraph lines");
+
+      // A caret in that following text is genuinely outside the table, so it
+      // must not be treated as "inside" it - the table stays collapsed.
+      const insideAfter = abuttingDoc.indexOf("After.") + 2;
+      await setDocAndSelection(page, abuttingDoc, insideAfter);
+      await page.waitForTimeout(150);
+      assert((await page.locator(".cm-quki-table").count()) === 1, "the table should stay collapsed when the caret is in the following paragraph, since that text was never part of it");
+      console.log("[e2e-listReveal] PASS: the caret in the following paragraph does not reveal the table");
+
+      await context.close();
+    }
+
     console.log("[e2e-listReveal] ALL SCENARIOS PASSED");
   } finally {
     await browser.close();

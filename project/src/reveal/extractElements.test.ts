@@ -378,4 +378,48 @@ describe("GFM tables", () => {
   it("given text that merely contains a pipe character, then it is not a table", () => {
     expect(tableElements("a | b | c")).toEqual([]);
   });
+
+  // @lezer/markdown's GFM Table extension absorbs any immediately-following
+  // non-blank line as a bogus extra row, pipe or not (its own row-parsing
+  // never re-checks); a table directly followed by ordinary paragraph text
+  // with no blank line between them is an entirely ordinary case, not an
+  // edge case, so it must not corrupt the surrounding paragraph.
+  describe("a table immediately followed by non-table text (no blank line)", () => {
+    it("given plain paragraph text right after the last real row, then the table element ends at that row, not at the parser's own contaminated node end", () => {
+      const doc = "| A | B |\n|---|---|\n| 1 | 2 |\nAfter.\nMore text after.";
+      const [table] = tableElements(doc);
+      const lastRowEnd = doc.indexOf("| 1 | 2 |") + "| 1 | 2 |".length;
+      expect(table.end).toBe(lastRowEnd);
+      expect(table.checkEnd).toBe(lastRowEnd);
+      expect(table.end).toBeLessThan(doc.length);
+    });
+
+    it("given that same document, then only one Table element exists and the following lines are not folded into it", () => {
+      const doc = "| A | B |\n|---|---|\n| 1 | 2 |\nAfter.\nMore text after.";
+      expect(tableElements(doc)).toHaveLength(1);
+    });
+
+    it("given bold text in the swallowed-looking tail, then it is recovered as an ordinary StrongEmphasis element, not lost inside the table", () => {
+      const doc = "| A | B |\n|---|---|\n| 1 | 2 |\n**bold after**";
+      const els = elementsFor(doc);
+      const bold = els.find((el) => el.type === "StrongEmphasis");
+      expect(bold).toBeDefined();
+      expect(doc.slice(bold!.start, bold!.end)).toBe("**bold after**");
+    });
+
+    it("given a heading-shaped line right after the table, then the table still ends before it and the heading is a real, independent heading element (the parser's own leaf-interruption rules already stop table continuation at a new block start - only a plain, non-interrupting continuation line like ordinary prose needed the fix above)", () => {
+      const doc = "| A | B |\n|---|---|\n| 1 | 2 |\n# a real heading";
+      const [table] = tableElements(doc);
+      const lastRowEnd = doc.indexOf("| 1 | 2 |") + "| 1 | 2 |".length;
+      expect(table.end).toBe(lastRowEnd);
+      expect(elementsFor(doc).some((el) => el.type === "ATXHeading1")).toBe(true);
+    });
+
+    it("given a table with no genuine body rows before the following text, then the element ends at the delimiter row", () => {
+      const doc = "| A | B |\n|---|---|\nAfter.";
+      const [table] = tableElements(doc);
+      const delimiterEnd = doc.indexOf("|---|---|") + "|---|---|".length;
+      expect(table.end).toBe(delimiterEnd);
+    });
+  });
 });

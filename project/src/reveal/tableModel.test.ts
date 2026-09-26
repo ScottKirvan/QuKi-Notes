@@ -4,9 +4,9 @@ import { markdown } from "@codemirror/lang-markdown";
 import { GFM } from "@lezer/markdown";
 import { syntaxTree } from "@codemirror/language";
 import type { SyntaxNode } from "@lezer/common";
-import { buildTableModel, parseTableAlignment, type TableModel } from "./tableModel";
+import { buildTableModel, genuineTableRows, parseTableAlignment, tableRealEnd, type TableModel } from "./tableModel";
 
-function tableModelFor(doc: string): TableModel {
+function tableNodeFor(doc: string): { state: EditorState; table: SyntaxNode } {
   const state = EditorState.create({
     doc,
     extensions: [markdown({ extensions: GFM })],
@@ -18,7 +18,12 @@ function tableModelFor(doc: string): TableModel {
     },
   });
   if (!tableNode) throw new Error(`no Table node parsed from: ${doc}`);
-  return buildTableModel(state, tableNode);
+  return { state, table: tableNode };
+}
+
+function tableModelFor(doc: string): TableModel {
+  const { state, table } = tableNodeFor(doc);
+  return buildTableModel(state, table);
 }
 
 describe("parseTableAlignment", () => {
@@ -156,5 +161,55 @@ describe("buildTableModel", () => {
     const model = tableModelFor(doc);
     expect(model.rows).toEqual([]);
     expect(model.header.cells).toHaveLength(2);
+  });
+});
+
+// @lezer/markdown's GFM Table extension keeps consuming ANY following
+// non-blank line as another row, pipe or not (confirmed directly against its
+// source - see tableModel.ts's own comment). A table typed immediately
+// before ordinary paragraph text, with no blank line between them, is a
+// completely ordinary case - not a hand-picked edge case - so this must not
+// silently swallow the paragraph into the table.
+describe("a table immediately followed by non-table text (no blank line)", () => {
+  const doc = "| A | B |\n|---|---|\n| 1 | 2 |\nAfter.\nMore text after.";
+
+  it("given genuineTableRows, then it stops at the first line with no pipe, not at the parser's own (contaminated) row list", () => {
+    const { state, table } = tableNodeFor(doc);
+    expect(table.getChildren("TableRow")).toHaveLength(3); // the parser's own, uncorrected count
+    const rows = genuineTableRows(state, table);
+    expect(rows).toHaveLength(1);
+    expect(state.sliceDoc(rows[0]!.from, rows[0]!.to)).toBe("| 1 | 2 |");
+  });
+
+  it("given tableRealEnd, then it lands at the end of the last genuine row, not the parser's own contaminated node end", () => {
+    const { state, table } = tableNodeFor(doc);
+    const realEnd = tableRealEnd(state, table);
+    expect(table.to).toBe(doc.length); // the parser's own node swallows everything
+    expect(realEnd).toBe(doc.indexOf("| 1 | 2 |") + "| 1 | 2 |".length);
+    expect(state.sliceDoc(realEnd, doc.length)).toBe("\nAfter.\nMore text after.");
+  });
+
+  it("given buildTableModel, then only the genuine row is rendered - the following paragraph text is not turned into bogus rows", () => {
+    const model = tableModelFor(doc);
+    expect(model.rows).toHaveLength(1);
+    expect(model.rows[0]?.cells.map((c) => c.spans)).toEqual([
+      [{ kind: "text", text: "1" }],
+      [{ kind: "text", text: "2" }],
+    ]);
+  });
+
+  it("given a coincidental pipe further down the following text, then it still does not un-truncate the table", () => {
+    const withPipe = "| A | B |\n|---|---|\n| 1 | 2 |\nAfter.\nSee docs | more info here.";
+    const model = tableModelFor(withPipe);
+    expect(model.rows).toHaveLength(1);
+  });
+
+  it("given a table with no genuine body rows at all before the following text, then it ends at the delimiter row", () => {
+    const noBodyRows = "| A | B |\n|---|---|\nAfter.";
+    const { state, table } = tableNodeFor(noBodyRows);
+    const delimiter = table.getChild("TableDelimiter")!;
+    expect(tableRealEnd(state, table)).toBe(delimiter.to);
+    const model = buildTableModel(state, table);
+    expect(model.rows).toEqual([]);
   });
 });
