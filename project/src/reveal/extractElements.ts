@@ -340,6 +340,32 @@ export function extractElements(state: EditorState): ExtractResult {
         return true;
       }
 
+      // FencedCode is a whole-block reveal (rule 4's "reveals wholly, not
+      // per-marker" case, generalised from a single line to a multi-line
+      // block): the check span is the block's full extent, so a caret
+      // anywhere inside it - fence lines or content - reveals the raw
+      // source, fences included. No inline markdown parsing ever runs
+      // inside it (CommonMark treats CodeText as a literal leaf already),
+      // and returning false here keeps this walk from descending into it
+      // too, so nothing downstream can mistake fenced content for markdown.
+      if (type === "FencedCode") {
+        const infoNode = node.node.getChild("CodeInfo");
+        const id = nextId++;
+        elements.push({
+          id,
+          type,
+          category: "block-marker",
+          start: node.from,
+          end: node.to,
+          checkStart: node.from,
+          checkEnd: node.to,
+          parentId: null,
+          ...(infoNode && { infoString: state.sliceDoc(infoNode.from, infoNode.to) }),
+        });
+        nodes.set(id, node.node);
+        return false;
+      }
+
       return true;
     },
     leave(node) {

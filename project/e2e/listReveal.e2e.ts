@@ -707,6 +707,69 @@ async function main(): Promise<void> {
       await context.close();
     }
 
+    // --- Fenced code block reveal ---
+    {
+      const context = await browser.newContext();
+      const page = await openFreshPage(context, url);
+
+      const codeDoc = "intro paragraph\n\n```dart\nvoid main() {\n  print('**not bold**');\n}\n```\n\nafter";
+      await setDocAndSelection(page, codeDoc, 0);
+      await page.waitForTimeout(150);
+
+      // 5 lines carry the codeblock background: the (now blank) opening
+      // fence line, the 3 content lines, and the (now blank) closing fence
+      // line - the fence text is gone, but the line itself remains as the
+      // block's own top/bottom edge (see fencedCodeDecorations's comment for
+      // why the line can't be erased outright).
+      const codeLines = page.locator(".cm-line.cm-quki-codeblock-line");
+      const codeLineCount = await codeLines.count();
+      assert(codeLineCount === 5, `expected 5 codeblock-background lines (2 blank fence lines + 3 content lines), got ${codeLineCount}`);
+
+      const fenceLineText = await codeLines.first().textContent();
+      assert(fenceLineText === "", `the opening fence's marker text should be hidden, got ${JSON.stringify(fenceLineText)}`);
+
+      const bodyText = await page.evaluate(() => document.body.textContent ?? "");
+      assert(!bodyText.includes("```"), "collapsed fence markers must not be visible anywhere");
+
+      const contentLine = page.locator(".cm-line.cm-quki-codeblock-line", { hasText: "void main" });
+      const fontFamily = await contentLine.evaluate((el) => getComputedStyle(el).fontFamily);
+      const bodyFontFamily = await page.evaluate(() => getComputedStyle(document.body).fontFamily);
+      assert(fontFamily !== bodyFontFamily, `code block should use a distinct (monospace) font, got ${fontFamily} vs body ${bodyFontFamily}`);
+
+      const bgColor = await contentLine.evaluate((el) => getComputedStyle(el).backgroundColor);
+      const bodyBg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+      assert(bgColor !== "" && bgColor !== "rgba(0, 0, 0, 0)" && bgColor !== bodyBg, `code block should have a distinct background, got ${bgColor} vs body ${bodyBg}`);
+
+      const fenceLineBg = await codeLines.first().evaluate((el) => getComputedStyle(el).backgroundColor);
+      assert(fenceLineBg === bgColor, `the blank fence line should carry the same background as the content, got ${fenceLineBg} vs ${bgColor}`);
+
+      assert((await editorBody(page)) === codeDoc, "rendering the collapsed block must not rewrite the source");
+      console.log("[e2e-listReveal] PASS: fenced code block collapses to monospace, distinct-background content with fence text hidden");
+
+      const literalText = await page.locator(".cm-line", { hasText: "not bold" }).first().textContent();
+      assert(literalText === "  print('**not bold**');", `code content must render literally, got ${JSON.stringify(literalText)}`);
+      assert((await page.locator(".cm-quki-strong").count()) === 0, "no bold decoration should appear inside a fenced code block");
+      console.log("[e2e-listReveal] PASS: content inside a fenced code block is never parsed as markdown");
+
+      const caretInside = codeDoc.indexOf("print");
+      await setDocAndSelection(page, codeDoc, caretInside);
+      await page.waitForTimeout(150);
+      const rawFenceLine = await page.locator(".cm-line", { hasText: "```dart" }).first().textContent();
+      assert(rawFenceLine === "```dart", `caret inside the block should reveal the raw opening fence, got ${JSON.stringify(rawFenceLine)}`);
+      assert((await page.locator(".cm-quki-codeblock-line").count()) === 0, "a revealed block should carry no codeblock background");
+      console.log("[e2e-listReveal] PASS: caret anywhere inside the block reveals raw source, fences included");
+
+      // Rule 5: a selection resolves reveal against its anchor, not its head
+      // - dragging from outside the block to a point inside it must not
+      // reveal the block, matching every other element type.
+      await setDocAndSelection(page, codeDoc, 0, caretInside);
+      await page.waitForTimeout(150);
+      assert((await page.locator(".cm-quki-codeblock-line").count()) === 5, "a selection anchored outside the block should keep it collapsed even though the head lands inside it");
+      console.log("[e2e-listReveal] PASS: reveal resolves against the selection anchor, not the head");
+
+      await context.close();
+    }
+
     console.log("[e2e-listReveal] ALL SCENARIOS PASSED");
   } finally {
     await browser.close();

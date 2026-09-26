@@ -709,3 +709,132 @@ describe("a table immediately followed by non-table text (no blank line)", () =>
     expect(widgets(decorationsFor(doc, insideAfter), "TableWidget")).toHaveLength(1);
   });
 });
+
+describe("fenced code block collapse", () => {
+  it("given a fenced block and the caret elsewhere, when decorated, then both fence lines' marker text is hidden (their newlines untouched)", () => {
+    const doc = "plain\n\n```\ncode\n```";
+    const decos = decorationsFor(doc, 0);
+    expect(hiddenRanges(decos)).toEqual([
+      [7, 10],
+      [16, 19],
+    ]);
+  });
+
+  it("given the same block, when decorated, then every line of the block - fence lines included - carries the codeblock background class", () => {
+    const doc = "plain\n\n```\ncode\n```";
+    const decos = decorationsFor(doc, 0);
+    expect(byClass(decos, "cm-quki-codeblock-line").map((d) => d.from)).toEqual([7, 11, 16]);
+  });
+
+  it("given the caret inside the opening fence, when decorated, then the whole block reveals as raw source", () => {
+    const doc = "```\ncode\n```";
+    const decos = decorationsFor(doc, 1);
+    expect(hiddenRanges(decos)).toEqual([]);
+    expect(byClass(decos, "cm-quki-codeblock-line")).toEqual([]);
+  });
+
+  it("given the caret inside the content (not just the fence), when decorated, then the whole block still reveals - rule 4's whole-element reveal, not rule 3's marker-only reveal", () => {
+    const doc = "```\ncode\n```";
+    const decos = decorationsFor(doc, doc.indexOf("code") + 2);
+    expect(hiddenRanges(decos)).toEqual([]);
+  });
+
+  it("given the caret one past the closing fence, when decorated, then it still reveals - the inclusive end boundary rule", () => {
+    const doc = "```\ncode\n```";
+    const decos = decorationsFor(doc, doc.length);
+    expect(hiddenRanges(decos)).toEqual([]);
+  });
+
+  it("given the caret one character past that boundary, when decorated, then the block collapses again", () => {
+    const doc = "```\ncode\n```\nafter";
+    const decos = decorationsFor(doc, doc.length);
+    expect(hiddenRanges(decos)).toEqual([
+      [0, 3],
+      [9, 12],
+    ]);
+  });
+
+  it("given content that looks like markdown, when decorated, then it is never parsed as markdown", () => {
+    const doc = "plain\n\n```\n**bold** # heading [link](x)\n```";
+    const decos = decorationsFor(doc, 0);
+    expect(byClass(decos, "cm-quki-strong")).toEqual([]);
+    expect(widgets(decos, "LinkWidget")).toEqual([]);
+    expect(decos.some((d) => d.cls?.startsWith("cm-quki-heading"))).toBe(false);
+  });
+
+  it("given an empty fenced block, when decorated, then both fence lines are hidden and each still carries the background, with no interior content line", () => {
+    const doc = "plain\n\n```\n```";
+    const decos = decorationsFor(doc, 0);
+    expect(hiddenRanges(decos)).toEqual([
+      [7, 10],
+      [11, 14],
+    ]);
+    expect(byClass(decos, "cm-quki-codeblock-line").map((d) => d.from)).toEqual([7, 11]);
+  });
+
+  it("given a tilde-fenced block, when decorated, then it collapses the same way", () => {
+    const doc = "plain\n\n~~~\ncode\n~~~";
+    const decos = decorationsFor(doc, 0);
+    expect(hiddenRanges(decos)).toEqual([
+      [7, 10],
+      [16, 19],
+    ]);
+  });
+
+  it("given a code line that looks like a list marker, when decorated, then it does not get the raw-list hanging-indent treatment", () => {
+    const doc = "plain\n\n```\n- item\n```";
+    const decos = decorationsFor(doc, 0);
+    expect(byClass(decos, "cm-quki-codeblock-line").map((d) => d.from)).toEqual([7, 11, 18]);
+    expect(byClass(decos, "cm-quki-hang").some((d) => d.from === 11)).toBe(false);
+  });
+
+  it("given plain-text mode, when decorated, then a fenced block gets no decorations at all", () => {
+    const doc = "plain\n\n```\ncode\n```";
+    expect(decorationsFor(doc, 0, true)).toEqual([]);
+  });
+});
+
+describe("fenced code block under a selection", () => {
+  const doc = "plain\n\n```\ncode\n```";
+  const contentFrom = doc.indexOf("code");
+  const contentTo = contentFrom + "code".length;
+
+  it("given a selection anchored outside the block and running through the content, when decorated, then the covered content is marked selected - compensating for the opaque codeblock background hiding the real selection layer", () => {
+    const state = EditorState.create({
+      doc,
+      selection: { anchor: 0, head: doc.length },
+      extensions: [markdown({ extensions: GFM }), plainTextMode],
+    });
+    const out: Array<[number, number]> = [];
+    buildDecorations(state).between(0, doc.length, (from, to, value) => {
+      if ((value.spec as { class?: string }).class === "cm-quki-code-selected") out.push([from, to]);
+    });
+    expect(out).toEqual([[contentFrom, contentTo]]);
+  });
+
+  it("given a selection ending partway through the content, when decorated, then only the covered part is marked selected", () => {
+    const state = EditorState.create({
+      doc,
+      selection: { anchor: 0, head: contentFrom + 2 },
+      extensions: [markdown({ extensions: GFM }), plainTextMode],
+    });
+    const out: Array<[number, number]> = [];
+    buildDecorations(state).between(0, doc.length, (from, to, value) => {
+      if ((value.spec as { class?: string }).class === "cm-quki-code-selected") out.push([from, to]);
+    });
+    expect(out).toEqual([[contentFrom, contentFrom + 2]]);
+  });
+
+  it("given the selection anchored inside the block, when decorated, then the block is revealed and nothing is marked selected", () => {
+    const state = EditorState.create({
+      doc,
+      selection: { anchor: contentFrom + 1, head: doc.length },
+      extensions: [markdown({ extensions: GFM }), plainTextMode],
+    });
+    const out: Array<[number, number]> = [];
+    buildDecorations(state).between(0, doc.length, (from, to, value) => {
+      if ((value.spec as { class?: string }).class === "cm-quki-code-selected") out.push([from, to]);
+    });
+    expect(out).toEqual([]);
+  });
+});

@@ -159,6 +159,68 @@ function autolinkHref(raw: string): string {
   return `mailto:${raw}`;
 }
 
+// Mirrors selectedCodeText's fix for InlineCode: the block's own background
+// is opaque and sits in the text layer, above the (behind-text) selection
+// layer, so it would otherwise hide a selection running through it. Unlike
+// the inline chip, the block content carries no extra horizontal padding of
+// its own, so no start/end edge case is needed - the plain mark covers
+// exactly the selected characters.
+function selectedCodeBlockText(
+  state: EditorState,
+  from: number,
+  to: number,
+): Range<Decoration>[] {
+  const ranges: Range<Decoration>[] = [];
+  for (const selected of state.selection.ranges) {
+    const start = Math.max(selected.from, from);
+    const end = Math.min(selected.to, to);
+    if (start >= end) continue;
+    ranges.push(Decoration.mark({ class: "cm-quki-code-selected" }).range(start, end));
+  }
+  return ranges;
+}
+
+// Collapses a fenced code block's opening and closing fence lines and
+// backgrounds every line of the block, fence lines included. Only ever
+// called when the block isn't revealed - see the "FencedCode" case below.
+//
+// Each fence line's marker text (and info string) is hidden in place,
+// leaving the line's own newline untouched: CodeMirror refuses a decoration
+// from a ViewPlugin (this reveal engine's decoration source) that replaces a
+// line break - only a StateField may do that - so the fence line can't be
+// erased outright the way a single-line marker can. Left blank and painted
+// with the same background as the content lines, it reads as the top/bottom
+// edge of one continuous block instead of a bare gap.
+function fencedCodeDecorations(
+  state: EditorState,
+  node: SyntaxNode,
+  nonHangingLines: Set<number>,
+): Range<Decoration>[] {
+  const marks = node.getChildren("CodeMark");
+  if (marks.length < 2) return [];
+  const openLine = state.doc.lineAt(marks[0]!.from);
+  const closeLine = state.doc.lineAt(marks[marks.length - 1]!.from);
+
+  const ranges: Range<Decoration>[] = [
+    Decoration.replace({}).range(openLine.from, openLine.to),
+    Decoration.replace({}).range(closeLine.from, closeLine.to),
+  ];
+
+  for (let n = openLine.number; n <= closeLine.number; n++) {
+    const line = state.doc.line(n);
+    ranges.push(Decoration.line({ class: "cm-quki-codeblock-line" }).range(line.from));
+    nonHangingLines.add(line.from);
+  }
+
+  const contentFrom = openLine.to + 1;
+  const contentTo = closeLine.from - 1;
+  if (contentFrom < contentTo) {
+    ranges.push(...selectedCodeBlockText(state, contentFrom, contentTo));
+  }
+
+  return ranges;
+}
+
 function readLabelAndUrl(
   node: SyntaxNode,
   state: EditorState,
@@ -383,6 +445,13 @@ export function buildDecorations(state: EditorState): DecorationSet {
               element.end,
             ),
           );
+        }
+        break;
+      }
+
+      case "FencedCode": {
+        if (!revealed) {
+          ranges.push(...fencedCodeDecorations(state, node, nonHangingLines));
         }
         break;
       }
