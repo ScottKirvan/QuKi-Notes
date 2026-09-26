@@ -423,3 +423,48 @@ describe("GFM tables", () => {
     });
   });
 });
+
+function fencedCodeElements(doc: string): RevealElement[] {
+  return elementsFor(doc).filter((el) => el.type === "FencedCode");
+}
+
+describe("fenced code blocks", () => {
+  it("given a fenced block, then it is a block-marker whose check span is the whole block", () => {
+    const doc = "before\n\n```\ncode line\n```\n\nafter";
+    const [el] = fencedCodeElements(doc);
+    const start = doc.indexOf("```");
+    const end = doc.indexOf("\n\nafter");
+    expect(el.category).toBe("block-marker");
+    expect(el.start).toBe(start);
+    expect(el.end).toBe(end);
+    expect(el.checkStart).toBe(start);
+    expect(el.checkEnd).toBe(end);
+    expect(el.parentId).toBeNull();
+  });
+
+  it("given a fence with an info string, then it is captured on the element", () => {
+    const [el] = fencedCodeElements("```dart\ncode\n```");
+    expect(el.infoString).toBe("dart");
+  });
+
+  it("given a fence with no info string, then infoString is undefined", () => {
+    const [el] = fencedCodeElements("```\ncode\n```");
+    expect(el.infoString).toBeUndefined();
+  });
+
+  it("given a tilde-fenced block, then it is still extracted as FencedCode", () => {
+    expect(fencedCodeElements("~~~\ncode\n~~~")).toHaveLength(1);
+  });
+
+  it("given content that looks like markdown, then extraction does not descend into it (no nested inline/block elements)", () => {
+    const doc = "```\n**not bold** # not a heading\n```";
+    const els = elementsFor(doc);
+    expect(els).toHaveLength(1);
+    expect(els[0]!.type).toBe("FencedCode");
+  });
+
+  it("given two separate fenced blocks, then each is its own element", () => {
+    const doc = "```\na\n```\n\ntext\n\n```\nb\n```";
+    expect(fencedCodeElements(doc)).toHaveLength(2);
+  });
+});
