@@ -2,7 +2,7 @@
 
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/ScottKirvan/QuKi-Notes/refs/heads/main/android/app/src/main/res/drawable-xxxhdpi/ic_launcher_foreground.png" alt="QuKi Notes" width="160" />
+<img src="https://raw.githubusercontent.com/ScottKirvan/QuKi-Notes/refs/heads/main/assets/media/QuKiNotes_v2_Rainbow_transparent.png" alt="QuKi Notes" width="160" />
 
 **Open. Type. Done.**
 
