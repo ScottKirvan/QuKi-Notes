@@ -35,6 +35,18 @@ Use these terms consistently in code, commit messages, issues, and PRs:
 
 ---
 
+## Platform Support
+
+| Platform    | Wrapper                | Notes                                                                                      |
+| ----------- | ---------------------- | ------------------------------------------------------------------------------------------ |
+| Web         | None — installable PWA | Works fully offline once installed; storage is the browser's own persistent origin storage |
+| Android     | Capacitor              | Real folder storage (with all-files access) or private app storage                         |
+| Windows     | Electron               | Real folder storage; window-state persistence; keyboard shortcuts                          |
+| Linux       | Electron               | Same feature set as Windows                                                                |
+| iOS / macOS | —                      | Not a current target; the web app is the interim option                                    |
+
+---
+
 ## Development Setup
 
 **Prerequisites:**
@@ -58,16 +70,69 @@ npm ci
 npm run dev
 ```
 
-**Common tasks**, run from `project/` unless noted:
+**Common tasks**, run from `project/` unless noted.  See each package's own `package.json` for the full list.:
 
 | Command | Description |
 |---|---|
-| `npm run build` | Type-check and build the web app |
+| `npm run dev` | Vite dev server for the web app |
+| `npm run build` | Type-check (`tsc -b`) and build the web app |
 | `npm test` | Unit tests (Vitest) |
-| `npm run test:e2e` | Full Playwright end-to-end suite (needs `npm run build` first) |
+| `npm run test:e2e` | Full Playwright end-to-end suite against a built `dist/` |
 | `npm run electron:start` | Build and launch the Electron desktop app |
-| `npm run capacitor:sync` | Build the web app and sync it into the Android project |
-| `npm --prefix core test` / `npm --prefix electron test` / `npm --prefix cli test` / `npm --prefix mcp test` | Each package's own unit tests |
+| `npm run capacitor:sync` | Build the web app and sync it into the Android (Capacitor) project |
+| `npm --prefix core run build` | Build the storage core package |
+| `npm --prefix core test` | Core package's own unit tests |
+| `npm --prefix electron test` | Electron main-process unit tests |
+| `npm --prefix cli test` | CLI unit tests |
+| `npm --prefix mcp test` | MCP server unit tests |
+
+For Android, after `capacitor:sync`, open `project/android/` in Android Studio, or build directly:
+
+```sh
+cd project/android
+./gradlew assembleDebug
+```
+
+### CI
+
+`.github/workflows/ci.yml` runs on every PR and push to `main`. It builds and tests each package in dependency order — `core` first (type-check, test, build), then the web `app`, `electron`, `cli`, and `mcp`, each with its own type-check and test step.
+
+Platform release builds (Android APK, Windows installer, Linux AppImage) run from `build-android.yml` / `build-windows.yml` / `build-linux.yml`, triggered on a published GitHub Release and uploaded to it.
+
+---
+
+## Architecture
+
+### Stack
+
+| Layer | Choice | Notes |
+|---|---|---|
+| Language | TypeScript, strict mode | One codebase for web, Android, Windows, and Linux |
+| Editor | [CodeMirror 6](https://codemirror.net/) | Custom live-preview reveal/collapse decorations over the parsed markdown syntax tree; the plain markdown source is always the canonical buffer |
+| Markdown parsing | `@lezer/markdown` (GFM extension) | Via `@codemirror/lang-markdown` |
+| Storage core | `quki-core` (`project/core/`) | Folder-is-the-index storage, trash, search, export — no framework dependency, shared by the app, CLI, and MCP server |
+| Android wrapper | [Capacitor](https://capacitorjs.com/) | A small native Kotlin plugin handles file I/O, the all-files storage permission, and share-in; everything else is TypeScript |
+| Desktop wrapper | [Electron](https://www.electronjs.org/) | Node's own `fs` backs real folder storage directly in the main process |
+| Web target | [Vite](https://vitejs.dev/) + `vite-plugin-pwa` | Installable, fully offline-capable; storage is the Origin Private File System |
+| Icons | [Lucide](https://lucide.dev/) | |
+| Theming | Obsidian CSS variable names | Defaults to the [GitHubDHC](https://github.com/ScottKirvan/GitHubDHC) theme's values; any Obsidian theme can restyle the app |
+| Versioning | [release-please](https://github.com/googleapis/release-please) | Conventional commits drive the CHANGELOG and version bumps |
+
+### Directory Layout
+
+```
+project/
+├── src/                # The web app: editor, screens, reveal engine, storage wiring
+├── core/               # quki-core — storage, trash, search, export (no framework dependency)
+├── electron/           # Electron main-process wrapper (Windows, Linux)
+├── android/            # Capacitor's native Android project, incl. the custom Storage plugin (Kotlin)
+├── cli/                # A thin CLI adapter over quki-core
+├── mcp/                # A Model Context Protocol server adapter over quki-core
+├── e2e/                # Playwright end-to-end tests
+└── public/             # Static web assets (manifest, icons)
+```
+
+`core/` has no dependency on the web app, Electron, Capacitor, or any UI framework — the app, the CLI, and the MCP server are three separate callers over the same storage API.
 
 ---
 
