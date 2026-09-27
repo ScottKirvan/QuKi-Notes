@@ -71,11 +71,31 @@ The project prioritizes **radical simplicity**  and **open extensibility**  -- a
 
 Download the latest release from [**GitHub Releases**](https://github.com/ScottKirvan/QuKi-Notes/releases/latest), or just open the [web app](https://scottkirvan.github.io/QuKi-Notes/) directly and install it from the browser.
 
-| Platform | Artifact | Install |
-|---|---|---|
-| Android | `.apk` | Sideload directly or via `adb install` |
-| Windows | `.exe` | Run the installer |
-| Linux | `.AppImage` | Mark executable and run |
+| Platform | Artifact    | Install                                |
+| -------- | ----------- | -------------------------------------- |
+| Android  | `.apk`      | Sideload directly or via `adb install` |
+| Windows  | `.exe`      | Run the installer                      |
+| Linux    | `.AppImage` | Mark executable and run                |
+|          |             |                                        |
+
+---
+<!-- Begin Sponsors -->
+
+<div align="center" style="margin-top: 3rem; margin-bottom: 2rem;">
+  <h3>Please support open source software:</h3>
+  <div style="display: flex; gap: 12px; justify-content: center; align-items: center; flex-wrap: wrap;">
+  <a href="https://ko-fi.com/ScottKirvan" target="_blank">
+    <img src="https://storage.ko-fi.com/cdn/kofi2.png?v=3" alt="Support on Ko-fi"  width="160"  />
+  </a> &nbsp; &nbsp;
+  <a href="https://github.com/sponsors/ScottKirvan" target="_blank">
+    <img src="https://img.shields.io/badge/Sponsor-GitHub-ea4aaa?style=for-the-badge&logo=github" height="36" />
+  </a>
+  </div>
+  <br>
+Thank you! Your help makes a real and direct difference.
+</div>
+
+<!-- End Sponsors -->
 
 ---
 
