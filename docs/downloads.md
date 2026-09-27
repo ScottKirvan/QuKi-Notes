@@ -1,8 +1,9 @@
-# Downloads
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useData } from 'vitepress'
+//import {BVPlatformButton} from 'bojuvue/vitepress'
+import * as BojuVue from 'bojuvue/vitepress'
 
 const { site } = useData()
 const manifest = ref(null)
@@ -14,6 +15,50 @@ onMounted(async () => {
   } catch (e) {}
 })
 </script>
+
+<div align="center">
+<img src="/QuKiNotes_v2_Rainbow_transparent.png" alt="QuKi Notes" width="260" />
+
+# QuKi Notes
+&nbsp;
+  <div>
+    <BojuVue.BVPlatformButton
+      manifest-url="/platformButton.json"
+      fallback-href="https://github.com/ScottKirvan/BojuVue/releases"
+    />
+  </div>
+<div v-if="manifest" style="font-size: 0.875rem; color: var(--vp-c-text-2); margin: 1rem 0 2.5rem;">
+  Latest release: <strong>{{ manifest.version }}</strong>
+</div>
+
+</div>
+
+
+<div style="display: flex; justify-content: center;">
+  <table><tr><td>App
+<table style="margin-inline: auto;">
+  <tr> <td> iOS </td> <td><a href="/QuKi-Notes/install/ios">Instructions</a></td> </tr>
+  <tr> <td> Android </td> <td>
+  <a href="/QuKi-Notes/install/android">Join The Beta</a><br>
+  <a href="/QuKi-Notes/install/android">APK</a>
+  </td> </tr>
+  <tr> <td> Windows </td> <td><a href="/QuKi-Notes/install/windows">Installer</a></td> </tr>
+  <tr> <td> Mac </td> <td><a href="/QuKi-Notes/install/mac">Instructions</a></td> </tr>
+  <tr> <td> Linux </td> <td>
+  <a href="/QuKi-Notes/install/linux">AppImage</a><br>
+  <a href="/QuKi-Notes/install/linux">Snap</a><br>
+  <a href="/QuKi-Notes/install/linux">Debian Package</a><br>
+  <a href="/QuKi-Notes/install/linux">AppImage (AArch64, ARM64)</a><br>
+  <a href="/QuKi-Notes/install/linux">Flatpak (Community maintained)</a>
+  </td> </tr>
+  <tr> <td> Web </td> <td><a href="/QuKi-Notes/install/web">Get for Web</a></td> </tr>
+  </table>
+  </td></tr></table>
+</div>
+  
+
+<!--
+# Downloads
 
 <div v-if="manifest" style="font-size: 0.875rem; color: var(--vp-c-text-2); margin: 1rem 0 2.5rem;">
   Latest release: <strong>{{ manifest.version }}</strong>
@@ -91,3 +136,11 @@ The Windows installer includes optional command-line tools (`quki` and `quki-mcp
   All releases and changelogs →
   <a href="https://github.com/ScottKirvan/QuKi-Notes/releases" target="_blank">GitHub Releases</a>
 </p>
+
+
+
+
+  <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center;">
+    <BojuVue.BVButton text="Get started" href="https://example.com/get-started" theme="brand" size="big" />
+  </div>
+-->
