@@ -81,13 +81,7 @@ Download the latest release from [**GitHub Releases**](https://github.com/ScottK
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full workflow. In short:
-
-- Read the [manifesto](notes/archive/dev/manifesto.md) first — it's short and normative.
-- [Conventional Commits](https://www.conventionalcommits.org/): `feat:` is reserved for genuinely new user-facing capability; bug fixes and corrections — even ones that close a tracked issue — use `fix:`.
-- Branch from `main`, one concern per branch and PR.
-
----
+See [CONTRIBUTING.md](CONTRIBUTING.md) for project layout, development setup, and PR process.
 
 ## License
 
@@ -95,11 +89,4 @@ MIT — see [LICENSE.md](LICENSE.md).
 
 ---
 
-## Contact
-
-- **Issues & PRs**: [github.com/ScottKirvan/QuKi-Notes](https://github.com/ScottKirvan/QuKi-Notes)
-- **Discord**: [discord.gg/TN6XJSNK5Y](https://discord.gg/TN6XJSNK5Y) — I'm `cptvideo`
-- **LinkedIn**: [linkedin.com/in/scottkirvan](https://www.linkedin.com/in/scottkirvan/)
-- **User Docs**: [scottkirvan.github.io/QuKi-Notes](https://scottkirvan.github.io/QuKi-Notes/)
-
-[CHANGELOG](notes/CHANGELOG.md)
+[CHANGELOG](notes/CHANGELOG.md) ·  [User Guide](https://scottkirvan.com/QuKi-Notes/)
