@@ -2,11 +2,11 @@
 
 <div align="center">
 
-<img src="project/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_foreground.png" alt="QuKi Notes" width="160" />
+<img src="https://raw.githubusercontent.com/ScottKirvan/QuKi-Notes/refs/heads/main/android/app/src/main/res/drawable-xxxhdpi/ic_launcher_foreground.png" alt="QuKi Notes" width="160" />
 
-**Open the app. Type. Done.**
+**Open. Type. Done.**
 
-Ephemeral notes captured on whatever device is at hand, dispatched wherever they need to go.
+Frictionless scratchpad and pasteboard -- a loose-leaf, digital zibaldone
 
 [![CI](https://github.com/ScottKirvan/QuKi-Notes/actions/workflows/ci.yml/badge.svg)](https://github.com/ScottKirvan/QuKi-Notes/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/ScottKirvan/QuKi-Notes)](https://github.com/ScottKirvan/QuKi-Notes/releases/latest)
@@ -18,8 +18,9 @@ Ephemeral notes captured on whatever device is at hand, dispatched wherever they
 [![Linux](https://img.shields.io/badge/Linux-Electron-FCC624?logo=linux&logoColor=black)](#platform-support)
 [![Discord](https://img.shields.io/discord/1052011377415438346?label=discord&color=00ACD7)](https://discord.gg/TN6XJSNK5Y)
 
-[User Docs](https://scottkirvan.github.io/QuKi-Notes/) &nbsp;·&nbsp;
-[Behavior Spec](notes/dev/BEHAVIOR_SPEC.md) &nbsp;·&nbsp;
+[Download](https://scottkirvan.com/QuKi-Notes/downloads.html) &nbsp;·&nbsp;
+[Docs](https://scottkirvan.com/QuKi-Notes/) &nbsp;·&nbsp;
+[Discord](https://discord.gg/TN6XJSNK5Y) &nbsp;·&nbsp;
 [Report Bug](https://github.com/ScottKirvan/QuKi-Notes/issues/new?template=bug_report.md) &nbsp;·&nbsp;
 [Request Feature](https://github.com/ScottKirvan/QuKi-Notes/issues/new?template=feature_request.md)
 
@@ -29,15 +30,11 @@ Ephemeral notes captured on whatever device is at hand, dispatched wherever they
 
 ## What is QuKi Notes?
 
-QuKi Notes is a frictionless scratchpad and pasteboard -- your loose-leaf, digital zibaldone.
+QuKi Notes is a frictionless scratchpad and pasteboard -- your loose-leaf, digital zibaldone.  It launches to a blank page ready for input, with a searchable list of existing notes just a click away. Type a thought, draft a post, check something off a list, paste a link, or log that idea for your next invention. Use the content right there, send it somewhere, or let it drift down the list as newer things arrive.
 
-It launches to a blank page ready for input, with a searchable list of existing notes just a click away. Type a thought, draft a post, check something off a list, paste a link, or log that idea for your next invention.  Act on it now, share it out, or let it drift down the stack as new thoughts arrive.  If you touch an old note, it floard right back to the top. No accounts, no folders, just plain text.
+A QuKi doesn't need a destination. Maybe it just needs somewhere to live -- temporarily -- off your mind and available if it ever turns out to be useful. No vaults, no file hierarchies, and no productivity systems to distract.  Sorting is automatic, driven entirely by touch and engagement: touch a QuKi and it pops back to the top.
 
-Use the content right there, send it somewhere, or just let it drift into the list as newer things arrive.  TODOTODOTODOTODO
-
-A QuKi doesn't need a destination. Maybe it just needs somewhere to live -- temporarily -- off your mind and available if it ever turns out to be useful. No vaults, no file structure, and no organized system or method to distract.  Sorting of your notes is automatic and based entirely on touch and engagement.
-
-The project prioritizes **radical simplicity**  and **open extensibility**  -- a real core API with a CLI and an MCP server built on it, alongside the app itself. Read the [manifesto](notes/archive/dev/manifesto.md) for the full philosophy.
+The project prioritizes **radical simplicity**  and **open extensibility**  -- a real core API with a CLI and an MCP server built right alongside the app, powered entirely by open, plain text markdown. Read the [manifesto](notes/archive/dev/manifesto.md) for the full philosophy.
 
 
 ---
