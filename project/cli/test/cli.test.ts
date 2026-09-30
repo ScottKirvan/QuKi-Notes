@@ -93,4 +93,54 @@ describe('quki CLI (real subprocess against a real temp folder)', () => {
     expect(data.activeCount).toBe(1);
     expect(data.trashCount).toBe(0);
   });
+
+  it('"search --trash <query>" actually searches (trash included), rather than --trash swallowing the query and returning every active QuKi', () => {
+    const created = run(dir, ['save', '--stdin'], 'a very unique phrase XYZZY here');
+    const id = (created.json as { id: string }).id;
+    run(dir, ['trash', id]);
+
+    // A second, unrelated active QuKi that must NOT show up in this search.
+    run(dir, ['save', '--stdin'], 'something else entirely');
+
+    const result = run(dir, ['search', '--trash', 'XYZZY']);
+    expect(result.status).toBe(0);
+    const ids = (result.json as Array<{ id: string }>).map((q) => q.id);
+    expect(ids).toEqual([id]);
+  });
+
+  it('"read --trash <id>" reads the trashed QuKi, rather than --trash swallowing the id and leaving none', () => {
+    const created = run(dir, ['save', '--stdin'], 'trashed body');
+    const id = (created.json as { id: string }).id;
+    run(dir, ['trash', id]);
+
+    const result = run(dir, ['read', '--trash', id]);
+    expect(result.status).toBe(0);
+    expect((result.json as { body: string }).body).toBe('trashed body');
+  });
+
+  it('an unrecognized flag (e.g. a typo of --keep-images) is rejected outright rather than silently proceeding', async () => {
+    const srcFile = path.join(dir, '..', `${path.basename(dir)}-src.png`);
+    await fsp.writeFile(srcFile, Buffer.from([1, 2, 3]));
+
+    const written = run(dir, ['write-image', srcFile]);
+    const relativePath = (written.json as { relativePath: string }).relativePath;
+    const absolutePath = (written.json as { absolutePath: string }).absolutePath;
+
+    const created = run(dir, ['save', '--stdin'], `![i](${relativePath})`);
+    const id = (created.json as { id: string }).id;
+    run(dir, ['trash', id]);
+
+    const result = run(dir, ['delete', id, '--keep-image']);
+
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('keep-image');
+
+    // The typo must have aborted the whole command before anything ran: the
+    // QuKi must still be in the trash and the image must still exist.
+    const stillTrashed = run(dir, ['list', '--trash']).json as Array<{ id: string }>;
+    expect(stillTrashed.map((q) => q.id)).toContain(id);
+    await expect(fsp.access(absolutePath)).resolves.toBeUndefined();
+
+    await fsp.rm(srcFile, { force: true });
+  });
 });

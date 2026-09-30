@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { QuKiStore } from 'quki-core';
 import { NodeFsBackend } from 'quki-core/node';
 
-import { parseArgs, stringFlag } from './argv.js';
+import { parseArgs, stringFlag, type ArgSpec } from './argv.js';
 
 function printJson(value: unknown): void {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
@@ -26,8 +26,19 @@ const USAGE =
   'trash <id> | restore <id> | delete <id> [--keep-images] | empty-trash [--keep-images] | purge-expired [--keep-images] | ' +
   'search <query> [--trash] | export <outFile> | write-image <path> [--ext <ext>]';
 
+const ARG_SPEC: ArgSpec = {
+  booleanFlags: ['trash', 'stdin', 'keep-images'],
+  valueFlags: ['dir', 'id', 'file', 'expected-modified-at', 'ext'],
+};
+
 async function main(): Promise<void> {
-  const { positional, flags } = parseArgs(process.argv.slice(2));
+  let positional: string[];
+  let flags: Record<string, string | boolean>;
+  try {
+    ({ positional, flags } = parseArgs(process.argv.slice(2), ARG_SPEC));
+  } catch (err) {
+    fail(`${err instanceof Error ? err.message : String(err)}\n${USAGE}`);
+  }
   const dir = stringFlag(flags, 'dir') ?? process.env.QUKI_DIR;
   if (!dir) fail(`--dir <path> is required (or set QUKI_DIR)\n${USAGE}`);
 
