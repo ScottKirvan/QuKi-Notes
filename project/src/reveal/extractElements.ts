@@ -319,6 +319,41 @@ export function extractElements(state: EditorState): ExtractResult {
         return true;
       }
 
+      // CommonMark backslash escapes: @lezer/markdown already recognises
+      // exactly the CommonMark rule (its own Escapable set is the ASCII
+      // punctuation list backslash-escapes apply to, and it declines a
+      // trailing backslash at the very end of the inline content) and emits
+      // a 2-character leaf node (backslash + the escaped character) only
+      // when that rule matches - a backslash before a letter, digit,
+      // whitespace or end-of-line never becomes an Escape node and is left
+      // as plain text needing no handling here. Escape doesn't fire inside
+      // InlineCode/FencedCode content or a Link/Image URL either (verified
+      // against the parser directly), matching CommonMark's "escapes don't
+      // work in code spans, code blocks, or autolinks" rule with no extra
+      // exclusion needed on this end. Non-nesting leaf, same as URL above:
+      // it can sit inside an outer nesting element (so it takes that
+      // element's id as parentId, to cascade-reveal with it) but never
+      // becomes an ancestor itself.
+      if (type === "Escape") {
+        const parentId =
+          inlineAncestorStack.length > 0
+            ? inlineAncestorStack[inlineAncestorStack.length - 1]
+            : null;
+        const id = nextId++;
+        elements.push({
+          id,
+          type,
+          category: "inline",
+          start: node.from,
+          end: node.to,
+          checkStart: node.from,
+          checkEnd: node.to,
+          parentId,
+        });
+        nodes.set(id, node.node);
+        return true;
+      }
+
       if (NESTING_INLINE_TYPES.has(type)) {
         const parentId =
           inlineAncestorStack.length > 0

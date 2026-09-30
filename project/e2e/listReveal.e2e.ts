@@ -770,6 +770,59 @@ async function main(): Promise<void> {
       await context.close();
     }
 
+    // --- Backslash escapes (CommonMark, BEHAVIOR_SPEC.md section 12) ---
+    {
+      const context = await browser.newContext();
+      const page = await openFreshPage(context, url);
+
+      const escapeDoc = "intro paragraph\n\n\\*not italic\\* and \\`not code\\`\n\nafter";
+      await setDocAndSelection(page, escapeDoc, 0);
+      await page.waitForTimeout(150);
+
+      const escapedLine = await page.locator(".cm-line", { hasText: "not italic" }).first().textContent();
+      assert(
+        escapedLine === "*not italic* and `not code`",
+        `an escaped asterisk/backtick should render as the literal character with the backslash hidden, got ${JSON.stringify(escapedLine)}`,
+      );
+      assert((await page.locator(".cm-quki-em, .cm-quki-strong").count()) === 0, "an escaped asterisk must not be rendered as italic/bold");
+      assert((await page.locator(".cm-quki-code").count()) === 0, "an escaped backtick must not be rendered as an inline code span");
+      assert((await editorBody(page)) === escapeDoc, "rendering the escape must not rewrite the source");
+      console.log("[e2e-listReveal] PASS: a backslash escape renders as a literal character with no special markdown meaning, backslash hidden");
+
+      // Caret on one escape reveals just that escape's raw two-character
+      // source - each escape is its own independent element, same as any
+      // other leaf inline element here, so the untouched second escape on
+      // the same line stays collapsed.
+      const firstBackslashPos = escapeDoc.indexOf("\\*");
+      await setDocAndSelection(page, escapeDoc, firstBackslashPos);
+      await page.waitForTimeout(150);
+      const revealedLine = await page.locator(".cm-line", { hasText: "not italic" }).first().textContent();
+      assert(
+        revealedLine === "\\*not italic* and `not code`",
+        `caret on the first escape should reveal only its own raw backslash, leaving the other escape collapsed, got ${JSON.stringify(revealedLine)}`,
+      );
+      console.log("[e2e-listReveal] PASS: caret on one escape reveals only that escape's raw backslash source, leaving others collapsed");
+
+      await setDocAndSelection(page, escapeDoc, 0);
+      await page.waitForTimeout(100);
+      const recollapsedLine = await page.locator(".cm-line", { hasText: "not italic" }).first().textContent();
+      assert(recollapsedLine === "*not italic* and `not code`", "moving the caret away collapses the escape back to just the character");
+      console.log("[e2e-listReveal] PASS: moving the caret away re-collapses the escape");
+
+      // A backslash before a letter, digit or end-of-line is not an escape:
+      // it must render literally, backslash included.
+      const nonEscapeDoc = "\\a literal backslash\n\ntrailing backslash\\";
+      await setDocAndSelection(page, nonEscapeDoc, 0);
+      await page.waitForTimeout(100);
+      const nonEscapeLine = await page.locator(".cm-line", { hasText: "literal backslash" }).first().textContent();
+      assert(nonEscapeLine === "\\a literal backslash", `a backslash before a letter is not an escape and must show literally, got ${JSON.stringify(nonEscapeLine)}`);
+      const trailingLine = await page.locator(".cm-line", { hasText: "trailing backslash" }).first().textContent();
+      assert(trailingLine === "trailing backslash\\", `a trailing backslash at the end of a line is not an escape and must show literally, got ${JSON.stringify(trailingLine)}`);
+      console.log("[e2e-listReveal] PASS: a backslash before a letter or at end-of-line is not an escape and shows literally");
+
+      await context.close();
+    }
+
     console.log("[e2e-listReveal] ALL SCENARIOS PASSED");
   } finally {
     await browser.close();

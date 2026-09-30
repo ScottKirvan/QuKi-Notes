@@ -468,3 +468,75 @@ describe("fenced code blocks", () => {
     expect(fencedCodeElements(doc)).toHaveLength(2);
   });
 });
+
+describe("backslash escapes", () => {
+  function escapeElements(doc: string): RevealElement[] {
+    return elementsFor(doc).filter((el) => el.type === "Escape");
+  }
+
+  it("given a backslash-escaped punctuation character, then it is an inline element spanning the backslash and the character", () => {
+    const doc = "\\*not italic\\*";
+    const [first, second] = escapeElements(doc);
+    expect(first!.category).toBe("inline");
+    expect(first!.start).toBe(0);
+    expect(first!.end).toBe(2);
+    expect(first!.checkStart).toBe(0);
+    expect(first!.checkEnd).toBe(2);
+    expect(first!.parentId).toBeNull();
+    expect(second!.start).toBe(12);
+    expect(second!.end).toBe(14);
+  });
+
+  it("given an escaped asterisk pair, then no Emphasis element is produced - the escape takes away its markdown meaning", () => {
+    const doc = "\\*not italic\\*";
+    const types = elementsFor(doc).map((el) => el.type);
+    expect(types).not.toContain("Emphasis");
+    expect(types).not.toContain("StrongEmphasis");
+  });
+
+  it.each([
+    "!", "\"", "#", "$", "%", "&", "'", "(", ")", "*", "+", ",", "-", ".",
+    "/", ":", ";", "<", "=", ">", "?", "@", "[", "\\", "]", "^", "_", "`",
+    "{", "|", "}", "~",
+  ])("given a backslash before the ASCII punctuation character %j, then it is an escape", (ch) => {
+    const [el] = escapeElements(`\\${ch}x`);
+    expect(el!.start).toBe(0);
+    expect(el!.end).toBe(2);
+  });
+
+  it("given a backslash before a letter, then it is not an escape", () => {
+    expect(escapeElements("\\a literal backslash then letter")).toEqual([]);
+  });
+
+  it("given a backslash before a digit, then it is not an escape", () => {
+    expect(escapeElements("\\1 digit escape attempt")).toEqual([]);
+  });
+
+  it("given a backslash before a space, then it is not an escape", () => {
+    expect(escapeElements("\\ leading space escape attempt")).toEqual([]);
+  });
+
+  it("given a backslash at the very end of the document, then it is not an escape", () => {
+    expect(escapeElements("line ends with backslash\\")).toEqual([]);
+  });
+
+  it("given a backslash immediately before a newline, then it is a hard break, not an escape", () => {
+    expect(escapeElements("line one\\\nline two")).toEqual([]);
+  });
+
+  it("given an escape inside an inline code span, then it is not extracted - backslash escapes do not apply inside code spans", () => {
+    expect(escapeElements("`\\*inside code span\\*`")).toEqual([]);
+  });
+
+  it("given an escape inside a fenced code block, then it is not extracted", () => {
+    expect(escapeElements("```\n\\*not an escape\\*\n```")).toEqual([]);
+  });
+
+  it("given an escape nested inside bold, then its parent is the bold element - it cascade-reveals with it", () => {
+    const doc = "**bold \\* text**";
+    const els = elementsFor(doc);
+    const bold = els.find((el) => el.type === "StrongEmphasis");
+    const [escape] = els.filter((el) => el.type === "Escape");
+    expect(escape!.parentId).toBe(bold?.id);
+  });
+});
