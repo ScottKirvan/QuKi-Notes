@@ -33,6 +33,16 @@ export interface SettingsViewCallbacks {
    * below unchanged.
    */
   storage?: SettingsStorageCallbacks;
+  /**
+   * Settings -> Export (STORAGE_CONTRACT.md "The core API": "a single call
+   * that produces the complete library... the backup story, and... also the
+   * migration path"). Present on every platform, unlike `storage` above -
+   * building the archive and delivering it is main.ts's job (a browser
+   * download on web, a native Save As dialog on Electron, a write into the
+   * current storage root on Android); this view only triggers it and shows
+   * a generic failure toast if the returned promise rejects unexpectedly.
+   */
+  onExport: () => Promise<void>;
 }
 
 export interface SettingsView {
@@ -68,12 +78,18 @@ export function createSettingsView(container: HTMLElement, callbacks: SettingsVi
         <button type="button" class="settings-row settings-link change-location-btn">
           <span>Change location</span>
         </button>
+        <button type="button" class="settings-row settings-link export-btn">
+          <span>Export</span>
+        </button>
       </section>
     `
     : `
       <section class="settings-section">
         <h2>Storage</h2>
         <p class="settings-note">${STORAGE_NOTE}</p>
+        <button type="button" class="settings-row settings-link export-btn">
+          <span>Export</span>
+        </button>
       </section>
     `;
 
@@ -152,6 +168,21 @@ export function createSettingsView(container: HTMLElement, callbacks: SettingsVi
       })();
     });
   }
+
+  const exportBtn = container.querySelector<HTMLButtonElement>(".export-btn")!;
+  exportBtn.addEventListener("click", () => {
+    void (async () => {
+      exportBtn.disabled = true;
+      try {
+        await callbacks.onExport();
+      } catch (error) {
+        console.error("QuKi export failed unexpectedly:", error);
+        callbacks.showToast("Export failed — unexpected error.", 4000);
+      } finally {
+        exportBtn.disabled = false;
+      }
+    })();
+  });
 
   // BEHAVIOR_SPEC.md §7: "Tapping copies the version string to the
   // clipboard and confirms with 'Copied to clipboard.'" (the same copy

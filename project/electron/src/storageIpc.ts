@@ -74,3 +74,21 @@ export interface StorageLocationState {
    */
   unreachablePath: string | null;
 }
+
+/**
+ * Settings -> Export (core's exportLibrary(), the STORAGE_CONTRACT.md
+ * "Export everything" migration/backup path): the renderer already has the
+ * gzipped tar bytes in hand (QuKiStore.exportLibrary() runs against the
+ * same backend this whole file bridges), it just needs Electron's native
+ * "Save As" dialog to pick a destination and write them there - the same
+ * dialog module main.ts already uses for chooseFilesystem above, not a new
+ * capability.
+ */
+export const EXPORT_CHANNELS = {
+  saveExport: 'quki:export:save',
+} as const;
+
+export interface ElectronExportApi {
+  /** Resolves to the chosen absolute path, or null if the save dialog was cancelled. */
+  saveExport(bytes: Uint8Array, defaultFileName: string): Promise<string | null>;
+}

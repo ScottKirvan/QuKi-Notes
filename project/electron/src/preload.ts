@@ -16,7 +16,7 @@
  */
 import { contextBridge, ipcRenderer } from 'electron';
 
-import type { ElectronStorageApi, ResolvePathSyncResult, StorageLocationState } from './storageIpc.js';
+import type { ElectronExportApi, ElectronStorageApi, ResolvePathSyncResult, StorageLocationState } from './storageIpc.js';
 
 const RESOLVE_PATH_SYNC_CHANNEL = 'quki:resolvePathSync';
 
@@ -92,3 +92,15 @@ const setupApi: ElectronSetupApi = {
 };
 
 contextBridge.exposeInMainWorld('electronSetupAPI', setupApi);
+
+/**
+ * Settings -> Export bridge (see storageIpc.ts's EXPORT_CHANNELS doc
+ * comment), exposed separately from `electronAPI` the same way
+ * `electronSetupAPI` is - it is a one-shot native "Save As" action, not
+ * part of the StorageBackend surface.
+ */
+const exportApi: ElectronExportApi = {
+  saveExport: (bytes: Uint8Array, defaultFileName: string) => ipcRenderer.invoke('quki:export:save', bytes, defaultFileName),
+};
+
+contextBridge.exposeInMainWorld('electronExportAPI', exportApi);

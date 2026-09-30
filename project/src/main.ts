@@ -49,6 +49,7 @@ import { AutoSaveController, blankInitialQuKi, type InitialQuKi } from "./persis
 import { sendQuKi, selectShareTransport, createClipboardTransport } from "./send";
 import { shareTextViaAndroid } from "./androidShare";
 import { createWebShareTransport } from "./webShare";
+import { buildExportFileName } from "./exportFileName";
 import { onSharedTextReceived } from "./shareIn";
 import { Navigator, type ViewName } from "./navigation";
 import { createListView } from "./screens/listView";
@@ -963,6 +964,64 @@ async function init(): Promise<void> {
     }
   }
 
+  /**
+   * Settings -> Export (STORAGE_CONTRACT.md's "Export everything"): flush
+   * first for the same reason Send does - the archive should include the
+   * edit sitting in the editor right now, not a stale pre-debounce copy.
+   * Delivery is the one genuinely per-platform part, matching how
+   * sendCurrentQuKi above branches on the same platform signals:
+   *  - Electron: a native Save As dialog (electronExportAPI.saveExport),
+   *    the same `dialog` module main.ts's storage-location picker already
+   *    uses, just its sibling "save" method instead of "open".
+   *  - Android: no save-file picker exists in the native Storage plugin
+   *    (StoragePlugin.kt has no such method, and adding one is real new
+   *    native surface, not "follow existing patterns"), so this reuses the
+   *    exact write path every other Android write already goes through
+   *    (CapacitorFsBackend.writeBinaryAtomic) and reports the real absolute
+   *    path it landed at, so it's findable even in the app-private-storage
+   *    case (settingsView.ts already surfaces that same path today).
+   *  - Web: the standard Blob + temporary <a download> trick - the only
+   *    way a browser tab can hand the person a file at all, and precisely
+   *    the "web-app users on OPFS move to a desktop folder this way"
+   *    migration path STORAGE_CONTRACT.md's core API section describes.
+   */
+  async function exportQuKiLibrary(): Promise<void> {
+    await autoSave.flush();
+    const result = await store.exportLibrary();
+    const fileName = buildExportFileName();
+
+    if (window.electronExportAPI) {
+      const savedPath = await window.electronExportAPI.saveExport(result.bytes, fileName);
+      if (savedPath !== null) showToast(`Exported to ${savedPath}.`, 3000);
+      return;
+    }
+
+    if (isAndroid) {
+      await backend.writeBinaryAtomic(fileName, result.bytes);
+      showToast(`Exported to ${backend.resolvePath(fileName)}.`, 4000);
+      return;
+    }
+
+    // TypeScript's Uint8Array<ArrayBufferLike> vs. BlobPart's
+    // ArrayBufferView<ArrayBuffer> mismatch (same cast core/src/export.ts's
+    // own gzip() needs, for the same reason) - at runtime a Uint8Array is a
+    // perfectly valid BlobPart regardless of which ArrayBuffer flavor its
+    // .buffer happens to be typed as.
+    const blob = new Blob([result.bytes as unknown as BlobPart], { type: "application/gzip" });
+    const url = URL.createObjectURL(blob);
+    try {
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+    showToast("Export downloaded.", 2000);
+  }
+
   async function openQuKiInEditor(id: string): Promise<void> {
     await autoSave.flush();
     let detail;
@@ -1099,6 +1158,7 @@ async function init(): Promise<void> {
           onChangeLocation: changeStorageLocation,
         }
       : undefined,
+    onExport: exportQuKiLibrary,
   });
 
   const trashView = createTrashView(store, viewElements.trash, {
