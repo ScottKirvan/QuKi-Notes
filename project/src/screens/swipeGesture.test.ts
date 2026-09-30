@@ -75,4 +75,22 @@ describe("shouldCommitSwipe", () => {
   it("floors elapsed time at 1ms so an instantaneous release can't produce infinite velocity", () => {
     expect(() => shouldCommitSwipe(-5, 200, 0, DEFAULT_SWIPE_CONFIG)).not.toThrow();
   });
+
+  it("does not commit an accidental quick flick of only a few pixels, even though its average velocity clears the flick threshold", () => {
+    // A 12px nudge on a realistic ~360px-wide row, released in 15ms: pure
+    // distance/elapsedMs velocity is ~0.8px/ms - comfortably over
+    // commitVelocityPxPerMs - despite covering only ~3% of the row. This is
+    // the accidental-touch case fix/android-input-edge-cases addresses: a
+    // real deliberate flick still needs to cover a meaningful fraction of
+    // the row, not just clear a velocity number computed from almost no
+    // distance at all.
+    expect(shouldCommitSwipe(-12, 360, 15, DEFAULT_SWIPE_CONFIG)).toBe(false);
+  });
+
+  it("still commits a genuine fast flick that covers a meaningful fraction of the row, short of the full distance ratio", () => {
+    // 20% of a 300px row in 40ms (1.5px/ms) - well short of the 40%
+    // distance-ratio commit, but a real flick that travelled somewhere,
+    // not just a few pixels of jitter.
+    expect(shouldCommitSwipe(-60, 300, 40, DEFAULT_SWIPE_CONFIG)).toBe(true);
+  });
 });
