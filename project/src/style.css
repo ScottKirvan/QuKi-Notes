@@ -856,6 +856,11 @@ body.theme-light .about-link-btn.accent {
   padding-right: 3px;
 }
 
+.cm-quki-codeblock-line {
+  font-family: var(--font-monospace);
+  background: var(--code-background);
+}
+
 .cm-quki-link {
   color: var(--link-color);
   text-decoration: underline;

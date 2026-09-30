@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { type Extension, EditorState } from "@codemirror/state";
 import { markdown } from "@codemirror/lang-markdown";
 import { GFM } from "@lezer/markdown";
-import { buildDecorations } from "./decorations";
+import { ensureSyntaxTree, syntaxTree } from "@codemirror/language";
+import { buildDecorations, blockRevealField } from "./decorations";
 import { plainTextMode, setPlainTextMode } from "./plainTextMode";
 import { editModeField } from "./editModeField";
 
@@ -707,5 +708,186 @@ describe("a table immediately followed by non-table text (no blank line)", () =>
   it("given the caret inside the following paragraph, when decorated, then the table still collapses normally - that text was never part of it", () => {
     const insideAfter = doc.indexOf("After.") + 2;
     expect(widgets(decorationsFor(doc, insideAfter), "TableWidget")).toHaveLength(1);
+  });
+});
+
+describe("fenced code block collapse", () => {
+  it("given a fenced block and the caret elsewhere, when decorated, then both fence lines' marker text is hidden (their newlines untouched)", () => {
+    const doc = "plain\n\n```\ncode\n```";
+    const decos = decorationsFor(doc, 0);
+    expect(hiddenRanges(decos)).toEqual([
+      [7, 10],
+      [16, 19],
+    ]);
+  });
+
+  it("given the same block, when decorated, then every line of the block - fence lines included - carries the codeblock background class", () => {
+    const doc = "plain\n\n```\ncode\n```";
+    const decos = decorationsFor(doc, 0);
+    expect(byClass(decos, "cm-quki-codeblock-line").map((d) => d.from)).toEqual([7, 11, 16]);
+  });
+
+  it("given the caret inside the opening fence, when decorated, then the whole block reveals as raw source", () => {
+    const doc = "```\ncode\n```";
+    const decos = decorationsFor(doc, 1);
+    expect(hiddenRanges(decos)).toEqual([]);
+    expect(byClass(decos, "cm-quki-codeblock-line")).toEqual([]);
+  });
+
+  it("given the caret inside the content (not just the fence), when decorated, then the whole block still reveals - rule 4's whole-element reveal, not rule 3's marker-only reveal", () => {
+    const doc = "```\ncode\n```";
+    const decos = decorationsFor(doc, doc.indexOf("code") + 2);
+    expect(hiddenRanges(decos)).toEqual([]);
+  });
+
+  it("given the caret one past the closing fence, when decorated, then it still reveals - the inclusive end boundary rule", () => {
+    const doc = "```\ncode\n```";
+    const decos = decorationsFor(doc, doc.length);
+    expect(hiddenRanges(decos)).toEqual([]);
+  });
+
+  it("given the caret one character past that boundary, when decorated, then the block collapses again", () => {
+    const doc = "```\ncode\n```\nafter";
+    const decos = decorationsFor(doc, doc.length);
+    expect(hiddenRanges(decos)).toEqual([
+      [0, 3],
+      [9, 12],
+    ]);
+  });
+
+  it("given content that looks like markdown, when decorated, then it is never parsed as markdown", () => {
+    const doc = "plain\n\n```\n**bold** # heading [link](x)\n```";
+    const decos = decorationsFor(doc, 0);
+    expect(byClass(decos, "cm-quki-strong")).toEqual([]);
+    expect(widgets(decos, "LinkWidget")).toEqual([]);
+    expect(decos.some((d) => d.cls?.startsWith("cm-quki-heading"))).toBe(false);
+  });
+
+  it("given an empty fenced block, when decorated, then both fence lines are hidden and each still carries the background, with no interior content line", () => {
+    const doc = "plain\n\n```\n```";
+    const decos = decorationsFor(doc, 0);
+    expect(hiddenRanges(decos)).toEqual([
+      [7, 10],
+      [11, 14],
+    ]);
+    expect(byClass(decos, "cm-quki-codeblock-line").map((d) => d.from)).toEqual([7, 11]);
+  });
+
+  it("given a tilde-fenced block, when decorated, then it collapses the same way", () => {
+    const doc = "plain\n\n~~~\ncode\n~~~";
+    const decos = decorationsFor(doc, 0);
+    expect(hiddenRanges(decos)).toEqual([
+      [7, 10],
+      [16, 19],
+    ]);
+  });
+
+  it("given a code line that looks like a list marker, when decorated, then it does not get the raw-list hanging-indent treatment", () => {
+    const doc = "plain\n\n```\n- item\n```";
+    const decos = decorationsFor(doc, 0);
+    expect(byClass(decos, "cm-quki-codeblock-line").map((d) => d.from)).toEqual([7, 11, 18]);
+    expect(byClass(decos, "cm-quki-hang").some((d) => d.from === 11)).toBe(false);
+  });
+
+  it("given plain-text mode, when decorated, then a fenced block gets no decorations at all", () => {
+    const doc = "plain\n\n```\ncode\n```";
+    expect(decorationsFor(doc, 0, true)).toEqual([]);
+  });
+});
+
+describe("fenced code block under a selection", () => {
+  const doc = "plain\n\n```\ncode\n```";
+  const contentFrom = doc.indexOf("code");
+  const contentTo = contentFrom + "code".length;
+
+  it("given a selection anchored outside the block and running through the content, when decorated, then the covered content is marked selected - compensating for the opaque codeblock background hiding the real selection layer", () => {
+    const state = EditorState.create({
+      doc,
+      selection: { anchor: 0, head: doc.length },
+      extensions: [markdown({ extensions: GFM }), plainTextMode],
+    });
+    const out: Array<[number, number]> = [];
+    buildDecorations(state).between(0, doc.length, (from, to, value) => {
+      if ((value.spec as { class?: string }).class === "cm-quki-code-selected") out.push([from, to]);
+    });
+    expect(out).toEqual([[contentFrom, contentTo]]);
+  });
+
+  it("given a selection ending partway through the content, when decorated, then only the covered part is marked selected", () => {
+    const state = EditorState.create({
+      doc,
+      selection: { anchor: 0, head: contentFrom + 2 },
+      extensions: [markdown({ extensions: GFM }), plainTextMode],
+    });
+    const out: Array<[number, number]> = [];
+    buildDecorations(state).between(0, doc.length, (from, to, value) => {
+      if ((value.spec as { class?: string }).class === "cm-quki-code-selected") out.push([from, to]);
+    });
+    expect(out).toEqual([[contentFrom, contentFrom + 2]]);
+  });
+
+  it("given the selection anchored inside the block, when decorated, then the block is revealed and nothing is marked selected", () => {
+    const state = EditorState.create({
+      doc,
+      selection: { anchor: contentFrom + 1, head: doc.length },
+      extensions: [markdown({ extensions: GFM }), plainTextMode],
+    });
+    const out: Array<[number, number]> = [];
+    buildDecorations(state).between(0, doc.length, (from, to, value) => {
+      if ((value.spec as { class?: string }).class === "cm-quki-code-selected") out.push([from, to]);
+    });
+    expect(out).toEqual([]);
+  });
+});
+
+function hasTableNode(state: EditorState): boolean {
+  let found = false;
+  syntaxTree(state).iterate({
+    enter(node) {
+      if (node.name === "Table") found = true;
+    },
+  });
+  return found;
+}
+
+describe("reveal after the background parser catches up", () => {
+  // @codemirror/language only parses the first ~3000 characters of a freshly
+  // created document synchronously; anything past that is finished later,
+  // off a requestIdleCallback, by the language package's own parseWorker.
+  // That worker's completion is delivered to the view as a transaction that
+  // touches neither the doc, the selection nor either mode field - so
+  // revealInputsChanged (shared by blockRevealField and revealPlugin) must
+  // itself notice the syntax tree changed, or content past the initial parse
+  // boundary stays rendered against the stale tree the field was seeded
+  // with until something unrelated (a caret move, a mode toggle) happens to
+  // force a recompute. This is what reached Scott as fenced code blocks
+  // rendering as raw markdown on a freshly opened QuKi.
+  it("given a table recognised only once the parser finishes, when the tree completes, then the block field recomputes and reveals it", () => {
+    const padding = "x".repeat(3500) + "\n\n";
+    const table = "| a | b |\n| - | - |\n| 1 | 2 |";
+    const doc = padding + table;
+    const tableStart = padding.length;
+
+    let state = EditorState.create({
+      doc,
+      extensions: [markdown({ extensions: GFM }), plainTextMode, blockRevealField],
+    });
+
+    expect(hasTableNode(state)).toBe(false);
+    const before: Array<[number, number]> = [];
+    state.field(blockRevealField).between(0, doc.length, (from, to) => {
+      before.push([from, to]);
+    });
+    expect(before).toEqual([]);
+
+    ensureSyntaxTree(state, doc.length, 5000);
+    state = state.update({}).state;
+
+    expect(hasTableNode(state)).toBe(true);
+    const after: Array<[number, number]> = [];
+    state.field(blockRevealField).between(0, doc.length, (from, to) => {
+      after.push([from, to]);
+    });
+    expect(after).toEqual([[tableStart, doc.length]]);
   });
 });

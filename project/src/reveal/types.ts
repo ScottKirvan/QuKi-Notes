@@ -47,4 +47,10 @@ export interface RevealElement {
   checked?: boolean;
   /** BlockquoteLine only: how many `>` levels the marker consumed. */
   quoteDepth?: number;
+  /**
+   * FencedCode only: the raw text of the optional info string (e.g. `dart`
+   * in ` ```dart `). Captured for a later syntax-highlighting feature; no
+   * current rendering reads it.
+   */
+  infoString?: string;
 }
