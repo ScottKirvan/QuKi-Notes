@@ -21,6 +21,28 @@ export interface TrashView {
 }
 
 /**
+ * Runs a Trash action (restore, permanent delete, empty) and, on rejection,
+ * surfaces `failureMessage` via the same toast every other one-off action
+ * result in this app already uses (main.ts's handleSharedText/deleteQuKi),
+ * rather than letting the rejection become an unhandled promise rejection
+ * with nothing shown to the user at all. STORAGE_CONTRACT.md rule 18: "a
+ * failed save is surfaced, not just logged" - these are writes/deletes, not
+ * saves, but the same requirement applies. Returns whether the action
+ * succeeded, so a caller can decide what to do next (e.g. still refresh the
+ * list either way, so it reflects whatever the real on-disk state now is).
+ */
+export async function performTrashAction(action: () => Promise<void>, showToast: ShowToast, failureMessage: string): Promise<boolean> {
+  try {
+    await action();
+    return true;
+  } catch (error) {
+    console.error(`QuKi trash action failed: ${failureMessage}`, error);
+    showToast(failureMessage, 4000);
+    return false;
+  }
+}
+
+/**
  * PROPOSAL: the permanent-delete confirmation copy ("Delete forever?" /
  * "This permanently deletes the QuKi. This can't be undone.") is not given
  * verbatim anywhere in the spec - only "Restore note?" is. This is a
@@ -110,9 +132,13 @@ export function createTrashView(store: QuKiStore, container: HTMLElement, callba
         cancelLabel: "Cancel",
       });
       if (!confirmed) return;
-      await store.restore(item.id);
+      const restored = await performTrashAction(
+        () => store.restore(item.id),
+        callbacks.showToast,
+        "Could not restore — an unexpected error occurred.",
+      );
       await refresh();
-      callbacks.onBack();
+      if (restored) callbacks.onBack();
     };
 
     content.addEventListener("keydown", (e) => {
@@ -142,7 +168,11 @@ export function createTrashView(store: QuKiStore, container: HTMLElement, callba
             await refresh();
             return;
           }
-          await store.permanentlyDelete(item.id);
+          await performTrashAction(
+            () => store.permanentlyDelete(item.id),
+            callbacks.showToast,
+            "Could not delete — an unexpected error occurred.",
+          );
           await refresh();
         })();
       },
@@ -162,7 +192,11 @@ export function createTrashView(store: QuKiStore, container: HTMLElement, callba
         danger: true,
       });
       if (!confirmed) return;
-      await store.emptyTrash();
+      await performTrashAction(
+        () => store.emptyTrash().then(() => undefined),
+        callbacks.showToast,
+        "Could not empty Trash — an unexpected error occurred.",
+      );
       await refresh();
     })();
   });
