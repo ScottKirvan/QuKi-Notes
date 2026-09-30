@@ -11,4 +11,4 @@ export type {
   WriteImageResult,
   ExportResult,
 } from './types.js';
-export { NotFoundError } from './types.js';
+export { NotFoundError, InvalidIdError } from './types.js';

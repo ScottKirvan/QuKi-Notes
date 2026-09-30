@@ -77,6 +77,39 @@ describe('trash', () => {
     expect((await store.listTrash()).find((q) => q.id === target.id)).toBeDefined();
   });
 
+  it('permanentlyDelete on an id that was never trashed reports not-found, not fake success', async () => {
+    await expect(store.permanentlyDelete('never-existed')).rejects.toThrow(NotFoundError);
+  });
+
+  it('permanentlyDelete of an already-purged id reports not-found, not fake success', async () => {
+    const target = await store.save({ id: null, body: 'x' });
+    if (target.status !== 'saved') throw new Error('unreachable');
+    await store.moveToTrash(target.id);
+    await store.permanentlyDelete(target.id);
+
+    await expect(store.permanentlyDelete(target.id)).rejects.toThrow(NotFoundError);
+  });
+
+  it('stamps a pre-rewrite trashed item (no deletedAt sidecar) with "now" on first purge sweep instead of skipping it forever', async () => {
+    const target = await store.save({ id: null, body: 'predates the rewrite' });
+    if (target.status !== 'saved') throw new Error('unreachable');
+
+    await store.moveToTrash(target.id);
+    await fsp.rm(path.join(dir, '.trash', '.meta', `${target.id}.json`), { force: true });
+
+    const firstSweep = new Date();
+    const firstResult = await store.purgeExpiredTrash({ now: firstSweep });
+    expect(firstResult.purgedIds).not.toContain(target.id);
+
+    const stillThere = (await store.listTrash()).find((q) => q.id === target.id);
+    expect(stillThere).toBeDefined();
+    expect(stillThere!.deletedAt).toBe(firstSweep.toISOString());
+
+    const laterSweep = new Date(firstSweep.getTime() + 31 * 24 * 60 * 60 * 1000);
+    const secondResult = await store.purgeExpiredTrash({ now: laterSweep });
+    expect(secondResult.purgedIds).toContain(target.id);
+  });
+
   it('emptyTrash clears everything regardless of age', async () => {
     const a = await store.save({ id: null, body: 'a' });
     const b = await store.save({ id: null, body: 'b' });

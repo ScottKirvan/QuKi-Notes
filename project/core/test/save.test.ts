@@ -30,6 +30,18 @@ describe('QuKiStore.save', () => {
     expect(detail.body).toBe('# First QuKi');
   });
 
+  it('cleans up the orphaned .md file when the sidecar write fails, so a retry does not create a duplicate', async () => {
+    // Pre-creating .meta as a plain file (not a directory) makes the
+    // sidecar's own mkdir fail with EEXIST, simulating any sidecar-write
+    // failure after the .md file has already landed on disk.
+    await fsp.writeFile(path.join(dir, '.meta'), 'blocks .meta/ from being created as a directory');
+
+    await expect(store.save({ id: null, body: 'should not survive the failed sidecar write' })).rejects.toThrow();
+
+    const entries = await fsp.readdir(dir);
+    expect(entries.filter((f) => f.endsWith('.md'))).toHaveLength(0);
+  });
+
   it('an empty body for a brand new QuKi creates nothing on disk', async () => {
     const result = await store.save({ id: null, body: '' });
     expect(result).toEqual({ status: 'skipped-empty', id: null });

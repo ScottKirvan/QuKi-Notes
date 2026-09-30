@@ -66,3 +66,19 @@ export class NotFoundError extends Error {
     this.name = 'NotFoundError';
   }
 }
+
+/**
+ * Thrown by any QuKiStore method that takes a plain root-level QuKi id when
+ * that id contains a path separator or a leading dot. Every such id
+ * ultimately becomes part of a relative path handed to a StorageBackend
+ * (e.g. `${id}.md`, `.meta/${id}.json`) - an unvalidated id containing `/`,
+ * `\` or a leading `.` could otherwise reach `.trash/`, `.meta/`, `media/`
+ * or an arbitrary subfolder, breaking STORAGE_CONTRACT.md rule 9 (the folder
+ * is flat).
+ */
+export class InvalidIdError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidIdError';
+  }
+}
