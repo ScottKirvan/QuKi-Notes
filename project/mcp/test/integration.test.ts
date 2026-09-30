@@ -106,7 +106,7 @@ describe('quki-mcp server (end-to-end over stdio)', () => {
     expect(text).toContain('quki_list_active');
   });
 
-  it('writes an image, references it, and exports the library as a base64 archive', async () => {
+  it('writes an image, references it, and exports the library to disk rather than inline bytes', async () => {
     const bytes = Buffer.from([1, 2, 3, 4]).toString('base64');
     const image = await client.callTool({
       name: 'quki_write_image',
@@ -118,16 +118,39 @@ describe('quki-mcp server (end-to-end over stdio)', () => {
 
     await client.callTool({ name: 'quki_save', arguments: { body: `![i](${imageData.relativePath})` } });
 
-    const exported = await client.callTool({ name: 'quki_export', arguments: {} });
+    const outputPath = path.join(dir, '..', `${path.basename(dir)}-export.tar.gz`);
+    const exported = await client.callTool({ name: 'quki_export', arguments: { outputPath } });
+    expect(exported.isError).toBeFalsy();
     const exportData = exported.structuredContent as {
-      bytesBase64: string;
+      path: string;
       activeCount: number;
       trashCount: number;
       mediaCount: number;
     };
     expect(exportData.activeCount).toBe(1);
     expect(exportData.mediaCount).toBe(1);
-    expect(exportData.bytesBase64.length).toBeGreaterThan(0);
+    expect(exportData.path).toBe(outputPath);
+    expect(exportData).not.toHaveProperty('bytesBase64');
+
+    // The tool result itself must never carry the archive bytes inline -
+    // only counts and the path, regardless of how large the real archive is.
+    const resultText = JSON.stringify(exported);
+    expect(resultText).not.toContain('bytesBase64');
+
+    const onDisk = await fsp.readFile(outputPath);
+    expect(onDisk.length).toBeGreaterThan(0);
+    // A gzip member always starts with this two-byte magic number.
+    expect(onDisk[0]).toBe(0x1f);
+    expect(onDisk[1]).toBe(0x8b);
+
+    await fsp.rm(outputPath, { force: true });
+  });
+
+  it('quki_delete on an id that was never trashed reports an error, not fake success', async () => {
+    const result = await client.callTool({ name: 'quki_delete', arguments: { id: 'never-existed' } });
+    expect(result.isError).toBe(true);
+    const text = (result.content as Array<{ type: string; text: string }>)[0]?.text ?? '';
+    expect(text).toContain('not found');
   });
 
   it('search finds a substring match, case-insensitively', async () => {
