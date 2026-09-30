@@ -1089,8 +1089,15 @@ body.theme-light .about-link-btn.accent {
 }
 
 .android-permission-panel {
+  position: relative;
   max-width: 480px;
   width: 100%;
+}
+
+.android-permission-back-btn {
+  position: absolute;
+  top: -44px;
+  left: -6px;
 }
 
 .android-permission-title {

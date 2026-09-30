@@ -1,4 +1,7 @@
+import { ArrowLeft } from "lucide";
+
 import type { StorageAccessState } from "../androidStorageAccess.js";
+import { setIconButton } from "./icons";
 
 export interface AndroidPermissionView {
   /**
@@ -26,13 +29,29 @@ export interface AndroidPermissionView {
  * use, as a full-screen panel that replaces the whole app UI until
  * resolved — this runs before any backend, QuKiStore or editor exists, the
  * same ordering setupView.ts's first-launch case requires on Electron.
+ *
+ * [Proposed — unconfirmed] The back button is a fix for a real dead end: a
+ * user who declines "All files access" (or the API <30 runtime permission
+ * dialog) had no way off this screen at all before this. It mirrors
+ * setupView.ts's own cancel button (ArrowLeft, top-left) rather than
+ * completing "use app storage" itself — returning control to
+ * onUseAppStorageInstead (main.ts) makes the in-flight chooseFilesystem()
+ * resolve null, exactly like a dismissed folder picker, which lands the
+ * user back on setupView.ts's own two-card choice screen where "Use app
+ * storage" already lives. No reference app equivalent exists to confirm
+ * wording or placement against.
  */
-export function createAndroidPermissionView(container: HTMLElement, onRequestAccess: () => void): AndroidPermissionView {
+export function createAndroidPermissionView(
+  container: HTMLElement,
+  onRequestAccess: () => void,
+  onUseAppStorageInstead: () => void,
+): AndroidPermissionView {
   const overlay = document.createElement("div");
   overlay.className = "android-permission-overlay";
   overlay.hidden = true;
   overlay.innerHTML = `
     <div class="android-permission-panel">
+      <button type="button" class="back-btn android-permission-back-btn"></button>
       <h1 class="android-permission-title">QuKi Notes needs access to your files</h1>
       <p class="android-permission-body">
         To save your QuKis as files in your device's Documents folder, QuKi Notes needs
@@ -44,10 +63,20 @@ export function createAndroidPermissionView(container: HTMLElement, onRequestAcc
   `;
   container.appendChild(overlay);
 
+  const backBtn = overlay.querySelector<HTMLButtonElement>(".android-permission-back-btn")!;
+  setIconButton(backBtn, ArrowLeft, "Use app storage instead");
   const button = overlay.querySelector<HTMLButtonElement>(".android-permission-btn")!;
   const waitingEl = overlay.querySelector<HTMLParagraphElement>(".android-permission-waiting")!;
 
   button.addEventListener("click", () => onRequestAccess());
+  backBtn.addEventListener("click", () => {
+    // Hidden here rather than left to the next render(state) call: cancel()
+    // (androidStorageAccess.ts) leaves ready() pending forever once already
+    // settled granted/cancelled once, so no further state change is
+    // guaranteed to arrive and hide this overlay on its own.
+    overlay.hidden = true;
+    onUseAppStorageInstead();
+  });
 
   return {
     render(state: StorageAccessState): void {

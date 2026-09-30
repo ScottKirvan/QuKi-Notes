@@ -16,6 +16,20 @@
       actual cause of the original bug) does not. See backup_rules.xml and
       data_extraction_rules.xml for the excluded paths and why.
     -->
+    <!--
+      requestLegacyExternalStorage: minSdkVersion is 24 (variables.gradle)
+      but MANAGE_EXTERNAL_STORAGE/isExternalStorageManager (see the
+      permissions block below) is API 30+ only - it doesn't exist as a
+      concept on API 24-29. This flag restores pre-scoped-storage
+      (pre-Android-10) path access on API <=29 once
+      WRITE_EXTERNAL_STORAGE/READ_EXTERNAL_STORAGE is actually granted at
+      runtime (see StoragePlugin.kt's LEGACY_STORAGE_PERMISSION_ALIAS); it
+      does not grant that permission itself, and per
+      https://developer.android.com/training/data-storage/use-cases#opt-out-in-production-app
+      the system ignores this flag entirely once the app is running on an
+      actual Android 11+ (API 30+) device - MANAGE_EXTERNAL_STORAGE is what
+      carries all-files access there instead.
+    -->
     <application
         android:allowBackup="true"
         android:fullBackupContent="@xml/backup_rules"
@@ -24,7 +38,8 @@
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/AppTheme">
+        android:theme="@style/AppTheme"
+        android:requestLegacyExternalStorage="true">
 
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
@@ -72,6 +87,22 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <!--
+      API 24-29 only (maxSdkVersion): the classic dangerous-permission-group
+      runtime permissions that gate legacy (non-scoped) external storage
+      access below API 30, where MANAGE_EXTERNAL_STORAGE doesn't exist yet.
+      Requested at runtime via StoragePlugin.kt's requestAllFilesAccess ->
+      LEGACY_STORAGE_PERMISSION_ALIAS - see that file's doc comment for why
+      requestLegacyExternalStorage (application element, above) alone isn't
+      enough. maxSdkVersion="29" both matches the actual need (API 30+ uses
+      MANAGE_EXTERNAL_STORAGE instead) and keeps these off the runtime
+      permission list entirely on API 30+ devices, matching Android's own
+      guidance that these permissions no longer provide access there.
+    -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29" />
     <!--
       Ported from the Flutter app's own AndroidManifest.xml, which already
       carries the approved MANAGE_EXTERNAL_STORAGE permission for this exact

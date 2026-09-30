@@ -18,7 +18,7 @@ function fakePlugin(): CapacitorStoragePlugin {
     mkdirp: vi.fn().mockResolvedValue(undefined),
     isExternalStorageManager: vi.fn().mockResolvedValue({ granted: true }),
     getExternalDocumentsPath: vi.fn().mockResolvedValue({ path: ROOT }),
-    requestAllFilesAccess: vi.fn().mockResolvedValue(undefined),
+    requestAllFilesAccess: vi.fn().mockResolvedValue({ outcome: "opened-settings" }),
     getFlutterMigrationInfo: vi.fn().mockResolvedValue({ locationChosen: false, basePath: null, appDocumentsPath: "/data/data/com.quki.quki_notes/app_flutter" }),
     isValidWritableDirectory: vi.fn().mockResolvedValue({ valid: true }),
     getPrivateStoragePath: vi.fn().mockResolvedValue({ path: "/data/data/com.quki.quki_notes/files" }),

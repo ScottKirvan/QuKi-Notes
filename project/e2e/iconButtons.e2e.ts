@@ -401,9 +401,13 @@ async function runOverlayScenario(browser: Browser, devUrl: string, scheme: "lig
     const api = { getState: async () => ({}), chooseFilesystem: async () => null, chooseAppStorage: async () => "x", quit: async () => {} };
     const setupView = setupModule.createSetupView(host as HTMLElement, api as never, { isAndroid: false });
     w.__setupView = setupView;
-    w.__permissionView = permissionModule.createAndroidPermissionView(host as HTMLElement, () => {
-      (w.__grantClicks as number)++;
-    });
+    w.__permissionView = permissionModule.createAndroidPermissionView(
+      host as HTMLElement,
+      () => {
+        (w.__grantClicks as number)++;
+      },
+      () => {},
+    );
     void setupView.show({ cancelable: false });
   });
 

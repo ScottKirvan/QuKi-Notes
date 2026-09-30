@@ -99,6 +99,29 @@ describe("createAndroidSetupApi", () => {
       expect(deps.onLocationResolved).toHaveBeenCalledWith("/storage/emulated/0/Documents/QuKi_Notes");
     });
 
+    it("returns null and leaves state, settings and the unreachable path untouched when the user backs out of the permission screen instead of granting access", async () => {
+      const { store, files } = fakeSettingsStore();
+      await store.setStorageLocation("/moved-or-deleted-folder");
+      const settingsStore = new AndroidSettingsStore(
+        { exists: async (p) => p in files, readText: async (p) => files[p]!, writeTextAtomic: async (p, c) => { files[p] = c; } },
+        SETTINGS_PATH,
+      );
+      const deps = baseDeps({
+        settingsStore,
+        isValidWritableDirectory: vi.fn(async () => false),
+        requestFilesystemAccess: vi.fn(async () => null),
+      });
+      const api = await createAndroidSetupApi(deps);
+      expect((await api.getState()).unreachablePath).toBe("/moved-or-deleted-folder");
+
+      const path = await api.chooseFilesystem();
+
+      expect(path).toBeNull();
+      expect((await api.getState()).unreachablePath).toBe("/moved-or-deleted-folder");
+      expect(await settingsStore.read()).toEqual({ storagePath: "/moved-or-deleted-folder", storageChosen: true });
+      expect(deps.onLocationResolved).not.toHaveBeenCalled();
+    });
+
     it("clears a previously-reported unreachable path once a new choice is made", async () => {
       const { store, files } = fakeSettingsStore();
       await store.setStorageLocation("/moved-or-deleted-folder");
