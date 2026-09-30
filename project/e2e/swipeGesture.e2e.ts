@@ -189,6 +189,18 @@ async function main(): Promise<void> {
     );
     console.log("[e2e-swipe] PASS (touch): short drag under threshold snapped back, row D still present");
 
+    // --- fix/android-input-edge-cases: a fast, tiny flick - just past the
+    // tap threshold, released within a couple of frames - must NOT delete
+    // either. Its average velocity (distance/elapsedMs) clears the flick
+    // threshold, but the distance itself is negligible: an accidental
+    // brush of the screen, not a deliberate swipe. ---
+    const rowDBoxBeforeFlick = await waitForStableBox(rowD);
+    await touchDragLeft(client, rowDBoxBeforeFlick, 0.08, 1, 0);
+    await page.waitForTimeout(300); // let any snap-back transition finish
+    rows = await list.locator(".list-row").count();
+    assert(rows === 2, `an accidental fast flick of negligible distance must NOT delete the row - expected 2 rows still, got ${rows}`);
+    console.log("[e2e-swipe] PASS (touch): fast tiny flick (high average velocity, negligible distance) did not delete row D");
+
     // --- Real touch tap still opens the row in the editor (must not be
     // broken by the new gesture handling). ---
     await touchTap(client, rowDBoxBefore);
