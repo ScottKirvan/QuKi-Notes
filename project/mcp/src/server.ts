@@ -5,6 +5,7 @@ import { NotFoundError, QuKiStore } from 'quki-core';
 import { NodeFsBackend } from 'quki-core/node';
 import { z } from 'zod';
 
+import { resolveDesktopStorageDir } from './desktopDir.js';
 import {
   exportOutputShape,
   listActiveOutputShape,
@@ -259,7 +260,7 @@ export function createServer(rootDir: string): McpServer {
 }
 
 async function main(): Promise<void> {
-  const rootDir = process.argv[2] ?? process.env.QUKI_DIR;
+  const rootDir = process.argv[2] ?? process.env.QUKI_DIR ?? resolveDesktopStorageDir();
   if (!rootDir) {
     process.stderr.write('Usage: quki-mcp <qukiFolderPath>  (or set QUKI_DIR)\n');
     process.exit(1);

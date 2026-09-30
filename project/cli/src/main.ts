@@ -5,6 +5,7 @@ import { QuKiStore } from 'quki-core';
 import { NodeFsBackend } from 'quki-core/node';
 
 import { parseArgs, stringFlag } from './argv.js';
+import { resolveDesktopStorageDir } from './desktopDir.js';
 
 function printJson(value: unknown): void {
   process.stdout.write(`${JSON.stringify(value, null, 2)}\n`);
@@ -29,7 +30,7 @@ const USAGE =
 
 async function main(): Promise<void> {
   const { positional, flags } = parseArgs(process.argv.slice(2));
-  const dir = stringFlag(flags, 'dir') ?? process.env.QUKI_DIR;
+  const dir = stringFlag(flags, 'dir') ?? process.env.QUKI_DIR ?? resolveDesktopStorageDir();
   if (!dir) fail(`--dir <path> is required (or set QUKI_DIR)\n${USAGE}`);
 
   const command = positional[0];
