@@ -854,6 +854,49 @@ describe("fenced code block collapse", () => {
   });
 });
 
+describe("a fenced code block inside a blockquote", () => {
+  // Caret placed in the final line's content, safely outside every line's
+  // own marker span, so none of the five blockquote lines here reveal.
+  const doc = "> quote\n> ```\n> code\n> ```\n> more quote";
+  const caret = doc.length;
+
+  it("given a fenced block inside a blockquote and the caret elsewhere, when decorated, then every line - fences and content - still carries the quote bar", () => {
+    const decos = decorationsFor(doc, caret);
+    const bars = byClass(decos, "cm-quki-quote");
+    expect(bars.map((d) => d.from)).toEqual([0, 8, 14, 21, 27]);
+  });
+
+  it("given that same block, when decorated, then the codeblock background is still applied to its own lines", () => {
+    const decos = decorationsFor(doc, caret);
+    expect(byClass(decos, "cm-quki-codeblock-line").map((d) => d.from)).toEqual([8, 14, 21]);
+  });
+
+  it("given that same block, when decorated, then each line's own > marker span is hidden, not shown as literal text", () => {
+    const decos = decorationsFor(doc, caret);
+    expect(hiddenRanges(decos)).toEqual(
+      expect.arrayContaining([
+        [0, 2],
+        [8, 10],
+        [14, 16],
+        [21, 23],
+        [27, 29],
+      ]),
+    );
+  });
+
+  it("given content that looks like markdown inside the quoted fence, when decorated, then it is still never parsed as markdown", () => {
+    const plainDoc = "> ```\n> **not bold**\n> ```";
+    const decos = decorationsFor(plainDoc, 0);
+    expect(byClass(decos, "cm-quki-strong")).toEqual([]);
+  });
+
+  it("given the caret inside the quoted fenced block's content, when decorated, then the whole block reveals as raw source and carries no codeblock background", () => {
+    const insideDoc = "> ```\n> code\n> ```";
+    const decos = decorationsFor(insideDoc, insideDoc.indexOf("code"));
+    expect(byClass(decos, "cm-quki-codeblock-line")).toEqual([]);
+  });
+});
+
 
 describe("fenced code block under a selection", () => {
   const doc = "plain\n\n```\ncode\n```";

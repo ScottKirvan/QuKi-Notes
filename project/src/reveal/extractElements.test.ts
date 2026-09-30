@@ -187,6 +187,36 @@ describe("blockquote lines", () => {
   it("given a > inside a fenced code block, then it is not a quote line", () => {
     expect(quoteElements("```\n> not a quote\n```")).toEqual([]);
   });
+
+  it("given a fenced code block inside a blockquote, then every line - opening fence, content and closing fence - is still a blockquote line", () => {
+    const doc = "> quote\n> ```\n> code\n> ```\n> more quote";
+    const quotes = quoteElements(doc);
+    expect(quotes).toHaveLength(5);
+    expect(quotes.map((q) => q.quoteDepth)).toEqual([1, 1, 1, 1, 1]);
+    const fenceLines = quotes.filter((q) => doc.slice(q.start, q.end).includes("```"));
+    expect(fenceLines).toHaveLength(2);
+    const codeLine = quotes.find((q) => doc.slice(q.start, q.end).includes("code"));
+    expect(codeLine!.checkEnd).toBe(codeLine!.start + 2);
+  });
+
+  it("given a fenced code block inside a nested blockquote, then the interior lines keep the full nested depth", () => {
+    const doc = ">> nested\n>> ```\n>> code\n>> ```\n>> more";
+    const quotes = quoteElements(doc);
+    expect(quotes).toHaveLength(5);
+    expect(quotes.every((q) => q.quoteDepth === 2)).toBe(true);
+  });
+
+  it("given a fenced code block inside a blockquote, then the FencedCode element itself is unaffected - still one block-marker, content still never parsed as markdown", () => {
+    const doc = "> quote\n> ```\n> **not bold**\n> ```";
+    const els = elementsFor(doc);
+    expect(els.filter((el) => el.type === "FencedCode")).toHaveLength(1);
+    expect(els.some((el) => el.type === "StrongEmphasis")).toBe(false);
+  });
+
+  it("given an ordinary fenced code block with no enclosing blockquote, then no blockquote lines are added for it", () => {
+    const doc = "```\ncode\n```";
+    expect(quoteElements(doc)).toEqual([]);
+  });
 });
 
 function taskElements(doc: string): RevealElement[] {

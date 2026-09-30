@@ -163,6 +163,30 @@ export function extractElements(state: EditorState): ExtractResult {
   // recomputing the whole table's row list per row.
   let tableBoundaryEnd: number | null = null;
 
+  // Shared by the top-level QuoteMark case below and by FencedCode's own
+  // handling of the QuoteMark children @lezer/markdown nests inside a fenced
+  // code block that sits inside a blockquote (see the FencedCode case) — same
+  // "does this marker actually start its line" check and same BlockquoteLine
+  // element shape either way.
+  function addBlockquoteLine(quoteMark: SyntaxNode): void {
+    const line = state.doc.lineAt(quoteMark.from);
+    const prefix = quoteMark.from === line.from ? quotePrefix(line.text) : null;
+    if (!prefix) return;
+    const id = nextId++;
+    elements.push({
+      id,
+      type: "BlockquoteLine",
+      category: "block-marker",
+      start: line.from,
+      end: line.to,
+      checkStart: line.from,
+      checkEnd: line.from + prefix.length,
+      parentId: null,
+      quoteDepth: prefix.depth,
+    });
+    nodes.set(id, quoteMark);
+  }
+
   tree.iterate({
     enter(node) {
       const type = node.name;
@@ -192,23 +216,7 @@ export function extractElements(state: EditorState): ExtractResult {
       }
 
       if (type === "QuoteMark") {
-        const line = state.doc.lineAt(node.from);
-        const prefix = node.from === line.from ? quotePrefix(line.text) : null;
-        if (prefix) {
-          const id = nextId++;
-          elements.push({
-            id,
-            type: "BlockquoteLine",
-            category: "block-marker",
-            start: line.from,
-            end: line.to,
-            checkStart: line.from,
-            checkEnd: line.from + prefix.length,
-            parentId: null,
-            quoteDepth: prefix.depth,
-          });
-          nodes.set(id, node.node);
-        }
+        addBlockquoteLine(node.node);
         return true;
       }
 
@@ -398,6 +406,18 @@ export function extractElements(state: EditorState): ExtractResult {
           ...(infoNode && { infoString: state.sliceDoc(infoNode.from, infoNode.to) }),
         });
         nodes.set(id, node.node);
+        // A fenced code block that sits inside a blockquote nests its
+        // continuation lines' QuoteMark tokens as direct children of the
+        // FencedCode node itself, not as siblings of it under the
+        // Blockquote - so returning false below (to keep the block's own
+        // content from ever being descended into and parsed as markdown)
+        // would otherwise also skip these, losing the quote bar on every
+        // line the code block occupies. They belong to the blockquote, not
+        // to the code block, so they're picked up here explicitly before
+        // the walk is cut off.
+        for (const quoteMark of node.node.getChildren("QuoteMark")) {
+          addBlockquoteLine(quoteMark);
+        }
         return false;
       }
 

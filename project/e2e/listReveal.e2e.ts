@@ -823,6 +823,49 @@ async function main(): Promise<void> {
       await context.close();
     }
 
+    // --- A fenced code block inside a blockquote keeps its quote bar ---
+    {
+      const context = await browser.newContext();
+      const page = await openFreshPage(context, url);
+
+      const quotedFenceDoc = "> quote\n> ```\n> code line\n> ```\n> more quote";
+      // Caret at the very end (inside "more quote"'s content, not its own
+      // "> " marker) so none of the five quote lines' own marker spans
+      // contains it - every line should collapse.
+      await setDocAndSelection(page, quotedFenceDoc, quotedFenceDoc.length);
+      await page.waitForTimeout(150);
+
+      const quoteBarLines = page.locator(".cm-line.cm-quki-quote");
+      const quoteBarCount = await quoteBarLines.count();
+      assert(quoteBarCount === 5, `every one of the 5 lines (2 plain, 2 fence, 1 content) should keep its quote bar, got ${quoteBarCount}`);
+      console.log("[e2e-listReveal] PASS: a fenced code block inside a blockquote keeps the quote bar on every line, fences included");
+
+      const codeContentLine = await page.locator(".cm-line", { hasText: "code line" }).first().textContent();
+      assert(codeContentLine === "code line", `the code content line must not show a literal "> " prefix, got ${JSON.stringify(codeContentLine)}`);
+      console.log("[e2e-listReveal] PASS: the quoted fence's content line hides its > marker instead of showing it as literal code text");
+
+      const codeBg = await page.locator(".cm-line.cm-quki-codeblock-line", { hasText: "code line" }).evaluate((el) => getComputedStyle(el).backgroundColor);
+      const plainBg = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+      assert(codeBg !== "" && codeBg !== plainBg, `the quoted code content should still carry the codeblock background, got ${codeBg} vs body ${plainBg}`);
+      console.log("[e2e-listReveal] PASS: the quoted fenced block still carries its codeblock background");
+
+      const bodyText = await page.evaluate(() => document.body.textContent ?? "");
+      assert(!bodyText.includes("```"), "collapsed fence markers inside the blockquote must not be visible anywhere");
+      assert((await editorBody(page)) === quotedFenceDoc, "rendering must not rewrite the source");
+      console.log("[e2e-listReveal] PASS: a fenced code block inside a blockquote still collapses its own fence markers");
+
+      // Caret inside the quoted block's content reveals the whole block raw.
+      const caretInCode = quotedFenceDoc.indexOf("code line");
+      await setDocAndSelection(page, quotedFenceDoc, caretInCode);
+      await page.waitForTimeout(150);
+      assert((await page.locator(".cm-quki-codeblock-line").count()) === 0, "caret inside the quoted block should reveal it as raw source");
+      const rawCodeLine = await page.locator(".cm-line", { hasText: "code line" }).first().textContent();
+      assert(rawCodeLine === "> code line", `the revealed content line should show its raw > marker, got ${JSON.stringify(rawCodeLine)}`);
+      console.log("[e2e-listReveal] PASS: caret inside the quoted fenced block reveals raw source including its blockquote marker");
+
+      await context.close();
+    }
+
     console.log("[e2e-listReveal] ALL SCENARIOS PASSED");
   } finally {
     await browser.close();
