@@ -1128,6 +1128,28 @@ async function init(): Promise<void> {
     void sendCurrentQuKi();
   });
 
+  // BEHAVIOR_SPEC.md §4/§5: "Keyboard shortcuts — Windows and Linux only.
+  // Ctrl+T sends. Ctrl+N creates a new QuKi." window.electronPlatform is
+  // only set inside the Electron wrapper (electron/src/preload.ts) - the
+  // plain browser/PWA build has no way to override the browser's own
+  // reserved Ctrl+T/Ctrl+N, so this is a no-op there, matching sendBtn's
+  // own win32/linux gate above. A global keydown listener rather than a
+  // CodeMirror keymap entry (indentDedentKeymap above) because these fire
+  // regardless of whether the editor has focus, not just while editing.
+  if (window.electronPlatform === "win32" || window.electronPlatform === "linux") {
+    window.addEventListener("keydown", (event) => {
+      if (!event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+      const key = event.key.toLowerCase();
+      if (key === "t") {
+        event.preventDefault();
+        void sendCurrentQuKi();
+      } else if (key === "n") {
+        event.preventDefault();
+        void startNewQuKi();
+      }
+    });
+  }
+
   // BEHAVIOR_SPEC.md §8, Android only - same isAndroid gate already used
   // above for Send. Registered once for the life of the app, the same way
   // editModeTracker's Keyboard listeners above are never removed.
