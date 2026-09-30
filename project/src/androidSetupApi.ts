@@ -60,7 +60,13 @@ export async function createAndroidSetupApi(deps: AndroidSetupApiDeps): Promise<
 
   const decisionDeps: AndroidSetupDecisionDeps = {
     readSettings: () => deps.settingsStore.read(),
-    writeSettings: (settings) => deps.settingsStore.write(settings),
+    // Routed through setStorageLocation (merges onto the current file)
+    // rather than a raw write() - the decision module only ever knows about
+    // storagePath/storageChosen, so a raw write() here would silently wipe
+    // any plainTextMode already recorded.
+    writeSettings: async (settings) => {
+      await deps.settingsStore.setStorageLocation(settings.storagePath);
+    },
     isValidWritableDirectory: deps.isValidWritableDirectory,
     resolveMigratedStorageRoot: deps.resolveMigratedStorageRoot,
   };
@@ -98,6 +104,17 @@ export async function createAndroidSetupApi(deps: AndroidSetupApiDeps): Promise<
 
     async quit(): Promise<void> {
       await deps.exitApp();
+    },
+
+    // BEHAVIOR_SPEC.md §4: the mode toggle's plain-text/rendered choice
+    // "persists across launches" - Android's counterpart of Electron's
+    // getPlainTextMode/setPlainTextMode IPC (electron/src/main.ts).
+    async getPlainTextMode(): Promise<boolean> {
+      return (await deps.settingsStore.read()).plainTextMode;
+    },
+
+    async setPlainTextMode(value: boolean): Promise<void> {
+      await deps.settingsStore.setPlainTextMode(value);
     },
   };
 }

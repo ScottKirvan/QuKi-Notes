@@ -187,6 +187,13 @@ function registerSetupIpc(prefsStore: PreferencesStore): void {
     prefsStore.setStorageLocation(selected);
     return selected;
   });
+
+  // BEHAVIOR_SPEC.md §4: the mode toggle's plain-text/rendered choice
+  // "persists across launches".
+  ipcMain.handle(SETUP_CHANNELS.getPlainTextMode, () => prefsStore.read().plainTextMode);
+  ipcMain.handle(SETUP_CHANNELS.setPlainTextMode, (_event, plainTextMode: boolean) => {
+    prefsStore.setPlainTextMode(plainTextMode);
+  });
 }
 
 const CONTENT_TYPES: Record<string, string> = {

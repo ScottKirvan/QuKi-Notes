@@ -56,6 +56,8 @@ export const SETUP_CHANNELS = {
   chooseFilesystem: 'quki:setup:chooseFilesystem',
   chooseAppStorage: 'quki:setup:chooseAppStorage',
   quit: 'quki:setup:quit',
+  getPlainTextMode: 'quki:setup:getPlainTextMode',
+  setPlainTextMode: 'quki:setup:setPlainTextMode',
 } as const;
 
 export interface StorageLocationState {

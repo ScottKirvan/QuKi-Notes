@@ -82,6 +82,9 @@ export interface ElectronSetupApi {
    * proceeding with no storage backend.
    */
   quit(): Promise<void>;
+  /** BEHAVIOR_SPEC.md §4: the mode toggle's plain-text/rendered choice "persists across launches". */
+  getPlainTextMode(): Promise<boolean>;
+  setPlainTextMode(value: boolean): Promise<void>;
 }
 
 const setupApi: ElectronSetupApi = {
@@ -89,6 +92,8 @@ const setupApi: ElectronSetupApi = {
   chooseFilesystem: () => ipcRenderer.invoke('quki:setup:chooseFilesystem'),
   chooseAppStorage: () => ipcRenderer.invoke('quki:setup:chooseAppStorage'),
   quit: () => ipcRenderer.invoke('quki:setup:quit'),
+  getPlainTextMode: () => ipcRenderer.invoke('quki:setup:getPlainTextMode'),
+  setPlainTextMode: (value: boolean) => ipcRenderer.invoke('quki:setup:setPlainTextMode', value),
 };
 
 contextBridge.exposeInMainWorld('electronSetupAPI', setupApi);
