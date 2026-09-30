@@ -46,8 +46,9 @@ import { remoteImageFetcher } from "./reveal/remoteImageFetcher";
 import { fetchRemoteImage } from "./reveal/fetchRemoteImage";
 import { createImagePastePlugin } from "./pasteImage";
 import { AutoSaveController, blankInitialQuKi, type InitialQuKi } from "./persistence";
-import { sendQuKi, selectShareTransport } from "./send";
+import { sendQuKi, selectShareTransport, createClipboardTransport } from "./send";
 import { shareTextViaAndroid } from "./androidShare";
+import { createWebShareTransport } from "./webShare";
 import { onSharedTextReceived } from "./shareIn";
 import { Navigator, type ViewName } from "./navigation";
 import { createListView } from "./screens/listView";
@@ -816,10 +817,11 @@ async function init(): Promise<void> {
   // unmaintained C# helper, which the project owner declined to adopt.
   // Until a native addon is built - and this may be worth publishing for
   // other Electron apps in the same position, since no clean solution
-  // appears to exist anywhere in the ecosystem - Windows falls back to the
-  // same clipboard behavior already built for Linux (STORAGE_CONTRACT.md's
-  // Linux clipboard fallback, reused here as a stand-in, not a match for
-  // spec intent). See sendCurrentQuKi below.
+  // appears to exist anywhere in the ecosystem - both Electron desktop
+  // platforms (Windows and Linux) fall back to the same clipboard behavior
+  // (STORAGE_CONTRACT.md's Linux clipboard fallback, reused here as a
+  // stand-in for Windows too, not a match for spec intent). See
+  // sendCurrentQuKi below.
   //
   // Android is not a fallback case at all: it gets the real system share
   // sheet (androidShare.ts, via the native Share plugin), matching
@@ -827,7 +829,18 @@ async function init(): Promise<void> {
   // where one exists" for the one platform where it already exists here.
   // (isAndroid is declared earlier in this function, for the Android setup
   // API construction above.)
-  sendBtn.disabled = !isAndroid && window.electronPlatform !== "linux" && window.electronPlatform !== "win32";
+  //
+  // The plain web build (no Electron, no Capacitor) is the one place
+  // navigator.share() actually works from a browser, so it gets the real
+  // thing (webShare.ts), with the same clipboard fallback for browsers that
+  // lack it (Safari without it, a non-secure context). That covers every
+  // day-one target (web, Android, Windows, Linux). An Electron build on any
+  // other platform (there are none shipped today) still has no destination
+  // built for it and stays disabled, same as before - it is not "web" just
+  // because it also lacks navigator.share.
+  const isElectronDesktop = window.electronPlatform === "linux" || window.electronPlatform === "win32";
+  const isUnsupportedElectronPlatform = window.electronPlatform !== undefined && !isElectronDesktop;
+  sendBtn.disabled = isUnsupportedElectronPlatform;
   setButtonIcon(settingsBtn, Settings, "Settings");
   setButtonIcon(deleteBtn, Trash2, "Delete");
 
@@ -940,9 +953,14 @@ async function init(): Promise<void> {
   async function sendCurrentQuKi(): Promise<void> {
     await autoSave.flush();
     const body = view.state.doc.toString();
-    const transport = selectShareTransport(isAndroid, shareTextViaAndroid, (text) => navigator.clipboard.writeText(text));
+    const clipboardTransport = createClipboardTransport((text) => navigator.clipboard.writeText(text));
+    const webShareApi = typeof navigator.share === "function" ? (data: ShareData) => navigator.share(data) : undefined;
+    const webTransport = createWebShareTransport(webShareApi, clipboardTransport);
+    const transport = selectShareTransport(isAndroid, isElectronDesktop, shareTextViaAndroid, clipboardTransport, webTransport);
     const result = await sendQuKi(body, transport);
-    showToast(result.message, result.durationMs, result.retryable ? { label: "Retry", onClick: () => void sendCurrentQuKi() } : undefined);
+    if (result.message !== undefined) {
+      showToast(result.message, result.durationMs, result.retryable ? { label: "Retry", onClick: () => void sendCurrentQuKi() } : undefined);
+    }
   }
 
   async function openQuKiInEditor(id: string): Promise<void> {
