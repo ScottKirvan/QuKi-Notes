@@ -35,6 +35,26 @@ jobs:
         run: npm run build
         working-directory: project
 
+      # cli and mcp each bundle to a single self-contained .mjs (see
+      # cli/scripts/bundle.mjs, mcp/scripts/bundle.mjs) - electron-builder's
+      # extraResources copies dist-bundle/ into the packaged app, and the
+      # AppRun dispatch step below (quki / quki-mcp) runs it directly.
+      - name: Install (cli)
+        run: npm ci
+        working-directory: project/cli
+
+      - name: Bundle CLI
+        run: npm run bundle
+        working-directory: project/cli
+
+      - name: Install (mcp)
+        run: npm ci
+        working-directory: project/mcp
+
+      - name: Bundle MCP server
+        run: npm run bundle
+        working-directory: project/mcp
+
       - name: Install (electron)
         run: npm ci
         working-directory: project/electron
@@ -47,6 +67,59 @@ jobs:
         run: npm run dist:linux
         working-directory: project/electron
 
+      # electron-builder/app-builder's own AppRun always launches the app.
+      # Replace it with a small dispatcher so the same AppImage also serves as
+      # `quki` and `quki-mcp` when invoked under those names (the symlink
+      # convention documented for end users: `ln -s .../QuKi-Notes.AppImage
+      # ~/.local/bin/quki`). AppImage's runtime sets $ARGV0 to the name the
+      # .AppImage (or a symlink to it) was invoked as - this is the
+      # documented mechanism, not something read off this repo's own code.
+      # The renamed original AppRun (AppRun.real) keeps whatever environment
+      # setup (e.g. library paths) electron-builder's own AppRun does for a
+      # normal app launch; ELECTRON_RUN_AS_NODE=1 is what turns that same
+      # bundled Electron binary into a plain Node runtime for the CLI/MCP
+      # bundles - see cli/dist-bundle and mcp/dist-bundle, and the identical
+      # mechanism proven out for the Windows installer in
+      # project/electron/build/installer.nsh.
+      #
+      # This step could not be run/tested in this repo's own CI to confirm -
+      # only reasoned through from documented AppImage/appimagetool behavior.
+      - name: Patch AppImage AppRun to dispatch quki / quki-mcp by invoked name
+        run: |
+          set -e
+          APPIMAGE=$(find project/electron/release -maxdepth 1 -name "*.AppImage" | head -1)
+          chmod +x "$APPIMAGE"
+          "$APPIMAGE" --appimage-extract
+
+          mv squashfs-root/AppRun squashfs-root/AppRun.real
+
+          cat > squashfs-root/AppRun <<'EOF'
+          #!/bin/sh
+          HERE="$(dirname "$(readlink -f "${0}")")"
+          NAME="$(basename "${ARGV0:-$0}")"
+          case "$NAME" in
+            quki)
+              exec env ELECTRON_RUN_AS_NODE=1 "$HERE/AppRun.real" "$HERE/resources/cli/main.mjs" "$@"
+              ;;
+            quki-mcp)
+              exec env ELECTRON_RUN_AS_NODE=1 "$HERE/AppRun.real" "$HERE/resources/mcp/server.mjs" "$@"
+              ;;
+            *)
+              exec "$HERE/AppRun.real" "$@"
+              ;;
+          esac
+          EOF
+          chmod +x squashfs-root/AppRun
+
+          wget -q -O appimagetool https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
+
+          # No version number: end users symlink to this exact filename once
+          # (`ln -s ~/Applications/QuKi-Notes.AppImage ~/.local/bin/quki`),
+          # and it must stay valid across every future update.
+          APPIMAGE_EXTRACT_AND_RUN=1 ./appimagetool squashfs-root "project/electron/release/QuKi-Notes.AppImage"
+          rm "$APPIMAGE"
+
       - name: Upload AppImage as artifact (manual dispatch)
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
@@ -55,16 +128,8 @@ jobs:
           path: project/electron/release/*.AppImage
           retention-days: 14
 
-      - name: Rename AppImage with version tag
-        if: github.event_name != 'workflow_dispatch'
-        env:
-          TAG: ${{ github.event.release.tag_name }}
-        run: |
-          SRC=$(find project/electron/release -maxdepth 1 -name "*.AppImage" | head -1)
-          mv "$SRC" "project/electron/release/quki-notes-linux-${TAG}.AppImage"
-
       - name: Upload to GitHub Release
         if: github.event_name != 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
-          files: project/electron/release/quki-notes-linux-${{ github.event.release.tag_name }}.AppImage
+          files: project/electron/release/QuKi-Notes.AppImage
