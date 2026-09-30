@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as http from 'node:http';
 import * as path from 'node:path';
 
-import { app, BrowserWindow, dialog, ipcMain, screen, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, screen, shell } from 'electron';
 // quki-core is ESM-only; under Node16 module resolution a CommonJS file
 // importing *types* from an ESM package must say which condition
 // ("import") to resolve them under (TS1542) - this has no runtime effect,
@@ -460,6 +460,22 @@ async function createWindow(prefsStore: PreferencesStore): Promise<BrowserWindow
 }
 
 app.whenReady().then(async () => {
+  // Electron's default menu (Edit/View/Window with Reload, Force Reload,
+  // Toggle Developer Tools, ...) is a development convenience, not part of
+  // this app's UI - QuKi Notes has no menu-driven functionality of its own,
+  // and shipping Reload/DevTools in a production build both looks
+  // unfinished and gives a way to poke at the app that isn't meant to be
+  // there. Gated on app.isPackaged (not e.g. NODE_ENV) so a dev run - via
+  // `electron dist/main.js` or the Vite dev-server workflow - keeps the
+  // default menu's Reload/DevTools for actual development use; only a
+  // packaged build suppresses it. Electron/Windows/Linux are this project's
+  // desktop targets (see CLAUDE.md); macOS is not, so there is no
+  // Cmd+Q/Edit-menu role to preserve here - a bare null menu is the "truly
+  // needs none" case.
+  if (app.isPackaged) {
+    Menu.setApplicationMenu(null);
+  }
+
   const prefsStore = new PreferencesStore(app.getPath('userData'));
 
   // QUKI_ELECTRON_DIR is a dev/test override predating the setup screen

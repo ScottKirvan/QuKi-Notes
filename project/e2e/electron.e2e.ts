@@ -64,6 +64,16 @@ async function main(): Promise<void> {
   // .md file appears on disk at the expected path with the expected content. ---
   let { app, page } = await launch(storageDir);
 
+  // main.ts suppresses the default Electron menu only when app.isPackaged -
+  // this e2e run always launches the unpackaged dist/main.js directly, so
+  // the default dev menu (Reload, Toggle DevTools, ...) must still be
+  // present here. This only proves the gate is a no-op in dev, not that a
+  // packaged build actually suppresses it - that would need a real
+  // electron-builder distributable, which this run does not build.
+  const hasDefaultMenuInDev = await app.evaluate(({ Menu }) => Menu.getApplicationMenu() !== null);
+  assert(hasDefaultMenuInDev, "the default Electron menu should still be present in an unpackaged/dev run");
+  console.log("[e2e] PASS: default menu is untouched in dev (app.isPackaged is false) - packaged suppression not exercised by this run");
+
   const marker = `Electron e2e proof ${Date.now()}`;
   await page.click(".cm-content");
   await page.keyboard.press("Control+A");
