@@ -1,5 +1,5 @@
 import { exportLibrary as buildExport } from './export.js';
-import { findImageReferences, writeImage as writeImageFile } from './media.js';
+import { findImageReferences, isOrphanCandidate, writeImage as writeImageFile } from './media.js';
 import { readSidecar, writeSidecar, type SidecarData } from './sidecar.js';
 import type { FileStat, StorageBackend } from './storageBackend.js';
 import {
@@ -312,8 +312,11 @@ export class QuKiStore {
 
   private async removeOrphanedImages(candidates: string[]): Promise<void> {
     const stillReferenced = await this.collectAllImageReferences();
+    const mediaDirEntries = await this.backend.listDir('media');
     for (const ref of candidates) {
-      if (!stillReferenced.has(ref)) await this.backend.remove(ref);
+      if (stillReferenced.has(ref)) continue;
+      if (!isOrphanCandidate(ref, mediaDirEntries)) continue;
+      await this.backend.remove(ref);
     }
   }
 
