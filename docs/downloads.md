@@ -35,8 +35,8 @@ onMounted(async () => {
 
 
 <div style="display: flex; justify-content: center;">
-  <table><tr><td>App
-<table style="margin-inline: auto;">
+  <table><tbody><tr><td>App
+<table style="margin-inline: auto;"><tbody>
   <tr> <td> iOS </td> <td><a href="/QuKi-Notes/install/ios">Instructions</a></td> </tr>
   <tr> <td> Android </td> <td>
   <a href="/QuKi-Notes/install/android">Join The Beta</a><br>
@@ -52,8 +52,8 @@ onMounted(async () => {
   <a href="/QuKi-Notes/install/linux">Flatpak (Community maintained)</a>
   </td> </tr>
   <tr> <td> Web </td> <td><a href="/QuKi-Notes/install/web">Get for Web</a></td> </tr>
-  </table>
-  </td></tr></table>
+  </tbody></table>
+  </td></tr></tbody></table>
 </div>
   
 
