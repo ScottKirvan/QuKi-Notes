@@ -47,4 +47,12 @@ deleteme/
 packages/
 notes/secret/
 
+# Retired root-level Flutter platform scaffolding
+/android/
+/ios/
+/linux/
+/macos/
+/windows/
 
+
+docs/.obsidian/*
