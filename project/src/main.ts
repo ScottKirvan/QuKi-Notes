@@ -730,6 +730,14 @@ async function init(): Promise<void> {
   });
   window.addEventListener("pagehide", flushOnHide);
 
+  // Electron only: visibilitychange/pagehide above are fire-and-forget, with
+  // nothing holding the window open until the flush actually lands on disk
+  // - fine for the web build's own lifecycle, but on the desktop app that
+  // race could drop the last ~2s of typing on quit. main.ts's
+  // attachQuitFlush defers the real window close until this resolves (or a
+  // timeout elapses), so this one, unlike flushOnHide, must be awaited.
+  window.electronLifecycleAPI?.onFlushBeforeQuit(() => autoSave.flush());
+
   // BEHAVIOR_SPEC.md §4: "a new, blank QuKi takes focus (edit mode), an
   // existing QuKi does not (reading mode)." At launch `initial` is always
   // the blank case (blankInitialQuKi) - shouldFocusOnOpen's null-id check

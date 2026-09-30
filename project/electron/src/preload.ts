@@ -92,3 +92,36 @@ const setupApi: ElectronSetupApi = {
 };
 
 contextBridge.exposeInMainWorld('electronSetupAPI', setupApi);
+
+const FLUSH_BEFORE_QUIT_CHANNEL = 'quki:app:flushBeforeQuit';
+const FLUSH_COMPLETE_CHANNEL = 'quki:app:flushComplete';
+
+/**
+ * Quit-time flush handshake bridge (see main.ts's attachQuitFlush and
+ * storageIpc.ts's APP_LIFECYCLE_CHANNELS): the main process defers actually
+ * closing a window until the renderer's pending auto-save has been flushed,
+ * so quitting the app can no longer drop the last unsaved edit. callback is
+ * always acknowledged over IPC, even if it rejects, so a flush error can
+ * never hang the main process's close - it just proceeds with whatever was
+ * last written, the same as any other failed save under
+ * STORAGE_CONTRACT.md rule 18.
+ */
+export interface ElectronLifecycleApi {
+  onFlushBeforeQuit(callback: () => Promise<void>): void;
+}
+
+const lifecycleApi: ElectronLifecycleApi = {
+  onFlushBeforeQuit: (callback) => {
+    ipcRenderer.on(FLUSH_BEFORE_QUIT_CHANNEL, () => {
+      void callback()
+        .catch((error) => {
+          console.error('QuKi quit-time flush failed:', error);
+        })
+        .finally(() => {
+          ipcRenderer.send(FLUSH_COMPLETE_CHANNEL);
+        });
+    });
+  },
+};
+
+contextBridge.exposeInMainWorld('electronLifecycleAPI', lifecycleApi);

@@ -181,9 +181,44 @@ async function main(): Promise<void> {
   console.log("[e2e] PASS: navigating the window to an external URL was blocked (will-navigate denied it)");
   await page.evaluate(() => document.getElementById("quki-e2e-will-navigate-test")?.remove());
 
-  await app.close();
+  // --- Scenario 7: quitting the app must not lose an edit still sitting in
+  // the 2s auto-save debounce - electron/src/main.ts's attachQuitFlush must
+  // hold the window open until the renderer's pending save actually lands
+  // on disk (project/src/main.ts's onFlushBeforeQuit wiring). Closing the
+  // real BrowserWindow (not calling app.close(), which is Playwright's own
+  // teardown, not a signal the app's own close handler necessarily sees the
+  // same way) and waiting for the whole app to actually terminate is what
+  // proves the handshake, not just that the call was made.
+  //
+  // The edit is dispatched straight at the CodeMirror view (window.qukiView,
+  // also used by readEditorBody above) rather than via page.click/keyboard -
+  // scenario 6's will-navigate cancellation above leaves Playwright's own
+  // per-page navigation-lifecycle tracking permanently believing a
+  // navigation is still pending (a known rough edge of cancelling
+  // navigation at the Electron main-process level under Playwright, not
+  // anything this app's code controls), which hangs every subsequent
+  // page.click on this page. The view's updateListener (src/main.ts) calls
+  // autoSave.notifyChange() on any docChanged update regardless of how the
+  // change was made, so this exercises the identical auto-save path a real
+  // keystroke would. ---
+  const unflushedMarker = `${edited}\nunflushed at quit ${Date.now()}`;
+  await page.evaluate((text) => {
+    const view = (window as unknown as { qukiView: { dispatch(spec: unknown): void; state: { doc: { length: number } } } })
+      .qukiView;
+    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } });
+  }, unflushedMarker);
+  // Deliberately no wait for the 2s auto-save debounce: close immediately
+  // while the save is still only pending, so it's the quit handshake - not
+  // the debounce - that has to get it onto disk.
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.close());
+  await app.waitForEvent("close");
+  assert(
+    fs.readFileSync(mdPath, "utf8") === unflushedMarker,
+    "quitting immediately after an edit should still flush it to disk before the app actually closes",
+  );
+  console.log("[e2e] PASS: quit-time flush handshake saved a still-pending edit before the app closed");
 
-  // --- Scenario 7: restart the app (a real process restart, not a page
+  // --- Scenario 8: restart the app (a real process restart, not a page
   // reload) and confirm the edited content survives - proving the file on
   // disk is the real source of truth, not in-memory state. ---
   ({ app, page } = await launch(storageDir));
@@ -194,7 +229,7 @@ async function main(): Promise<void> {
   );
   console.log("[e2e] PASS: content survived a real Electron process restart (loaded from disk, not memory)");
 
-  // --- Scenario 8: delete via the editor's Delete button moves the real
+  // --- Scenario 9: delete via the editor's Delete button moves the real
   // file into .trash/ on disk; the trash screen then shows it and restoring
   // it moves the real file back. ---
   await page.click("#btn-delete");

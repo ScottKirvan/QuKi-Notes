@@ -13,7 +13,13 @@ import type { StorageBackend } from 'quki-core' with { 'resolution-mode': 'impor
 import { resolveMigratedStorageRoot } from './flutterMigration.js';
 import { PreferencesStore } from './preferences.js';
 import { isValidWritableDirectory } from './storageValidation.js';
-import { RESOLVE_PATH_SYNC_CHANNEL, SETUP_CHANNELS, STORAGE_CHANNELS, type ResolvePathSyncResult } from './storageIpc.js';
+import {
+  APP_LIFECYCLE_CHANNELS,
+  RESOLVE_PATH_SYNC_CHANNEL,
+  SETUP_CHANNELS,
+  STORAGE_CHANNELS,
+  type ResolvePathSyncResult,
+} from './storageIpc.js';
 
 // Applies a caller-chosen userData directory before anything reads
 // app.getPath('userData') - must run at module load, before app.whenReady(),
@@ -377,6 +383,52 @@ function attachExternalLinkHandling(win: BrowserWindow): void {
   });
 }
 
+// How long the main process waits for the renderer's onFlushBeforeQuit
+// acknowledgement (see attachQuitFlush) before giving up and closing anyway
+// - a hung or crashed renderer must never make the window unclosable.
+const QUIT_FLUSH_TIMEOUT_MS = 5000;
+
+/**
+ * The only close-time save signal before this was project/src/main.ts's
+ * visibilitychange/pagehide handler firing `void autoSave.flush()` - fire
+ * and forget, with nothing holding the window open until it actually
+ * finishes. On Electron that flush is an async IPC round trip to the main
+ * process's NodeFsBackend, so a window closing (and the process exiting
+ * once window-all-closed's app.quit() runs) could easily race ahead of a
+ * save still in flight, losing the last ~2s of typing.
+ *
+ * Preventing the close, asking the renderer to flush over IPC, and waiting
+ * for its acknowledgement (or the timeout above) before calling win.close()
+ * again is the standard main-process quit-handshake pattern. The second
+ * win.close() re-enters this same 'close' handler, which closeApproved
+ * short-circuits so the window actually closes that time.
+ */
+function attachQuitFlush(win: BrowserWindow): void {
+  let closeApproved = false;
+
+  win.on('close', (event) => {
+    if (closeApproved) return;
+    event.preventDefault();
+
+    const finish = (): void => {
+      if (closeApproved) return;
+      closeApproved = true;
+      clearTimeout(timeoutId);
+      ipcMain.removeListener(APP_LIFECYCLE_CHANNELS.flushComplete, finish);
+      win.close();
+    };
+
+    const timeoutId = setTimeout(finish, QUIT_FLUSH_TIMEOUT_MS);
+    ipcMain.once(APP_LIFECYCLE_CHANNELS.flushComplete, finish);
+
+    if (win.webContents.isDestroyed()) {
+      finish();
+      return;
+    }
+    win.webContents.send(APP_LIFECYCLE_CHANNELS.flushBeforeQuit);
+  });
+}
+
 async function createWindow(prefsStore: PreferencesStore): Promise<BrowserWindow> {
   const win = new BrowserWindow({
     width: DEFAULT_WINDOW_WIDTH,
@@ -391,6 +443,7 @@ async function createWindow(prefsStore: PreferencesStore): Promise<BrowserWindow
   });
   attachWindowBoundsPersistence(win, prefsStore);
   attachExternalLinkHandling(win);
+  attachQuitFlush(win);
 
   // Vite dev-server workflow (see project/scripts/electron-dev.mjs): when
   // set, load the live dev server instead of the static production build.

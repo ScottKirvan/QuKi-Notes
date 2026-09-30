@@ -58,6 +58,19 @@ export const SETUP_CHANNELS = {
   quit: 'quki:setup:quit',
 } as const;
 
+/**
+ * Quit-time flush handshake (see main.ts's attachQuitFlush and preload.ts):
+ * the main process asks the renderer to flush its pending auto-save before
+ * a window is actually allowed to close, and waits for the renderer's
+ * acknowledgement (or a fallback timeout) before proceeding. Channel names
+ * are duplicated as string literals in preload.ts rather than importing
+ * this at runtime - see preload.ts's top comment for why.
+ */
+export const APP_LIFECYCLE_CHANNELS = {
+  flushBeforeQuit: 'quki:app:flushBeforeQuit',
+  flushComplete: 'quki:app:flushComplete',
+} as const;
+
 export interface StorageLocationState {
   chosen: boolean;
   path: string | null;
