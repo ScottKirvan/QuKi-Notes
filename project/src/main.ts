@@ -25,6 +25,7 @@ import { createStorageAccessGate } from "./androidStorageAccess";
 import { resolveMigratedStorageRoot, type AndroidFlutterMigrationDeps } from "./androidFlutterMigration";
 import { createAndroidSetupApi } from "./androidSetupApi";
 import { AndroidSettingsStore } from "./androidSettingsStore";
+import { AppSettingsStore } from "./appSettings";
 import type { ElectronSetupApi } from "./electronSetupApi";
 import { applyDedent, applyIndent } from "./toolbar/indentDedent";
 import { runToolbarCommand } from "./toolbarAdapter";
@@ -448,13 +449,30 @@ async function init(): Promise<void> {
         })
       : new OpfsBackend("quki");
   const store = new QuKiStore(backend);
+  const appSettings = new AppSettingsStore(window.localStorage);
 
   // STORAGE_CONTRACT.md rule 14 / BEHAVIOR_SPEC.md §6: the 30-day trash
   // hold is purged automatically at app launch, before anything (the list,
-  // Trash itself) needs to read trash state.
-  await store.purgeExpiredTrash().catch((error: unknown) => {
+  // Trash itself) needs to read trash state. Gated on rule 13's
+  // "delete orphaned images" setting, same as every other orphan-cleanup
+  // call site.
+  await store.purgeExpiredTrash({ deleteOrphanedImages: appSettings.getDeleteOrphanedImages() }).catch((error: unknown) => {
     console.error("QuKi trash purge failed unexpectedly:", error);
   });
+
+  // STORAGE_CONTRACT.md rule 13: an image pasted into a QuKi that is never
+  // saved (rule 16 - an empty body is never written) has no .md file that
+  // ever references it, so it can never become a candidate for the
+  // deletion-triggered cleanup inside purgeExpiredTrash/permanentlyDelete/
+  // emptyTrash above and in trashView.ts. Sweeping media/ against every
+  // active and trashed QuKi's actual references, once per app launch, is
+  // what gives that image a real path to eventual cleanup regardless of
+  // whether any QuKi is ever deleted or Trash is ever opened.
+  if (appSettings.getDeleteOrphanedImages()) {
+    await store.sweepOrphanedImages().catch((error: unknown) => {
+      console.error("QuKi orphaned-image sweep (startup) failed unexpectedly:", error);
+    });
+  }
 
   // BEHAVIOR_SPEC.md §4: "A blank canvas on launch" - every app start opens
   // a fresh, empty QuKi. See blankInitialQuKi's own doc comment for why
@@ -1095,12 +1113,17 @@ async function init(): Promise<void> {
           onChangeLocation: changeStorageLocation,
         }
       : undefined,
+    deleteOrphanedImages: {
+      get: () => appSettings.getDeleteOrphanedImages(),
+      set: (value) => appSettings.setDeleteOrphanedImages(value),
+    },
   });
 
   const trashView = createTrashView(store, viewElements.trash, {
     onBack: popView,
     showToast,
     confirm,
+    getDeleteOrphanedImages: () => appSettings.getDeleteOrphanedImages(),
   });
 
   quKiListBtn.addEventListener("click", () => {

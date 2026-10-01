@@ -21,6 +21,11 @@ export interface SettingsStorageCallbacks {
   onChangeLocation: () => Promise<void>;
 }
 
+export interface DeleteOrphanedImagesCallbacks {
+  get: () => boolean;
+  set: (value: boolean) => void;
+}
+
 export interface SettingsViewCallbacks {
   onBack: () => void;
   onOpenTrash: () => void;
@@ -33,6 +38,12 @@ export interface SettingsViewCallbacks {
    * below unchanged.
    */
   storage?: SettingsStorageCallbacks;
+  /**
+   * STORAGE_CONTRACT.md rule 13: "delete orphaned images" is a user-facing
+   * setting, defaulting to delete. Present on every platform, unlike
+   * `storage` above.
+   */
+  deleteOrphanedImages: DeleteOrphanedImagesCallbacks;
 }
 
 export interface SettingsView {
@@ -96,6 +107,10 @@ export function createSettingsView(container: HTMLElement, callbacks: SettingsVi
         <button type="button" class="settings-row settings-link trash-btn">
           <span>Trash</span>
         </button>
+        <label class="settings-row">
+          <span>Delete orphaned images</span>
+          <input type="checkbox" class="delete-orphaned-images-toggle" />
+        </label>
       </section>
       <section class="settings-section">
         <h2>About</h2>
@@ -117,6 +132,12 @@ export function createSettingsView(container: HTMLElement, callbacks: SettingsVi
 
   backBtn.addEventListener("click", () => callbacks.onBack());
   trashBtn.addEventListener("click", () => callbacks.onOpenTrash());
+
+  const deleteOrphanedImagesToggle = container.querySelector<HTMLInputElement>(".delete-orphaned-images-toggle")!;
+  deleteOrphanedImagesToggle.checked = callbacks.deleteOrphanedImages.get();
+  deleteOrphanedImagesToggle.addEventListener("change", () => {
+    callbacks.deleteOrphanedImages.set(deleteOrphanedImagesToggle.checked);
+  });
 
   if (callbacks.storage) {
     const storage = callbacks.storage;
