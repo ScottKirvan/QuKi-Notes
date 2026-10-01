@@ -54,6 +54,7 @@ import { createSetupView } from "./screens/setupView";
 import { createAndroidPermissionView } from "./screens/androidPermissionView";
 import { createTrashView } from "./screens/trashView";
 import { createToast, type ToastAction } from "./screens/toast";
+import { createSaveStatusBanner } from "./screens/saveStatusBanner";
 import { createConfirmDialog } from "./screens/confirmDialog";
 import { createAboutDialog } from "./screens/aboutDialog";
 
@@ -294,41 +295,17 @@ async function createCapacitorBackend(
   return backend;
 }
 
-const saveStatus = document.querySelector<HTMLDivElement>("#save-status");
-
-// #save-status's own text node and (optional) action button, built once and
-// reused - mirrors screens/toast.ts's ToastAction shape, but unlike the
-// toast there is no auto-dismiss timer here: this banner stays until
-// showSaveStatus() replaces it or hideSaveStatus() explicitly clears it.
-let saveStatusMessageEl: HTMLSpanElement | null = null;
-let saveStatusActionBtn: HTMLButtonElement | null = null;
-
-function ensureSaveStatusChildren(): void {
-  if (!saveStatus || saveStatusMessageEl) return;
-  saveStatusMessageEl = document.createElement("span");
-  saveStatus.appendChild(saveStatusMessageEl);
-  saveStatusActionBtn = document.createElement("button");
-  saveStatusActionBtn.type = "button";
-  saveStatusActionBtn.className = "save-status-action";
-  saveStatusActionBtn.hidden = true;
-  saveStatus.appendChild(saveStatusActionBtn);
-}
+// #save-status's own show/hide - mirrors screens/toast.ts's ToastAction
+// shape, but unlike the toast there is no auto-dismiss timer here: this
+// banner stays until showSaveStatus() replaces it or hideSaveStatus()
+// explicitly clears it. Built at module scope (independent of init()) so it
+// stays usable even if init() itself throws or rejects - see the startup
+// failure handling around `void init()` at the bottom of this file. The
+// mechanism itself lives in saveStatusBanner.ts, where it's unit tested.
+const saveStatusBanner = createSaveStatusBanner(document.querySelector<HTMLDivElement>("#save-status"));
 
 function showSaveStatus(message: string, action?: ToastAction): void {
-  if (!saveStatus) return;
-  ensureSaveStatusChildren();
-  saveStatusMessageEl!.textContent = message;
-  saveStatus.hidden = false;
-
-  if (action) {
-    saveStatusActionBtn!.textContent = action.label;
-    saveStatusActionBtn!.hidden = false;
-    saveStatusActionBtn!.onclick = (): void => action.onClick();
-  } else {
-    saveStatusActionBtn!.hidden = true;
-    saveStatusActionBtn!.textContent = "";
-    saveStatusActionBtn!.onclick = null;
-  }
+  saveStatusBanner.show(message, action);
 }
 
 /**
@@ -339,12 +316,7 @@ function showSaveStatus(message: string, action?: ToastAction): void {
  * doesn't linger once saving is working again.
  */
 function hideSaveStatus(): void {
-  if (!saveStatus) return;
-  saveStatus.hidden = true;
-  if (saveStatusActionBtn) {
-    saveStatusActionBtn.hidden = true;
-    saveStatusActionBtn.onclick = null;
-  }
+  saveStatusBanner.hide();
 }
 
 /**
@@ -1165,4 +1137,13 @@ async function init(): Promise<void> {
   (window as unknown as { qukiView: EditorView; qukiPlainTextMode: typeof plainTextMode }).qukiPlainTextMode = plainTextMode;
 }
 
-void init();
+// A startup failure (OPFS unavailable in a private browsing window, an
+// Electron IPC failure, a corrupted preferences file, etc.) used to become
+// an unhandled promise rejection with no user-visible feedback at all - the
+// app just looked broken (a blank window). init() itself is untouched here;
+// this only makes its failure visible, reusing the same #save-status banner
+// mechanism every other unexpected-error path in this file already shows.
+void init().catch((error: unknown) => {
+  console.error("QuKi startup failed unexpectedly:", error);
+  showSaveStatus("QuKi Notes could not start — an unexpected error occurred. Try reloading.");
+});
