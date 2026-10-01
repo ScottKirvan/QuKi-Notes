@@ -142,7 +142,16 @@ function registerSetupIpc(prefsStore: PreferencesStore): void {
   ipcMain.handle(SETUP_CHANNELS.getState, () => ({
     chosen: backend !== undefined,
     path: currentRoot,
-    isAppStorage: currentRoot !== null && currentRoot === resolveAppStorageDir(),
+    // Electron has no genuinely private, uninstall-erased storage tier at
+    // all: both "Use app storage" (resolveAppStorageDir(), an ordinary
+    // Documents/qukis folder) and a user-picked filesystem folder are plain,
+    // visible directories that survive uninstalling the app - see
+    // resolveAppStorageDir's doc comment above. isAppStorage exists so
+    // settingsView.ts can show privacy/uninstall-removal copy only where
+    // that's actually true (Android's genuine app-private directory - see
+    // androidSetupApi.ts's isUnderPrivateStorage), which on desktop is
+    // never the case, regardless of which setup card was used to get here.
+    isAppStorage: false,
     unreachablePath: unreachableStoragePath,
   }));
 
