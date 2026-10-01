@@ -52,7 +52,7 @@ export const writeImageOutputShape = {
 };
 
 export const exportOutputShape = {
-  bytesBase64: z.string().describe('The gzipped tar archive, base64-encoded.'),
+  path: z.string().describe('The absolute path the gzipped tar archive was written to.'),
   activeCount: z.number(),
   trashCount: z.number(),
   mediaCount: z.number(),

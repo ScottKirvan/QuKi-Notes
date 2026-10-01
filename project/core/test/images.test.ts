@@ -119,4 +119,18 @@ describe('images', () => {
 
     await expect(fsp.access(image.absolutePath)).rejects.toThrow();
   });
+
+  it('a bad neighbouring entry (unreadable) does not break the orphan-image sweep', async () => {
+    const image = await store.writeImage(new Uint8Array([1]), 'png');
+    const body = `![alt](${image.relativePath})`;
+    const quki = await store.save({ id: null, body });
+    if (quki.status !== 'saved') throw new Error('unreachable');
+
+    await fsp.mkdir(path.join(dir, 'bogus.md'));
+
+    await store.moveToTrash(quki.id);
+    await store.permanentlyDelete(quki.id);
+
+    await expect(fsp.access(image.absolutePath)).rejects.toThrow();
+  });
 });
