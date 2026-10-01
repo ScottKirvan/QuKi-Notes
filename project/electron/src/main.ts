@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as http from 'node:http';
 import * as path from 'node:path';
 
-import { app, BrowserWindow, dialog, ipcMain, screen } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, screen, shell } from 'electron';
 // quki-core is ESM-only; under Node16 module resolution a CommonJS file
 // importing *types* from an ESM package must say which condition
 // ("import") to resolve them under (TS1542) - this has no runtime effect,
@@ -13,7 +13,14 @@ import type { StorageBackend } from 'quki-core' with { 'resolution-mode': 'impor
 import { resolveMigratedStorageRoot } from './flutterMigration.js';
 import { PreferencesStore } from './preferences.js';
 import { isValidWritableDirectory } from './storageValidation.js';
-import { EXPORT_CHANNELS, RESOLVE_PATH_SYNC_CHANNEL, SETUP_CHANNELS, STORAGE_CHANNELS, type ResolvePathSyncResult } from './storageIpc.js';
+import {
+  APP_LIFECYCLE_CHANNELS,
+  EXPORT_CHANNELS,
+  RESOLVE_PATH_SYNC_CHANNEL,
+  SETUP_CHANNELS,
+  STORAGE_CHANNELS,
+  type ResolvePathSyncResult,
+} from './storageIpc.js';
 
 // Applies a caller-chosen userData directory before anything reads
 // app.getPath('userData') - must run at module load, before app.whenReady(),
@@ -370,6 +377,101 @@ function attachWindowBoundsPersistence(win: BrowserWindow, prefsStore: Preferenc
   win.on('close', saveNow);
 }
 
+/**
+ * BEHAVIOR_SPEC.md §4: links in a QuKi's content and the Help screen's
+ * Documentation/Discord/GitHub rows open in the platform's default browser,
+ * not inside the app. Both render as target="_blank" anchors (see
+ * reveal/widgets.ts and screens/aboutDialog.ts), which without this handler
+ * Electron fulfils by opening an ordinary in-app child BrowserWindow.
+ *
+ * Denying window.open outright (rather than letting a child window open and
+ * then closing it) also follows Electron's own security guidance
+ * (docs/latest/tutorial/security, recommendations 11 and 14): "if you don't
+ * need popups, you are better off not allowing the creation of new
+ * BrowserWindows by default" and "deny any unexpected window creation".
+ * Electron's docs confirm a child window opened via window.open always
+ * inherits the parent's nodeIntegration/contextIsolation/javascript-enabled
+ * settings (so a bare child window here could not gain Node access even
+ * without this fix), but do not say one way or the other whether the
+ * parent's `preload` path itself would carry over to a default child
+ * window - denying window creation entirely closes that question off
+ * regardless of the exact inheritance mechanics.
+ *
+ * will-navigate covers the other way a link (or any other in-page action)
+ * could leave the app's own content: a top-level navigation of the existing
+ * window itself, rather than a new one. The app's own SPA routing never
+ * does this (no full navigation away from the served index.html), so any
+ * will-navigate to a different origin is necessarily an attempt to leave
+ * the app and is redirected to the OS browser instead.
+ */
+function attachExternalLinkHandling(win: BrowserWindow): void {
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    void shell.openExternal(url);
+    return { action: 'deny' };
+  });
+
+  win.webContents.on('will-navigate', (event, url) => {
+    let targetOrigin: string;
+    try {
+      targetOrigin = new URL(url).origin;
+    } catch {
+      event.preventDefault();
+      return;
+    }
+    const currentOrigin = new URL(win.webContents.getURL()).origin;
+    if (targetOrigin !== currentOrigin) {
+      event.preventDefault();
+      void shell.openExternal(url);
+    }
+  });
+}
+
+// How long the main process waits for the renderer's onFlushBeforeQuit
+// acknowledgement (see attachQuitFlush) before giving up and closing anyway
+// - a hung or crashed renderer must never make the window unclosable.
+const QUIT_FLUSH_TIMEOUT_MS = 5000;
+
+/**
+ * The only close-time save signal before this was project/src/main.ts's
+ * visibilitychange/pagehide handler firing `void autoSave.flush()` - fire
+ * and forget, with nothing holding the window open until it actually
+ * finishes. On Electron that flush is an async IPC round trip to the main
+ * process's NodeFsBackend, so a window closing (and the process exiting
+ * once window-all-closed's app.quit() runs) could easily race ahead of a
+ * save still in flight, losing the last ~2s of typing.
+ *
+ * Preventing the close, asking the renderer to flush over IPC, and waiting
+ * for its acknowledgement (or the timeout above) before calling win.close()
+ * again is the standard main-process quit-handshake pattern. The second
+ * win.close() re-enters this same 'close' handler, which closeApproved
+ * short-circuits so the window actually closes that time.
+ */
+function attachQuitFlush(win: BrowserWindow): void {
+  let closeApproved = false;
+
+  win.on('close', (event) => {
+    if (closeApproved) return;
+    event.preventDefault();
+
+    const finish = (): void => {
+      if (closeApproved) return;
+      closeApproved = true;
+      clearTimeout(timeoutId);
+      ipcMain.removeListener(APP_LIFECYCLE_CHANNELS.flushComplete, finish);
+      win.close();
+    };
+
+    const timeoutId = setTimeout(finish, QUIT_FLUSH_TIMEOUT_MS);
+    ipcMain.once(APP_LIFECYCLE_CHANNELS.flushComplete, finish);
+
+    if (win.webContents.isDestroyed()) {
+      finish();
+      return;
+    }
+    win.webContents.send(APP_LIFECYCLE_CHANNELS.flushBeforeQuit);
+  });
+}
+
 async function createWindow(prefsStore: PreferencesStore): Promise<BrowserWindow> {
   const win = new BrowserWindow({
     width: DEFAULT_WINDOW_WIDTH,
@@ -383,6 +485,8 @@ async function createWindow(prefsStore: PreferencesStore): Promise<BrowserWindow
     },
   });
   attachWindowBoundsPersistence(win, prefsStore);
+  attachExternalLinkHandling(win);
+  attachQuitFlush(win);
 
   // Vite dev-server workflow (see project/scripts/electron-dev.mjs): when
   // set, load the live dev server instead of the static production build.
@@ -399,6 +503,22 @@ async function createWindow(prefsStore: PreferencesStore): Promise<BrowserWindow
 }
 
 app.whenReady().then(async () => {
+  // Electron's default menu (Edit/View/Window with Reload, Force Reload,
+  // Toggle Developer Tools, ...) is a development convenience, not part of
+  // this app's UI - QuKi Notes has no menu-driven functionality of its own,
+  // and shipping Reload/DevTools in a production build both looks
+  // unfinished and gives a way to poke at the app that isn't meant to be
+  // there. Gated on app.isPackaged (not e.g. NODE_ENV) so a dev run - via
+  // `electron dist/main.js` or the Vite dev-server workflow - keeps the
+  // default menu's Reload/DevTools for actual development use; only a
+  // packaged build suppresses it. Electron/Windows/Linux are this project's
+  // desktop targets (see CLAUDE.md); macOS is not, so there is no
+  // Cmd+Q/Edit-menu role to preserve here - a bare null menu is the "truly
+  // needs none" case.
+  if (app.isPackaged) {
+    Menu.setApplicationMenu(null);
+  }
+
   const prefsStore = new PreferencesStore(app.getPath('userData'));
 
   // QUKI_ELECTRON_DIR is a dev/test override predating the setup screen
