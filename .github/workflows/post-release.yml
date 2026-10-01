@@ -129,11 +129,16 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           BASE_URL="https://github.com/$REPO/releases/download/$TAG"
+          # The Linux asset's filename is deliberately NOT versioned
+          # (build-linux.yml uploads a stable QuKi-Notes.AppImage) - the
+          # CLI/MCP distribution's symlink convention
+          # (`ln -s .../QuKi-Notes.AppImage ~/.local/bin/quki`) requires a
+          # filename that stays valid across every future release.
           jq -n \
             --arg version "$TAG" \
             --arg android "$BASE_URL/quki-notes-android-${TAG}.apk" \
             --arg windows "$BASE_URL/quki-notes-windows-${TAG}.exe" \
-            --arg linux "$BASE_URL/quki-notes-linux-${TAG}.AppImage" \
+            --arg linux "$BASE_URL/QuKi-Notes.AppImage" \
             '{version: $version, android: $android, windows: $windows, linux: $linux}' \
             > docs/public/latest.json
 
