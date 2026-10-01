@@ -70,4 +70,35 @@ describe('exportLibrary', () => {
     expect(byPath.get(`.trash/.meta/${trashed.id}.json`)).toBeDefined();
     expect(byPath.get(image.relativePath)?.equals(Buffer.from([5, 6, 7]))).toBe(true);
   });
+
+  it('includes the entire .quki/ directory, recursively, per STORAGE_CONTRACT.md rule 20', async () => {
+    const backend = new NodeFsBackend(dir);
+    await backend.writeTextAtomic('.quki/themes/github-dhc.css', ':root { --background-primary: #fff; }');
+    await backend.writeTextAtomic('.quki/settings.json', '{"theme":"github-dhc"}');
+
+    const result = await store.exportLibrary();
+
+    const tar = gunzipSync(result.bytes);
+    const entries = parseTar(Buffer.from(tar));
+    const byPath = new Map(entries.map((e) => [e.path, e.content]));
+
+    expect(byPath.get('.quki/themes/github-dhc.css')?.toString('utf8')).toBe(':root { --background-primary: #fff; }');
+    expect(byPath.get('.quki/settings.json')?.toString('utf8')).toBe('{"theme":"github-dhc"}');
+  });
+
+  it('recurses into a subfolder under media/ instead of crashing on it', async () => {
+    const image = await store.writeImage(new Uint8Array([1, 2, 3]), 'png');
+    const backend = new NodeFsBackend(dir);
+    await backend.writeBinaryAtomic('media/thumbnails/nested.png', new Uint8Array([9, 9, 9]));
+
+    const result = await store.exportLibrary();
+    expect(result.mediaCount).toBe(2);
+
+    const tar = gunzipSync(result.bytes);
+    const entries = parseTar(Buffer.from(tar));
+    const byPath = new Map(entries.map((e) => [e.path, e.content]));
+
+    expect(byPath.get(image.relativePath)?.equals(Buffer.from([1, 2, 3]))).toBe(true);
+    expect(byPath.get('media/thumbnails/nested.png')?.equals(Buffer.from([9, 9, 9]))).toBe(true);
+  });
 });

@@ -46,8 +46,10 @@ import {
 import { imageResolver } from "./reveal/imageResolver";
 import { createImagePastePlugin } from "./pasteImage";
 import { AutoSaveController, blankInitialQuKi, type InitialQuKi } from "./persistence";
-import { sendQuKi, selectShareTransport } from "./send";
+import { sendQuKi, selectShareTransport, createClipboardTransport } from "./send";
 import { shareTextViaAndroid } from "./androidShare";
+import { createWebShareTransport } from "./webShare";
+import { buildExportFileName } from "./exportFileName";
 import { onSharedTextReceived } from "./shareIn";
 import { Navigator, type ViewName } from "./navigation";
 import { createListView } from "./screens/listView";
@@ -826,10 +828,11 @@ async function init(): Promise<void> {
   // unmaintained C# helper, which the project owner declined to adopt.
   // Until a native addon is built - and this may be worth publishing for
   // other Electron apps in the same position, since no clean solution
-  // appears to exist anywhere in the ecosystem - Windows falls back to the
-  // same clipboard behavior already built for Linux (STORAGE_CONTRACT.md's
-  // Linux clipboard fallback, reused here as a stand-in, not a match for
-  // spec intent). See sendCurrentQuKi below.
+  // appears to exist anywhere in the ecosystem - both Electron desktop
+  // platforms (Windows and Linux) fall back to the same clipboard behavior
+  // (STORAGE_CONTRACT.md's Linux clipboard fallback, reused here as a
+  // stand-in for Windows too, not a match for spec intent). See
+  // sendCurrentQuKi below.
   //
   // Android is not a fallback case at all: it gets the real system share
   // sheet (androidShare.ts, via the native Share plugin), matching
@@ -837,7 +840,18 @@ async function init(): Promise<void> {
   // where one exists" for the one platform where it already exists here.
   // (isAndroid is declared earlier in this function, for the Android setup
   // API construction above.)
-  sendBtn.disabled = !isAndroid && window.electronPlatform !== "linux" && window.electronPlatform !== "win32";
+  //
+  // The plain web build (no Electron, no Capacitor) is the one place
+  // navigator.share() actually works from a browser, so it gets the real
+  // thing (webShare.ts), with the same clipboard fallback for browsers that
+  // lack it (Safari without it, a non-secure context). That covers every
+  // day-one target (web, Android, Windows, Linux). An Electron build on any
+  // other platform (there are none shipped today) still has no destination
+  // built for it and stays disabled, same as before - it is not "web" just
+  // because it also lacks navigator.share.
+  const isElectronDesktop = window.electronPlatform === "linux" || window.electronPlatform === "win32";
+  const isUnsupportedElectronPlatform = window.electronPlatform !== undefined && !isElectronDesktop;
+  sendBtn.disabled = isUnsupportedElectronPlatform;
   setButtonIcon(settingsBtn, Settings, "Settings");
   setButtonIcon(deleteBtn, Trash2, "Delete");
 
@@ -995,9 +1009,72 @@ async function init(): Promise<void> {
   async function sendCurrentQuKi(): Promise<void> {
     await autoSave.flush();
     const body = view.state.doc.toString();
-    const transport = selectShareTransport(isAndroid, shareTextViaAndroid, (text) => navigator.clipboard.writeText(text));
+    const clipboardTransport = createClipboardTransport((text) => navigator.clipboard.writeText(text));
+    const webShareApi = typeof navigator.share === "function" ? (data: ShareData) => navigator.share(data) : undefined;
+    const webTransport = createWebShareTransport(webShareApi, clipboardTransport);
+    const transport = selectShareTransport(isAndroid, isElectronDesktop, shareTextViaAndroid, clipboardTransport, webTransport);
     const result = await sendQuKi(body, transport);
-    showToast(result.message, result.durationMs, result.retryable ? { label: "Retry", onClick: () => void sendCurrentQuKi() } : undefined);
+    if (result.message !== undefined) {
+      showToast(result.message, result.durationMs, result.retryable ? { label: "Retry", onClick: () => void sendCurrentQuKi() } : undefined);
+    }
+  }
+
+  /**
+   * Settings -> Export (STORAGE_CONTRACT.md's "Export everything"): flush
+   * first for the same reason Send does - the archive should include the
+   * edit sitting in the editor right now, not a stale pre-debounce copy.
+   * Delivery is the one genuinely per-platform part, matching how
+   * sendCurrentQuKi above branches on the same platform signals:
+   *  - Electron: a native Save As dialog (electronExportAPI.saveExport),
+   *    the same `dialog` module main.ts's storage-location picker already
+   *    uses, just its sibling "save" method instead of "open".
+   *  - Android: no save-file picker exists in the native Storage plugin
+   *    (StoragePlugin.kt has no such method, and adding one is real new
+   *    native surface, not "follow existing patterns"), so this reuses the
+   *    exact write path every other Android write already goes through
+   *    (CapacitorFsBackend.writeBinaryAtomic) and reports the real absolute
+   *    path it landed at, so it's findable even in the app-private-storage
+   *    case (settingsView.ts already surfaces that same path today).
+   *  - Web: the standard Blob + temporary <a download> trick - the only
+   *    way a browser tab can hand the person a file at all, and precisely
+   *    the "web-app users on OPFS move to a desktop folder this way"
+   *    migration path STORAGE_CONTRACT.md's core API section describes.
+   */
+  async function exportQuKiLibrary(): Promise<void> {
+    await autoSave.flush();
+    const result = await store.exportLibrary();
+    const fileName = buildExportFileName();
+
+    if (window.electronExportAPI) {
+      const savedPath = await window.electronExportAPI.saveExport(result.bytes, fileName);
+      if (savedPath !== null) showToast(`Exported to ${savedPath}.`, 3000);
+      return;
+    }
+
+    if (isAndroid) {
+      await backend.writeBinaryAtomic(fileName, result.bytes);
+      showToast(`Exported to ${backend.resolvePath(fileName)}.`, 4000);
+      return;
+    }
+
+    // TypeScript's Uint8Array<ArrayBufferLike> vs. BlobPart's
+    // ArrayBufferView<ArrayBuffer> mismatch (same cast core/src/export.ts's
+    // own gzip() needs, for the same reason) - at runtime a Uint8Array is a
+    // perfectly valid BlobPart regardless of which ArrayBuffer flavor its
+    // .buffer happens to be typed as.
+    const blob = new Blob([result.bytes as unknown as BlobPart], { type: "application/gzip" });
+    const url = URL.createObjectURL(blob);
+    try {
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+    showToast("Export downloaded.", 2000);
   }
 
   async function openQuKiInEditor(id: string): Promise<void> {
@@ -1148,6 +1225,7 @@ async function init(): Promise<void> {
       get: () => appSettings.getDeleteOrphanedImages(),
       set: (value) => appSettings.setDeleteOrphanedImages(value),
     },
+    onExport: exportQuKiLibrary,
   });
 
   const trashView = createTrashView(store, viewElements.trash, {

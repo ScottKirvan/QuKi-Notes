@@ -13,7 +13,7 @@ import type { StorageBackend } from 'quki-core' with { 'resolution-mode': 'impor
 import { resolveMigratedStorageRoot } from './flutterMigration.js';
 import { PreferencesStore } from './preferences.js';
 import { isValidWritableDirectory } from './storageValidation.js';
-import { RESOLVE_PATH_SYNC_CHANNEL, SETUP_CHANNELS, STORAGE_CHANNELS, type ResolvePathSyncResult } from './storageIpc.js';
+import { EXPORT_CHANNELS, RESOLVE_PATH_SYNC_CHANNEL, SETUP_CHANNELS, STORAGE_CHANNELS, type ResolvePathSyncResult } from './storageIpc.js';
 
 // Applies a caller-chosen userData directory before anything reads
 // app.getPath('userData') - must run at module load, before app.whenReady(),
@@ -202,6 +202,32 @@ function registerSetupIpc(prefsStore: PreferencesStore): void {
   ipcMain.handle(SETUP_CHANNELS.getPlainTextMode, () => prefsStore.read().plainTextMode);
   ipcMain.handle(SETUP_CHANNELS.setPlainTextMode, (_event, plainTextMode: boolean) => {
     prefsStore.setPlainTextMode(plainTextMode);
+  });
+}
+
+/**
+ * Settings -> Export (see storageIpc.ts's EXPORT_CHANNELS doc comment):
+ * the renderer already built the gzipped tar via core's exportLibrary() and
+ * just needs a native "Save As" destination and a real write.
+ */
+function registerExportIpc(): void {
+  ipcMain.handle(EXPORT_CHANNELS.saveExport, async (_event, bytes: Uint8Array, defaultFileName: string) => {
+    // Test-only seam, matching SETUP_CHANNELS.chooseFilesystem's
+    // QUKI_TEST_FORCE_DIALOG_PATH above: Playwright cannot drive an
+    // OS-native save dialog. Empty string stands in for cancelling it.
+    const forcedPath = process.env.QUKI_TEST_FORCE_EXPORT_SAVE_PATH;
+    let destPath: string | null;
+    if (forcedPath !== undefined) {
+      destPath = forcedPath === '' ? null : forcedPath;
+    } else {
+      const win = BrowserWindow.getFocusedWindow();
+      const dialogOptions = { defaultPath: defaultFileName };
+      const result = win ? await dialog.showSaveDialog(win, dialogOptions) : await dialog.showSaveDialog(dialogOptions);
+      destPath = result.canceled || !result.filePath ? null : result.filePath;
+    }
+    if (destPath === null) return null;
+    await fs.promises.writeFile(destPath, bytes);
+    return destPath;
   });
 }
 
@@ -433,6 +459,7 @@ app.whenReady().then(async () => {
 
   registerStorageIpc();
   registerSetupIpc(prefsStore);
+  registerExportIpc();
   await createWindow(prefsStore);
 
   app.on('activate', () => {
