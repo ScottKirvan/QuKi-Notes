@@ -190,14 +190,24 @@ function createMarkdownMarkIcon(): SVGSVGElement {
  * uses. `gate`/`view` are declared before assignment so each can close
  * over the other — requestAccess needs the gate, and the gate's state
  * changes need to reach the view.
+ *
+ * Resolves `true` once access is granted, or `false` if the user backs out
+ * via the permission view's own back button instead
+ * (androidPermissionView.ts's onUseAppStorageInstead -> gate.cancel()) —
+ * requestFilesystemAccess below turns that into chooseFilesystem()
+ * resolving null, exactly like a dismissed native folder picker.
  */
-async function ensureAndroidStorageAccess(overlayHost: HTMLElement): Promise<void> {
+async function ensureAndroidStorageAccess(overlayHost: HTMLElement): Promise<boolean> {
   let gate: ReturnType<typeof createStorageAccessGate>;
-  const view = createAndroidPermissionView(overlayHost, () => void gate.requestAccess());
+  const view = createAndroidPermissionView(
+    overlayHost,
+    () => void gate.requestAccess(),
+    () => gate.cancel(),
+  );
   gate = createStorageAccessGate(
     {
       isExternalStorageManager: async () => (await CapacitorStorage.isExternalStorageManager()).granted,
-      requestAllFilesAccess: () => CapacitorStorage.requestAllFilesAccess(),
+      requestAllFilesAccess: async () => (await CapacitorStorage.requestAllFilesAccess()).outcome,
       onAppStateChange: (callback) => {
         const handle = CapacitorApp.addListener("appStateChange", (state) => callback(state.isActive));
         return { remove: () => void handle.then((h) => h.remove()) };
@@ -206,7 +216,7 @@ async function ensureAndroidStorageAccess(overlayHost: HTMLElement): Promise<voi
     (state) => view.render(state),
   );
   try {
-    await gate.ready();
+    return await gate.ready();
   } finally {
     gate.destroy();
   }
@@ -249,7 +259,8 @@ async function createAndroidSetupApiForMain(overlayHost: HTMLElement, onLocation
     // Only reached from api.chooseFilesystem() — i.e. only when the user
     // explicitly picks "Filesystem storage", not unconditionally at boot.
     requestFilesystemAccess: async () => {
-      await ensureAndroidStorageAccess(overlayHost);
+      const granted = await ensureAndroidStorageAccess(overlayHost);
+      if (!granted) return null;
       return (await CapacitorStorage.getExternalDocumentsPath()).path;
     },
     isValidWritableDirectory: async (path) => (await CapacitorStorage.isValidWritableDirectory({ path })).valid,

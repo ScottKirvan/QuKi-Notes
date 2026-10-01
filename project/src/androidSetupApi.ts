@@ -30,9 +30,12 @@ export interface AndroidSetupApiDeps {
    * main.ts's ensureAndroidStorageAccess) if needed, then resolves the
    * external Documents path. Only ever called from chooseFilesystem - i.e.
    * only when the user explicitly picks "Filesystem storage", never
-   * unconditionally at launch.
+   * unconditionally at launch. Resolves null instead if the user backs out
+   * of the permission screen without granting access (androidPermissionView.ts's
+   * back button) - chooseFilesystem below treats that exactly like a
+   * dismissed native folder picker.
    */
-  requestFilesystemAccess(): Promise<string>;
+  requestFilesystemAccess(): Promise<string | null>;
   isValidWritableDirectory(path: string): Promise<boolean>;
   resolveMigratedStorageRoot(): Promise<string | null>;
   /**
@@ -87,6 +90,7 @@ export async function createAndroidSetupApi(deps: AndroidSetupApiDeps): Promise<
 
     async chooseFilesystem(): Promise<string | null> {
       const path = await deps.requestFilesystemAccess();
+      if (path === null) return null;
       await deps.settingsStore.setStorageLocation(path);
       currentPath = path;
       unreachablePath = null;

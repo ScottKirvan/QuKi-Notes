@@ -26,12 +26,25 @@ export interface CapacitorStoragePlugin {
   stat(options: { path: string }): Promise<{ size: number; mtimeMs: number; birthtimeMs: number }>;
   listDir(options: { path: string }): Promise<{ entries: string[] }>;
   mkdirp(options: { path: string }): Promise<void>;
-  /** Android 11+ (API 30+) all-files access; always granted below that - ported from the Flutter plugin, not yet wired to any UI (a later chunk's onboarding flow). */
+  /**
+   * Android 11+ (API 30+): real MANAGE_EXTERNAL_STORAGE all-files access.
+   * Below API 30 (no such permission exists): whether the classic
+   * WRITE_EXTERNAL_STORAGE/READ_EXTERNAL_STORAGE runtime permissions are
+   * currently granted (see StoragePlugin.kt's LEGACY_STORAGE_PERMISSION_ALIAS).
+   * Wired to androidStorageAccess.ts's StorageAccessGate via main.ts.
+   */
   isExternalStorageManager(): Promise<{ granted: boolean }>;
   /** `<external Documents>/QuKi_Notes` - this chunk's fixed temporary storage root; see main.ts. */
   getExternalDocumentsPath(): Promise<{ path: string }>;
-  /** Opens the system all-files-access settings screen; not yet wired to any UI. */
-  requestAllFilesAccess(): Promise<void>;
+  /**
+   * API 30+: opens the system all-files-access settings screen and resolves
+   * `{ outcome: "opened-settings" }` right away, before the user has done
+   * anything there. API <30: shows the classic runtime permission dialog
+   * and resolves once the user has answered it, with `{ outcome: "granted" }`
+   * or `{ outcome: "denied" }`. See androidStorageAccess.ts's
+   * RequestAllFilesAccessOutcome for how the gate uses this distinction.
+   */
+  requestAllFilesAccess(): Promise<{ outcome: "opened-settings" | "granted" | "denied" }>;
   /**
    * Reads the Flutter app's real shared_preferences ("FlutterSharedPreferences",
    * via Context.getSharedPreferences - see StoragePlugin.kt) and resolves the
