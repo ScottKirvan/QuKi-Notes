@@ -18,11 +18,14 @@
 export interface AndroidSettings {
   storagePath: string | null;
   storageChosen: boolean;
+  /** BEHAVIOR_SPEC.md §4: the mode toggle's plain-text/rendered choice "persists across launches". */
+  plainTextMode: boolean;
 }
 
 const DEFAULT_SETTINGS: AndroidSettings = {
   storagePath: null,
   storageChosen: false,
+  plainTextMode: false,
 };
 
 export interface AndroidSettingsDeps {
@@ -61,6 +64,7 @@ export class AndroidSettingsStore {
     return {
       storagePath: typeof candidate?.storagePath === "string" ? candidate.storagePath : null,
       storageChosen: candidate?.storageChosen === true,
+      plainTextMode: candidate?.plainTextMode === true,
     };
   }
 
@@ -68,8 +72,20 @@ export class AndroidSettingsStore {
     await this.deps.writeTextAtomic(this.filePath, JSON.stringify(settings, null, 2));
   }
 
+  /**
+   * Merges onto the current file rather than overwriting wholesale - matching
+   * PreferencesStore.setStorageLocation (electron/src/preferences.ts), so a
+   * storage-location change doesn't discard a previously-set plainTextMode
+   * (or vice versa in setPlainTextMode below).
+   */
   async setStorageLocation(storagePath: string): Promise<AndroidSettings> {
-    const settings: AndroidSettings = { storagePath, storageChosen: true };
+    const settings: AndroidSettings = { ...(await this.read()), storagePath, storageChosen: true };
+    await this.write(settings);
+    return settings;
+  }
+
+  async setPlainTextMode(plainTextMode: boolean): Promise<AndroidSettings> {
+    const settings: AndroidSettings = { ...(await this.read()), plainTextMode };
     await this.write(settings);
     return settings;
   }

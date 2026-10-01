@@ -72,7 +72,7 @@ describe("createAndroidSetupApi", () => {
     const api = await createAndroidSetupApi(deps);
 
     expect(await api.getState()).toEqual({ chosen: true, path: "/data/data/com.quki.quki_notes/app_flutter/qukis", isAppStorage: false, unreachablePath: null });
-    expect(await deps.settingsStore.read()).toEqual({ storagePath: "/data/data/com.quki.quki_notes/app_flutter/qukis", storageChosen: true });
+    expect(await deps.settingsStore.read()).toEqual({ storagePath: "/data/data/com.quki.quki_notes/app_flutter/qukis", storageChosen: true, plainTextMode: false });
   });
 
   it("reports isAppStorage true only when the chosen path is exactly the private app-storage directory", async () => {
@@ -95,7 +95,7 @@ describe("createAndroidSetupApi", () => {
       expect(path).toBe("/storage/emulated/0/Documents/QuKi_Notes");
       expect(deps.requestFilesystemAccess).toHaveBeenCalledTimes(1);
       expect(await api.getState()).toEqual({ chosen: true, path: "/storage/emulated/0/Documents/QuKi_Notes", isAppStorage: false, unreachablePath: null });
-      expect(await deps.settingsStore.read()).toEqual({ storagePath: "/storage/emulated/0/Documents/QuKi_Notes", storageChosen: true });
+      expect(await deps.settingsStore.read()).toEqual({ storagePath: "/storage/emulated/0/Documents/QuKi_Notes", storageChosen: true, plainTextMode: false });
       expect(deps.onLocationResolved).toHaveBeenCalledWith("/storage/emulated/0/Documents/QuKi_Notes");
     });
 
@@ -150,7 +150,7 @@ describe("createAndroidSetupApi", () => {
 
       expect(path).toBe(`${PRIVATE_STORAGE_PATH}/QuKi_Notes`);
       expect(await api.getState()).toEqual({ chosen: true, path: `${PRIVATE_STORAGE_PATH}/QuKi_Notes`, isAppStorage: true, unreachablePath: null });
-      expect(await deps.settingsStore.read()).toEqual({ storagePath: `${PRIVATE_STORAGE_PATH}/QuKi_Notes`, storageChosen: true });
+      expect(await deps.settingsStore.read()).toEqual({ storagePath: `${PRIVATE_STORAGE_PATH}/QuKi_Notes`, storageChosen: true, plainTextMode: false });
       expect(deps.onLocationResolved).toHaveBeenCalledWith(`${PRIVATE_STORAGE_PATH}/QuKi_Notes`);
     });
   });
@@ -163,6 +163,28 @@ describe("createAndroidSetupApi", () => {
       await api.quit();
 
       expect(deps.exitApp).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // BEHAVIOR_SPEC.md §4: the mode toggle's plain-text/rendered choice
+  // "persists across launches" - Android's counterpart of Electron's
+  // getPlainTextMode/setPlainTextMode IPC (see electron/src/main.ts).
+  describe("getPlainTextMode / setPlainTextMode", () => {
+    it("defaults to false", async () => {
+      const deps = baseDeps();
+      const api = await createAndroidSetupApi(deps);
+
+      expect(await api.getPlainTextMode()).toBe(false);
+    });
+
+    it("persists a choice via the settings store and reports it back", async () => {
+      const deps = baseDeps();
+      const api = await createAndroidSetupApi(deps);
+
+      await api.setPlainTextMode(true);
+
+      expect(await api.getPlainTextMode()).toBe(true);
+      expect(await deps.settingsStore.read()).toEqual({ storagePath: null, storageChosen: false, plainTextMode: true });
     });
   });
 });

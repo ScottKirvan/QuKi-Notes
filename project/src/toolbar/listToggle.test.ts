@@ -35,6 +35,11 @@ describe("toggleUnorderedList", () => {
     expect(result.text).toBe("asterisk");
   });
 
+  it('removes "+ " prefix when present — BEHAVIOR_SPEC.md §12: "-, *, and + all open an unordered item"', () => {
+    const result = toggleUnorderedList(v("+ plus item", 3));
+    expect(result.text).toBe("plus item");
+  });
+
   it("preserves depth on an indented line", () => {
     const result = toggleUnorderedList(v("  plain item", 7));
     expect(result.text).toBe("  - plain item");
@@ -112,6 +117,29 @@ describe("list toggle — multi-line selection", () => {
 
   it("removes the marker from every touched line when all of them already carry it", () => {
     const source = "- one\n- two";
+    const result = toggleUnorderedList(v(source, 0, source.length));
+    expect(result.text).toBe("one\ntwo");
+  });
+
+  it(
+    "BEHAVIOR_SPEC.md §4: applies the marker uniformly when not every line already has it, " +
+      'rather than judging each line independently — regression: "- a\\nb" previously became ' +
+      '"a\\n- b" (each line flipped on its own) instead of "- a\\n- b"',
+    () => {
+      const source = "- a\nb";
+      const result = toggleUnorderedList(v(source, 0, source.length));
+      expect(result.text).toBe("- a\n- b");
+    },
+  );
+
+  it("uniformly converts every line to the target marker type when lines carry a mix of other marker types", () => {
+    const source = "- a\n1. b";
+    const result = toggleUnorderedList(v(source, 0, source.length));
+    expect(result.text).toBe("- a\n- b");
+  });
+
+  it("removes the marker from every touched line when all of them are + items", () => {
+    const source = "+ one\n+ two";
     const result = toggleUnorderedList(v(source, 0, source.length));
     expect(result.text).toBe("one\ntwo");
   });

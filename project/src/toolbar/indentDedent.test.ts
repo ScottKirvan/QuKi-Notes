@@ -123,11 +123,12 @@ describe("applyIndent / applyDedent — plain paragraph lines", () => {
   });
 });
 
-describe("applyIndent / applyDedent — headings and blockquotes (excluded)", () => {
-  it("Indent on a heading line inserts a tab AT THE CURSOR, matching pre-existing Tab behaviour", () => {
-    const result = applyIndent(v("# my heading", 5));
-    expect(result.text).toBe("# my \theading");
-    expect(result.selection).toEqual({ anchor: 6, head: 6 });
+describe("applyIndent / applyDedent — headings and blockquotes (excluded, no-op)", () => {
+  it("Indent on a heading line is a no-op (collapsed cursor)", () => {
+    const value = v("# my heading", 5);
+    const result = applyIndent(value);
+    expect(result.text).toBe(value.text);
+    expect(result.selection).toEqual(value.selection);
   });
 
   it("Dedent on a heading line is a no-op", () => {
@@ -137,10 +138,11 @@ describe("applyIndent / applyDedent — headings and blockquotes (excluded)", ()
     expect(result.selection).toEqual(value.selection);
   });
 
-  it("Indent on a blockquote line inserts a tab AT THE CURSOR", () => {
-    const result = applyIndent(v("> quoted text", 4));
-    expect(result.text).toBe("> qu\toted text");
-    expect(result.selection).toEqual({ anchor: 5, head: 5 });
+  it("Indent on a blockquote line is a no-op (collapsed cursor)", () => {
+    const value = v("> quoted text", 4);
+    const result = applyIndent(value);
+    expect(result.text).toBe(value.text);
+    expect(result.selection).toEqual(value.selection);
   });
 
   it("Dedent on a blockquote line is a no-op", () => {
@@ -150,17 +152,27 @@ describe("applyIndent / applyDedent — headings and blockquotes (excluded)", ()
     expect(result.selection).toEqual(value.selection);
   });
 
-  it("Indent with an active (non-collapsed) selection inside a heading replaces the selection", () => {
-    const result = applyIndent(v("# hello world", 2, 7));
-    expect(result.text).toBe("# \t world");
+  it("Indent with an active (non-collapsed) selection entirely inside a heading is a no-op — the selection content must not be destroyed", () => {
+    const value = v("# hello world", 2, 7);
+    const result = applyIndent(value);
+    expect(result.text).toBe(value.text);
+    expect(result.selection).toEqual(value.selection);
+  });
+
+  it("Dedent with an active (non-collapsed) selection entirely inside a blockquote is a no-op", () => {
+    const value = v("> hello world", 2, 7);
+    const result = applyDedent(value);
+    expect(result.text).toBe(value.text);
+    expect(result.selection).toEqual(value.selection);
   });
 });
 
-describe("applyIndent / applyDedent — block images (excluded)", () => {
-  it("Indent on a block-image line inserts a tab AT THE CURSOR", () => {
-    const result = applyIndent(v("![alt](path.png)", 5));
-    expect(result.text).toBe("![alt\t](path.png)");
-    expect(result.selection).toEqual({ anchor: 6, head: 6 });
+describe("applyIndent / applyDedent — block images (excluded, no-op)", () => {
+  it("Indent on a block-image line is a no-op (collapsed cursor)", () => {
+    const value = v("![alt](path.png)", 5);
+    const result = applyIndent(value);
+    expect(result.text).toBe(value.text);
+    expect(result.selection).toEqual(value.selection);
   });
 
   it("Dedent on a block-image line is a no-op", () => {
@@ -205,13 +217,14 @@ describe("applyIndent / applyDedent — multi-line selections", () => {
   );
 
   it(
-    "selection touching zero eligible lines (heading + blockquote only) falls back " +
-      "to the pre-existing selection-replace-with-tab behaviour",
+    "selection touching zero eligible lines (heading + blockquote only) is a full " +
+      "no-op on indent — the selection's content must not be destroyed",
     () => {
       const source = "# Heading\n> Quote";
-      const result = applyIndent(v(source, 0, source.length));
-      expect(result.text).toBe("\t");
-      expect(result.selection).toEqual({ anchor: 1, head: 1 });
+      const value = v(source, 0, source.length);
+      const result = applyIndent(value);
+      expect(result.text).toBe(value.text);
+      expect(result.selection).toEqual(value.selection);
     },
   );
 
@@ -224,13 +237,14 @@ describe("applyIndent / applyDedent — multi-line selections", () => {
   });
 
   it(
-    "selection touching zero eligible lines (hr + block image only) falls back to " +
-      "the tab-replace behaviour — confirms hr/image are ineligible too",
+    "selection touching zero eligible lines (hr + block image only) is a full " +
+      "no-op on indent — confirms hr/image are ineligible too",
     () => {
       const source = "---\n![alt](path.png)";
-      const result = applyIndent(v(source, 0, source.length));
-      expect(result.text).toBe("\t");
-      expect(result.selection).toEqual({ anchor: 1, head: 1 });
+      const value = v(source, 0, source.length);
+      const result = applyIndent(value);
+      expect(result.text).toBe(value.text);
+      expect(result.selection).toEqual(value.selection);
     },
   );
 
@@ -239,6 +253,18 @@ describe("applyIndent / applyDedent — multi-line selections", () => {
     const result = applyDedent(v(source, 0, source.length));
     expect(result.text).toBe("- top\n- sub");
   });
+
+  it(
+    "regression: a multi-line selection over two headings must not be replaced by a " +
+      'literal tab — previously "# One\\n# Two" became "\\to", destroying the selection',
+    () => {
+      const source = "# One\n# Two";
+      const value = v(source, 0, source.length);
+      const result = applyIndent(value);
+      expect(result.text).toBe(source);
+      expect(result.selection).toEqual(value.selection);
+    },
+  );
 
   it("selection endpoints remap correctly across a multi-line indent", () => {
     const source = "- top\n- bottom";

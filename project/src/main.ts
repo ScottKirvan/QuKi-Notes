@@ -33,6 +33,7 @@ import { createFormattingToolbar, type FormattingToolbarHandle } from "./screens
 import { revealPlugin, blockRevealField } from "./reveal/decorations";
 import { hangingIndent } from "./reveal/hangingIndent";
 import { plainTextMode, setPlainTextMode } from "./reveal/plainTextMode";
+import { readPlainTextModePreference, writePlainTextModePreference } from "./webPlainTextModePreference";
 import { editModeField, setEditMode } from "./reveal/editModeField";
 import {
   createEditModeTracker,
@@ -479,6 +480,15 @@ async function init(): Promise<void> {
   // there's nothing here to load from storage.
   const initial = blankInitialQuKi();
 
+  // BEHAVIOR_SPEC.md §4: the mode toggle's plain-text/rendered choice
+  // "persists across launches". setupApi (Electron's IPC bridge or
+  // androidSetupApi.ts) already has a small per-user preferences file for
+  // the storage-location choice - getPlainTextMode/setPlainTextMode reuse
+  // that same file there. The plain browser/PWA build has no such file
+  // (setupApi is undefined there), so it falls back to localStorage - see
+  // webPlainTextModePreference.ts.
+  const initialPlainTextMode = setupApi ? await setupApi.getPlainTextMode() : readPlainTextModePreference(window.localStorage);
+
   // Set once per editor content swap (loading a different QuKi, New QuKi,
   // clearing on delete) to suppress the change-notification below -
   // BEHAVIOR_SPEC.md §4: "Setting the editor's value programmatically...
@@ -546,7 +556,9 @@ async function init(): Promise<void> {
       keymap.of([...indentDedentKeymap, ...defaultKeymap, ...historyKeymap]),
       markdown({ extensions: GFM }),
       syntaxHighlighting(qukiSyntaxHighlighting),
-      plainTextMode,
+      // BEHAVIOR_SPEC.md §4: the persisted plain-text/rendered choice - see
+      // initialPlainTextMode above for where this comes from.
+      plainTextMode.init(() => initialPlainTextMode),
       // Seeded from the same shouldFocusOnOpen check editModeTracker below
       // uses, so the very first buildDecorations call (the revealPlugin's
       // constructor, run before the tracker's own focus/keyboard listeners
@@ -846,11 +858,19 @@ async function init(): Promise<void> {
   updateModeToggleIcon();
 
   modeToggleBtn.addEventListener("click", () => {
+    const next = !view.state.field(plainTextMode);
     view.dispatch({
-      effects: setPlainTextMode.of(!view.state.field(plainTextMode)),
+      effects: setPlainTextMode.of(next),
     });
     updateModeToggleIcon();
     view.focus();
+    // BEHAVIOR_SPEC.md §4: "persists across launches" - see
+    // initialPlainTextMode above for the matching read at startup.
+    if (setupApi) {
+      void setupApi.setPlainTextMode(next);
+    } else {
+      writePlainTextModePreference(window.localStorage, next);
+    }
   });
 
   function updateDeleteButtonState(): void {
@@ -1144,6 +1164,28 @@ async function init(): Promise<void> {
   sendBtn.addEventListener("click", () => {
     void sendCurrentQuKi();
   });
+
+  // BEHAVIOR_SPEC.md §4/§5: "Keyboard shortcuts — Windows and Linux only.
+  // Ctrl+T sends. Ctrl+N creates a new QuKi." window.electronPlatform is
+  // only set inside the Electron wrapper (electron/src/preload.ts) - the
+  // plain browser/PWA build has no way to override the browser's own
+  // reserved Ctrl+T/Ctrl+N, so this is a no-op there, matching sendBtn's
+  // own win32/linux gate above. A global keydown listener rather than a
+  // CodeMirror keymap entry (indentDedentKeymap above) because these fire
+  // regardless of whether the editor has focus, not just while editing.
+  if (window.electronPlatform === "win32" || window.electronPlatform === "linux") {
+    window.addEventListener("keydown", (event) => {
+      if (!event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+      const key = event.key.toLowerCase();
+      if (key === "t") {
+        event.preventDefault();
+        void sendCurrentQuKi();
+      } else if (key === "n") {
+        event.preventDefault();
+        void startNewQuKi();
+      }
+    });
+  }
 
   // BEHAVIOR_SPEC.md §8, Android only - same isAndroid gate already used
   // above for Send. Registered once for the life of the app, the same way
