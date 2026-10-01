@@ -110,7 +110,10 @@ export function createTrashView(store: QuKiStore, container: HTMLElement, callba
         cancelLabel: "Cancel",
       });
       if (!confirmed) return;
-      await store.restore(item.id);
+      const result = await store.restore(item.id);
+      if (result.renamed) {
+        callbacks.showToast("Restored as a new QuKi - the original name was already in use.", 4000);
+      }
       await refresh();
       callbacks.onBack();
     };

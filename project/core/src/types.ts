@@ -7,6 +7,23 @@ export interface QuKiSummary {
 
 export interface TrashedQuKiSummary extends QuKiSummary {
   deletedAt: string | null;
+  /**
+   * The id/filename this QuKi had in the active folder before it was
+   * trashed - what the Trash screen should display. Usually equal to `id`,
+   * but differs when `id` (the on-disk name under .trash/) was disambiguated
+   * because another trashed QuKi already occupied the original name.
+   */
+  originalId: string;
+}
+
+export interface RestoreResult {
+  /** The id the QuKi was actually restored under. */
+  id: string;
+  /**
+   * True when the QuKi's original name was already taken by an active QuKi,
+   * so it was restored under a new, different id instead of overwriting it.
+   */
+  renamed: boolean;
 }
 
 export interface QuKiDetail {

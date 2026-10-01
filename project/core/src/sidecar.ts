@@ -3,6 +3,13 @@ import type { StorageBackend } from './storageBackend.js';
 export interface SidecarData {
   createdAt?: string;
   deletedAt?: string;
+  /**
+   * Trash sidecar only: the id/filename the QuKi had in the active folder
+   * when it was trashed. The on-disk name under .trash/ can differ from this
+   * when that name was already taken by an earlier trashed QuKi - this field
+   * is what the Trash screen displays and what restore() restores under.
+   */
+  originalId?: string;
 }
 
 /**
@@ -20,6 +27,7 @@ export async function readSidecar(backend: StorageBackend, relPath: string): Pro
     const result: SidecarData = {};
     if (typeof data.createdAt === 'string') result.createdAt = data.createdAt;
     if (typeof data.deletedAt === 'string') result.deletedAt = data.deletedAt;
+    if (typeof data.originalId === 'string') result.originalId = data.originalId;
     return result;
   } catch {
     return {};
