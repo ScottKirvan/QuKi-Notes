@@ -1246,8 +1246,20 @@ async function init(): Promise<void> {
   });
 
   quKiListBtn.addEventListener("click", () => {
+    // Push the screen transition immediately so it feels responsive, but
+    // flush first and wait for it before the list actually reads the
+    // folder - otherwise a note typed seconds ago, still sitting behind the
+    // debounce, hasn't been written yet and the list reads a stale snapshot
+    // that simply doesn't have it. Not lost (the pending save still lands),
+    // just not yet visible here. Unlike openQuKiInEditor/startNewQuKi/
+    // deleteQuKi, going to the list never replaces the editor's own content,
+    // so there's nothing here for a flush conflict/error to discard - no
+    // need for flushAutoSaveOrBlock's blocking behavior, just the flush.
     navigator_.push("list");
-    void listView.open();
+    void (async () => {
+      await autoSave.flush();
+      await listView.open();
+    })();
   });
   newQuKiBtn.addEventListener("click", () => {
     void startNewQuKi();
