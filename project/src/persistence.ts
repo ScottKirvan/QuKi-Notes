@@ -325,6 +325,7 @@ export class AutoSaveController {
         id: this.id,
         body,
         expectedModifiedAt: this.id === null ? undefined : (this.modifiedAt ?? undefined),
+        expectedBody: this.id === null ? undefined : this.lastSavedBody,
       });
     } catch (error) {
       console.error("QuKi auto-save failed unexpectedly:", error);

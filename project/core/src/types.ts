@@ -50,6 +50,22 @@ export interface SaveParams {
   body: string;
   expectedModifiedAt?: string;
   /**
+   * The body the caller last believes it saved (AutoSaveController's own
+   * lastSavedBody). Optional, and only meaningful alongside
+   * expectedModifiedAt: when the on-disk mtime doesn't match
+   * expectedModifiedAt, updateExisting() already reads the file's current
+   * body to report the conflict - if that body is byte-identical to
+   * expectedBody, nothing a conflict needs to protect against actually
+   * happened (no other writer could coincidentally reproduce identical
+   * content), so a timestamp-only mismatch here is treated as no conflict
+   * rather than blocking the save. A genuine external edit changes the
+   * content, not just the clock. Left undefined, the check is unchanged
+   * (an exact expectedModifiedAt match is still required) - the CLI and MCP
+   * server, which have no persistent in-memory "last known body" of their
+   * own across invocations, never pass this.
+   */
+  expectedBody?: string;
+  /**
    * Explicit, user-initiated escape hatch from a conflict (STORAGE_CONTRACT.md
    * rule 17): skips the expectedModifiedAt comparison and the deleted-file
    * conflict branch, writing unconditionally. Only ever set by a user

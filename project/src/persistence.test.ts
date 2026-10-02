@@ -188,6 +188,7 @@ describe("AutoSaveController timing", () => {
       id: "fake-id",
       body: "v2",
       expectedModifiedAt: "2026-01-01T00:00:00.001Z",
+      expectedBody: "v1",
     });
 
     controller.dispose();
@@ -234,6 +235,7 @@ describe("AutoSaveController timing", () => {
       id: "switched-to-id",
       body: "loaded body edited",
       expectedModifiedAt: "2026-01-01T00:00:00.000Z",
+      expectedBody: "loaded body",
     });
 
     controller.dispose();
@@ -326,6 +328,32 @@ describe("AutoSaveController behavior against a real backend", () => {
 
     const onDisk = await store.read(created.id);
     expect(onDisk.body).toBe("changed elsewhere");
+  });
+
+  it("does not surface a conflict when only the file's mtime drifted and the content never changed", async () => {
+    // Reproduces the false-positive reported on Android's scoped-storage
+    // backend: a QuKi sits open and backgrounded for a while, nothing
+    // actually writes to the file, but its reported mtime drifts anyway.
+    const created = await store.save({ id: null, body: "original" });
+    if (created.status !== "saved") throw new Error("unreachable");
+
+    const mdPath = path.join(dir, `${created.id}.md`);
+    const future = new Date(Date.now() + 5000);
+    await fsp.utimes(mdPath, future, future); // mtime moves; content does not
+
+    const body = "local edit after the backgrounded gap";
+    const conflicts: unknown[] = [];
+    const controller = new AutoSaveController(store, () => body, (info) => conflicts.push(info), {
+      id: created.id,
+      body: "original",
+      modifiedAt: created.modifiedAt,
+    });
+
+    await controller.flush();
+
+    expect(conflicts).toEqual([]);
+    const onDisk = await store.read(created.id);
+    expect(onDisk.body).toBe("local edit after the backgrounded gap");
   });
 
   it("invokes onSaved with the id and modifiedAt after a real save, and not on a skipped-empty save", async () => {

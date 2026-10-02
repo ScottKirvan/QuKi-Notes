@@ -194,7 +194,7 @@ export class QuKiStore {
     const id = params.id;
     assertValidId(id);
     return this.runExclusive(id, () =>
-      this.updateExisting(id, params.body, params.expectedModifiedAt, params.force ?? false),
+      this.updateExisting(id, params.body, params.expectedModifiedAt, params.force ?? false, params.expectedBody),
     );
   }
 
@@ -232,6 +232,7 @@ export class QuKiStore {
     body: string,
     expectedModifiedAt: string | undefined,
     force: boolean,
+    expectedBody?: string,
   ): Promise<SaveResult> {
     if (expectedModifiedAt === undefined) {
       throw new TypeError(
@@ -256,7 +257,16 @@ export class QuKiStore {
       const currentModifiedAt = toIso(priorStat.mtimeMs);
       if (currentModifiedAt !== expectedModifiedAt) {
         const currentBody = await this.backend.readText(mdPath);
-        return { status: 'conflict', id, reason: 'modified', currentModifiedAt, currentBody };
+        // A mismatched mtime with byte-identical content isn't a real
+        // conflict - no other writer could coincidentally reproduce the
+        // exact same bytes, so only the clock moved, not the file. Observed
+        // on Android's scoped-storage (FUSE) backend after the app sits
+        // backgrounded for a while: the reported mtime can drift with
+        // nothing having actually written the file. A genuine external edit
+        // changes the content, which this still catches below.
+        if (expectedBody === undefined || currentBody !== expectedBody) {
+          return { status: 'conflict', id, reason: 'modified', currentModifiedAt, currentBody };
+        }
       }
     } else if (exists) {
       // Preserve the original createdAt (via birthtimeMs fallback in
