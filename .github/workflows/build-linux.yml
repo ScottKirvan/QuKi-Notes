@@ -10,7 +10,15 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - arch: x64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+
     steps:
       - uses: actions/checkout@v4
 
@@ -43,28 +51,35 @@ jobs:
         run: npm run build
         working-directory: project/electron
 
-      - name: Package Linux AppImage
-        run: npm run dist:linux
+      - name: Package Linux (${{ matrix.arch }})
+        run: npm run dist:linux -- --${{ matrix.arch }}
         working-directory: project/electron
 
-      - name: Upload AppImage as artifact (manual dispatch)
+      - name: Upload artifacts (manual dispatch)
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
-          name: quki-notes-linux
-          path: project/electron/release/*.AppImage
+          name: quki-notes-linux-${{ matrix.arch }}
+          path: |
+            project/electron/release/*.AppImage
+            project/electron/release/*.deb
           retention-days: 14
 
-      - name: Rename AppImage with version tag
+      - name: Rename artifacts with version tag
         if: github.event_name != 'workflow_dispatch'
         env:
           TAG: ${{ github.event.release.tag_name }}
+          ARCH: ${{ matrix.arch }}
         run: |
-          SRC=$(find project/electron/release -maxdepth 1 -name "*.AppImage" | head -1)
-          mv "$SRC" "project/electron/release/quki-notes-linux-${TAG}.AppImage"
+          find project/electron/release -maxdepth 1 -name "*.AppImage" \
+            -exec mv {} "project/electron/release/quki-notes-linux-${ARCH}-${TAG}.AppImage" \;
+          find project/electron/release -maxdepth 1 -name "*.deb" \
+            -exec mv {} "project/electron/release/quki-notes-linux-${ARCH}-${TAG}.deb" \;
 
       - name: Upload to GitHub Release
         if: github.event_name != 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
-          files: project/electron/release/quki-notes-linux-${{ github.event.release.tag_name }}.AppImage
+          files: |
+            project/electron/release/quki-notes-linux-${{ matrix.arch }}-${{ github.event.release.tag_name }}.AppImage
+            project/electron/release/quki-notes-linux-${{ matrix.arch }}-${{ github.event.release.tag_name }}.deb
