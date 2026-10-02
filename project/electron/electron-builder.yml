@@ -18,4 +18,5 @@ nsis:
 linux:
   target:
     - target: AppImage
+    - target: deb
   category: Utility
