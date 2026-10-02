@@ -5,5 +5,7 @@
   "linux": "https://github.com/ScottKirvan/QuKi-Notes/releases/download/v0.24.1/quki-notes-linux-x64-v0.24.1.AppImage",
   "linux_arm64": "https://github.com/ScottKirvan/QuKi-Notes/releases/download/v0.24.1/quki-notes-linux-arm64-v0.24.1.AppImage",
   "linux_deb": "https://github.com/ScottKirvan/QuKi-Notes/releases/download/v0.24.1/quki-notes-linux-x64-v0.24.1.deb",
-  "linux_arm64_deb": "https://github.com/ScottKirvan/QuKi-Notes/releases/download/v0.24.1/quki-notes-linux-arm64-v0.24.1.deb"
+  "linux_arm64_deb": "https://github.com/ScottKirvan/QuKi-Notes/releases/download/v0.24.1/quki-notes-linux-arm64-v0.24.1.deb",
+  "linux_snap": "https://github.com/ScottKirvan/QuKi-Notes/releases/download/v0.24.1/quki-notes-linux-v0.24.1.snap",
+  "linux_flatpak": "https://github.com/ScottKirvan/QuKi-Notes/releases/download/v0.24.1/quki-notes-linux-v0.24.1.flatpak"
 }
