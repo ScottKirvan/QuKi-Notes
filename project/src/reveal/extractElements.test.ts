@@ -187,6 +187,36 @@ describe("blockquote lines", () => {
   it("given a > inside a fenced code block, then it is not a quote line", () => {
     expect(quoteElements("```\n> not a quote\n```")).toEqual([]);
   });
+
+  it("given a fenced code block inside a blockquote, then every line - opening fence, content and closing fence - is still a blockquote line", () => {
+    const doc = "> quote\n> ```\n> code\n> ```\n> more quote";
+    const quotes = quoteElements(doc);
+    expect(quotes).toHaveLength(5);
+    expect(quotes.map((q) => q.quoteDepth)).toEqual([1, 1, 1, 1, 1]);
+    const fenceLines = quotes.filter((q) => doc.slice(q.start, q.end).includes("```"));
+    expect(fenceLines).toHaveLength(2);
+    const codeLine = quotes.find((q) => doc.slice(q.start, q.end).includes("code"));
+    expect(codeLine!.checkEnd).toBe(codeLine!.start + 2);
+  });
+
+  it("given a fenced code block inside a nested blockquote, then the interior lines keep the full nested depth", () => {
+    const doc = ">> nested\n>> ```\n>> code\n>> ```\n>> more";
+    const quotes = quoteElements(doc);
+    expect(quotes).toHaveLength(5);
+    expect(quotes.every((q) => q.quoteDepth === 2)).toBe(true);
+  });
+
+  it("given a fenced code block inside a blockquote, then the FencedCode element itself is unaffected - still one block-marker, content still never parsed as markdown", () => {
+    const doc = "> quote\n> ```\n> **not bold**\n> ```";
+    const els = elementsFor(doc);
+    expect(els.filter((el) => el.type === "FencedCode")).toHaveLength(1);
+    expect(els.some((el) => el.type === "StrongEmphasis")).toBe(false);
+  });
+
+  it("given an ordinary fenced code block with no enclosing blockquote, then no blockquote lines are added for it", () => {
+    const doc = "```\ncode\n```";
+    expect(quoteElements(doc)).toEqual([]);
+  });
 });
 
 function taskElements(doc: string): RevealElement[] {
@@ -466,5 +496,77 @@ describe("fenced code blocks", () => {
   it("given two separate fenced blocks, then each is its own element", () => {
     const doc = "```\na\n```\n\ntext\n\n```\nb\n```";
     expect(fencedCodeElements(doc)).toHaveLength(2);
+  });
+});
+
+describe("backslash escapes", () => {
+  function escapeElements(doc: string): RevealElement[] {
+    return elementsFor(doc).filter((el) => el.type === "Escape");
+  }
+
+  it("given a backslash-escaped punctuation character, then it is an inline element spanning the backslash and the character", () => {
+    const doc = "\\*not italic\\*";
+    const [first, second] = escapeElements(doc);
+    expect(first!.category).toBe("inline");
+    expect(first!.start).toBe(0);
+    expect(first!.end).toBe(2);
+    expect(first!.checkStart).toBe(0);
+    expect(first!.checkEnd).toBe(2);
+    expect(first!.parentId).toBeNull();
+    expect(second!.start).toBe(12);
+    expect(second!.end).toBe(14);
+  });
+
+  it("given an escaped asterisk pair, then no Emphasis element is produced - the escape takes away its markdown meaning", () => {
+    const doc = "\\*not italic\\*";
+    const types = elementsFor(doc).map((el) => el.type);
+    expect(types).not.toContain("Emphasis");
+    expect(types).not.toContain("StrongEmphasis");
+  });
+
+  it.each([
+    "!", "\"", "#", "$", "%", "&", "'", "(", ")", "*", "+", ",", "-", ".",
+    "/", ":", ";", "<", "=", ">", "?", "@", "[", "\\", "]", "^", "_", "`",
+    "{", "|", "}", "~",
+  ])("given a backslash before the ASCII punctuation character %j, then it is an escape", (ch) => {
+    const [el] = escapeElements(`\\${ch}x`);
+    expect(el!.start).toBe(0);
+    expect(el!.end).toBe(2);
+  });
+
+  it("given a backslash before a letter, then it is not an escape", () => {
+    expect(escapeElements("\\a literal backslash then letter")).toEqual([]);
+  });
+
+  it("given a backslash before a digit, then it is not an escape", () => {
+    expect(escapeElements("\\1 digit escape attempt")).toEqual([]);
+  });
+
+  it("given a backslash before a space, then it is not an escape", () => {
+    expect(escapeElements("\\ leading space escape attempt")).toEqual([]);
+  });
+
+  it("given a backslash at the very end of the document, then it is not an escape", () => {
+    expect(escapeElements("line ends with backslash\\")).toEqual([]);
+  });
+
+  it("given a backslash immediately before a newline, then it is a hard break, not an escape", () => {
+    expect(escapeElements("line one\\\nline two")).toEqual([]);
+  });
+
+  it("given an escape inside an inline code span, then it is not extracted - backslash escapes do not apply inside code spans", () => {
+    expect(escapeElements("`\\*inside code span\\*`")).toEqual([]);
+  });
+
+  it("given an escape inside a fenced code block, then it is not extracted", () => {
+    expect(escapeElements("```\n\\*not an escape\\*\n```")).toEqual([]);
+  });
+
+  it("given an escape nested inside bold, then its parent is the bold element - it cascade-reveals with it", () => {
+    const doc = "**bold \\* text**";
+    const els = elementsFor(doc);
+    const bold = els.find((el) => el.type === "StrongEmphasis");
+    const [escape] = els.filter((el) => el.type === "Escape");
+    expect(escape!.parentId).toBe(bold?.id);
   });
 });

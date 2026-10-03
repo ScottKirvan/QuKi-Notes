@@ -56,4 +56,13 @@ describe('QuKiStore.list reflects the folder, not a cache', () => {
     expect(ids).not.toContain('not-a-quki');
     expect(ids).toHaveLength(1);
   });
+
+  it('a broken symlink among the .md entries is skipped, not fatal to the rest of the list', async () => {
+    await store.save({ id: null, body: 'good one' });
+    await fsp.symlink(path.join(dir, 'does-not-exist-target'), path.join(dir, 'broken.md'));
+
+    const ids = (await store.list()).map((q) => q.id);
+    expect(ids).not.toContain('broken');
+    expect(ids).toHaveLength(1);
+  });
 });

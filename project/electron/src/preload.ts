@@ -16,7 +16,7 @@
  */
 import { contextBridge, ipcRenderer } from 'electron';
 
-import type { ElectronStorageApi, ResolvePathSyncResult, StorageLocationState } from './storageIpc.js';
+import type { ElectronExportApi, ElectronStorageApi, ResolvePathSyncResult, StorageLocationState } from './storageIpc.js';
 
 const RESOLVE_PATH_SYNC_CHANNEL = 'quki:resolvePathSync';
 
@@ -82,6 +82,9 @@ export interface ElectronSetupApi {
    * proceeding with no storage backend.
    */
   quit(): Promise<void>;
+  /** BEHAVIOR_SPEC.md §4: the mode toggle's plain-text/rendered choice "persists across launches". */
+  getPlainTextMode(): Promise<boolean>;
+  setPlainTextMode(value: boolean): Promise<void>;
 }
 
 const setupApi: ElectronSetupApi = {
@@ -89,6 +92,53 @@ const setupApi: ElectronSetupApi = {
   chooseFilesystem: () => ipcRenderer.invoke('quki:setup:chooseFilesystem'),
   chooseAppStorage: () => ipcRenderer.invoke('quki:setup:chooseAppStorage'),
   quit: () => ipcRenderer.invoke('quki:setup:quit'),
+  getPlainTextMode: () => ipcRenderer.invoke('quki:setup:getPlainTextMode'),
+  setPlainTextMode: (value: boolean) => ipcRenderer.invoke('quki:setup:setPlainTextMode', value),
 };
 
 contextBridge.exposeInMainWorld('electronSetupAPI', setupApi);
+
+/**
+ * Settings -> Export bridge (see storageIpc.ts's EXPORT_CHANNELS doc
+ * comment), exposed separately from `electronAPI` the same way
+ * `electronSetupAPI` is - it is a one-shot native "Save As" action, not
+ * part of the StorageBackend surface.
+ */
+const exportApi: ElectronExportApi = {
+  saveExport: (bytes: Uint8Array, defaultFileName: string) => ipcRenderer.invoke('quki:export:save', bytes, defaultFileName),
+};
+
+contextBridge.exposeInMainWorld('electronExportAPI', exportApi);
+
+const FLUSH_BEFORE_QUIT_CHANNEL = 'quki:app:flushBeforeQuit';
+const FLUSH_COMPLETE_CHANNEL = 'quki:app:flushComplete';
+
+/**
+ * Quit-time flush handshake bridge (see main.ts's attachQuitFlush and
+ * storageIpc.ts's APP_LIFECYCLE_CHANNELS): the main process defers actually
+ * closing a window until the renderer's pending auto-save has been flushed,
+ * so quitting the app can no longer drop the last unsaved edit. callback is
+ * always acknowledged over IPC, even if it rejects, so a flush error can
+ * never hang the main process's close - it just proceeds with whatever was
+ * last written, the same as any other failed save under
+ * STORAGE_CONTRACT.md rule 18.
+ */
+export interface ElectronLifecycleApi {
+  onFlushBeforeQuit(callback: () => Promise<void>): void;
+}
+
+const lifecycleApi: ElectronLifecycleApi = {
+  onFlushBeforeQuit: (callback) => {
+    ipcRenderer.on(FLUSH_BEFORE_QUIT_CHANNEL, () => {
+      void callback()
+        .catch((error) => {
+          console.error('QuKi quit-time flush failed:', error);
+        })
+        .finally(() => {
+          ipcRenderer.send(FLUSH_COMPLETE_CHANNEL);
+        });
+    });
+  },
+};
+
+contextBridge.exposeInMainWorld('electronLifecycleAPI', lifecycleApi);

@@ -21,6 +21,11 @@ export interface SettingsStorageCallbacks {
   onChangeLocation: () => Promise<void>;
 }
 
+export interface DeleteOrphanedImagesCallbacks {
+  get: () => boolean;
+  set: (value: boolean) => void;
+}
+
 export interface SettingsViewCallbacks {
   onBack: () => void;
   onOpenTrash: () => void;
@@ -33,6 +38,22 @@ export interface SettingsViewCallbacks {
    * below unchanged.
    */
   storage?: SettingsStorageCallbacks;
+  /**
+   * STORAGE_CONTRACT.md rule 13: "delete orphaned images" is a user-facing
+   * setting, defaulting to delete. Present on every platform, unlike
+   * `storage` above.
+   */
+  deleteOrphanedImages: DeleteOrphanedImagesCallbacks;
+  /**
+   * Settings -> Export (STORAGE_CONTRACT.md "The core API": "a single call
+   * that produces the complete library... the backup story, and... also the
+   * migration path"). Present on every platform, unlike `storage` above -
+   * building the archive and delivering it is main.ts's job (a browser
+   * download on web, a native Save As dialog on Electron, a write into the
+   * current storage root on Android); this view only triggers it and shows
+   * a generic failure toast if the returned promise rejects unexpectedly.
+   */
+  onExport: () => Promise<void>;
 }
 
 export interface SettingsView {
@@ -52,6 +73,16 @@ const STORAGE_NOTE =
 // Ported verbatim from lib/features/settings/settings_screen.dart's Storage
 // ListTile, which switches title and (colour-coded) subtitle on isAppStorage
 // rather than always showing a plain path.
+//
+// isAppStorage reflects the resolved storage path's actual guarantees
+// (survives uninstall or not, visible outside the app or not), not which
+// setup-screen card the user happened to click - see electron/src/main.ts's
+// getState handler (always false: Electron has no private storage tier at
+// all) and androidSetupApi.ts's isUnderPrivateStorage (true for any path
+// inside the app's real private data directory, including one reached via
+// Flutter migration rather than the "Use app storage" card). So the
+// private/uninstall-removal copy below only ever renders where it's
+// actually true.
 const FILESYSTEM_STORAGE_TITLE = "Filesystem storage";
 const APP_STORAGE_TITLE = "App storage (private)";
 const APP_STORAGE_SUBTITLE = "Files will be removed on uninstall. Change location.";
@@ -68,12 +99,18 @@ export function createSettingsView(container: HTMLElement, callbacks: SettingsVi
         <button type="button" class="settings-row settings-link change-location-btn">
           <span>Change location</span>
         </button>
+        <button type="button" class="settings-row settings-link export-btn">
+          <span>Export</span>
+        </button>
       </section>
     `
     : `
       <section class="settings-section">
         <h2>Storage</h2>
         <p class="settings-note">${STORAGE_NOTE}</p>
+        <button type="button" class="settings-row settings-link export-btn">
+          <span>Export</span>
+        </button>
       </section>
     `;
 
@@ -96,6 +133,10 @@ export function createSettingsView(container: HTMLElement, callbacks: SettingsVi
         <button type="button" class="settings-row settings-link trash-btn">
           <span>Trash</span>
         </button>
+        <label class="settings-row">
+          <span>Delete orphaned images</span>
+          <input type="checkbox" class="delete-orphaned-images-toggle" />
+        </label>
       </section>
       <section class="settings-section">
         <h2>About</h2>
@@ -117,6 +158,12 @@ export function createSettingsView(container: HTMLElement, callbacks: SettingsVi
 
   backBtn.addEventListener("click", () => callbacks.onBack());
   trashBtn.addEventListener("click", () => callbacks.onOpenTrash());
+
+  const deleteOrphanedImagesToggle = container.querySelector<HTMLInputElement>(".delete-orphaned-images-toggle")!;
+  deleteOrphanedImagesToggle.checked = callbacks.deleteOrphanedImages.get();
+  deleteOrphanedImagesToggle.addEventListener("change", () => {
+    callbacks.deleteOrphanedImages.set(deleteOrphanedImagesToggle.checked);
+  });
 
   if (callbacks.storage) {
     const storage = callbacks.storage;
@@ -152,6 +199,21 @@ export function createSettingsView(container: HTMLElement, callbacks: SettingsVi
       })();
     });
   }
+
+  const exportBtn = container.querySelector<HTMLButtonElement>(".export-btn")!;
+  exportBtn.addEventListener("click", () => {
+    void (async () => {
+      exportBtn.disabled = true;
+      try {
+        await callbacks.onExport();
+      } catch (error) {
+        console.error("QuKi export failed unexpectedly:", error);
+        callbacks.showToast("Export failed — unexpected error.", 4000);
+      } finally {
+        exportBtn.disabled = false;
+      }
+    })();
+  });
 
   // BEHAVIOR_SPEC.md §7: "Tapping copies the version string to the
   // clipboard and confirms with 'Copied to clipboard.'" (the same copy

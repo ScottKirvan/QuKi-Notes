@@ -1,13 +1,24 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createStorageAccessGate, type StorageAccessDeps, type StorageAccessState } from "./androidStorageAccess.js";
+import {
+  createStorageAccessGate,
+  type RequestAllFilesAccessOutcome,
+  type StorageAccessDeps,
+  type StorageAccessState,
+} from "./androidStorageAccess.js";
 
 /**
  * Captures the callback the gate registers with onAppStateChange so tests
  * can simulate app foreground/background transitions directly, without any
- * real Capacitor App plugin or DOM involved.
+ * real Capacitor App plugin or DOM involved. requestAllFilesAccess defaults
+ * to the API 30+ "opened-settings" outcome, matching every existing test
+ * here (all written against that path); tests of the API <30 immediate-
+ * outcome behavior override it via requestAllFilesAccessResult.
  */
-function fakeDeps(initialGranted: boolean): {
+function fakeDeps(
+  initialGranted: boolean,
+  requestAllFilesAccessResult: RequestAllFilesAccessOutcome = "opened-settings",
+): {
   deps: StorageAccessDeps;
   fireAppStateChange: (isActive: boolean) => void;
   setGranted: (granted: boolean) => void;
@@ -19,7 +30,7 @@ function fakeDeps(initialGranted: boolean): {
   let listener: ((isActive: boolean) => void) | undefined;
   const removeSpy = vi.fn();
   const isExternalStorageManager = vi.fn(async () => granted);
-  const requestAllFilesAccess = vi.fn(async () => undefined);
+  const requestAllFilesAccess = vi.fn(async (): Promise<RequestAllFilesAccessOutcome> => requestAllFilesAccessResult);
 
   const deps: StorageAccessDeps = {
     isExternalStorageManager,
@@ -148,5 +159,92 @@ describe("createStorageAccessGate", () => {
     gate.destroy();
 
     expect(removeSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("resolves ready() false when the user cancels instead of granting, with no foreground resume ever coming", async () => {
+    const { deps } = fakeDeps(false);
+    const states: StorageAccessState[] = [];
+
+    const gate = createStorageAccessGate(deps, (s) => states.push(s));
+    await flushMicrotasks();
+
+    let resolvedTo: boolean | undefined;
+    void gate.ready().then((granted) => {
+      resolvedTo = granted;
+    });
+
+    await gate.requestAccess();
+    gate.cancel();
+    await flushMicrotasks();
+
+    expect(resolvedTo).toBe(false);
+    expect(gate.getState()).toBe("waiting-for-settings");
+  });
+
+  it("cancel() before any requestAccess call also resolves ready() false", async () => {
+    const { deps } = fakeDeps(false);
+
+    const gate = createStorageAccessGate(deps, () => {});
+    await flushMicrotasks();
+
+    gate.cancel();
+
+    await expect(gate.ready()).resolves.toBe(false);
+  });
+
+  it("cancel() is a no-op once ready() has already resolved true", async () => {
+    const { deps } = fakeDeps(true);
+
+    const gate = createStorageAccessGate(deps, () => {});
+    const grantedFirst = await gate.ready();
+
+    gate.cancel();
+
+    expect(grantedFirst).toBe(true);
+    await expect(gate.ready()).resolves.toBe(true);
+  });
+
+  describe("API <30: requestAllFilesAccess resolves in-process, with no Settings round trip", () => {
+    it("treats a 'granted' outcome as immediately final, without waiting for any foreground resume", async () => {
+      const { deps, isExternalStorageManager } = fakeDeps(false, "granted");
+      const states: StorageAccessState[] = [];
+
+      const gate = createStorageAccessGate(deps, (s) => states.push(s));
+      await flushMicrotasks();
+      isExternalStorageManager.mockClear();
+
+      await gate.requestAccess();
+
+      expect(await gate.ready()).toBe(true);
+      expect(gate.getState()).toBe("granted");
+      expect(states).toEqual(["checking", "needs-permission", "waiting-for-settings", "granted"]);
+      // No recheck of isExternalStorageManager() was needed - the runtime
+      // permission callback's own result is authoritative.
+      expect(isExternalStorageManager).not.toHaveBeenCalled();
+    });
+
+    it("treats a 'denied' outcome as immediately final too, returning to needs-permission with ready() left pending", async () => {
+      const { deps, fireAppStateChange } = fakeDeps(false, "denied");
+      const states: StorageAccessState[] = [];
+
+      const gate = createStorageAccessGate(deps, (s) => states.push(s));
+      await flushMicrotasks();
+
+      let readyResolved = false;
+      void gate.ready().then(() => {
+        readyResolved = true;
+      });
+
+      await gate.requestAccess();
+      expect(gate.getState()).toBe("needs-permission");
+      expect(readyResolved).toBe(false);
+
+      // A later, unrelated foreground resume must not be mistaken for a
+      // Settings round trip that never happened.
+      fireAppStateChange(true);
+      await flushMicrotasks();
+      expect(readyResolved).toBe(false);
+      expect(states).toEqual(["checking", "needs-permission", "waiting-for-settings", "needs-permission"]);
+    });
   });
 });

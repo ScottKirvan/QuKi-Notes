@@ -163,6 +163,30 @@ export function extractElements(state: EditorState): ExtractResult {
   // recomputing the whole table's row list per row.
   let tableBoundaryEnd: number | null = null;
 
+  // Shared by the top-level QuoteMark case below and by FencedCode's own
+  // handling of the QuoteMark children @lezer/markdown nests inside a fenced
+  // code block that sits inside a blockquote (see the FencedCode case) — same
+  // "does this marker actually start its line" check and same BlockquoteLine
+  // element shape either way.
+  function addBlockquoteLine(quoteMark: SyntaxNode): void {
+    const line = state.doc.lineAt(quoteMark.from);
+    const prefix = quoteMark.from === line.from ? quotePrefix(line.text) : null;
+    if (!prefix) return;
+    const id = nextId++;
+    elements.push({
+      id,
+      type: "BlockquoteLine",
+      category: "block-marker",
+      start: line.from,
+      end: line.to,
+      checkStart: line.from,
+      checkEnd: line.from + prefix.length,
+      parentId: null,
+      quoteDepth: prefix.depth,
+    });
+    nodes.set(id, quoteMark);
+  }
+
   tree.iterate({
     enter(node) {
       const type = node.name;
@@ -192,23 +216,7 @@ export function extractElements(state: EditorState): ExtractResult {
       }
 
       if (type === "QuoteMark") {
-        const line = state.doc.lineAt(node.from);
-        const prefix = node.from === line.from ? quotePrefix(line.text) : null;
-        if (prefix) {
-          const id = nextId++;
-          elements.push({
-            id,
-            type: "BlockquoteLine",
-            category: "block-marker",
-            start: line.from,
-            end: line.to,
-            checkStart: line.from,
-            checkEnd: line.from + prefix.length,
-            parentId: null,
-            quoteDepth: prefix.depth,
-          });
-          nodes.set(id, node.node);
-        }
+        addBlockquoteLine(node.node);
         return true;
       }
 
@@ -319,6 +327,41 @@ export function extractElements(state: EditorState): ExtractResult {
         return true;
       }
 
+      // CommonMark backslash escapes: @lezer/markdown already recognises
+      // exactly the CommonMark rule (its own Escapable set is the ASCII
+      // punctuation list backslash-escapes apply to, and it declines a
+      // trailing backslash at the very end of the inline content) and emits
+      // a 2-character leaf node (backslash + the escaped character) only
+      // when that rule matches - a backslash before a letter, digit,
+      // whitespace or end-of-line never becomes an Escape node and is left
+      // as plain text needing no handling here. Escape doesn't fire inside
+      // InlineCode/FencedCode content or a Link/Image URL either (verified
+      // against the parser directly), matching CommonMark's "escapes don't
+      // work in code spans, code blocks, or autolinks" rule with no extra
+      // exclusion needed on this end. Non-nesting leaf, same as URL above:
+      // it can sit inside an outer nesting element (so it takes that
+      // element's id as parentId, to cascade-reveal with it) but never
+      // becomes an ancestor itself.
+      if (type === "Escape") {
+        const parentId =
+          inlineAncestorStack.length > 0
+            ? inlineAncestorStack[inlineAncestorStack.length - 1]
+            : null;
+        const id = nextId++;
+        elements.push({
+          id,
+          type,
+          category: "inline",
+          start: node.from,
+          end: node.to,
+          checkStart: node.from,
+          checkEnd: node.to,
+          parentId,
+        });
+        nodes.set(id, node.node);
+        return true;
+      }
+
       if (NESTING_INLINE_TYPES.has(type)) {
         const parentId =
           inlineAncestorStack.length > 0
@@ -363,6 +406,18 @@ export function extractElements(state: EditorState): ExtractResult {
           ...(infoNode && { infoString: state.sliceDoc(infoNode.from, infoNode.to) }),
         });
         nodes.set(id, node.node);
+        // A fenced code block that sits inside a blockquote nests its
+        // continuation lines' QuoteMark tokens as direct children of the
+        // FencedCode node itself, not as siblings of it under the
+        // Blockquote - so returning false below (to keep the block's own
+        // content from ever being descended into and parsed as markdown)
+        // would otherwise also skip these, losing the quote bar on every
+        // line the code block occupies. They belong to the blockquote, not
+        // to the code block, so they're picked up here explicitly before
+        // the walk is cut off.
+        for (const quoteMark of node.node.getChildren("QuoteMark")) {
+          addBlockquoteLine(quoteMark);
+        }
         return false;
       }
 

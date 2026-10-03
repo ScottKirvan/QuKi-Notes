@@ -14,6 +14,9 @@ import * as path from 'node:path';
  * fields (rather than one nested object) so "any is missing" is a plain
  * null-check per field, matching how storagePath/storageChosen already work
  * in this same shape.
+ *
+ * BEHAVIOR_SPEC.md §4: the mode toggle's plain-text/rendered choice
+ * "persists across launches" - plainTextMode follows the same shape.
  */
 export interface Preferences {
   storagePath: string | null;
@@ -22,6 +25,7 @@ export interface Preferences {
   windowY: number | null;
   windowWidth: number | null;
   windowHeight: number | null;
+  plainTextMode: boolean;
 }
 
 const DEFAULT_PREFERENCES: Preferences = {
@@ -31,6 +35,7 @@ const DEFAULT_PREFERENCES: Preferences = {
   windowY: null,
   windowWidth: null,
   windowHeight: null,
+  plainTextMode: false,
 };
 
 const PREFERENCES_FILE_NAME = 'preferences.json';
@@ -82,6 +87,7 @@ export class PreferencesStore {
       windowY: readFiniteNumber(candidate?.windowY),
       windowWidth: readFiniteNumber(candidate?.windowWidth),
       windowHeight: readFiniteNumber(candidate?.windowHeight),
+      plainTextMode: candidate?.plainTextMode === true,
     };
   }
 
@@ -110,6 +116,12 @@ export class PreferencesStore {
       windowWidth: bounds.width,
       windowHeight: bounds.height,
     };
+    this.write(prefs);
+    return prefs;
+  }
+
+  setPlainTextMode(plainTextMode: boolean): Preferences {
+    const prefs: Preferences = { ...this.read(), plainTextMode };
     this.write(prefs);
     return prefs;
   }

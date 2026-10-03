@@ -66,16 +66,21 @@ describe("createAndroidSetupApi", () => {
     expect(await api.getState()).toEqual({ chosen: false, path: null, isAppStorage: false, unreachablePath: "/moved-or-deleted-folder" });
   });
 
-  it("silently adopts a migrated path and persists it", async () => {
+  it("silently adopts a migrated path and persists it, correctly reporting it as app-private storage", async () => {
+    // /data/data/com.quki.quki_notes/app_flutter/qukis is a sibling of
+    // PRIVATE_STORAGE_PATH (.../files) under the same private data
+    // directory (.../com.quki.quki_notes) - genuinely app-private and
+    // removed on uninstall, even though it wasn't produced by this app's
+    // own "Use app storage" choice.
     const deps = baseDeps({ resolveMigratedStorageRoot: vi.fn(async () => "/data/data/com.quki.quki_notes/app_flutter/qukis") });
 
     const api = await createAndroidSetupApi(deps);
 
-    expect(await api.getState()).toEqual({ chosen: true, path: "/data/data/com.quki.quki_notes/app_flutter/qukis", isAppStorage: false, unreachablePath: null });
-    expect(await deps.settingsStore.read()).toEqual({ storagePath: "/data/data/com.quki.quki_notes/app_flutter/qukis", storageChosen: true });
+    expect(await api.getState()).toEqual({ chosen: true, path: "/data/data/com.quki.quki_notes/app_flutter/qukis", isAppStorage: true, unreachablePath: null });
+    expect(await deps.settingsStore.read()).toEqual({ storagePath: "/data/data/com.quki.quki_notes/app_flutter/qukis", storageChosen: true, plainTextMode: false });
   });
 
-  it("reports isAppStorage true only when the chosen path is exactly the private app-storage directory", async () => {
+  it("reports isAppStorage true when the chosen path is exactly the private app-storage directory", async () => {
     const { store, files } = fakeSettingsStore();
     await store.setStorageLocation(`${PRIVATE_STORAGE_PATH}/QuKi_Notes`);
     const deps = baseDeps({ settingsStore: new AndroidSettingsStore({ exists: async (p) => p in files, readText: async (p) => files[p]!, writeTextAtomic: async () => undefined }, SETTINGS_PATH) });
@@ -83,6 +88,33 @@ describe("createAndroidSetupApi", () => {
     const api = await createAndroidSetupApi(deps);
 
     expect((await api.getState()).isAppStorage).toBe(true);
+  });
+
+  it("reports isAppStorage true for any path nested under the app's private data directory, not just the exact app-storage subfolder", async () => {
+    const { store, files } = fakeSettingsStore();
+    // A sibling of PRIVATE_STORAGE_PATH under the same private data
+    // directory (/data/data/com.quki.quki_notes), not the QuKi_Notes
+    // subfolder this app itself creates.
+    await store.setStorageLocation("/data/data/com.quki.quki_notes/some-other-private-dir");
+    const deps = baseDeps({ settingsStore: new AndroidSettingsStore({ exists: async (p) => p in files, readText: async (p) => files[p]!, writeTextAtomic: async () => undefined }, SETTINGS_PATH) });
+
+    const api = await createAndroidSetupApi(deps);
+
+    expect((await api.getState()).isAppStorage).toBe(true);
+  });
+
+  it("does not report isAppStorage true for a path that merely shares a text prefix with the private data directory", async () => {
+    const { store, files } = fakeSettingsStore();
+    // /data/data/com.quki.quki_notes-evil is a different, unrelated
+    // directory - a naive string-prefix check without a path-separator
+    // boundary would wrongly match it against
+    // "/data/data/com.quki.quki_notes".
+    await store.setStorageLocation("/data/data/com.quki.quki_notes-evil/QuKi_Notes");
+    const deps = baseDeps({ settingsStore: new AndroidSettingsStore({ exists: async (p) => p in files, readText: async (p) => files[p]!, writeTextAtomic: async () => undefined }, SETTINGS_PATH) });
+
+    const api = await createAndroidSetupApi(deps);
+
+    expect((await api.getState()).isAppStorage).toBe(false);
   });
 
   describe("chooseFilesystem", () => {
@@ -95,8 +127,31 @@ describe("createAndroidSetupApi", () => {
       expect(path).toBe("/storage/emulated/0/Documents/QuKi_Notes");
       expect(deps.requestFilesystemAccess).toHaveBeenCalledTimes(1);
       expect(await api.getState()).toEqual({ chosen: true, path: "/storage/emulated/0/Documents/QuKi_Notes", isAppStorage: false, unreachablePath: null });
-      expect(await deps.settingsStore.read()).toEqual({ storagePath: "/storage/emulated/0/Documents/QuKi_Notes", storageChosen: true });
+      expect(await deps.settingsStore.read()).toEqual({ storagePath: "/storage/emulated/0/Documents/QuKi_Notes", storageChosen: true, plainTextMode: false });
       expect(deps.onLocationResolved).toHaveBeenCalledWith("/storage/emulated/0/Documents/QuKi_Notes");
+    });
+
+    it("returns null and leaves state, settings and the unreachable path untouched when the user backs out of the permission screen instead of granting access", async () => {
+      const { store, files } = fakeSettingsStore();
+      await store.setStorageLocation("/moved-or-deleted-folder");
+      const settingsStore = new AndroidSettingsStore(
+        { exists: async (p) => p in files, readText: async (p) => files[p]!, writeTextAtomic: async (p, c) => { files[p] = c; } },
+        SETTINGS_PATH,
+      );
+      const deps = baseDeps({
+        settingsStore,
+        isValidWritableDirectory: vi.fn(async () => false),
+        requestFilesystemAccess: vi.fn(async () => null),
+      });
+      const api = await createAndroidSetupApi(deps);
+      expect((await api.getState()).unreachablePath).toBe("/moved-or-deleted-folder");
+
+      const path = await api.chooseFilesystem();
+
+      expect(path).toBeNull();
+      expect((await api.getState()).unreachablePath).toBe("/moved-or-deleted-folder");
+      expect(await settingsStore.read()).toEqual({ storagePath: "/moved-or-deleted-folder", storageChosen: true, plainTextMode: false });
+      expect(deps.onLocationResolved).not.toHaveBeenCalled();
     });
 
     it("clears a previously-reported unreachable path once a new choice is made", async () => {
@@ -150,7 +205,7 @@ describe("createAndroidSetupApi", () => {
 
       expect(path).toBe(`${PRIVATE_STORAGE_PATH}/QuKi_Notes`);
       expect(await api.getState()).toEqual({ chosen: true, path: `${PRIVATE_STORAGE_PATH}/QuKi_Notes`, isAppStorage: true, unreachablePath: null });
-      expect(await deps.settingsStore.read()).toEqual({ storagePath: `${PRIVATE_STORAGE_PATH}/QuKi_Notes`, storageChosen: true });
+      expect(await deps.settingsStore.read()).toEqual({ storagePath: `${PRIVATE_STORAGE_PATH}/QuKi_Notes`, storageChosen: true, plainTextMode: false });
       expect(deps.onLocationResolved).toHaveBeenCalledWith(`${PRIVATE_STORAGE_PATH}/QuKi_Notes`);
     });
   });
@@ -163,6 +218,28 @@ describe("createAndroidSetupApi", () => {
       await api.quit();
 
       expect(deps.exitApp).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // BEHAVIOR_SPEC.md §4: the mode toggle's plain-text/rendered choice
+  // "persists across launches" - Android's counterpart of Electron's
+  // getPlainTextMode/setPlainTextMode IPC (see electron/src/main.ts).
+  describe("getPlainTextMode / setPlainTextMode", () => {
+    it("defaults to false", async () => {
+      const deps = baseDeps();
+      const api = await createAndroidSetupApi(deps);
+
+      expect(await api.getPlainTextMode()).toBe(false);
+    });
+
+    it("persists a choice via the settings store and reports it back", async () => {
+      const deps = baseDeps();
+      const api = await createAndroidSetupApi(deps);
+
+      await api.setPlainTextMode(true);
+
+      expect(await api.getPlainTextMode()).toBe(true);
+      expect(await deps.settingsStore.read()).toEqual({ storagePath: null, storageChosen: false, plainTextMode: true });
     });
   });
 });

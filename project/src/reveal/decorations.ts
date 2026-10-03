@@ -408,6 +408,18 @@ export function buildDecorations(state: EditorState): DecorationSet {
         }
         break;
 
+      // CommonMark backslash escape: hide just the backslash, leaving the
+      // escaped character as ordinary text with no styling of its own - it
+      // took away the character's markdown meaning, but the character
+      // itself isn't otherwise special. Revealed (caret inside), nothing is
+      // hidden and the raw two-character source shows, same convention as
+      // every other inline element here.
+      case "Escape":
+        if (!revealed) {
+          ranges.push(Decoration.replace({}).range(element.start, element.start + 1));
+        }
+        break;
+
       case "Link": {
         if (!revealed) {
           const { label, url } = readLabelAndUrl(node, state);

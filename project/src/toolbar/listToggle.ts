@@ -23,12 +23,14 @@ interface LineToggleEdit {
 }
 
 /**
- * Converts a line's list marker to `targetType` in place, or removes it if
- * the line is already that type — "convert in place rather than stacking
- * markers" per BEHAVIOR_SPEC.md. Heading lines are a no-op. Ported from
- * markdown_editor.dart's `_toggleLine`.
+ * Rewrites a line's list marker: removes it (when `remove` is true and the
+ * line has one) or replaces whatever marker it has (or lacks) with
+ * `targetType`'s. Heading lines are a no-op. The caller decides `remove` -
+ * for a single line that's simply "does it already have this marker", but a
+ * multi-line selection decides it once, uniformly, for every touched line
+ * (see `applyListMarkerToggleMultiLine`).
  */
-function toggleLine(line: string, targetType: ListMarkerType): LineToggleEdit {
+function applyMarkerToLine(line: string, targetType: ListMarkerType, remove: boolean): LineToggleEdit {
   if (isHeadingLine(line)) {
     return { newLine: line, wsLen: 0, oldMarkerLen: 0, newMarkerLen: 0 };
   }
@@ -38,10 +40,20 @@ function toggleLine(line: string, targetType: ListMarkerType): LineToggleEdit {
   const oldMarkerLen = match?.markerLen ?? 0;
   const content = line.slice(wsLen + oldMarkerLen);
 
-  const removing = match?.type === targetType;
-  const newMarker = removing ? "" : NEW_LIST_MARKER_TEXT[targetType];
+  const newMarker = remove ? "" : NEW_LIST_MARKER_TEXT[targetType];
   const newLine = ws + newMarker + content;
   return { newLine, wsLen, oldMarkerLen, newMarkerLen: newMarker.length };
+}
+
+/**
+ * Converts a line's list marker to `targetType` in place, or removes it if
+ * the line is already that type — "convert in place rather than stacking
+ * markers" per BEHAVIOR_SPEC.md. Ported from markdown_editor.dart's
+ * `_toggleLine`.
+ */
+function toggleLine(line: string, targetType: ListMarkerType): LineToggleEdit {
+  const match = isHeadingLine(line) ? null : detectListMarker(line);
+  return applyMarkerToLine(line, targetType, match?.type === targetType);
 }
 
 /** Ported from markdown_editor.dart's `_applyListMarkerToggle` (collapsed selection). */
@@ -60,8 +72,13 @@ function applyListMarkerToggleCollapsed(text: string, rawOffset: number, targetT
 
 /**
  * Ported from markdown_editor.dart's `_applyListMarkerToggleMultiLine`
- * (range selection). Heading lines are excluded from the touched-line set
- * entirely (not merely no-op edited); if that leaves no eligible lines the
+ * (range selection), but BEHAVIOR_SPEC.md §4 makes this a single uniform
+ * decision, not each line's own toggleLine call: "if every touched line
+ * already carries the marker being applied, the operation removes it from
+ * all of them" — otherwise every touched line gets the marker, replacing
+ * whatever marker (if any) it already had. Heading lines are excluded from
+ * the touched-line set entirely (not merely no-op edited) and don't count
+ * toward that "every line" decision; if that leaves no eligible lines the
  * whole operation is a no-op — unlike indent/dedent's multi-line case,
  * there is no "insert a tab" fallback here.
  */
@@ -84,10 +101,15 @@ function applyListMarkerToggleMultiLine(
     return { text, selection: { ...selection } };
   }
 
+  const allHaveMarker = eligibleLines.every((ls) => {
+    const lineEnd = lineBoundsAt(text, ls)[1];
+    return detectListMarker(text.slice(ls, lineEnd))?.type === targetType;
+  });
+
   const edits = new Map<number, LineToggleEdit>();
   for (const ls of eligibleLines) {
     const lineEnd = lineBoundsAt(text, ls)[1];
-    edits.set(ls, toggleLine(text.slice(ls, lineEnd), targetType));
+    edits.set(ls, applyMarkerToLine(text.slice(ls, lineEnd), targetType, allHaveMarker));
   }
 
   let newText = text;

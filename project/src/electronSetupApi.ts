@@ -27,6 +27,9 @@ export interface ElectronSetupApi {
   chooseAppStorage(): Promise<string>;
   /** Quits the app - see the recovery flow in main.ts's init(). */
   quit(): Promise<void>;
+  /** BEHAVIOR_SPEC.md §4: the mode toggle's plain-text/rendered choice "persists across launches". */
+  getPlainTextMode(): Promise<boolean>;
+  setPlainTextMode(value: boolean): Promise<void>;
 }
 
 declare global {

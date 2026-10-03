@@ -35,6 +35,26 @@ jobs:
         run: npm run build
         working-directory: project
 
+      # cli and mcp each bundle to a single self-contained .mjs (see
+      # cli/scripts/bundle.mjs, mcp/scripts/bundle.mjs) - electron-builder's
+      # extraResources copies dist-bundle/ into the packaged app, and the
+      # NSIS "Command-line tools" component (build/installer.nsh) wraps it.
+      - name: Install (cli)
+        run: npm ci
+        working-directory: project/cli
+
+      - name: Bundle CLI
+        run: npm run bundle
+        working-directory: project/cli
+
+      - name: Install (mcp)
+        run: npm ci
+        working-directory: project/mcp
+
+      - name: Bundle MCP server
+        run: npm run bundle
+        working-directory: project/mcp
+
       - name: Install (electron)
         run: npm ci
         working-directory: project/electron

@@ -12,6 +12,17 @@ export interface SwipeGestureConfig {
   commitDistanceRatio: number;
   /** A leftward flick faster than this (px/ms) commits even short of commitDistanceRatio. */
   commitVelocityPxPerMs: number;
+  /**
+   * Fraction of the row's width a flick must still cover before velocity
+   * alone can commit it. Without this floor, velocity is distance/elapsedMs
+   * averaged over the *whole* gesture, so a handful of pixels released
+   * within a couple of frames (a jitter, an incidental brush of the screen)
+   * produces the same "fast" reading as a real flick - the distance is
+   * negligible but the elapsed time is too, so the ratio comes out high
+   * either way. Requiring a real fraction of the row first is what tells
+   * the two apart.
+   */
+  commitVelocityMinDistanceRatio: number;
 }
 
 /**
@@ -22,11 +33,17 @@ export interface SwipeGestureConfig {
  * commitVelocityPxPerMs: 0.5 (500px/s) - a fast flick commits even if
  * released before crossing the distance ratio, matching how swipe-to-
  * dismiss feels on Android and iOS.
+ * commitVelocityMinDistanceRatio: 0.15 - a flick still has to cover about a
+ * seventh of the row before its velocity counts; this is judgment, not a
+ * spec value (BEHAVIOR_SPEC.md doesn't set one) - picked to sit well clear
+ * of tap-threshold-sized jitter while staying well short of
+ * commitDistanceRatio, so a real flick released early still commits.
  */
 export const DEFAULT_SWIPE_CONFIG: SwipeGestureConfig = {
   tapThresholdPx: 10,
   commitDistanceRatio: 0.4,
   commitVelocityPxPerMs: 0.5,
+  commitVelocityMinDistanceRatio: 0.15,
 };
 
 export type GestureAxis = "horizontal" | "vertical";
@@ -58,6 +75,8 @@ export function shouldCommitSwipe(draggedX: number, rowWidthPx: number, elapsedM
   if (rowWidthPx <= 0) return false;
   const distance = Math.abs(draggedX);
   const distanceRatio = distance / rowWidthPx;
+  if (distanceRatio >= config.commitDistanceRatio) return true;
+
   const velocity = distance / Math.max(1, elapsedMs);
-  return distanceRatio >= config.commitDistanceRatio || velocity >= config.commitVelocityPxPerMs;
+  return distanceRatio >= config.commitVelocityMinDistanceRatio && velocity >= config.commitVelocityPxPerMs;
 }
