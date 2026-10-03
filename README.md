@@ -9,7 +9,7 @@
 Frictionless scratchpad and pasteboard -- a loose-leaf, digital zibaldone
 
 [![CI](https://github.com/ScottKirvan/QuKi-Notes/actions/workflows/ci.yml/badge.svg)](https://github.com/ScottKirvan/QuKi-Notes/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/ScottKirvan/QuKi-Notes)](https://github.com/ScottKirvan/QuKi-Notes/releases/latest)
+[![Release](https://img.shields.io/github/v/release/ScottKirvan/QuKi-Notes)](https://scottkirvan.com/QuKi-Notes/downloads.html)
 [![License: MIT](https://img.shields.io/github/license/ScottKirvan/QuKi-Notes)](LICENSE.md)
 [![TypeScript](https://img.shields.io/badge/TypeScript-strict-3178C6?logo=typescript&logoColor=white)](project)
 [![Web](https://img.shields.io/badge/Web-PWA-5A0FC8?logo=googlechrome&logoColor=white)](#platform-support)
@@ -69,11 +69,11 @@ The project prioritizes **radical simplicity**  and **open extensibility**  -- a
 
 ## Installation
 
-Installation instructions depend on your platform, visit the [downloads page](http://ScottKirvan.com/QuKi-Notes/downloads.html) for detail..
+Installation instructions depend on your platform, visit the [downloads page](http://ScottKirvan.com/QuKi-Notes/downloads.html) for details and platform availability.
 
 ## Quickstart
 
-See it live in your browser at [https://scottkirvan.com/QuKi-Notes/app/](https://ScottKirvan.com/QuKi-Notes/app/)
+See QuKi Notes live in your browser at [https://qukinotes.scottkirvan.com/](https://qukinotes.scottkirvan.com/)
 
 - When the app opens, you will see the main interface. 
 - Click in the main area and start typing your first note (QuKi).  

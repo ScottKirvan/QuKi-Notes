@@ -173,11 +173,7 @@ quki export ~/backups/qukis-2026-09-26.tar.gz
 { "path": "/home/you/backups/qukis-2026-09-26.tar.gz", "activeCount": 42, "trashCount": 7, "mediaCount": 5 }
 ```
 
-Writes the whole library to one `.tar.gz` archive: every QuKi, everything in Trash, QuKi Notes' records of when each was created and trashed, and the `media` folder. Extracting it gives you a folder QuKi Notes can open as-is. It overwrites the output file if it exists.
-
-::: warning
-Export fails with an error if the `media` folder contains a subfolder. It also doesn't yet include the folder's `.quki` settings folder, if you have one.
-:::
+Writes the whole library to one `.tar.gz` archive: every QuKi, everything in Trash, QuKi Notes' records of when each was created and trashed, the `media` folder and the `.quki` settings folder. Extracting it gives you a folder QuKi Notes can open as-is. It overwrites the output file if it exists.
 
 ### write-image
 

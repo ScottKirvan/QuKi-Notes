@@ -1,4 +1,4 @@
-﻿---
+---
 layout: home
 
 hero:
@@ -16,11 +16,14 @@ hero:
       text: GitHub
       link: https://github.com/ScottKirvan/QuKi-Notes
 features:
-  - title: Open and go
+  - icon: lucide:pen-tool
+    title: Open and write
     details: Tap the icon, start typing. No title, no template, no folder to pick first.
-  - title: Send when ready
+  - icon: lucide:send
+    title: Send when ready
     details: One button. The share sheet on Android, the clipboard on Windows and Linux. A QuKi goes somewhere when you decide — not before.
-  - title: Plain files, always yours
+  - icon: lucide:scroll-text
+    title: Plain files, always yours
     details: On Android, Windows and Linux, every QuKi is a plain .md file in a folder on your device. No cloud, no account, no lock-in. Read or move them without ever opening the app.
 ---
 

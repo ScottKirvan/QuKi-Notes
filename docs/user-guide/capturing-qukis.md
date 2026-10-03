@@ -4,18 +4,11 @@
 
 The editor is the first thing you see when you open the app, and it's always home. Open, type, done. That's the whole capture workflow.
 
-Tap **+** in the top bar to start another new QuKi.
+Tap <i-lucide-plus /> **New QuKi** in the top bar to start another new QuKi.
 
 ## Auto-save
 
-There's no save button. A QuKi is saved:
-
-- 2 seconds after you stop typing
-- every 30 seconds while it's open
-- when you open the list, start a new QuKi, delete, or send
-- when you switch away from the app or close it
-
-A new QuKi doesn't become a file until its first save. A blank QuKi you never type in never creates a file.
+QuKis auto save as you type.  No need to manually save them, pick filesystem locations, or create names for them.
 ### When a save fails
 
 If a QuKi's file was changed or deleted by another program since QuKi Notes last saved it, QuKi Notes won't overwrite it automatically. A banner appears at the top of the editor:
@@ -23,10 +16,6 @@ If a QuKi's file was changed or deleted by another program since QuKi Notes last
 > Could not save — it changed elsewhere. Your latest edits have not been written to disk.
 
 It says "it was deleted elsewhere" if the file is gone. Tap **Overwrite** to save what's on screen over the other version (or recreate the file), or copy your text somewhere safe first. A similar banner appears if a save fails for any other reason, such as a full disk or a folder that's no longer reachable.
-
-::: warning
-While that banner is showing, your latest edits exist only on screen. Opening another QuKi, starting a new one, or deleting this one throws them away without asking. Deal with the banner first.
-:::
 
 ## Reading and editing
 
@@ -41,7 +30,7 @@ A new QuKi opens in editing mode. A QuKi you open from the list opens in reading
 On Android, editing mode follows the on-screen keyboard. If you type with a hardware keyboard, the on-screen keyboard may never appear, and the toolbar and raw-markdown reveal with it.
 :::
 
-### How the rendered view works
+### How the rendered view works 
 
 While you're editing, headings look like headings, links show their label, images appear inline and checkboxes look like checkboxes, except for the element your cursor is in. That element shows its markdown source. Move the cursor away and it renders again.
 
@@ -59,11 +48,11 @@ The **Mode** button switches the whole QuKi to plain text: every character of ma
 
 The button's icon shows where you are:
 
-| Icon | Meaning |
-|---|---|
-| Open book | Rendered view, reading |
-| Markdown logo (M↓) | Rendered view, editing |
-| Code brackets | Plain-text mode |
+| Icon                                          | Meaning                |
+| --------------------------------------------- | ---------------------- |
+| <i-lucide-book-open /> Open book              | Rendered view, reading |
+| <i-custom-markdown-mark /> Markdown logo (M↓) | Rendered view, editing |
+| <i-lucide-code-xml /> Code brackets           | Plain-text mode        |
 
 QuKi Notes doesn't remember plain-text mode between launches; every launch starts in the rendered view.
 
@@ -71,18 +60,18 @@ QuKi Notes doesn't remember plain-text mode between launches; every launch start
 
 While you're editing, a toolbar sits at the bottom of the editor:
 
-| Button | Action |
-|---|---|
-| **Bold** | Wraps the selection in `**`. With no selection, inserts `****` with the cursor in the middle. |
-| **Italic** | Same, with `_` |
-| **Strikethrough** | Same, with `~~` |
-| **Inline code** | Same, with a backtick |
-| **Heading** | Cycles the line through normal → `#` → `##` → `###` → normal. The icon shows what the *next* press gives you: H1, H2, H3, or "n" for normal text. A line already at `####` or deeper goes back to normal. |
-| **Unordered list** | Adds `- `, or removes it if the line already has it. On a numbered or task line, swaps that marker for `- `. |
-| **Ordered list** | Same, with `1. ` |
-| **Task list** | Same, with `- [ ] ` |
-| **Indent** | Indents the line. See below. |
-| **Dedent** | Removes one level of indentation |
+| Button                                       | Action                                                                                                                                                                                                                                                                                              |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| <i-lucide-bold /> **Bold**                   | Wraps the selection in `**`. With no selection, inserts `****` with the cursor in the middle.                                                                                                                                                                                                       |
+| <i-lucide-italic /> **Italic**               | Same, with `_`                                                                                                                                                                                                                                                                                      |
+| <i-lucide-strikethrough /> **Strikethrough** | Same, with `~~`                                                                                                                                                                                                                                                                                     |
+| <i-lucide-code /> **Inline code**            | Same, with a backtick                                                                                                                                                                                                                                                                               |
+| <i-lucide-heading-1 /> **Heading**           | Cycles the line through normal → `#` → `##` → `###` → normal. The icon shows what the *next* press gives you: <i-lucide-heading-1 /> H1, <i-lucide-heading-2 /> H2, <i-lucide-heading-3 /> H3, or <i-custom-normal-text /> for normal text. A line already at `####` or deeper goes back to normal. |
+| <i-lucide-list /> **Unordered list**         | Adds `- `, or removes it if the line already has it. On a numbered or task line, swaps that marker for `- `.                                                                                                                                                                                        |
+| <i-lucide-list-ordered /> **Ordered list**   | Same, with `1. `                                                                                                                                                                                                                                                                                    |
+| <i-lucide-list-checks /> **Task list**       | Same, with `- [ ] `                                                                                                                                                                                                                                                                                 |
+| <i-lucide-indent-increase /> **Indent**      | Indents the line. See below.                                                                                                                                                                                                                                                                        |
+| <i-lucide-indent-decrease /> **Dedent**      | Removes one level of indentation                                                                                                                                                                                                                                                                    |
 
 With several lines selected, the heading button sets every line to the same level, taking its cue from the first line.
 
@@ -99,33 +88,29 @@ With several lines selected, the list buttons toggle each line on its own, so a 
 - **Horizontal rules** are left alone.
 - **Headings, quotes and image lines**: Indent inserts a tab at the cursor instead of indenting the line. Dedent does nothing.
 
-::: warning
-If you select several lines that are *all* headings, quotes or images and press Tab, the selected text is replaced by a single tab. Undo (Ctrl+Z) brings it back.
-:::
-
-### Lists and quotes continue on Enter
+### Lists and quotes continue on Enter 
 
 Press **Enter** at the end of a list item, task item or quote line, and the next line starts with the same marker at the same indentation. Press Enter on an item that has nothing after its marker to end the list. **Backspace** right after a marker removes it.
 
 ## Supported markdown
 
-| Markdown | Renders as |
-|---|---|
-| `# Heading` through `###### Heading` | Headings H1–H6 (the `#` needs a space after it) |
-| `**bold**` or `__bold__` | Bold |
-| `_italic_` or `*italic*` | Italic. `*` also works inside a word (`foo*bar*baz`); `_` doesn't. |
-| `~~strikethrough~~` | Strikethrough |
-| `` `code` `` | Inline code |
-| `- item`, `* item`, `+ item` | Bullet list |
-| `1. item` | Numbered list, renumbered from the first item's number: `1. 1. 1.` shows as 1, 2, 3 |
-| `- [ ] task` / `- [x] task` | Checkbox. Checked items are struck through. |
-| `[label](url)` | Link showing its label |
-| `https://…`, `www.…`, email addresses | Clickable link |
-| `![alt](media/picture.png)` | Image, shown inline |
-| `> text` | Blockquote with a bar on the left; `>>` nests deeper |
-| `---` | Horizontal rule |
-| GFM pipe tables (`\| a \| b \|`) | A table, with bold, italic, code and links inside cells |
-| ` ``` ` fenced code blocks | A monospace block with a shaded background and the fence lines hidden. No syntax colouring. |
+| Markdown                              | Renders as                                                                                  |
+| ------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `# Heading` through `###### Heading`  | Headings H1–H6 (the `#` needs a space after it)                                             |
+| `**bold**` or `__bold__`              | Bold                                                                                        |
+| `_italic_` or `*italic*`              | Italic. `*` also works inside a word (`foo*bar*baz`); `_` doesn't.                          |
+| `~~strikethrough~~`                   | Strikethrough                                                                               |
+| `` `code` ``                          | Inline code                                                                                 |
+| `- item`, `* item`, `+ item`          | Bullet list                                                                                 |
+| `1. item`                             | Numbered list, renumbered from the first item's number: `1. 1. 1.` shows as 1, 2, 3         |
+| `- [ ] task` / `- [x] task`           | Checkbox. Checked items are struck through.                                                 |
+| `[label](url)`                        | Link showing its label                                                                      |
+| `https://…`, `www.…`, email addresses | Clickable link                                                                              |
+| `![alt](media/picture.png)`           | Image, shown inline                                                                         |
+| `> text`                              | Blockquote with a bar on the left; `>>` nests deeper                                        |
+| `---`                                 | Horizontal rule                                                                             |
+| GFM pipe tables (`\| a \| b \|`)      | A table, with bold, italic, code and links inside cells                                     |
+| ` ``` ` fenced code blocks            | A monospace block with a shaded background and the fence lines hidden. No syntax colouring. |
 
 Lists, task lists and quotes nest by indentation, and wrapped lines stay indented under their item. Nested numbered lists count independently of their parent.
 
@@ -148,13 +133,13 @@ Deleting a QuKi from Trash also deletes images that no other QuKi, active or tra
 
 Select some text and paste a web address, and QuKi Notes turns the selection into a link: `[your text](https://…)`.
 
-## Task checkboxes
+## Task checkboxes 
 
 Tap a rendered checkbox to tick or untick it. Your cursor and scroll position don't move.
 
 ## Deleting a QuKi
 
-Tap the red **Delete** button on the far right of the top bar. There's no confirmation. The QuKi moves to Trash, you'll see "QuKi moved to Trash.", and the editor starts a new, blank QuKi. You can restore it from Trash (see [QuKis List](/user-guide/qukis-list#trash)).
+Tap the red <i-lucide-trash-2 /> **Delete** button on the far right of the top bar. There's no confirmation. The QuKi moves to Trash, you'll see "QuKi moved to Trash.", and the editor starts a new, blank QuKi. You can restore it from Trash (see [QuKis List](/user-guide/qukis-list#trash)).
 
 ## Android: share text into QuKi Notes
 

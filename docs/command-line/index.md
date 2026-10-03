@@ -22,9 +22,11 @@ If you skipped it, run the installer again and select the component.
 The tools are included in the QuKi Notes AppImage. Link them into a folder on your `PATH` once, pointing at wherever you keep the AppImage:
 
 ```sh
-ln -s ~/Applications/QuKi-Notes.AppImage ~/.local/bin/quki
-ln -s ~/Applications/QuKi-Notes.AppImage ~/.local/bin/quki-mcp
+ln -s ~/Applications/QuKi-Notes-x64.AppImage ~/.local/bin/quki
+ln -s ~/Applications/QuKi-Notes-x64.AppImage ~/.local/bin/quki-mcp
 ```
+
+On an ARM machine the file is `QuKi-Notes-arm64.AppImage`. The Debian package installs both commands for you, so there's nothing to link.
 
 When run as `quki` or `quki-mcp`, the AppImage runs that tool instead of opening the app.
 

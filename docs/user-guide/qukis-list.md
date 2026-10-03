@@ -2,11 +2,11 @@
 
 ## Opening the list
 
-Tap the **QuKis** button (stacked pages) at the far left of the editor's top bar. It's greyed out until you have at least one QuKi.
+Tap the <i-lucide-file-stack /> **QuKis** button at the far left of the editor's top bar. It's greyed out until you start typing your first QuKi.
 
 The list is read fresh from your QuKi folder every time you open it, so it always shows what's actually there. That includes `.md` files other programs have put in the folder.
 
-The list's top bar has **Back** (to the editor), **New**, **Help** and **Settings**.
+The list's top bar has <i-lucide-arrow-left /> **Back** (to the editor), <i-lucide-plus /> **New**, <i-lucide-circle-help /> **Help** and <i-lucide-settings /> **Settings**.
 
 ## What you see
 
@@ -15,13 +15,13 @@ QuKis are listed newest first, by when each file was last modified, whether by Q
 - **A preview**: the first line that isn't blank, with any leading `#` heading markers removed, cut off at 80 characters. A QuKi with no text shows `(empty)`.
 - **When it was last changed**:
 
-| Age | Shown as |
-|---|---|
-| Under a minute | `just now` |
-| Under an hour | `5 min ago` |
-| Under a day | `3h ago` |
-| 24 to 48 hours | `Yesterday` |
-| Older, this year | `May 14` |
+| Age                 | Shown as       |
+| ------------------- | -------------- |
+| Under a minute      | `just now`     |
+| Under an hour       | `5 min ago`    |
+| Under a day         | `3h ago`       |
+| 24 to 48 hours      | `Yesterday`    |
+| Older, this year    | `May 14`       |
 | Older, earlier year | `May 14, 2025` |
 
 ::: info
@@ -44,7 +44,7 @@ If nothing matches, the list says `No results for "…"`. Clear the box to see e
 
 Tap a row, or focus it with the keyboard and press **Enter** or **Space**. The QuKi opens in the editor in reading mode.
 
-## Deleting a QuKi
+## Deleting a QuKi 
 
 Swipe a row from right to left. With a mouse, drag it to the left. A red background with a trash can shows through as you drag. Let go once you're past about 40% of the row's width, or flick quickly, and the QuKi moves to Trash with the message "QuKi moved to Trash.". Let go earlier and the row slides back.
 
@@ -54,7 +54,7 @@ There's no confirmation and no Undo button, but nothing is lost: the QuKi is in 
 A short, fast flick counts as a delete, even over a small distance. If a QuKi vanishes unexpectedly, look in Trash.
 :::
 
-## Trash
+## Trash 
 
 Open Trash from **Settings → Notes → Trash**. Rows show the same preview and time as the QuKis list.
 

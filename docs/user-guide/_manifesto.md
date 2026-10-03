@@ -2,9 +2,9 @@
 
 ## What is a QuKi?
 
-A **QuKi** is a short note, a picture, a thought, a temporary list, a rough draft — captured, quickly and easily, in the moment.
+A **QuKi** is a short note, a picture, a thought, a temporary list, a rough draft — captured, quickly and in the moment.
 
-QuKi Notes live in the now. They are not filed, tagged, organized, foldered, or curated. They surface what's current while older QuKis age into irrelevance. They can be a starting point before being sent off to become more important things — temporary lists, things to remember, a whiteboard or pasteboard, a stopping point on their way to becoming emails, notes, skeets, or whatever you need them to be.
+QuKis live in the now. They are not filed, tagged, organized, foldered, or curated. They surface what's current while older QuKis age into irrelevance. They can be a starting point before being sent off to become more important things — temporary lists, things to remember, a whiteboard or pasteboard, a stopping point on their way to becoming emails, notes, skeets, or whatever you need them to be.
 
 QuKis, and this app, embody four key principles:
 
@@ -32,4 +32,4 @@ QuKis, and this app, embody four key principles:
 
 ---
 
-**Last Updated**: 2026-09-26
+**Last Updated**: 2026-10-03

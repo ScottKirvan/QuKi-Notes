@@ -6,24 +6,79 @@ QuKi Notes is a scratchpad and pasteboard: a blank canvas when you open it. Type
 
 Each QuKi is a plain markdown (`.md`) file.
 
-## Platforms
+## Download and Install QuKi Notes
 
-| Platform | How you get it |
-|---|---|
-| Android | Google Play (closed testing). See [Get QuKi Notes for Android](/install/android). |
-| Windows | Installer (`.exe`) from [Downloads](/downloads) |
-| Linux | AppImage from [Downloads](/downloads) |
-| Web browser | [www.scottkirvan.com/QuKi-Notes/app](https://www.scottkirvan.com/QuKi-Notes/app/) |
+All the latest versions can be found on the [Downloads](/downloads) page.
 
-There's no native iOS or macOS app yet.
+:::tabs
 
-## Installation
+== Android
 
-- **Android**: install from Google Play once you've joined the test group. The [Android install page](/install/android) walks through it.
-- **Windows**: run the installer. It lets you pick the install folder. It also has an optional **Command-line tools** component, which adds the `quki` and `quki-mcp` commands (see [Command Line & MCP](/command-line/)).
-- **Linux**: download the AppImage, make it executable (`chmod +x QuKi-Notes.AppImage`), and run it. There's nothing to install. The command-line tools are included in the AppImage; see [Command Line & MCP](/command-line/) to link them.
-- **Web**: open the address above. Your browser may offer to install it as an app, which gives it its own window and home-screen icon and lets it work offline.
+Join our test group to download QuKi Notes on Google Play, or [sideload](https://en.wikipedia.org/wiki/Sideloading) the APK directly.  See [Get QuKi Notes for Android](/install/android) for the details
 
+== macOS, iPhone and iPad
+
+There's no native app for Apple devices yet, but the web app works in Safari.
+
+1. Open [qukinotes.scottkirvan.com](https://qukinotes.scottkirvan.com/) in Safari.
+2. To keep it like an app:
+   - **iPhone and iPad**: tap **Share**, then **Add to Home Screen**.
+   - **Mac**: choose **File → Add to Dock**.
+
+
+== Windows
+
+1. Open the [Downloads](/downloads) page.
+2. Under **Windows**, click **Installer**.
+3. Open the downloaded `.exe` file.
+4. Follow the installer. You can pick the install folder, and choose whether to add the optional **Command-line tools**, which add the `quki` and `quki-mcp` commands (see [Command Line & MCP](/command-line/)).
+
+== Linux
+
+QuKi Notes for Linux comes as an AppImage or a Debian package, each for x64 and ARM64 (AArch64) machines.
+
+#### AppImage
+
+1. Open the [Downloads](/downloads) page.
+2. Under **Linux**, click **AppImage**, or **AppImage (AArch64, ARM64)** on an ARM machine.
+3. Make the downloaded file executable, then run it:
+
+   ```bash
+   chmod +x QuKi-Notes-x64.AppImage
+   ./QuKi-Notes-x64.AppImage
+   ```
+
+   On ARM the file is `QuKi-Notes-arm64.AppImage`.
+
+There's nothing to install. The command-line tools are included in the AppImage; see [Command Line & MCP](/command-line/) to link them.
+
+#### Debian package
+
+For Debian, Ubuntu and other distributions that use `.deb` packages.
+
+1. Open the [Downloads](/downloads) page.
+2. Under **Linux**, click **Debian Package**, or **Debian Package (AArch64, ARM64)** on an ARM machine.
+3. In a terminal, go to the folder you downloaded it to and install it:
+
+   ```bash
+   sudo apt install ./quki-notes-linux-x64-*.deb
+   ```
+
+   On ARM the file name starts with `quki-notes-linux-arm64-`.
+
+The package also installs the `quki` and `quki-mcp` commands (see [Command Line & MCP](/command-line/)).
+
+
+
+
+== Web browser and ChromeOS
+
+This is also the way to use QuKi Notes on ChromeOS.
+
+1. Open [qukinotes.scottkirvan.com](https://qukinotes.scottkirvan.com/).
+2. Optionally, install it as an app from your browser (in Chrome and Edge, the install icon in the address bar). It then gets its own window and icon, and works offline.
+
+:::
 ## First launch
 
 On Android, Windows and Linux, the first launch asks where your QuKis should live. This screen appears once. You can change the location later in **Settings → Storage**.
@@ -38,10 +93,6 @@ On Android, Windows and Linux, the first launch asks where your QuKis should liv
 
 - **Filesystem storage (recommended)**: QuKis are saved in `Documents/QuKi_Notes` on your device, where any file manager can see them. They survive uninstalling the app. QuKi Notes needs Android's **All files access** permission for this. If it isn't granted yet, you'll see a short explanation and a **Grant access** button that opens the system settings page. Turn the permission on, then switch back to QuKi Notes.
 - **Use app storage**: QuKis are kept in the app's private storage. No other app can see them, and they're removed if you uninstall. Settings shows a warning while this is in use.
-
-::: warning
-On the Android permission screen there's no way back to the storage choice. If you tap **Filesystem storage** and then decide not to grant All files access, close the app. On the next launch, you'll be asked again and can pick **Use app storage** instead.
-:::
 
 **Web**
 
@@ -69,12 +120,12 @@ The editor is home. It doesn't have a back button.
 
 The editor's top bar, left to right:
 
-| Button | What it does |
-|---|---|
-| **QuKis** (stacked pages, far left) | Opens your QuKis list. Greyed out until you have at least one QuKi. |
-| **Mode** (book, markdown or code icon) | Switches between the rendered view and plain text. See [Capturing QuKis](/user-guide/capturing-qukis#plain-text-mode). |
-| **+** | Starts a new, blank QuKi |
-| **?** | Help: version, documentation, Discord, GitHub and support links |
-| **Send** (paper plane) | Sends the QuKi. See [Sending QuKis](/user-guide/sending-qukis). |
-| **Settings** (gear) | Opens Settings |
-| **Delete** (red trash can, far right) | Moves the current QuKi to Trash. Greyed out until the QuKi has been saved at least once. |
+| Button                                 | What it does                                                                                                           |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| <i-lucide-file-stack /> **QuKis** (far left) | Opens your QuKis list. Greyed out until you start typing your first QuKi.                                                    |
+| <i-lucide-book-open /> <i-custom-markdown-mark /> <i-lucide-code-xml /> **Mode** | Switches between the rendered view and plain text. See [Capturing QuKis](/user-guide/capturing-qukis#plain-text-mode). |
+| <i-lucide-plus /> **New QuKi** | Starts a new, blank QuKi                                                                                               |
+| <i-lucide-circle-help /> **Help** | Help: version, documentation, Discord, GitHub and support links                                                        |
+| <i-lucide-send /> **Send** | Sends the QuKi. See [Sending QuKis](/user-guide/sending-qukis).                                                        |
+| <i-lucide-settings /> **Settings** | Opens Settings                                                                                                         |
+| <i-lucide-trash-2 /> **Delete** (red, far right) | Moves the current QuKi to Trash. Greyed out until the QuKi has been saved at least once.                               |

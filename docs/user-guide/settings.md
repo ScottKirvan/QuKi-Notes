@@ -1,6 +1,6 @@
 # Settings
 
-Open Settings with the **gear** button in the editor's top bar, or the same button in the QuKis list.
+Open Settings with the <i-lucide-settings /> **gear** button in the editor's top bar, or the same button in the QuKis list.
 
 ## Appearance
 
@@ -17,15 +17,17 @@ Tap **Change location** to open the same choice you saw on first launch. Tap the
 
 Changing the location doesn't move anything. Your existing QuKis, Trash and images stay in the old folder, and QuKi Notes starts using the new one straight away with a blank editor. To bring QuKis along, move or copy the files yourself, including the hidden `.meta` and `.trash` folders and the `media` folder, while QuKi Notes is closed.
 
-::: warning
-On Android, if QuKi Notes picked up your QuKis from an earlier version that kept them in its private storage, Settings shows that location as **Filesystem storage** with a path, and no uninstall warning. Those files are still private to the app and would still be removed on uninstall. Use **Change location** → **Filesystem storage** if you want them in `Documents`, and move the files across.
-:::
-
 **Web** shows a note instead:
 
 > QuKis are stored in this browser, not in a folder you choose. Clearing this site's browser data will delete them.
 
-QuKis in the web version stay in that one browser on that one device. There's currently no way to export them or move them to the desktop or Android app, apart from copying each QuKi's text by hand. On iPhone and iPad, Safari can clear a website's storage by itself if the site isn't used for a while. Adding QuKi Notes to your home screen makes that much less likely.
+QuKis in the web version stay in that one browser on that one device. To keep a copy or take them elsewhere, use **Export**. On iPhone and iPad, Safari can clear a website's storage by itself if the site isn't used for a while. Adding QuKi Notes to your home screen makes that much less likely.
+
+**Export**, on every platform including the web, saves your whole library as one `.tar.gz` archive: every QuKi, everything in Trash, QuKi Notes' records of when each was created and trashed, the `media` folder and the `.quki` settings folder. Extracting it gives you a folder QuKi Notes can open as-is. Where the archive goes depends on the platform:
+
+- **Windows and Linux**: you choose where to save it.
+- **Android**: it's saved in your QuKi folder, and a message shows where.
+- **Web**: your browser downloads it, named `quki-export-` followed by the date and time.
 
 ## Notes
 
@@ -36,6 +38,7 @@ QuKis in the web version stay in that one browser on that one device. There's cu
 Shows the app's name and version. Tap **Version** to copy the version number to the clipboard.
 
 ## Help
+
 
 The **?** button in the editor and the QuKis list opens the Help dialog. It shows the version, plus the branch and date that build was made from. Tap them to copy all three, handy for bug reports. It also has links to:
 
