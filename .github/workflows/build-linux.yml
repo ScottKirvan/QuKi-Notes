@@ -76,9 +76,22 @@ jobs:
         run: npm run build
         working-directory: project/electron
 
+      # electron-builder's bundled fpm (used for the .deb) is an x86-only Ruby
+      # build and can't execute on the arm64 runner. On arm64, install fpm
+      # from RubyGems and have app-builder use it via USE_SYSTEM_FPM.
+      - name: Install system fpm (arm64)
+        if: matrix.arch == 'arm64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ruby ruby-dev build-essential
+          sudo gem install --no-document fpm
+          fpm --version
+
       - name: Package Linux (${{ matrix.arch }})
         run: npm run dist:linux -- --${{ matrix.arch }}
         working-directory: project/electron
+        env:
+          USE_SYSTEM_FPM: ${{ matrix.arch == 'arm64' && 'true' || '' }}
 
       # electron-builder's own AppRun always launches the app. Replace it with
       # a small dispatcher so the same AppImage also serves as `quki` and
