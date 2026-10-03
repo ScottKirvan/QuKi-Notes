@@ -25,6 +25,7 @@ import { createStorageAccessGate } from "./androidStorageAccess";
 import { resolveMigratedStorageRoot, type AndroidFlutterMigrationDeps } from "./androidFlutterMigration";
 import { createAndroidSetupApi } from "./androidSetupApi";
 import { AndroidSettingsStore } from "./androidSettingsStore";
+import { AppSettingsStore } from "./appSettings";
 import type { ElectronSetupApi } from "./electronSetupApi";
 import { applyDedent, applyIndent } from "./toolbar/indentDedent";
 import { runToolbarCommand } from "./toolbarAdapter";
@@ -32,6 +33,7 @@ import { createFormattingToolbar, type FormattingToolbarHandle } from "./screens
 import { revealPlugin, blockRevealField } from "./reveal/decorations";
 import { hangingIndent } from "./reveal/hangingIndent";
 import { plainTextMode, setPlainTextMode } from "./reveal/plainTextMode";
+import { readPlainTextModePreference, writePlainTextModePreference } from "./webPlainTextModePreference";
 import { editModeField, setEditMode } from "./reveal/editModeField";
 import {
   createEditModeTracker,
@@ -42,12 +44,12 @@ import {
   type EditModeTracker,
 } from "./editMode";
 import { imageResolver } from "./reveal/imageResolver";
-import { remoteImageFetcher } from "./reveal/remoteImageFetcher";
-import { fetchRemoteImage } from "./reveal/fetchRemoteImage";
 import { createImagePastePlugin } from "./pasteImage";
 import { AutoSaveController, blankInitialQuKi, type InitialQuKi } from "./persistence";
-import { sendQuKi, selectShareTransport } from "./send";
+import { sendQuKi, selectShareTransport, createClipboardTransport } from "./send";
 import { shareTextViaAndroid } from "./androidShare";
+import { createWebShareTransport } from "./webShare";
+import { buildExportFileName } from "./exportFileName";
 import { onSharedTextReceived } from "./shareIn";
 import { Navigator, type ViewName } from "./navigation";
 import { createListView } from "./screens/listView";
@@ -56,6 +58,7 @@ import { createSetupView } from "./screens/setupView";
 import { createAndroidPermissionView } from "./screens/androidPermissionView";
 import { createTrashView } from "./screens/trashView";
 import { createToast, type ToastAction } from "./screens/toast";
+import { createSaveStatusBanner } from "./screens/saveStatusBanner";
 import { createConfirmDialog } from "./screens/confirmDialog";
 import { createAboutDialog } from "./screens/aboutDialog";
 
@@ -189,14 +192,24 @@ function createMarkdownMarkIcon(): SVGSVGElement {
  * uses. `gate`/`view` are declared before assignment so each can close
  * over the other — requestAccess needs the gate, and the gate's state
  * changes need to reach the view.
+ *
+ * Resolves `true` once access is granted, or `false` if the user backs out
+ * via the permission view's own back button instead
+ * (androidPermissionView.ts's onUseAppStorageInstead -> gate.cancel()) —
+ * requestFilesystemAccess below turns that into chooseFilesystem()
+ * resolving null, exactly like a dismissed native folder picker.
  */
-async function ensureAndroidStorageAccess(overlayHost: HTMLElement): Promise<void> {
+async function ensureAndroidStorageAccess(overlayHost: HTMLElement): Promise<boolean> {
   let gate: ReturnType<typeof createStorageAccessGate>;
-  const view = createAndroidPermissionView(overlayHost, () => void gate.requestAccess());
+  const view = createAndroidPermissionView(
+    overlayHost,
+    () => void gate.requestAccess(),
+    () => gate.cancel(),
+  );
   gate = createStorageAccessGate(
     {
       isExternalStorageManager: async () => (await CapacitorStorage.isExternalStorageManager()).granted,
-      requestAllFilesAccess: () => CapacitorStorage.requestAllFilesAccess(),
+      requestAllFilesAccess: async () => (await CapacitorStorage.requestAllFilesAccess()).outcome,
       onAppStateChange: (callback) => {
         const handle = CapacitorApp.addListener("appStateChange", (state) => callback(state.isActive));
         return { remove: () => void handle.then((h) => h.remove()) };
@@ -205,7 +218,7 @@ async function ensureAndroidStorageAccess(overlayHost: HTMLElement): Promise<voi
     (state) => view.render(state),
   );
   try {
-    await gate.ready();
+    return await gate.ready();
   } finally {
     gate.destroy();
   }
@@ -248,7 +261,8 @@ async function createAndroidSetupApiForMain(overlayHost: HTMLElement, onLocation
     // Only reached from api.chooseFilesystem() — i.e. only when the user
     // explicitly picks "Filesystem storage", not unconditionally at boot.
     requestFilesystemAccess: async () => {
-      await ensureAndroidStorageAccess(overlayHost);
+      const granted = await ensureAndroidStorageAccess(overlayHost);
+      if (!granted) return null;
       return (await CapacitorStorage.getExternalDocumentsPath()).path;
     },
     isValidWritableDirectory: async (path) => (await CapacitorStorage.isValidWritableDirectory({ path })).valid,
@@ -296,41 +310,17 @@ async function createCapacitorBackend(
   return backend;
 }
 
-const saveStatus = document.querySelector<HTMLDivElement>("#save-status");
-
-// #save-status's own text node and (optional) action button, built once and
-// reused - mirrors screens/toast.ts's ToastAction shape, but unlike the
-// toast there is no auto-dismiss timer here: this banner stays until
-// showSaveStatus() replaces it or hideSaveStatus() explicitly clears it.
-let saveStatusMessageEl: HTMLSpanElement | null = null;
-let saveStatusActionBtn: HTMLButtonElement | null = null;
-
-function ensureSaveStatusChildren(): void {
-  if (!saveStatus || saveStatusMessageEl) return;
-  saveStatusMessageEl = document.createElement("span");
-  saveStatus.appendChild(saveStatusMessageEl);
-  saveStatusActionBtn = document.createElement("button");
-  saveStatusActionBtn.type = "button";
-  saveStatusActionBtn.className = "save-status-action";
-  saveStatusActionBtn.hidden = true;
-  saveStatus.appendChild(saveStatusActionBtn);
-}
+// #save-status's own show/hide - mirrors screens/toast.ts's ToastAction
+// shape, but unlike the toast there is no auto-dismiss timer here: this
+// banner stays until showSaveStatus() replaces it or hideSaveStatus()
+// explicitly clears it. Built at module scope (independent of init()) so it
+// stays usable even if init() itself throws or rejects - see the startup
+// failure handling around `void init()` at the bottom of this file. The
+// mechanism itself lives in saveStatusBanner.ts, where it's unit tested.
+const saveStatusBanner = createSaveStatusBanner(document.querySelector<HTMLDivElement>("#save-status"));
 
 function showSaveStatus(message: string, action?: ToastAction): void {
-  if (!saveStatus) return;
-  ensureSaveStatusChildren();
-  saveStatusMessageEl!.textContent = message;
-  saveStatus.hidden = false;
-
-  if (action) {
-    saveStatusActionBtn!.textContent = action.label;
-    saveStatusActionBtn!.hidden = false;
-    saveStatusActionBtn!.onclick = (): void => action.onClick();
-  } else {
-    saveStatusActionBtn!.hidden = true;
-    saveStatusActionBtn!.textContent = "";
-    saveStatusActionBtn!.onclick = null;
-  }
+  saveStatusBanner.show(message, action);
 }
 
 /**
@@ -341,12 +331,7 @@ function showSaveStatus(message: string, action?: ToastAction): void {
  * doesn't linger once saving is working again.
  */
 function hideSaveStatus(): void {
-  if (!saveStatus) return;
-  saveStatus.hidden = true;
-  if (saveStatusActionBtn) {
-    saveStatusActionBtn.hidden = true;
-    saveStatusActionBtn.onclick = null;
-  }
+  saveStatusBanner.hide();
 }
 
 /**
@@ -478,18 +463,44 @@ async function init(): Promise<void> {
         })
       : new OpfsBackend("quki");
   const store = new QuKiStore(backend);
+  const appSettings = new AppSettingsStore(window.localStorage);
 
   // STORAGE_CONTRACT.md rule 14 / BEHAVIOR_SPEC.md §6: the 30-day trash
   // hold is purged automatically at app launch, before anything (the list,
-  // Trash itself) needs to read trash state.
-  await store.purgeExpiredTrash().catch((error: unknown) => {
+  // Trash itself) needs to read trash state. Gated on rule 13's
+  // "delete orphaned images" setting, same as every other orphan-cleanup
+  // call site.
+  await store.purgeExpiredTrash({ deleteOrphanedImages: appSettings.getDeleteOrphanedImages() }).catch((error: unknown) => {
     console.error("QuKi trash purge failed unexpectedly:", error);
   });
+
+  // STORAGE_CONTRACT.md rule 13: an image pasted into a QuKi that is never
+  // saved (rule 16 - an empty body is never written) has no .md file that
+  // ever references it, so it can never become a candidate for the
+  // deletion-triggered cleanup inside purgeExpiredTrash/permanentlyDelete/
+  // emptyTrash above and in trashView.ts. Sweeping media/ against every
+  // active and trashed QuKi's actual references, once per app launch, is
+  // what gives that image a real path to eventual cleanup regardless of
+  // whether any QuKi is ever deleted or Trash is ever opened.
+  if (appSettings.getDeleteOrphanedImages()) {
+    await store.sweepOrphanedImages().catch((error: unknown) => {
+      console.error("QuKi orphaned-image sweep (startup) failed unexpectedly:", error);
+    });
+  }
 
   // BEHAVIOR_SPEC.md §4: "A blank canvas on launch" - every app start opens
   // a fresh, empty QuKi. See blankInitialQuKi's own doc comment for why
   // there's nothing here to load from storage.
   const initial = blankInitialQuKi();
+
+  // BEHAVIOR_SPEC.md §4: the mode toggle's plain-text/rendered choice
+  // "persists across launches". setupApi (Electron's IPC bridge or
+  // androidSetupApi.ts) already has a small per-user preferences file for
+  // the storage-location choice - getPlainTextMode/setPlainTextMode reuse
+  // that same file there. The plain browser/PWA build has no such file
+  // (setupApi is undefined there), so it falls back to localStorage - see
+  // webPlainTextModePreference.ts.
+  const initialPlainTextMode = setupApi ? await setupApi.getPlainTextMode() : readPlainTextModePreference(window.localStorage);
 
   // Set once per editor content swap (loading a different QuKi, New QuKi,
   // clearing on delete) to suppress the change-notification below -
@@ -558,14 +569,15 @@ async function init(): Promise<void> {
       keymap.of([...indentDedentKeymap, ...defaultKeymap, ...historyKeymap]),
       markdown({ extensions: GFM }),
       syntaxHighlighting(qukiSyntaxHighlighting),
-      plainTextMode,
+      // BEHAVIOR_SPEC.md §4: the persisted plain-text/rendered choice - see
+      // initialPlainTextMode above for where this comes from.
+      plainTextMode.init(() => initialPlainTextMode),
       // Seeded from the same shouldFocusOnOpen check editModeTracker below
       // uses, so the very first buildDecorations call (the revealPlugin's
       // constructor, run before the tracker's own focus/keyboard listeners
       // ever fire) already agrees with it - see editModeField.ts.
       editModeField.init(() => shouldFocusOnOpen(initial.id)),
       imageResolver.of((relPath) => backend.readBinary(relPath)),
-      remoteImageFetcher.of(fetchRemoteImage),
       revealPlugin,
       // Block-level widgets (e.g. a rendered table, issue #245) can only be
       // supplied by a StateField, never a ViewPlugin - see blockRevealField's
@@ -730,6 +742,16 @@ async function init(): Promise<void> {
   });
   window.addEventListener("pagehide", flushOnHide);
 
+  // Electron only: visibilitychange/pagehide above are fire-and-forget, with
+  // nothing holding the window open until the flush actually lands on disk
+  // - fine for the web build's own lifecycle, but on the desktop app that
+  // race could drop the last ~2s of typing on quit. main.ts's
+  // attachQuitFlush defers the real window close until this resolves (or a
+  // timeout elapses), so this one, unlike flushOnHide, must be awaited.
+  window.electronLifecycleAPI?.onFlushBeforeQuit(async () => {
+    await autoSave.flush();
+  });
+
   // BEHAVIOR_SPEC.md §4: "a new, blank QuKi takes focus (edit mode), an
   // existing QuKi does not (reading mode)." At launch `initial` is always
   // the blank case (blankInitialQuKi) - shouldFocusOnOpen's null-id check
@@ -816,10 +838,11 @@ async function init(): Promise<void> {
   // unmaintained C# helper, which the project owner declined to adopt.
   // Until a native addon is built - and this may be worth publishing for
   // other Electron apps in the same position, since no clean solution
-  // appears to exist anywhere in the ecosystem - Windows falls back to the
-  // same clipboard behavior already built for Linux (STORAGE_CONTRACT.md's
-  // Linux clipboard fallback, reused here as a stand-in, not a match for
-  // spec intent). See sendCurrentQuKi below.
+  // appears to exist anywhere in the ecosystem - both Electron desktop
+  // platforms (Windows and Linux) fall back to the same clipboard behavior
+  // (STORAGE_CONTRACT.md's Linux clipboard fallback, reused here as a
+  // stand-in for Windows too, not a match for spec intent). See
+  // sendCurrentQuKi below.
   //
   // Android is not a fallback case at all: it gets the real system share
   // sheet (androidShare.ts, via the native Share plugin), matching
@@ -827,7 +850,18 @@ async function init(): Promise<void> {
   // where one exists" for the one platform where it already exists here.
   // (isAndroid is declared earlier in this function, for the Android setup
   // API construction above.)
-  sendBtn.disabled = !isAndroid && window.electronPlatform !== "linux" && window.electronPlatform !== "win32";
+  //
+  // The plain web build (no Electron, no Capacitor) is the one place
+  // navigator.share() actually works from a browser, so it gets the real
+  // thing (webShare.ts), with the same clipboard fallback for browsers that
+  // lack it (Safari without it, a non-secure context). That covers every
+  // day-one target (web, Android, Windows, Linux). An Electron build on any
+  // other platform (there are none shipped today) still has no destination
+  // built for it and stays disabled, same as before - it is not "web" just
+  // because it also lacks navigator.share.
+  const isElectronDesktop = window.electronPlatform === "linux" || window.electronPlatform === "win32";
+  const isUnsupportedElectronPlatform = window.electronPlatform !== undefined && !isElectronDesktop;
+  sendBtn.disabled = isUnsupportedElectronPlatform;
   setButtonIcon(settingsBtn, Settings, "Settings");
   setButtonIcon(deleteBtn, Trash2, "Delete");
 
@@ -859,11 +893,19 @@ async function init(): Promise<void> {
   updateModeToggleIcon();
 
   modeToggleBtn.addEventListener("click", () => {
+    const next = !view.state.field(plainTextMode);
     view.dispatch({
-      effects: setPlainTextMode.of(!view.state.field(plainTextMode)),
+      effects: setPlainTextMode.of(next),
     });
     updateModeToggleIcon();
     view.focus();
+    // BEHAVIOR_SPEC.md §4: "persists across launches" - see
+    // initialPlainTextMode above for the matching read at startup.
+    if (setupApi) {
+      void setupApi.setPlainTextMode(next);
+    } else {
+      writePlainTextModePreference(window.localStorage, next);
+    }
   });
 
   function updateDeleteButtonState(): void {
@@ -900,6 +942,34 @@ async function init(): Promise<void> {
   }
 
   /**
+   * Flushes auto-save and reports whether it's safe for the caller to go on
+   * to replace the editor's document / reset the baseline. STORAGE_CONTRACT.md
+   * rule 18: a failed save must be surfaced, not just logged - and a conflict
+   * or thrown error means the current QuKi's latest edit was never actually
+   * written, so switching away from it now (openQuKiInEditor, startNewQuKi,
+   * deleteQuKi, handleSharedText, changeStorageLocation all do this
+   * immediately after flushing) would silently discard it. On "conflict" or
+   * "error" this blocks the caller (returns false) and leaves the editor
+   * exactly as it was - the existing onConflict/onSaveError banner (already
+   * shown by the callbacks passed to AutoSaveController below) stays up and
+   * still correctly describes the QuKi that's still open, since nothing
+   * navigated away from it. On any other outcome ("saved", "skipped-empty",
+   * "skipped-unchanged", "stale" - all of which mean nothing is at risk of
+   * being lost) it hides any leftover banner before returning true, so a
+   * stale message from an earlier, since-resolved problem can't linger on
+   * screen describing a QuKi that's about to be replaced.
+   */
+  async function flushAutoSaveOrBlock(blockedMessage: string): Promise<boolean> {
+    const result = await autoSave.flush();
+    if (result.status === "conflict" || result.status === "error") {
+      showToast(blockedMessage, 3000);
+      return false;
+    }
+    hideSaveStatus();
+    return true;
+  }
+
+  /**
    * Shared by the editor's own Delete button and the QuKi list's per-row
    * delete affordance. BEHAVIOR_SPEC.md §4: flush is one of the explicit
    * auto-save triggers ("before switching QuKis, opening the list,
@@ -911,11 +981,20 @@ async function init(): Promise<void> {
    * trashed).
    */
   async function deleteQuKi(id: string): Promise<void> {
-    await autoSave.flush();
+    // Only the "deleting the currently open QuKi" branch below discards
+    // anything (it's the only one that replaces the editor/resets the
+    // baseline) - deleting a different QuKi from the list doesn't touch what's
+    // on screen, so a flush failure there has nothing of the open QuKi's to
+    // protect and must not block deleting an unrelated one.
     if (autoSave.currentId === id) {
+      if (!(await flushAutoSaveOrBlock("Could not save your changes — resolve the save issue before deleting this QuKi."))) {
+        return;
+      }
       loadDocumentIntoEditor("");
       autoSave.resetBaseline({ id: null, body: "", modifiedAt: null });
       updateDeleteButtonState();
+    } else {
+      await autoSave.flush();
     }
     try {
       await store.moveToTrash(id);
@@ -940,13 +1019,78 @@ async function init(): Promise<void> {
   async function sendCurrentQuKi(): Promise<void> {
     await autoSave.flush();
     const body = view.state.doc.toString();
-    const transport = selectShareTransport(isAndroid, shareTextViaAndroid, (text) => navigator.clipboard.writeText(text));
+    const clipboardTransport = createClipboardTransport((text) => navigator.clipboard.writeText(text));
+    const webShareApi = typeof navigator.share === "function" ? (data: ShareData) => navigator.share(data) : undefined;
+    const webTransport = createWebShareTransport(webShareApi, clipboardTransport);
+    const transport = selectShareTransport(isAndroid, isElectronDesktop, shareTextViaAndroid, clipboardTransport, webTransport);
     const result = await sendQuKi(body, transport);
-    showToast(result.message, result.durationMs, result.retryable ? { label: "Retry", onClick: () => void sendCurrentQuKi() } : undefined);
+    if (result.message !== undefined) {
+      showToast(result.message, result.durationMs, result.retryable ? { label: "Retry", onClick: () => void sendCurrentQuKi() } : undefined);
+    }
+  }
+
+  /**
+   * Settings -> Export (STORAGE_CONTRACT.md's "Export everything"): flush
+   * first for the same reason Send does - the archive should include the
+   * edit sitting in the editor right now, not a stale pre-debounce copy.
+   * Delivery is the one genuinely per-platform part, matching how
+   * sendCurrentQuKi above branches on the same platform signals:
+   *  - Electron: a native Save As dialog (electronExportAPI.saveExport),
+   *    the same `dialog` module main.ts's storage-location picker already
+   *    uses, just its sibling "save" method instead of "open".
+   *  - Android: no save-file picker exists in the native Storage plugin
+   *    (StoragePlugin.kt has no such method, and adding one is real new
+   *    native surface, not "follow existing patterns"), so this reuses the
+   *    exact write path every other Android write already goes through
+   *    (CapacitorFsBackend.writeBinaryAtomic) and reports the real absolute
+   *    path it landed at, so it's findable even in the app-private-storage
+   *    case (settingsView.ts already surfaces that same path today).
+   *  - Web: the standard Blob + temporary <a download> trick - the only
+   *    way a browser tab can hand the person a file at all, and precisely
+   *    the "web-app users on OPFS move to a desktop folder this way"
+   *    migration path STORAGE_CONTRACT.md's core API section describes.
+   */
+  async function exportQuKiLibrary(): Promise<void> {
+    await autoSave.flush();
+    const result = await store.exportLibrary();
+    const fileName = buildExportFileName();
+
+    if (window.electronExportAPI) {
+      const savedPath = await window.electronExportAPI.saveExport(result.bytes, fileName);
+      if (savedPath !== null) showToast(`Exported to ${savedPath}.`, 3000);
+      return;
+    }
+
+    if (isAndroid) {
+      await backend.writeBinaryAtomic(fileName, result.bytes);
+      showToast(`Exported to ${backend.resolvePath(fileName)}.`, 4000);
+      return;
+    }
+
+    // TypeScript's Uint8Array<ArrayBufferLike> vs. BlobPart's
+    // ArrayBufferView<ArrayBuffer> mismatch (same cast core/src/export.ts's
+    // own gzip() needs, for the same reason) - at runtime a Uint8Array is a
+    // perfectly valid BlobPart regardless of which ArrayBuffer flavor its
+    // .buffer happens to be typed as.
+    const blob = new Blob([result.bytes as unknown as BlobPart], { type: "application/gzip" });
+    const url = URL.createObjectURL(blob);
+    try {
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } finally {
+      URL.revokeObjectURL(url);
+    }
+    showToast("Export downloaded.", 2000);
   }
 
   async function openQuKiInEditor(id: string): Promise<void> {
-    await autoSave.flush();
+    if (!(await flushAutoSaveOrBlock("Could not save your changes — resolve the save issue before switching QuKis."))) {
+      return;
+    }
     let detail;
     try {
       detail = await store.read(id);
@@ -962,7 +1106,9 @@ async function init(): Promise<void> {
   }
 
   async function startNewQuKi(): Promise<void> {
-    await autoSave.flush();
+    if (!(await flushAutoSaveOrBlock("Could not save your changes — resolve the save issue before starting a new QuKi."))) {
+      return;
+    }
     const blank: InitialQuKi = { id: null, body: "", modifiedAt: null };
     loadDocumentIntoEditor("");
     autoSave.resetBaseline(blank);
@@ -988,7 +1134,9 @@ async function init(): Promise<void> {
    * replaced with the shared text, or that edit would be lost.
    */
   async function handleSharedText(text: string): Promise<void> {
-    await autoSave.flush();
+    if (!(await flushAutoSaveOrBlock("Could not save your changes — the shared text was not opened."))) {
+      return;
+    }
     let result;
     try {
       result = await store.save({ id: null, body: text });
@@ -1042,7 +1190,9 @@ async function init(): Promise<void> {
     // The currently open QuKi still belongs to the *old* folder - flush it
     // there before the root swaps underneath this same store/backend, or a
     // pending edit would otherwise get written into the new folder instead.
-    await autoSave.flush();
+    if (!(await flushAutoSaveOrBlock("Could not save your changes — resolve the save issue before changing storage location."))) {
+      return;
+    }
     const chosenPath = await setupView.show({
       cancelable: true,
       onError: (message) => showSaveStatus(message),
@@ -1081,17 +1231,35 @@ async function init(): Promise<void> {
           onChangeLocation: changeStorageLocation,
         }
       : undefined,
+    deleteOrphanedImages: {
+      get: () => appSettings.getDeleteOrphanedImages(),
+      set: (value) => appSettings.setDeleteOrphanedImages(value),
+    },
+    onExport: exportQuKiLibrary,
   });
 
   const trashView = createTrashView(store, viewElements.trash, {
     onBack: popView,
     showToast,
     confirm,
+    getDeleteOrphanedImages: () => appSettings.getDeleteOrphanedImages(),
   });
 
   quKiListBtn.addEventListener("click", () => {
+    // Push the screen transition immediately so it feels responsive, but
+    // flush first and wait for it before the list actually reads the
+    // folder - otherwise a note typed seconds ago, still sitting behind the
+    // debounce, hasn't been written yet and the list reads a stale snapshot
+    // that simply doesn't have it. Not lost (the pending save still lands),
+    // just not yet visible here. Unlike openQuKiInEditor/startNewQuKi/
+    // deleteQuKi, going to the list never replaces the editor's own content,
+    // so there's nothing here for a flush conflict/error to discard - no
+    // need for flushAutoSaveOrBlock's blocking behavior, just the flush.
     navigator_.push("list");
-    void listView.open();
+    void (async () => {
+      await autoSave.flush();
+      await listView.open();
+    })();
   });
   newQuKiBtn.addEventListener("click", () => {
     void startNewQuKi();
@@ -1108,6 +1276,28 @@ async function init(): Promise<void> {
     void sendCurrentQuKi();
   });
 
+  // BEHAVIOR_SPEC.md §4/§5: "Keyboard shortcuts — Windows and Linux only.
+  // Ctrl+T sends. Ctrl+N creates a new QuKi." window.electronPlatform is
+  // only set inside the Electron wrapper (electron/src/preload.ts) - the
+  // plain browser/PWA build has no way to override the browser's own
+  // reserved Ctrl+T/Ctrl+N, so this is a no-op there, matching sendBtn's
+  // own win32/linux gate above. A global keydown listener rather than a
+  // CodeMirror keymap entry (indentDedentKeymap above) because these fire
+  // regardless of whether the editor has focus, not just while editing.
+  if (window.electronPlatform === "win32" || window.electronPlatform === "linux") {
+    window.addEventListener("keydown", (event) => {
+      if (!event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+      const key = event.key.toLowerCase();
+      if (key === "t") {
+        event.preventDefault();
+        void sendCurrentQuKi();
+      } else if (key === "n") {
+        event.preventDefault();
+        void startNewQuKi();
+      }
+    });
+  }
+
   // BEHAVIOR_SPEC.md §8, Android only - same isAndroid gate already used
   // above for Send. Registered once for the life of the app, the same way
   // editModeTracker's Keyboard listeners above are never removed.
@@ -1123,4 +1313,13 @@ async function init(): Promise<void> {
   (window as unknown as { qukiView: EditorView; qukiPlainTextMode: typeof plainTextMode }).qukiPlainTextMode = plainTextMode;
 }
 
-void init();
+// A startup failure (OPFS unavailable in a private browsing window, an
+// Electron IPC failure, a corrupted preferences file, etc.) used to become
+// an unhandled promise rejection with no user-visible feedback at all - the
+// app just looked broken (a blank window). init() itself is untouched here;
+// this only makes its failure visible, reusing the same #save-status banner
+// mechanism every other unexpected-error path in this file already shows.
+void init().catch((error: unknown) => {
+  console.error("QuKi startup failed unexpectedly:", error);
+  showSaveStatus("QuKi Notes could not start — an unexpected error occurred. Try reloading.");
+});

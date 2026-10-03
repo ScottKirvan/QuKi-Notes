@@ -56,6 +56,21 @@ export const SETUP_CHANNELS = {
   chooseFilesystem: 'quki:setup:chooseFilesystem',
   chooseAppStorage: 'quki:setup:chooseAppStorage',
   quit: 'quki:setup:quit',
+  getPlainTextMode: 'quki:setup:getPlainTextMode',
+  setPlainTextMode: 'quki:setup:setPlainTextMode',
+} as const;
+
+/**
+ * Quit-time flush handshake (see main.ts's attachQuitFlush and preload.ts):
+ * the main process asks the renderer to flush its pending auto-save before
+ * a window is actually allowed to close, and waits for the renderer's
+ * acknowledgement (or a fallback timeout) before proceeding. Channel names
+ * are duplicated as string literals in preload.ts rather than importing
+ * this at runtime - see preload.ts's top comment for why.
+ */
+export const APP_LIFECYCLE_CHANNELS = {
+  flushBeforeQuit: 'quki:app:flushBeforeQuit',
+  flushComplete: 'quki:app:flushComplete',
 } as const;
 
 export interface StorageLocationState {
@@ -73,4 +88,22 @@ export interface StorageLocationState {
    * a returning user whose folder just isn't reachable *right now*.
    */
   unreachablePath: string | null;
+}
+
+/**
+ * Settings -> Export (core's exportLibrary(), the STORAGE_CONTRACT.md
+ * "Export everything" migration/backup path): the renderer already has the
+ * gzipped tar bytes in hand (QuKiStore.exportLibrary() runs against the
+ * same backend this whole file bridges), it just needs Electron's native
+ * "Save As" dialog to pick a destination and write them there - the same
+ * dialog module main.ts already uses for chooseFilesystem above, not a new
+ * capability.
+ */
+export const EXPORT_CHANNELS = {
+  saveExport: 'quki:export:save',
+} as const;
+
+export interface ElectronExportApi {
+  /** Resolves to the chosen absolute path, or null if the save dialog was cancelled. */
+  saveExport(bytes: Uint8Array, defaultFileName: string): Promise<string | null>;
 }

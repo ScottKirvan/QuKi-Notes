@@ -365,6 +365,120 @@ async function main(): Promise<void> {
     console.log("[e2e] PASS: a further normal edit after Overwrite saves cleanly - the baseline was correctly re-established");
 
     await overwriteContext.close();
+
+    // --- Scenario 6: a caller must not silently discard an unsaved edit
+    // that could not actually be written. Reproduces a two-tab conflict
+    // exactly like scenario 2, then attempts to start a new QuKi from the
+    // losing tab while the conflict is still unresolved - this must be
+    // blocked (the conflicting, unsaved text stays on screen and the
+    // conflict banner stays up, still describing the same QuKi), not
+    // silently replaced by a fresh blank QuKi. ---
+    const blockContext = await browser.newContext();
+    const blockSeedPage = await blockContext.newPage();
+    await blockSeedPage.goto(url);
+    await blockSeedPage.waitForSelector(".cm-content");
+    await blockSeedPage.click(".cm-content");
+    await blockSeedPage.keyboard.press("Control+A");
+    await blockSeedPage.keyboard.type("Block-nav scenario: seed content");
+    await blockSeedPage.waitForTimeout(2500);
+    await blockSeedPage.close();
+
+    const blockPageA = await blockContext.newPage();
+    const blockPageB = await blockContext.newPage();
+    await blockPageA.goto(url);
+    await blockPageA.waitForSelector(".cm-content");
+    await blockPageA.click("#btn-quki-list");
+    await blockPageA.locator(".list-row-preview", { hasText: "Block-nav scenario: seed content" }).click();
+    await blockPageA.waitForSelector(".cm-content");
+
+    await blockPageB.goto(url);
+    await blockPageB.waitForSelector(".cm-content");
+    await blockPageB.click("#btn-quki-list");
+    await blockPageB.locator(".list-row-preview", { hasText: "Block-nav scenario: seed content" }).click();
+    await blockPageB.waitForSelector(".cm-content");
+
+    await blockPageA.click(".cm-content");
+    await blockPageA.keyboard.press("Control+A");
+    await blockPageA.keyboard.type("Block-nav scenario: written from tab A");
+    await blockPageA.waitForTimeout(2500); // let A's save land first
+
+    await blockPageB.click(".cm-content");
+    await blockPageB.keyboard.press("Control+A");
+    await blockPageB.keyboard.type("Block-nav scenario: tab B's conflicting, unsaved edit");
+    await blockPageB.waitForTimeout(2500); // B's save now conflicts against A's write
+
+    const blockConflictHidden = await blockPageB.getAttribute("#save-status", "hidden");
+    assert(blockConflictHidden === null, "conflict banner should be visible before attempting to switch QuKis");
+
+    // Attempt to switch away from the still-conflicting QuKi.
+    await blockPageB.click("#btn-new-quki");
+    await blockPageB.waitForTimeout(500);
+
+    const contentAfterBlockedSwitch = await blockPageB.evaluate(
+      () => (window as unknown as { qukiView: { state: { doc: { toString(): string } } } }).qukiView.state.doc.toString(),
+    );
+    assert(
+      contentAfterBlockedSwitch.includes("tab B's conflicting, unsaved edit"),
+      `starting a new QuKi must not discard an unsaved, conflicting edit - editor now shows: "${contentAfterBlockedSwitch}"`,
+    );
+    console.log("[e2e] PASS: New QuKi was blocked while an unsaved conflicting edit existed, content preserved");
+
+    const blockStatusStillVisible = await blockPageB.getAttribute("#save-status", "hidden");
+    assert(blockStatusStillVisible === null, "the conflict banner should still be visible, still describing this same (not-switched) QuKi");
+    console.log("[e2e] PASS: the conflict banner remained visible, correctly still scoped to the blocked QuKi");
+
+    await blockContext.close();
+
+    // --- Scenario 7: BEHAVIOR_SPEC.md §4 - the mode toggle's plain-text/
+    // rendered choice "persists across launches". A full page reload is
+    // this suite's stand-in for a relaunch (see scenario 1). The web build
+    // has no setup/preferences IPC (webPlainTextModePreference.ts's
+    // localStorage fallback), so a fresh context here is what isolates this
+    // scenario's persisted choice from the other scenarios' contexts.
+    //
+    // Clicked via page.evaluate(...click()), matching every other e2e file
+    // that drives this exact button (fonts.e2e.ts, headings.e2e.ts,
+    // listReveal.e2e.ts, hangSupport.ts) rather than Playwright's own
+    // page.click() - a real OS-level click's mousedown blurs the editor
+    // (which has focus on a blank QuKi per BEHAVIOR_SPEC.md §4), and that
+    // blur's own updateModeToggleIcon() call replaces the button's icon
+    // element out from under the in-flight click before its "click" event
+    // fires, so the click is silently swallowed. Pre-existing, unrelated to
+    // this branch's four fixes - reported separately, not fixed here. ---
+    const plainTextContext = await browser.newContext();
+    const plainTextPage = await plainTextContext.newPage();
+    await plainTextPage.goto(url);
+    await plainTextPage.waitForSelector(".cm-content");
+
+    const initialPressed = await plainTextPage.getAttribute("#btn-mode-toggle", "aria-pressed");
+    assert(initialPressed === "false", `mode toggle should start un-pressed (rendered mode), got aria-pressed="${initialPressed}"`);
+
+    await plainTextPage.evaluate(() => document.querySelector<HTMLButtonElement>("#btn-mode-toggle")!.click());
+    const pressedAfterClick = await plainTextPage.getAttribute("#btn-mode-toggle", "aria-pressed");
+    assert(pressedAfterClick === "true", `mode toggle should be pressed (plain-text mode) after a click, got aria-pressed="${pressedAfterClick}"`);
+    await plainTextPage.waitForSelector(".cm-editor.cm-quki-plain-text");
+
+    await plainTextPage.reload();
+    await plainTextPage.waitForSelector(".cm-content");
+    const pressedAfterReload = await plainTextPage.getAttribute("#btn-mode-toggle", "aria-pressed");
+    assert(pressedAfterReload === "true", `plain-text mode should survive a reload, got aria-pressed="${pressedAfterReload}"`);
+    await plainTextPage.waitForSelector(".cm-editor.cm-quki-plain-text");
+    console.log("[e2e] PASS: plain-text mode survived a full page reload");
+
+    await plainTextPage.evaluate(() => document.querySelector<HTMLButtonElement>("#btn-mode-toggle")!.click());
+    const pressedAfterSecondClick = await plainTextPage.getAttribute("#btn-mode-toggle", "aria-pressed");
+    assert(pressedAfterSecondClick === "false", `mode toggle should be un-pressed after toggling back, got aria-pressed="${pressedAfterSecondClick}"`);
+
+    await plainTextPage.reload();
+    await plainTextPage.waitForSelector(".cm-content");
+    const pressedAfterSecondReload = await plainTextPage.getAttribute("#btn-mode-toggle", "aria-pressed");
+    assert(
+      pressedAfterSecondReload === "false",
+      `rendered mode should also survive a reload once toggled back, got aria-pressed="${pressedAfterSecondReload}"`,
+    );
+    console.log("[e2e] PASS: toggling back to rendered mode also survived a full page reload");
+
+    await plainTextContext.close();
   } finally {
     await browser.close();
     server.close();

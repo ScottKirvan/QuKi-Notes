@@ -23,7 +23,15 @@ describe('PreferencesStore', () => {
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
-  const DEFAULTS = { storagePath: null, storageChosen: false, windowX: null, windowY: null, windowWidth: null, windowHeight: null };
+  const DEFAULTS = {
+    storagePath: null,
+    storageChosen: false,
+    windowX: null,
+    windowY: null,
+    windowWidth: null,
+    windowHeight: null,
+    plainTextMode: false,
+  };
 
   it('reads defaults (storageChosen false, storagePath null, no window bounds) when no file exists yet - this is what defines first launch', () => {
     expect(store.read()).toEqual(DEFAULTS);
@@ -61,6 +69,7 @@ describe('PreferencesStore', () => {
       windowY: 20,
       windowWidth: 800,
       windowHeight: 600,
+      plainTextMode: false,
     });
   });
 
@@ -104,6 +113,7 @@ describe('PreferencesStore', () => {
       windowY: 0,
       windowWidth: 640,
       windowHeight: 480,
+      plainTextMode: false,
     });
   });
 
@@ -125,5 +135,59 @@ describe('PreferencesStore', () => {
     );
 
     expect(store.read()).toEqual({ ...DEFAULTS, windowX: 5, windowHeight: null });
+  });
+
+  // BEHAVIOR_SPEC.md §4: the mode-toggle's plain-text/rendered choice
+  // "persists across launches" - same file, same read/write/merge shape as
+  // storagePath/windowBounds above.
+  it('defaults plainTextMode to false when no file exists yet', () => {
+    expect(store.read()).toEqual({ ...DEFAULTS, plainTextMode: false });
+  });
+
+  it('setPlainTextMode persists the choice and round-trips it', () => {
+    const result = store.setPlainTextMode(true);
+
+    expect(result).toEqual({ ...DEFAULTS, plainTextMode: true });
+    expect(store.read()).toEqual({ ...DEFAULTS, plainTextMode: true });
+  });
+
+  it('setPlainTextMode preserves previously-saved storage location and window bounds rather than wiping them', () => {
+    store.setStorageLocation('/chosen/folder');
+    store.setWindowBounds({ x: 1, y: 2, width: 3, height: 4 });
+
+    store.setPlainTextMode(true);
+
+    expect(store.read()).toEqual({
+      storagePath: '/chosen/folder',
+      storageChosen: true,
+      windowX: 1,
+      windowY: 2,
+      windowWidth: 3,
+      windowHeight: 4,
+      plainTextMode: true,
+    });
+  });
+
+  it('setStorageLocation and setWindowBounds preserve a previously-set plainTextMode rather than wiping it', () => {
+    store.setPlainTextMode(true);
+
+    store.setStorageLocation('/chosen/folder');
+    store.setWindowBounds({ x: 1, y: 2, width: 3, height: 4 });
+
+    expect(store.read()).toEqual({
+      storagePath: '/chosen/folder',
+      storageChosen: true,
+      windowX: 1,
+      windowY: 2,
+      windowWidth: 3,
+      windowHeight: 4,
+      plainTextMode: true,
+    });
+  });
+
+  it('rejects a wrongly-typed plainTextMode value as the default rather than passing it through', () => {
+    fs.writeFileSync(path.join(dir, 'preferences.json'), JSON.stringify({ plainTextMode: 'yes' }), 'utf8');
+
+    expect(store.read()).toEqual({ ...DEFAULTS, plainTextMode: false });
   });
 });

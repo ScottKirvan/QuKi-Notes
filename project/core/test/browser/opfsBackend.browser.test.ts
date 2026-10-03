@@ -83,6 +83,21 @@ describe('OpfsBackend against real OPFS (Chromium via Playwright)', () => {
       expect(await backend.readText('.trash/a.md')).toBe('body');
     });
 
+    it('rename() preserves the original modified time, unlike a copy-then-delete which would reset it', async () => {
+      const backend = new OpfsBackend(rootDirName);
+      await backend.writeTextAtomic('a.md', 'body');
+      const before = await backend.stat('a.md');
+
+      // Real elapsed time, not a fake clock - a copy-then-delete rename
+      // would stamp the new file with "now", strictly after this wait.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      await backend.rename('a.md', '.trash/a.md');
+      const after = await backend.stat('.trash/a.md');
+
+      expect(after.mtimeMs).toBe(before.mtimeMs);
+    });
+
     it('a writeTextAtomic that runs to completion is never observed half-written by a subsequent read', async () => {
       const backend = new OpfsBackend(rootDirName);
       const big = 'x'.repeat(200_000);

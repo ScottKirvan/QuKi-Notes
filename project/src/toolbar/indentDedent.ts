@@ -2,10 +2,14 @@ import type { EditorValue, EditorSelection } from "./types";
 import { collectTouchedLineStarts, isHeadingLine, lineBoundsAt } from "./lines";
 
 /**
- * Ported from indent_dedent.dart's `_LineKind`: `list` and `paragraph` are
- * eligible for indent/dedent; `excluded` (blockquote, block image, heading)
- * takes a tab at the cursor on indent and is a no-op on dedent;
- * `excludedHr` (horizontal rule) is a no-op in both directions.
+ * BEHAVIOR_SPEC.md §12: "They are no-ops on headings, blockquotes, block
+ * images and horizontal rules, in both directions - prefixing those with
+ * whitespace would break their detection, and for a horizontal rule no
+ * caret position preserves it at all." `list` and `paragraph` are eligible
+ * for indent/dedent; `excluded` (blockquote, block image, heading) and
+ * `excludedHr` (horizontal rule) are both no-ops in both directions and are
+ * handled identically everywhere below - kept as two names only because
+ * `classifyLine` already tells them apart.
  */
 type LineKind = "list" | "paragraph" | "excluded" | "excludedHr";
 
@@ -139,13 +143,8 @@ function indentCollapsed(text: string, offset: number): EditorValue {
   const line = text.slice(lineStart, lineEnd);
   const kind = classifyLine(line);
 
-  if (kind === "excludedHr") {
+  if (kind === "excluded" || kind === "excludedHr") {
     return { text, selection: { anchor: offset, head: offset } };
-  }
-
-  if (kind === "excluded") {
-    const newText = text.slice(0, offset) + "\t" + text.slice(offset);
-    return { text: newText, selection: { anchor: offset + 1, head: offset + 1 } };
   }
 
   const newText = text.slice(0, lineStart) + "\t" + text.slice(lineStart);
@@ -185,11 +184,11 @@ function indentOrDedentSelection(text: string, selection: EditorSelection, inden
   });
 
   if (eligibleLines.length === 0) {
-    if (!indent) {
-      return { text, selection: { ...selection } };
-    }
-    const newText = text.slice(0, start) + "\t" + text.slice(end);
-    return { text: newText, selection: { anchor: start + 1, head: start + 1 } };
+    // BEHAVIOR_SPEC.md §12: headings, blockquotes, block images and
+    // horizontal rules are no-ops "in both directions" - when every touched
+    // line is one of those kinds, indent must leave the selection alone too,
+    // not fall back to replacing it with a literal tab.
+    return { text, selection: { ...selection } };
   }
 
   let newText = text;

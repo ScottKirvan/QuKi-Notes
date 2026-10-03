@@ -711,6 +711,65 @@ describe("a table immediately followed by non-table text (no blank line)", () =>
   });
 });
 
+describe("backslash escape collapse", () => {
+  it("given an escaped asterisk and the caret elsewhere, when decorated, then only the backslash is hidden", () => {
+    const doc = "plain\n\\*not italic\\*";
+    const decos = decorationsFor(doc, 0);
+    expect(hiddenRanges(decos)).toEqual([
+      [6, 7],
+      [18, 19],
+    ]);
+  });
+
+  it("given an escaped asterisk, when decorated, then no italic styling is applied", () => {
+    const doc = "\\*not italic\\*";
+    const decos = decorationsFor(doc, 0);
+    expect(byClass(decos, "cm-quki-em")).toEqual([]);
+    expect(byClass(decos, "cm-quki-strong")).toEqual([]);
+  });
+
+  it("given the caret on the backslash itself, when decorated, then the raw backslash shows", () => {
+    const doc = "\\*x";
+    expect(hiddenRanges(decorationsFor(doc, 0))).toEqual([]);
+  });
+
+  it("given the caret right after the escaped character, when decorated, then the raw backslash still shows (whole 2-char span reveals)", () => {
+    const doc = "\\*x";
+    expect(hiddenRanges(decorationsFor(doc, 2))).toEqual([]);
+  });
+
+  it("given the caret one character past the escape, when decorated, then the backslash hides again", () => {
+    const doc = "\\*x";
+    expect(hiddenRanges(decorationsFor(doc, 3))).toEqual([[0, 1]]);
+  });
+
+  it("given a backslash before a letter, when decorated, then nothing is hidden - it is not an escape", () => {
+    const doc = "\\a text";
+    expect(hiddenRanges(decorationsFor(doc, doc.length))).toEqual([]);
+  });
+
+  it("given an escape nested inside bold, when the caret is elsewhere, then both the bold marks and the escape's backslash are hidden", () => {
+    const doc = "plain\n\n**bold \\* text**";
+    const decos = decorationsFor(doc, 0);
+    const boldStart = doc.indexOf("**");
+    const boldEnd = doc.lastIndexOf("**");
+    const backslash = doc.indexOf("\\");
+    expect(hiddenRanges(decos)).toEqual(
+      expect.arrayContaining([[boldStart, boldStart + 2], [boldEnd, boldEnd + 2], [backslash, backslash + 1]]),
+    );
+  });
+
+  it("given an escape nested inside bold, when the caret sits inside the bold span, then the whole span reveals raw, backslash included", () => {
+    const doc = "**bold \\* text**";
+    const decos = decorationsFor(doc, doc.indexOf("bold"));
+    expect(hiddenRanges(decos)).toEqual([]);
+  });
+
+  it("given plain-text mode, when decorated, then an escape gets no decoration at all", () => {
+    expect(decorationsFor("\\*x", 0, true)).toEqual([]);
+  });
+});
+
 describe("fenced code block collapse", () => {
   it("given a fenced block and the caret elsewhere, when decorated, then both fence lines' marker text is hidden (their newlines untouched)", () => {
     const doc = "plain\n\n```\ncode\n```";
@@ -794,6 +853,50 @@ describe("fenced code block collapse", () => {
     expect(decorationsFor(doc, 0, true)).toEqual([]);
   });
 });
+
+describe("a fenced code block inside a blockquote", () => {
+  // Caret placed in the final line's content, safely outside every line's
+  // own marker span, so none of the five blockquote lines here reveal.
+  const doc = "> quote\n> ```\n> code\n> ```\n> more quote";
+  const caret = doc.length;
+
+  it("given a fenced block inside a blockquote and the caret elsewhere, when decorated, then every line - fences and content - still carries the quote bar", () => {
+    const decos = decorationsFor(doc, caret);
+    const bars = byClass(decos, "cm-quki-quote");
+    expect(bars.map((d) => d.from)).toEqual([0, 8, 14, 21, 27]);
+  });
+
+  it("given that same block, when decorated, then the codeblock background is still applied to its own lines", () => {
+    const decos = decorationsFor(doc, caret);
+    expect(byClass(decos, "cm-quki-codeblock-line").map((d) => d.from)).toEqual([8, 14, 21]);
+  });
+
+  it("given that same block, when decorated, then each line's own > marker span is hidden, not shown as literal text", () => {
+    const decos = decorationsFor(doc, caret);
+    expect(hiddenRanges(decos)).toEqual(
+      expect.arrayContaining([
+        [0, 2],
+        [8, 10],
+        [14, 16],
+        [21, 23],
+        [27, 29],
+      ]),
+    );
+  });
+
+  it("given content that looks like markdown inside the quoted fence, when decorated, then it is still never parsed as markdown", () => {
+    const plainDoc = "> ```\n> **not bold**\n> ```";
+    const decos = decorationsFor(plainDoc, 0);
+    expect(byClass(decos, "cm-quki-strong")).toEqual([]);
+  });
+
+  it("given the caret inside the quoted fenced block's content, when decorated, then the whole block reveals as raw source and carries no codeblock background", () => {
+    const insideDoc = "> ```\n> code\n> ```";
+    const decos = decorationsFor(insideDoc, insideDoc.indexOf("code"));
+    expect(byClass(decos, "cm-quki-codeblock-line")).toEqual([]);
+  });
+});
+
 
 describe("fenced code block under a selection", () => {
   const doc = "plain\n\n```\ncode\n```";

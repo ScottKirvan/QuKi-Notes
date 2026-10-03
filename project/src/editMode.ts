@@ -4,12 +4,14 @@ import { Keyboard } from "@capacitor/keyboard";
 
 /**
  * BEHAVIOR_SPEC.md §4: "Reading vs. edit mode is derived from editor
- * focus — nothing else." That's true everywhere except Android: a
- * physical keyboard has no show/hide event, so focus is still a correct
- * signal on the web and on Electron. Android is the one platform where a
- * user can dismiss the on-screen keyboard without clearing focus — the
- * defect that motivated this rewrite — so Android alone needs a real
- * keyboard-visibility signal instead of focus.
+ * focus — nothing else." That's sufficient everywhere except Android,
+ * where a user can dismiss the on-screen keyboard without clearing focus
+ * — the defect that motivated this rewrite — so Android alone also needs
+ * a real keyboard-visibility signal in addition to focus (not instead of
+ * it: a Bluetooth keyboard or a Chromebook never shows a software
+ * keyboard, so focus has to stay live there too, or that user's edit mode
+ * would never activate at all). See createEditModeTracker below for how
+ * the two signals combine.
  */
 export function usesKeyboardSignal(platform: string, isNativePlatform: boolean): boolean {
   return isNativePlatform && platform === "android";
@@ -67,9 +69,24 @@ export interface EditModeTracker {
 }
 
 /**
- * Wires resolveModeIconState's edit/reading half to a real signal:
- * Capacitor's keyboardDidShow/keyboardDidHide on Android (see
- * usesKeyboardSignal above), editor focus/blur everywhere else.
+ * Wires resolveModeIconState's edit/reading half to a real signal.
+ *
+ * Everywhere but Android, editor focus/blur is that signal directly.
+ *
+ * On Android, focus/blur alone isn't enough (see usesKeyboardSignal above):
+ * dismissing the on-screen keyboard doesn't blur the editor, so the
+ * dismiss would never be observed. Capacitor's keyboardDidShow/
+ * keyboardDidHide cover that case. But keyboard-visibility events are
+ * themselves not enough on their own: a Bluetooth keyboard or a Chromebook
+ * never shows a software keyboard at all, so a device with no on-screen
+ * keyboard would never fire keyboardDidShow and edit mode would never
+ * activate for that user. So Android listens to *both* — focus/blur for
+ * the hardware-keyboard/no-OSK case, keyboard-visibility for the
+ * dismiss-without-blur case — and either signal can turn edit mode on or
+ * off. The two don't fight: a hardware-keyboard session only ever fires
+ * focus/blur (no OSK, so no keyboard events at all), and a software-
+ * keyboard session's keyboardDidHide firing without a blur is exactly the
+ * dismiss-without-blur defect this needs to keep fixing.
  *
  * `initialEditMode` seeds the state (from shouldFocusOnOpen) rather than
  * reading it back off the DOM/plugin, because on Android the caller's own
@@ -92,22 +109,25 @@ export function createEditModeTracker(
     onChange(editMode);
   };
 
+  const onFocus = (): void => setEditMode(true);
+  const onBlur = (): void => setEditMode(false);
+  view.contentDOM.addEventListener("focus", onFocus);
+  view.contentDOM.addEventListener("blur", onBlur);
+
   if (usesKeyboardSignal(Capacitor.getPlatform(), Capacitor.isNativePlatform())) {
     const showHandle = Keyboard.addListener("keyboardDidShow", () => setEditMode(true));
     const hideHandle = Keyboard.addListener("keyboardDidHide", () => setEditMode(false));
     return {
       isEditMode: () => editMode,
       destroy: () => {
+        view.contentDOM.removeEventListener("focus", onFocus);
+        view.contentDOM.removeEventListener("blur", onBlur);
         void showHandle.then((handle) => handle.remove());
         void hideHandle.then((handle) => handle.remove());
       },
     };
   }
 
-  const onFocus = (): void => setEditMode(true);
-  const onBlur = (): void => setEditMode(false);
-  view.contentDOM.addEventListener("focus", onFocus);
-  view.contentDOM.addEventListener("blur", onBlur);
   return {
     isEditMode: () => editMode,
     destroy: () => {

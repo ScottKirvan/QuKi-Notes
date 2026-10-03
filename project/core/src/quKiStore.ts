@@ -1,13 +1,15 @@
 import { exportLibrary as buildExport } from './export.js';
-import { findImageReferences, writeImage as writeImageFile } from './media.js';
+import { findImageReferences, isOrphanCandidate, writeImage as writeImageFile } from './media.js';
 import { readSidecar, writeSidecar, type SidecarData } from './sidecar.js';
 import type { FileStat, StorageBackend } from './storageBackend.js';
 import {
+  InvalidIdError,
   NotFoundError,
   type DeleteOptions,
   type ExportResult,
   type QuKiDetail,
   type QuKiSummary,
+  type RestoreResult,
   type SaveParams,
   type SaveResult,
   type TrashedQuKiSummary,
@@ -18,6 +20,24 @@ const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 function toIso(ms: number): string {
   return new Date(ms).toISOString();
+}
+
+function describeError(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * Every public QuKiStore method that takes a plain id turns it directly into
+ * a relative path (`${id}.md`, `.meta/${id}.json`, ...). Rejecting `/`, `\`
+ * and a leading `.` here is what keeps STORAGE_CONTRACT.md rule 9 (the
+ * folder is flat) true against a caller-supplied id - the CLI and MCP both
+ * pass user/model-supplied ids straight through with no validation of their
+ * own.
+ */
+function assertValidId(id: string): void {
+  if (id === '' || id.includes('/') || id.includes('\\') || id.startsWith('.')) {
+    throw new InvalidIdError(`Invalid QuKi id: ${JSON.stringify(id)}`);
+  }
 }
 
 export class QuKiStore {
@@ -44,6 +64,22 @@ export class QuKiStore {
     return toIso(birthMs);
   }
 
+  /**
+   * Finds a filename-safe id for `baseId` inside `dir` ('' for the active
+   * root, '.trash' for the trash folder) that no existing .md file already
+   * occupies. Returns `baseId` itself when it's free. No collision-safe
+   * uniquing helper existed anywhere in the codebase before this, so this is
+   * a new, small addition rather than a reuse of an existing one.
+   */
+  private async uniqueId(dir: string, baseId: string): Promise<string> {
+    const pathFor = (candidate: string): string => (dir === '' ? `${candidate}.md` : `${dir}/${candidate}.md`);
+    if (!(await this.backend.exists(pathFor(baseId)))) return baseId;
+    for (let n = 2; ; n++) {
+      const candidate = `${baseId} (${n})`;
+      if (!(await this.backend.exists(pathFor(candidate)))) return candidate;
+    }
+  }
+
   private async listActiveIds(): Promise<string[]> {
     const names = await this.backend.listDir('');
     return names.filter((n) => n.endsWith('.md')).map((n) => n.slice(0, -3));
@@ -56,9 +92,29 @@ export class QuKiStore {
 
   async list(): Promise<QuKiSummary[]> {
     const ids = await this.listActiveIds();
-    const summaries = await Promise.all(ids.map((id) => this.buildActiveSummary(id)));
+    const settled = await Promise.allSettled(ids.map((id) => this.buildActiveSummary(id)));
+    const summaries = this.collectSettled(ids, settled, 'list');
     summaries.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt));
     return summaries;
+  }
+
+  /**
+   * A single bad entry (a directory literally named `x.md`, a broken
+   * symlink, a permissions error) must never take down the whole list -
+   * STORAGE_CONTRACT.md's "folder is the index" model means one unreadable
+   * neighbour is not grounds to hide every other QuKi. Skips are reported to
+   * stderr rather than swallowed silently.
+   */
+  private collectSettled<T>(ids: string[], settled: PromiseSettledResult<T>[], context: string): T[] {
+    const out: T[] = [];
+    settled.forEach((result, i) => {
+      if (result.status === 'fulfilled') {
+        out.push(result.value);
+      } else {
+        console.error(`QuKiStore.${context}: skipping "${ids[i]}" - ${describeError(result.reason)}`);
+      }
+    });
+    return out;
   }
 
   private async buildActiveSummary(id: string): Promise<QuKiSummary> {
@@ -75,7 +131,8 @@ export class QuKiStore {
 
   async listTrash(): Promise<TrashedQuKiSummary[]> {
     const ids = await this.listTrashIds();
-    const summaries = await Promise.all(ids.map((id) => this.buildTrashSummary(id)));
+    const settled = await Promise.allSettled(ids.map((id) => this.buildTrashSummary(id)));
+    const summaries = this.collectSettled(ids, settled, 'listTrash');
     summaries.sort((a, b) => b.modifiedAt.localeCompare(a.modifiedAt));
     return summaries;
   }
@@ -87,6 +144,7 @@ export class QuKiStore {
     return {
       id,
       filename: `${id}.md`,
+      originalId: sidecar.originalId ?? id,
       createdAt: this.resolveCreatedAt(stat, sidecar),
       modifiedAt: toIso(stat.mtimeMs),
       deletedAt: sidecar.deletedAt ?? null,
@@ -94,6 +152,7 @@ export class QuKiStore {
   }
 
   async read(id: string): Promise<QuKiDetail> {
+    assertValidId(id);
     const mdPath = `${id}.md`;
     if (!(await this.backend.exists(mdPath))) throw new NotFoundError(`QuKi not found: ${id}`);
     const [body, stat, sidecar] = await Promise.all([
@@ -111,6 +170,7 @@ export class QuKiStore {
   }
 
   async readTrash(id: string): Promise<QuKiDetail> {
+    assertValidId(id);
     const mdPath = `.trash/${id}.md`;
     if (!(await this.backend.exists(mdPath))) throw new NotFoundError(`Trashed QuKi not found: ${id}`);
     const [body, stat, sidecar] = await Promise.all([
@@ -132,8 +192,9 @@ export class QuKiStore {
       return this.createNew(params.body);
     }
     const id = params.id;
+    assertValidId(id);
     return this.runExclusive(id, () =>
-      this.updateExisting(id, params.body, params.expectedModifiedAt, params.force ?? false),
+      this.updateExisting(id, params.body, params.expectedModifiedAt, params.force ?? false, params.expectedBody),
     );
   }
 
@@ -145,7 +206,17 @@ export class QuKiStore {
     const mdPath = `${id}.md`;
     const createdAt = new Date().toISOString();
     await this.backend.writeTextAtomic(mdPath, body);
-    await writeSidecar(this.backend, `.meta/${id}.json`, { createdAt });
+    try {
+      await writeSidecar(this.backend, `.meta/${id}.json`, { createdAt });
+    } catch (err) {
+      // The .md file above already landed - a failed sidecar write must not
+      // leave it behind as an orphan with a fresh random id, since id is a
+      // new crypto.randomUUID() every call and a naive caller retry would
+      // otherwise create a second, duplicate QuKi rather than completing
+      // this one.
+      await this.backend.remove(mdPath);
+      throw err;
+    }
     const stat = await this.backend.stat(mdPath);
     return {
       status: 'saved',
@@ -161,6 +232,7 @@ export class QuKiStore {
     body: string,
     expectedModifiedAt: string | undefined,
     force: boolean,
+    expectedBody?: string,
   ): Promise<SaveResult> {
     if (expectedModifiedAt === undefined) {
       throw new TypeError(
@@ -185,7 +257,16 @@ export class QuKiStore {
       const currentModifiedAt = toIso(priorStat.mtimeMs);
       if (currentModifiedAt !== expectedModifiedAt) {
         const currentBody = await this.backend.readText(mdPath);
-        return { status: 'conflict', id, reason: 'modified', currentModifiedAt, currentBody };
+        // A mismatched mtime with byte-identical content isn't a real
+        // conflict - no other writer could coincidentally reproduce the
+        // exact same bytes, so only the clock moved, not the file. Observed
+        // on Android's scoped-storage (FUSE) backend after the app sits
+        // backgrounded for a while: the reported mtime can drift with
+        // nothing having actually written the file. A genuine external edit
+        // changes the content, which this still catches below.
+        if (expectedBody === undefined || currentBody !== expectedBody) {
+          return { status: 'conflict', id, reason: 'modified', currentModifiedAt, currentBody };
+        }
       }
     } else if (exists) {
       // Preserve the original createdAt (via birthtimeMs fallback in
@@ -212,6 +293,7 @@ export class QuKiStore {
   }
 
   async moveToTrash(id: string): Promise<void> {
+    assertValidId(id);
     await this.runExclusive(id, async () => {
       const mdPath = `${id}.md`;
       const metaPath = `.meta/${id}.json`;
@@ -221,39 +303,56 @@ export class QuKiStore {
       const sidecar = await readSidecar(this.backend, metaPath);
       const createdAt = this.resolveCreatedAt(stat, sidecar);
 
-      await this.backend.rename(mdPath, `.trash/${id}.md`);
+      // The active id may already be taken in .trash/ by an earlier trashed
+      // QuKi of the same name - never overwrite it (rename() silently would).
+      // The original id is preserved in the trash sidecar regardless, so
+      // restore() and the Trash screen still know the real name.
+      const trashId = await this.uniqueId('.trash', id);
+
+      await this.backend.rename(mdPath, `.trash/${trashId}.md`);
       if (await this.backend.exists(metaPath)) await this.backend.remove(metaPath);
-      await writeSidecar(this.backend, `.trash/.meta/${id}.json`, {
+      await writeSidecar(this.backend, `.trash/.meta/${trashId}.json`, {
         createdAt,
         deletedAt: new Date().toISOString(),
+        originalId: id,
       });
     });
   }
 
-  async restore(id: string): Promise<void> {
-    await this.runExclusive(id, async () => {
+  async restore(id: string): Promise<RestoreResult> {
+    assertValidId(id);
+    return this.runExclusive(id, async () => {
       const trashMdPath = `.trash/${id}.md`;
       const trashMetaPath = `.trash/.meta/${id}.json`;
       if (!(await this.backend.exists(trashMdPath))) throw new NotFoundError(`Trashed QuKi not found: ${id}`);
 
       const sidecar = await readSidecar(this.backend, trashMetaPath);
+      const originalId = sidecar.originalId ?? id;
 
-      await this.backend.rename(trashMdPath, `${id}.md`);
+      // The QuKi's original name may since have been taken by a different
+      // active file - restore under a new, unique name rather than
+      // overwriting it (rename() silently would) or refusing.
+      const restoredId = await this.uniqueId('', originalId);
+
+      await this.backend.rename(trashMdPath, `${restoredId}.md`);
       if (await this.backend.exists(trashMetaPath)) await this.backend.remove(trashMetaPath);
       if (sidecar.createdAt) {
-        await writeSidecar(this.backend, `.meta/${id}.json`, { createdAt: sidecar.createdAt });
+        await writeSidecar(this.backend, `.meta/${restoredId}.json`, { createdAt: sidecar.createdAt });
       }
+
+      return { id: restoredId, renamed: restoredId !== originalId };
     });
   }
 
   async permanentlyDelete(id: string, options: DeleteOptions = {}): Promise<void> {
+    assertValidId(id);
     const deleteOrphanedImages = options.deleteOrphanedImages ?? true;
     await this.runExclusive(id, async () => {
       const trashMdPath = `.trash/${id}.md`;
       const trashMetaPath = `.trash/.meta/${id}.json`;
 
-      let body = '';
-      if (await this.backend.exists(trashMdPath)) body = await this.backend.readText(trashMdPath);
+      if (!(await this.backend.exists(trashMdPath))) throw new NotFoundError(`Trashed QuKi not found: ${id}`);
+      const body = await this.backend.readText(trashMdPath);
 
       await this.backend.remove(trashMdPath);
       await this.backend.remove(trashMetaPath);
@@ -272,8 +371,12 @@ export class QuKiStore {
     const candidateRefs = new Set<string>();
     if (deleteOrphanedImages) {
       for (const id of ids) {
-        const body = await this.backend.readText(`.trash/${id}.md`);
-        for (const ref of findImageReferences(body)) candidateRefs.add(ref);
+        try {
+          const body = await this.backend.readText(`.trash/${id}.md`);
+          for (const ref of findImageReferences(body)) candidateRefs.add(ref);
+        } catch (err) {
+          console.error(`QuKiStore.emptyTrash: skipping ".trash/${id}" while collecting image refs - ${describeError(err)}`);
+        }
       }
     }
 
@@ -297,9 +400,21 @@ export class QuKiStore {
     const purged: string[] = [];
 
     for (const id of ids) {
-      const sidecar = await readSidecar(this.backend, `.trash/.meta/${id}.json`);
-      if (!sidecar.deletedAt) continue;
-      const deletedAtMs = Date.parse(sidecar.deletedAt);
+      const metaPath = `.trash/.meta/${id}.json`;
+      const sidecar = await readSidecar(this.backend, metaPath);
+      let deletedAt = sidecar.deletedAt;
+      if (!deletedAt) {
+        // STORAGE_CONTRACT.md's migration section: trash predating this
+        // rewrite has no deletedAt sidecar field at all. Rather than skip it
+        // forever, stamp it "now" the first time the purge sweep sees it, so
+        // the 30-day clock starts here instead of never starting - matching
+        // "stamped at first launch of the new version" without needing a
+        // separate one-time migration flag (already-stamped items simply
+        // never hit this branch again).
+        deletedAt = now.toISOString();
+        await writeSidecar(this.backend, metaPath, { ...sidecar, deletedAt });
+      }
+      const deletedAtMs = Date.parse(deletedAt);
       if (Number.isNaN(deletedAtMs)) continue;
       if (now.getTime() - deletedAtMs >= THIRTY_DAYS_MS) {
         await this.permanentlyDelete(id, { deleteOrphanedImages: options.deleteOrphanedImages });
@@ -312,20 +427,59 @@ export class QuKiStore {
 
   private async removeOrphanedImages(candidates: string[]): Promise<void> {
     const stillReferenced = await this.collectAllImageReferences();
+    const mediaDirEntries = await this.backend.listDir('media');
     for (const ref of candidates) {
-      if (!stillReferenced.has(ref)) await this.backend.remove(ref);
+      if (stillReferenced.has(ref)) continue;
+      if (!isOrphanCandidate(ref, mediaDirEntries)) continue;
+      await this.backend.remove(ref);
     }
+  }
+
+  /**
+   * A full pass over media/, independent of any single QuKi's
+   * deletion/trash lifecycle: removes every file under media/ that no
+   * active or trashed QuKi's body currently references.
+   *
+   * This exists because the candidate-based cleanup above only ever
+   * considers images that *were* referenced by a QuKi that is now being
+   * deleted - an image pasted into a QuKi that is never saved (rule 16: an
+   * empty body is never written) never becomes a candidate there, since no
+   * .md file ever referenced it in the first place. Callers are expected to
+   * run this at points other than deletion - e.g. app startup - so those
+   * images still get cleaned up eventually.
+   */
+  async sweepOrphanedImages(): Promise<{ removedCount: number }> {
+    const files = await this.backend.listDir('media');
+    if (files.length === 0) return { removedCount: 0 };
+    const referenced = await this.collectAllImageReferences();
+    let removedCount = 0;
+    for (const name of files) {
+      const ref = `media/${name}`;
+      if (!referenced.has(ref)) {
+        await this.backend.remove(ref);
+        removedCount++;
+      }
+    }
+    return { removedCount };
   }
 
   private async collectAllImageReferences(): Promise<Set<string>> {
     const refs = new Set<string>();
     for (const id of await this.listActiveIds()) {
-      const body = await this.backend.readText(`${id}.md`);
-      for (const ref of findImageReferences(body)) refs.add(ref);
+      try {
+        const body = await this.backend.readText(`${id}.md`);
+        for (const ref of findImageReferences(body)) refs.add(ref);
+      } catch (err) {
+        console.error(`QuKiStore.collectAllImageReferences: skipping "${id}.md" - ${describeError(err)}`);
+      }
     }
     for (const id of await this.listTrashIds()) {
-      const body = await this.backend.readText(`.trash/${id}.md`);
-      for (const ref of findImageReferences(body)) refs.add(ref);
+      try {
+        const body = await this.backend.readText(`.trash/${id}.md`);
+        for (const ref of findImageReferences(body)) refs.add(ref);
+      } catch (err) {
+        console.error(`QuKiStore.collectAllImageReferences: skipping ".trash/${id}.md" - ${describeError(err)}`);
+      }
     }
     return refs;
   }
@@ -351,7 +505,13 @@ export class QuKiStore {
     const lower = query.toLowerCase();
     const matches: T[] = [];
     for (const item of items) {
-      const body = await this.backend.readText(pathFor(item));
+      let body: string;
+      try {
+        body = await this.backend.readText(pathFor(item));
+      } catch (err) {
+        console.error(`QuKiStore.search: skipping "${pathFor(item)}" - ${describeError(err)}`);
+        continue;
+      }
       if (body.toLowerCase().includes(lower)) matches.push(item);
     }
     return matches;

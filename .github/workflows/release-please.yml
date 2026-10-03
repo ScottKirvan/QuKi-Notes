@@ -141,37 +141,3 @@ jobs:
     uses: ScottKirvan/.github/.github/workflows/reusable-update-changelog-prs.yml@main
     with:
       tag_name: ${{ needs.release-please.outputs.tag_name }}
-
-  update-latest-json:
-    needs: release-please
-    if: ${{ needs.release-please.outputs.release_created }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Write docs/public/latest.json
-        env:
-          TAG: ${{ needs.release-please.outputs.tag_name }}
-          REPO: ${{ github.repository }}
-        run: |
-          BASE="https://github.com/${REPO}/releases/download/${TAG}"
-          jq -n \
-            --arg version "$TAG" \
-            --arg android "${BASE}/quki-notes-android-${TAG}.apk" \
-            --arg windows "${BASE}/quki-notes-windows-${TAG}.exe" \
-            --arg linux "${BASE}/quki-notes-linux-x64-${TAG}.AppImage" \
-            --arg linux_arm64 "${BASE}/quki-notes-linux-arm64-${TAG}.AppImage" \
-            --arg linux_deb "${BASE}/quki-notes-linux-x64-${TAG}.deb" \
-            --arg linux_arm64_deb "${BASE}/quki-notes-linux-arm64-${TAG}.deb" \
-            --arg linux_snap "${BASE}/quki-notes-linux-${TAG}.snap" \
-            --arg linux_flatpak "${BASE}/quki-notes-linux-${TAG}.flatpak" \
-            '{version: $version, android: $android, windows: $windows, linux: $linux, linux_arm64: $linux_arm64, linux_deb: $linux_deb, linux_arm64_deb: $linux_arm64_deb, linux_snap: $linux_snap, linux_flatpak: $linux_flatpak}' \
-            > docs/public/latest.json
-
-      - name: Commit and push
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add docs/public/latest.json
-          git diff --staged --quiet || git commit -m "chore: update latest.json for ${{ needs.release-please.outputs.tag_name }}"
-          git push

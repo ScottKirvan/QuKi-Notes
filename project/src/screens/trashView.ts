@@ -12,12 +12,36 @@ export interface TrashViewCallbacks {
   onBack: () => void;
   showToast: ShowToast;
   confirm: Confirm;
+  /** STORAGE_CONTRACT.md rule 13's user-facing "delete orphaned images" setting. */
+  getDeleteOrphanedImages: () => boolean;
 }
 
 export interface TrashView {
   element: HTMLElement;
   /** BEHAVIOR_SPEC.md §6: "Refreshes on open." */
   open: () => Promise<void>;
+}
+
+/**
+ * Runs a Trash action (restore, permanent delete, empty) and, on rejection,
+ * surfaces `failureMessage` via the same toast every other one-off action
+ * result in this app already uses (main.ts's handleSharedText/deleteQuKi),
+ * rather than letting the rejection become an unhandled promise rejection
+ * with nothing shown to the user at all. STORAGE_CONTRACT.md rule 18: "a
+ * failed save is surfaced, not just logged" - these are writes/deletes, not
+ * saves, but the same requirement applies. Returns the action's own result
+ * on success, or `null` on failure - callers that need to inspect what the
+ * action actually did (e.g. restore()'s `{renamed}`) can, and a bare success/
+ * failure check (permanentlyDelete, emptyTrash) just checks for `null`.
+ */
+export async function performTrashAction<T>(action: () => Promise<T>, showToast: ShowToast, failureMessage: string): Promise<T | null> {
+  try {
+    return await action();
+  } catch (error) {
+    console.error(`QuKi trash action failed: ${failureMessage}`, error);
+    showToast(failureMessage, 4000);
+    return null;
+  }
 }
 
 /**
@@ -49,6 +73,19 @@ export function createTrashView(store: QuKiStore, container: HTMLElement, callba
   setIconButton(backBtn, ArrowLeft, "Back to Settings");
 
   async function refresh(): Promise<void> {
+    // Trash is where a user goes to reason about deleted/cleaned-up state,
+    // and every entry point here (opening Trash, restoring, permanently
+    // deleting, emptying) already calls this - so this is also where a full
+    // media/ sweep runs for images an active/trashed QuKi never referenced
+    // in the first place (e.g. pasted into a QuKi that was never saved -
+    // STORAGE_CONTRACT.md rule 16), which the candidate-based cleanup below
+    // can never catch on its own. Gated on the same setting as the rest of
+    // orphan cleanup (rule 13).
+    if (callbacks.getDeleteOrphanedImages()) {
+      await store.sweepOrphanedImages().catch((error: unknown) => {
+        console.error("QuKi orphaned-image sweep (Trash refresh) failed unexpectedly:", error);
+      });
+    }
     const items = await store.listTrash();
     render(items);
   }
@@ -110,9 +147,16 @@ export function createTrashView(store: QuKiStore, container: HTMLElement, callba
         cancelLabel: "Cancel",
       });
       if (!confirmed) return;
-      await store.restore(item.id);
+      const result = await performTrashAction(
+        () => store.restore(item.id),
+        callbacks.showToast,
+        "Could not restore — an unexpected error occurred.",
+      );
+      if (result?.renamed) {
+        callbacks.showToast("Restored as a new QuKi - the original name was already in use.", 4000);
+      }
       await refresh();
-      callbacks.onBack();
+      if (result) callbacks.onBack();
     };
 
     content.addEventListener("keydown", (e) => {
@@ -142,7 +186,11 @@ export function createTrashView(store: QuKiStore, container: HTMLElement, callba
             await refresh();
             return;
           }
-          await store.permanentlyDelete(item.id);
+          await performTrashAction(
+            () => store.permanentlyDelete(item.id, { deleteOrphanedImages: callbacks.getDeleteOrphanedImages() }),
+            callbacks.showToast,
+            "Could not delete — an unexpected error occurred.",
+          );
           await refresh();
         })();
       },
@@ -162,7 +210,11 @@ export function createTrashView(store: QuKiStore, container: HTMLElement, callba
         danger: true,
       });
       if (!confirmed) return;
-      await store.emptyTrash();
+      await performTrashAction(
+        () => store.emptyTrash({ deleteOrphanedImages: callbacks.getDeleteOrphanedImages() }),
+        callbacks.showToast,
+        "Could not empty Trash — an unexpected error occurred.",
+      );
       await refresh();
     })();
   });

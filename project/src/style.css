@@ -384,6 +384,14 @@ button.settings-row {
   color: var(--text-muted);
 }
 
+/* A checkbox <input> doesn't inherit its enclosing .settings-row's font the
+   way plain text does - browsers give form controls their own UA default
+   font unless told otherwise, same reason button.settings-row above needs
+   its own explicit `font: inherit` rather than relying on .settings-row's. */
+.delete-orphaned-images-toggle {
+  font: inherit;
+}
+
 .settings-value {
   color: var(--text-muted);
 }
@@ -1089,8 +1097,15 @@ body.theme-light .about-link-btn.accent {
 }
 
 .android-permission-panel {
+  position: relative;
   max-width: 480px;
   width: 100%;
+}
+
+.android-permission-back-btn {
+  position: absolute;
+  top: -44px;
+  left: -6px;
 }
 
 .android-permission-title {

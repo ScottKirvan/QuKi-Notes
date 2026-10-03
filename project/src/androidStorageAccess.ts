@@ -10,23 +10,48 @@
  */
 export type StorageAccessState = "checking" | "granted" | "needs-permission" | "waiting-for-settings";
 
+/**
+ * What requestAllFilesAccess() actually did, since that differs by API
+ * level (see StoragePlugin.kt's requestAllFilesAccess doc comment):
+ * - "opened-settings" (API 30+): a real app-switch to the system Settings
+ *   screen was started. The gate must wait for a foreground resume before
+ *   rechecking - the permission grant itself returns no result.
+ * - "granted"/"denied" (API <30): the classic runtime permission dialog
+ *   already ran and resolved in-process. There is no Settings screen and no
+ *   app-lifecycle transition to wait for, so the gate must treat this as
+ *   final immediately.
+ */
+export type RequestAllFilesAccessOutcome = "opened-settings" | "granted" | "denied";
+
 export interface AppStateListenerHandle {
   remove(): void;
 }
 
 export interface StorageAccessDeps {
   isExternalStorageManager(): Promise<boolean>;
-  requestAllFilesAccess(): Promise<void>;
+  requestAllFilesAccess(): Promise<RequestAllFilesAccessOutcome>;
   /** Wraps Capacitor's App.addListener("appStateChange", ...): fires callback(isActive) on every app foreground/background transition. */
   onAppStateChange(callback: (isActive: boolean) => void): AppStateListenerHandle;
 }
 
 export interface StorageAccessGate {
   getState(): StorageAccessState;
-  /** Call when the user taps the explanatory screen's action. Sends them to the system permission screen. */
+  /** Call when the user taps the explanatory screen's action. Sends them to the system permission screen, or (API <30) shows the runtime permission dialog directly. */
   requestAccess(): Promise<void>;
-  /** Resolves once access is confirmed granted, whether immediately (fast path) or after a settings round trip. */
-  ready(): Promise<void>;
+  /**
+   * Resolves `true` once access is confirmed granted, whether immediately
+   * (fast path), after a settings round trip (API 30+), or after an
+   * in-process runtime permission dialog (API <30). Resolves `false`
+   * instead if `cancel()` is called first — e.g. the user backs out to
+   * choose app storage instead. Never rejects.
+   */
+  ready(): Promise<boolean>;
+  /**
+   * Call when the user backs out of the permission screen without granting
+   * access. Makes `ready()` resolve `false`; safe to call at most once, and
+   * a no-op if `ready()` has already settled.
+   */
+  cancel(): void;
   /** Removes the underlying app-state listener. Safe to call once access is granted or the gate is no longer needed. */
   destroy(): void;
 }
@@ -51,8 +76,9 @@ export function createStorageAccessGate(
 ): StorageAccessGate {
   let current: StorageAccessState = "checking";
   let waitingForSettings = false;
-  let resolveReady: () => void = () => {};
-  const readyPromise = new Promise<void>((resolve) => {
+  let settled = false;
+  let resolveReady: (granted: boolean) => void = () => {};
+  const readyPromise = new Promise<boolean>((resolve) => {
     resolveReady = resolve;
   });
 
@@ -61,12 +87,18 @@ export function createStorageAccessGate(
     onStateChange(next);
   }
 
+  function settle(granted: boolean): void {
+    if (settled) return;
+    settled = true;
+    resolveReady(granted);
+  }
+
   async function recheck(): Promise<void> {
     setState("checking");
     const granted = await deps.isExternalStorageManager();
     if (granted) {
       setState("granted");
-      resolveReady();
+      settle(true);
     } else {
       setState("needs-permission");
     }
@@ -83,11 +115,25 @@ export function createStorageAccessGate(
   return {
     getState: () => current,
     requestAccess: async () => {
-      waitingForSettings = true;
       setState("waiting-for-settings");
-      await deps.requestAllFilesAccess();
+      const outcome = await deps.requestAllFilesAccess();
+      if (outcome === "opened-settings") {
+        // API 30+: no result yet - wait for the foreground-resume signal
+        // (the onAppStateChange listener above) before rechecking.
+        waitingForSettings = true;
+        return;
+      }
+      // API <30: the runtime permission dialog already resolved in-process,
+      // with no Settings screen and no app-lifecycle transition coming.
+      if (outcome === "granted") {
+        setState("granted");
+        settle(true);
+      } else {
+        setState("needs-permission");
+      }
     },
     ready: () => readyPromise,
+    cancel: () => settle(false),
     destroy: () => listenerHandle.remove(),
   };
 }
