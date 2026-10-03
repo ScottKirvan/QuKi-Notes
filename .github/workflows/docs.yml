@@ -4,6 +4,14 @@ on:
   push:
     branches: [main]
     paths: ['docs/**']
+  # Called by post-release.yml so a release rebuilds the whole site (with the
+  # new latest.json) before the release is announced.
+  workflow_call:
+    inputs:
+      ref:
+        description: Branch to build the docs from
+        type: string
+        required: false
 
 permissions:
   contents: read
@@ -19,6 +27,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
 
       - uses: actions/setup-node@v4
         with:

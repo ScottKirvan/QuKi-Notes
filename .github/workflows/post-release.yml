@@ -2,7 +2,7 @@ name: Post-Release
 
 on:
   workflow_run:
-    workflows: ["Build Android", "Build Windows", "Build Linux"]
+    workflows: ["Build Android", "Build Windows", "Build Linux", "Deploy Web App", "Release Workflow"]
     types: [completed]
 
 # Serialize runs per commit SHA so only one instance can be active at a time.
@@ -24,18 +24,21 @@ jobs:
       all_done: ${{ steps.check.outputs.all_done }}
       tag_name: ${{ steps.check.outputs.tag_name }}
     steps:
-      - name: Check if all builds are complete
+      # Release Workflow is required because its store-discord-blurb job saves
+      # the announcement text notify uses, and its notes step rewrites the
+      # release body notify falls back to.
+      - name: Check if every release workflow is complete
         id: check
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
-          BUILD_WORKFLOWS=("Build Android" "Build Windows" "Build Linux")
+          REQUIRED_WORKFLOWS=("Build Android" "Build Windows" "Build Linux" "Deploy Web App" "Release Workflow")
 
-          for WF in "${BUILD_WORKFLOWS[@]}"; do
-            STATUS=$(gh api "repos/$REPO/actions/runs?per_page=20" \
-              --jq "[.workflow_runs[] | select(.name == \"$WF\" and .head_sha == \"$HEAD_SHA\")] | first | .status // \"not_found\"")
+          for WF in "${REQUIRED_WORKFLOWS[@]}"; do
+            STATUS=$(gh api "repos/$REPO/actions/runs?head_sha=$HEAD_SHA&per_page=100" \
+              --jq "[.workflow_runs[] | select(.name == \"$WF\")] | first | .status // \"not_found\"")
             echo "$WF: $STATUS"
             if [ "$STATUS" != "completed" ]; then
               echo "all_done=false" >> "$GITHUB_OUTPUT"
@@ -43,7 +46,7 @@ jobs:
             fi
           done
 
-          # All builds complete — get the latest release tag
+          # Everything complete — get the latest release tag
           TAG=$(gh release list --repo "$REPO" --limit 1 --json tagName --jq '.[0].tagName')
 
           if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
@@ -102,8 +105,20 @@ jobs:
             echo 'BLURB_EOF'
           } >> "$GITHUB_OUTPUT"
 
+  # Rebuilds the docs site from main after latest.json lands, so every
+  # download link points at this release before anyone is told about it.
+  deploy-docs:
+    needs: update-manifest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/docs.yml
+    with:
+      ref: main
+
   notify:
-    needs: [check, get-blurb]
+    needs: [check, get-blurb, deploy-docs]
     if: needs.check.outputs.all_done == 'true'
     uses: ScottKirvan/.github/.github/workflows/reusable-discord-notify.yml@main
     with:
@@ -153,8 +168,12 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add docs/public/latest.json
-          git commit -m "chore: update download manifest for $TAG"
-          git push
+          if git diff --cached --quiet; then
+            echo "latest.json already up to date for $TAG"
+          else
+            git commit -m "chore: update download manifest for $TAG"
+            git push
+          fi
 
   mark-sent:
     needs: [check, notify]
