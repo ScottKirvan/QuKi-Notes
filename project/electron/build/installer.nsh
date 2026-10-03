@@ -17,15 +17,20 @@
 ; assuming from memory, and NSIS/electron-builder is exactly the kind of
 ; unfamiliar domain that rule is aimed at.
 ;
-; NOT verified: this script has not been compiled with makensis or run in a
-; real installer anywhere in this change's development - there is no NSIS
-; toolchain available in that environment. Only the hook wiring was checked
-; against real source.
+; electron-builder compiles this script twice: once for the uninstaller
+; (BUILD_UNINSTALLER defined) and once for the installer. customHeader is
+; inserted in both passes, but customPageAfterChangeDir only in the installer
+; pass (templates/nsis/assistedInstaller.nsh). Without the guard below, the
+; uninstaller pass defines the page functions without referencing them, NSIS
+; emits warning 6010, and electron-builder fails the build (warnings are
+; errors). The installer has been compiled with makensis; it has not been
+; exercised interactively.
 
 !macro customHeader
   !include "nsDialogs.nsh"
   !include "WinMessages.nsh"
 
+!ifndef BUILD_UNINSTALLER
   Var CliToolsCheckbox
   Var CliToolsSelected
 
@@ -51,6 +56,7 @@
   Function CliToolsPageLeave
     ${NSD_GetState} $CliToolsCheckbox $CliToolsSelected
   FunctionEnd
+!endif
 !macroend
 
 !macro customInit
