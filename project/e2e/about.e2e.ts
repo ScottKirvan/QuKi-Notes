@@ -59,9 +59,26 @@ function git(...args: string[]): string {
   return execFileSync("git", args, { cwd: projectDir, encoding: "utf-8" }).trim();
 }
 
+/**
+ * Mirrors src/buildInfo.ts's own branch-name fallback chain exactly: `git
+ * branch --show-current` returns empty in a detached-HEAD checkout, which is
+ * exactly what GitHub Actions' default `pull_request` checkout produces (a
+ * synthetic merge commit, not a named branch) - the app already falls back
+ * to GITHUB_HEAD_REF/GITHUB_REF_NAME for this, correctly showing the real
+ * branch there. Without this same fallback, this test's own expectation
+ * computation disagreed with the app's actual (correct) behavior the first
+ * time e2e ever ran against a real CI checkout rather than a local one.
+ */
+function resolveExpectedBranch(): string {
+  const direct = git("branch", "--show-current");
+  if (direct !== "") return direct;
+  const fromEnv = process.env["GITHUB_HEAD_REF"] || process.env["GITHUB_REF_NAME"] || "";
+  return fromEnv.replace(/^refs\/heads\//, "");
+}
+
 const expectedVersion = (JSON.parse(fs.readFileSync(path.join(projectDir, "package.json"), "utf-8")) as { version: string }).version;
 const expectedCommit = git("rev-parse", "--short=7", "HEAD");
-const expectedBranch = git("branch", "--show-current");
+const expectedBranch = resolveExpectedBranch();
 const expectedDirty = git("status", "--porcelain", "--untracked-files=no") !== "";
 
 const DIALOG = "[role=dialog]";
