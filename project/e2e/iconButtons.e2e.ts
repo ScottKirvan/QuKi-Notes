@@ -348,8 +348,8 @@ async function runWebScenario(browser: Browser, url: string, scheme: "light" | "
     padding: "6px 12px",
     fontSize: "13px",
     borderRadius: "6px",
-    width: 95.4,
-    height: 31,
+    width: 98.96875,
+    height: 29,
   });
   await assertSwipeBackground(trash.locator(".list-row").first(), "trash row");
   await assertMidSwipeIconVisible(page, trash.locator(".list-row").first(), "trash row");
