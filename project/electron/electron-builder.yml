@@ -31,4 +31,8 @@ nsis:
 linux:
   target:
     - target: AppImage
+    - target: deb
   category: Utility
+deb:
+  afterInstall: build/afterInstall.sh
+  afterRemove: build/afterRemove.sh

@@ -129,17 +129,21 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           BASE_URL="https://github.com/$REPO/releases/download/$TAG"
-          # The Linux asset's filename is deliberately NOT versioned
-          # (build-linux.yml uploads a stable QuKi-Notes.AppImage) - the
-          # CLI/MCP distribution's symlink convention
-          # (`ln -s .../QuKi-Notes.AppImage ~/.local/bin/quki`) requires a
-          # filename that stays valid across every future release.
+          # AppImage filenames are stable (not versioned) so the documented
+          # symlink workflow keeps working across every future release:
+          # ln -s ~/Applications/QuKi-Notes-x64.AppImage ~/.local/bin/quki
+          # deb and other assets use versioned filenames (normal for packages).
           jq -n \
             --arg version "$TAG" \
             --arg android "$BASE_URL/quki-notes-android-${TAG}.apk" \
             --arg windows "$BASE_URL/quki-notes-windows-${TAG}.exe" \
-            --arg linux "$BASE_URL/QuKi-Notes.AppImage" \
-            '{version: $version, android: $android, windows: $windows, linux: $linux}' \
+            --arg linux "$BASE_URL/QuKi-Notes-x64.AppImage" \
+            --arg linux_arm64 "$BASE_URL/QuKi-Notes-arm64.AppImage" \
+            --arg linux_deb "$BASE_URL/quki-notes-linux-x64-${TAG}.deb" \
+            --arg linux_arm64_deb "$BASE_URL/quki-notes-linux-arm64-${TAG}.deb" \
+            --arg linux_snap "$BASE_URL/quki-notes-linux-${TAG}.snap" \
+            --arg linux_flatpak "$BASE_URL/quki-notes-linux-${TAG}.flatpak" \
+            '{version: $version, android: $android, windows: $windows, linux: $linux, linux_arm64: $linux_arm64, linux_deb: $linux_deb, linux_arm64_deb: $linux_arm64_deb, linux_snap: $linux_snap, linux_flatpak: $linux_flatpak}' \
             > docs/public/latest.json
 
       - name: Commit and push

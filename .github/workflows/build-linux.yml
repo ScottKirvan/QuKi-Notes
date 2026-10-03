@@ -10,7 +10,17 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - arch: x64
+            runner: ubuntu-latest
+            appimagetool_arch: x86_64
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            appimagetool_arch: aarch64
+
     steps:
       - uses: actions/checkout@v4
 
@@ -36,9 +46,12 @@ jobs:
         working-directory: project
 
       # cli and mcp each bundle to a single self-contained .mjs (see
-      # cli/scripts/bundle.mjs, mcp/scripts/bundle.mjs) - electron-builder's
-      # extraResources copies dist-bundle/ into the packaged app, and the
-      # AppRun dispatch step below (quki / quki-mcp) runs it directly.
+      # cli/scripts/bundle.mjs, mcp/scripts/bundle.mjs). electron-builder's
+      # extraResources copies dist-bundle/ into the packaged app.
+      # AppImage users: the AppRun dispatcher below symlinks quki/quki-mcp to
+      # the AppImage and invokes ELECTRON_RUN_AS_NODE=1 on the bundled .mjs.
+      # deb users: afterInstall.sh puts /usr/bin/quki and /usr/bin/quki-mcp
+      # wrapper scripts pointing at the same bundled .mjs files.
       - name: Install (cli)
         run: npm ci
         working-directory: project/cli
@@ -63,33 +76,30 @@ jobs:
         run: npm run build
         working-directory: project/electron
 
-      - name: Package Linux AppImage
-        run: npm run dist:linux
+      - name: Package Linux (${{ matrix.arch }})
+        run: npm run dist:linux -- --${{ matrix.arch }}
         working-directory: project/electron
 
-      # electron-builder/app-builder's own AppRun always launches the app.
-      # Replace it with a small dispatcher so the same AppImage also serves as
-      # `quki` and `quki-mcp` when invoked under those names (the symlink
-      # convention documented for end users: `ln -s .../QuKi-Notes.AppImage
-      # ~/.local/bin/quki`). AppImage's runtime sets $ARGV0 to the name the
-      # .AppImage (or a symlink to it) was invoked as - this is the
-      # documented mechanism, not something read off this repo's own code.
-      # The renamed original AppRun (AppRun.real) keeps whatever environment
-      # setup (e.g. library paths) electron-builder's own AppRun does for a
-      # normal app launch; ELECTRON_RUN_AS_NODE=1 is what turns that same
-      # bundled Electron binary into a plain Node runtime for the CLI/MCP
-      # bundles - see cli/dist-bundle and mcp/dist-bundle, and the identical
-      # mechanism proven out for the Windows installer in
-      # project/electron/build/installer.nsh.
-      #
-      # This step could not be run/tested in this repo's own CI to confirm -
-      # only reasoned through from documented AppImage/appimagetool behavior.
+      # electron-builder's own AppRun always launches the app. Replace it with
+      # a small dispatcher so the same AppImage also serves as `quki` and
+      # `quki-mcp` when invoked under those names (e.g. via a symlink:
+      # ln -s ~/Applications/QuKi-Notes-x64.AppImage ~/.local/bin/quki).
+      # AppImage's runtime sets $ARGV0 to the name the .AppImage or symlink
+      # was invoked as — the documented mechanism for this pattern.
+      # The renamed original AppRun (AppRun.real) keeps electron-builder's
+      # library-path setup for normal app launches.
+      # ELECTRON_RUN_AS_NODE=1 turns the bundled Electron binary into a plain
+      # Node runtime for the CLI/MCP bundles (same mechanism as the Windows
+      # NSIS installer's quki.cmd — see build/installer.nsh).
       - name: Patch AppImage AppRun to dispatch quki / quki-mcp by invoked name
+        env:
+          ARCH: ${{ matrix.arch }}
+          APPIMAGETOOL_ARCH: ${{ matrix.appimagetool_arch }}
         run: |
           set -e
           APPIMAGE=$(find project/electron/release -maxdepth 1 -name "*.AppImage" | head -1)
           chmod +x "$APPIMAGE"
-          "$APPIMAGE" --appimage-extract
+          APPIMAGE_EXTRACT_AND_RUN=1 "$APPIMAGE" --appimage-extract
 
           mv squashfs-root/AppRun squashfs-root/AppRun.real
 
@@ -111,25 +121,38 @@ jobs:
           EOF
           chmod +x squashfs-root/AppRun
 
-          wget -q -O appimagetool https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          wget -q -O appimagetool "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-${APPIMAGETOOL_ARCH}.AppImage"
           chmod +x appimagetool
 
-          # No version number: end users symlink to this exact filename once
-          # (`ln -s ~/Applications/QuKi-Notes.AppImage ~/.local/bin/quki`),
-          # and it must stay valid across every future update.
-          APPIMAGE_EXTRACT_AND_RUN=1 ./appimagetool squashfs-root "project/electron/release/QuKi-Notes.AppImage"
+          # Stable per-arch filename — end users symlink once and it stays
+          # valid across every future update:
+          # ln -s ~/Applications/QuKi-Notes-x64.AppImage ~/.local/bin/quki
+          APPIMAGE_EXTRACT_AND_RUN=1 ./appimagetool squashfs-root "project/electron/release/QuKi-Notes-${ARCH}.AppImage"
           rm "$APPIMAGE"
 
-      - name: Upload AppImage as artifact (manual dispatch)
+      - name: Rename deb with version tag
+        if: github.event_name != 'workflow_dispatch'
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          ARCH: ${{ matrix.arch }}
+        run: |
+          find project/electron/release -maxdepth 1 -name "*.deb" \
+            -exec mv {} "project/electron/release/quki-notes-linux-${ARCH}-${TAG}.deb" \;
+
+      - name: Upload artifacts (manual dispatch)
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
-          name: quki-notes-linux
-          path: project/electron/release/*.AppImage
+          name: quki-notes-linux-${{ matrix.arch }}
+          path: |
+            project/electron/release/*.AppImage
+            project/electron/release/*.deb
           retention-days: 14
 
       - name: Upload to GitHub Release
         if: github.event_name != 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
-          files: project/electron/release/QuKi-Notes.AppImage
+          files: |
+            project/electron/release/QuKi-Notes-${{ matrix.arch }}.AppImage
+            project/electron/release/quki-notes-linux-${{ matrix.arch }}-${{ github.event.release.tag_name }}.deb
