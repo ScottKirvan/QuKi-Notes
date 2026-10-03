@@ -31,14 +31,9 @@ not in the original review, and landed in the same PR:
 The Linux build pipeline was separately reworked to multi-arch (x64/arm64) plus a
 `.deb` package in the meantime (PR #465) and reconciled into the same batch.
 
-**Read `notes/dev/rewrite_TODO.md` first in any new session** — a running,
-checkbox-format list of everything still open, including the remaining
-rendering/editor gaps (list/task/blockquote live-reveal and list indentation layout
-now exist), platform-specific loose ends, and manual-acceptance items only Scott can
-check off.
-`notes/dev/github_issues_review.md` cross-references all 123 issues from the old
-Flutter GitHub tracker against the rewrite — what's already fixed, what's structurally
-obsolete, and what's still genuinely relevant.
+**Open work is tracked in GitHub issues** (`gh issue list --state open`), not in a
+notes file. The tracker was reconciled against the rewrite on 2026-10-03: issues the
+rewrite fixed or made obsolete are closed, and what's open is real.
 
 ## Keeping This File Current
 
@@ -201,8 +196,8 @@ reports something directly — a bug, a fact about what he observed, a correctio
 and act on it as established, not as "(Scott, unverified)" or similar. The heavy
 verification discipline in this file (re-run tests, re-read code, distrust a sub-agent's
 self-report) is aimed at agent and code output, not at Scott's own reports of what he's
-seen. Corrected explicitly after a first draft of `notes/dev/rewrite_TODO.md` hedged
-three of his direct bug reports this way.
+seen. Corrected explicitly after a first draft of a TODO list hedged three of his direct
+bug reports this way.
 
 ## Autonomy
 

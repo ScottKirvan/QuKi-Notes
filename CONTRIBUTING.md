@@ -194,7 +194,7 @@ Read the relevant document in `notes/` before proposing a structural change:
 | [BEHAVIOR_SPEC.md](notes/dev/BEHAVIOR_SPEC.md) | What a screen or interaction does |
 | [STORAGE_CONTRACT.md](notes/dev/STORAGE_CONTRACT.md) | Binding rules for QuKis, images, and trash on disk |
 | [quki-rewrite-path.md](notes/dev/quki-rewrite-path.md) | The Flutter → TypeScript migration's design record |
-| [rewrite_TODO.md](notes/dev/rewrite_TODO.md) | Running list of open work |
+| [GitHub issues](https://github.com/ScottKirvan/QuKi-Notes/issues) | Open work |
 
 Prior planning documents, architecture decision records, and issue history beyond what's listed above are not authoritative — treat them as historical narrative, not a source of truth, if you come across them.
 
