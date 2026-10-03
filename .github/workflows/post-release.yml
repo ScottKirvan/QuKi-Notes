@@ -36,21 +36,44 @@ jobs:
         run: |
           REQUIRED_WORKFLOWS=("Build Android" "Build Windows" "Build Linux" "Deploy Web App" "Release Workflow")
 
+          FAILED=()
           for WF in "${REQUIRED_WORKFLOWS[@]}"; do
-            STATUS=$(gh api "repos/$REPO/actions/runs?head_sha=$HEAD_SHA&per_page=100" \
-              --jq "[.workflow_runs[] | select(.name == \"$WF\")] | first | .status // \"not_found\"")
-            echo "$WF: $STATUS"
+            read -r STATUS CONCLUSION < <(gh api "repos/$REPO/actions/runs?head_sha=$HEAD_SHA&per_page=100" \
+              --jq "[.workflow_runs[] | select(.name == \"$WF\")] | first | \"\(.status // \"not_found\") \(.conclusion // \"\")\"")
+            echo "$WF: $STATUS $CONCLUSION"
             if [ "$STATUS" != "completed" ]; then
               echo "all_done=false" >> "$GITHUB_OUTPUT"
               exit 0
             fi
+            if [ "$CONCLUSION" != "success" ]; then
+              FAILED+=("$WF ($CONCLUSION)")
+            fi
           done
 
-          # Everything complete — get the latest release tag
-          TAG=$(gh release list --repo "$REPO" --limit 1 --json tagName --jq '.[0].tagName')
+          # Fail loudly rather than skip: announcing a release whose build failed
+          # would point latest.json at assets that don't exist. Re-running the
+          # failed workflow triggers this one again.
+          if [ "${#FAILED[@]}" -gt 0 ]; then
+            for F in "${FAILED[@]}"; do
+              echo "::error::$F did not succeed — not updating the download manifest or announcing. Re-run it; a successful re-run triggers this workflow again."
+            done
+            echo "all_done=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
 
-          if [ -z "$TAG" ] || [ "$TAG" = "null" ]; then
-            echo "No release found, skipping"
+          # Take the tag from the release that points at this commit, not the
+          # newest release — staging leaves drafts behind, and the newest
+          # release isn't necessarily the one these builds were for.
+          TAG=""
+          for T in $(gh release list --repo "$REPO" --exclude-drafts --limit 20 --json tagName --jq '.[].tagName'); do
+            if [ "$(gh api "repos/$REPO/commits/$T" --jq .sha)" = "$HEAD_SHA" ]; then
+              TAG="$T"
+              break
+            fi
+          done
+
+          if [ -z "$TAG" ]; then
+            echo "No published release points at $HEAD_SHA, skipping"
             echo "all_done=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
