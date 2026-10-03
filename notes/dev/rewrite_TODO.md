@@ -1,14 +1,16 @@
 # Rewrite TODO
 
-Updated 2026-09-21. Unsequenced — just a record of what's open.
+Updated 2026-10-03. Unsequenced — just a record of what's open.
 
 ## Landed since 2026-09-20 (for context)
 
 - #413 list, task and blockquote reveal, drawn checkboxes with tap-to-toggle; #415 indentation layout and wrapped-row alignment (works in Chromium and the real Electron 33; not tried on a real Android WebView or Safari); #418 Lucide icons for back/swipe/New/Settings, borderless 36×36 icon buttons; #419 About box with a build stamp (commit, branch, build time); #420/#421 storage contract amended for `.quki/`; #422 colours use Obsidian variable names with GitHubDHC defaults, light/dark via body classes, selection visible and no current-line highlight; #423 sans-serif body text, monospace code, no heading underline. Also in the repo: the GitHubDHC reference stylesheet (#416) and the theme audit (#417, `notes/dev/theme-audit-findings.md`).
+- 2026-09-26 code review's 16 findings (Critical–Low), merged via PR #466: auto-save generation race on QuKi switch, trash/restore name collisions, orphan-image path-traversal, CLI/MCP actually bundled and distributable, Send/Export wired on every platform, Android legacy storage permissions (API 24-29), remote images loading via `<img src>` instead of `fetch()` (sidesteps CORS), CommonMark backslash escapes, several toolbar/editor spec gaps (indent/dedent no-ops, uniform multi-line list toggle, persisted plain-text mode). Plus the Linux build's multi-arch (x64/arm64) + `.deb` packaging, reworked independently and reconciled into the same batch (PR #465).
 
 ## Data loss — not urgent, deferred
 
-- [ ] Save is too slow, and new QuKis can get lost (Scott, direct report). Not breaking — Scott has explicitly deferred this until the Rendering / Editor items are done. Relates to the GitHub issues review's "Check" items on auto-save reentrancy/timing (#73, #381, #384, #386) — worth investigating alongside those.
+- [x] A newly-typed QuKi not showing up in the QuKi list immediately — fixed 2026-10-03, confirmed by Scott on-device. Not actually lost, just read before the pending debounced save landed; the list button now flushes first, matching every other navigation.
+- [ ] Save is too slow (separate from the above — still unconfirmed/unaddressed). Scott has explicitly deferred further investigation here until the Rendering / Editor items are done. Relates to the GitHub issues review's "Check" items on auto-save reentrancy/timing (#73, #381, #384, #386) — worth investigating alongside those.
 
 ## Rendering / editor
 
@@ -45,6 +47,11 @@ Decided: the app's CSS uses Obsidian's variable names so a theme restyles the wh
 
 ## Android
 
+- [x] False "edited elsewhere" save conflict after the app sat backgrounded 10-20 min
+  with no real edit — Android's scoped-storage (FUSE) layer drifts reported mtimes
+  even when content hasn't changed. Conflict detection now also checks whether
+  on-disk content is byte-identical before reporting a conflict. Fixed and confirmed
+  by Scott on-device, 2026-10-03.
 - [X] Release signing: env vars wired (`STORE_FILE`/`STORE_PASSWORD`/`KEY_ALIAS`/`KEY_PASSWORD`), real keystore/secrets still needed. Until then every build is debug-signed, and a mismatched real cert would break the Flutter migration path on update.
 - [x] Send's success toast always says "Copied to clipboard.", even on Android where it's a real share-sheet send now.
 - [ ] Heading-cycle multi-line behavior is `[Proposed — unconfirmed]` — try it by hand with a reversed, mixed-level selection.

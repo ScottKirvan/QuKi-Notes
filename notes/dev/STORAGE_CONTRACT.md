@@ -69,6 +69,12 @@
 16. **An empty body is never written.** Deleting all the text in a QuKi does not save an empty file — the last non-empty content stays on disk. This is current behavior (`save()` returns early on `body.isEmpty`) and it is intentional: it prevents a stray select-all-delete from destroying a QuKi. Preserve it deliberately rather than dropping it as an oversight.
 
 17. **The save baseline is the file, not memory.** Today the controller skips a write when the new body equals the last body *it* wrote — an in-memory value that knows nothing about the file. Under this contract other programs edit these files, so the controller must also record the file's modification time when it loads or writes a QuKi, compare it at the top of every save, and branch to a conflict path when it doesn't match. A save must never overwrite a file that changed underneath it. An automatic save must never overwrite on its own; only an explicit, user-initiated action taken after a conflict is already shown may force the write.
+    A timestamp mismatch alone is not sufficient evidence of an external edit: Android's
+    scoped-storage (FUSE) layer has been observed drifting a file's reported mtime with
+    no content change, which a pure timestamp compare reports as a false conflict after
+    the app sits backgrounded. When the timestamp doesn't match, compare the on-disk
+    content to what the app already believes is saved before reporting a conflict — a
+    byte-identical mismatch is not a conflict; a genuine content difference still is.
 
 18. **A failed save is surfaced, not just logged.** Writes currently fail silently — caught, logged, and swallowed, with the caller never informed. With a real folder, other programs, and real permissions, the user has to find out. Retry behavior stays as it is: the last-saved baseline is not updated on failure, so the next change retries naturally.
 
@@ -81,6 +87,8 @@
 20. **`.quki/` is the folder's own configuration, and it travels with the folder.** It holds QuKi Notes' per-folder configuration: today, themes in `.quki/themes/`; later settings, templates, plugins, scripts, and whatever else it grows into. It is structural (rule 9): never scanned for QuKis and never treated as content. Because it lives in the folder, whatever syncs or copies the folder carries it along, and it is part of Export everything (see The core API).
 
 21. **`.quki/` may describe how QuKi Notes looks and behaves. It may never determine which QuKis there are** — rule 6 applies to it exactly as it does to the sidecar. A missing, stale or corrupt `.quki/` never hides a file and never stops the app starting: the app falls back to its built-in defaults (for themes, the default theme shipped with the app). *[Proposed — unconfirmed]*
+
+22. **Restoring a trashed QuKi onto a name collision restores it under a new name**, rather than overwriting the existing file or blocking the restore. (Scott's decision, 2026-09-26 code review Q-1.)
 
 ---
 
