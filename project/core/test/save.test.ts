@@ -48,15 +48,17 @@ describe('QuKiStore.save', () => {
     expect(await store.list()).toHaveLength(0);
   });
 
-  it('clearing all text and saving leaves the previous content on disk (rule 16)', async () => {
-    const created = await store.save({ id: null, body: 'keep me' });
+  it('clearing all text of an existing QuKi and saving writes the empty file', async () => {
+    const created = await store.save({ id: null, body: 'about to be cleared' });
     if (created.status !== 'saved') throw new Error('unreachable');
 
     const result = await store.save({ id: created.id, body: '', expectedModifiedAt: created.modifiedAt });
-    expect(result.status).toBe('skipped-empty');
+    expect(result.status).toBe('saved');
 
     const detail = await store.read(created.id);
-    expect(detail.body).toBe('keep me');
+    expect(detail.body).toBe('');
+    expect(await fsp.readFile(path.join(dir, `${created.id}.md`), 'utf8')).toBe('');
+    expect((await store.list()).map((q) => q.id)).toEqual([created.id]);
   });
 
   it('updating without expectedModifiedAt is rejected rather than silently overwriting', async () => {
@@ -227,8 +229,8 @@ describe('QuKiStore.save', () => {
     expect(detail.body).toBe('recreated after deletion');
   });
 
-  it('force: true with an empty body is still skipped-empty and does not touch the file (rule 16)', async () => {
-    const created = await store.save({ id: null, body: 'keep me' });
+  it('force: true with an empty body overwrites the file with the empty body', async () => {
+    const created = await store.save({ id: null, body: 'about to be cleared' });
     if (created.status !== 'saved') throw new Error('unreachable');
 
     const mdPath = path.join(dir, `${created.id}.md`);
@@ -243,10 +245,10 @@ describe('QuKiStore.save', () => {
       force: true,
     });
 
-    expect(result.status).toBe('skipped-empty');
+    expect(result.status).toBe('saved');
 
     const onDisk = await fsp.readFile(mdPath, 'utf8');
-    expect(onDisk).toBe('edited outside QuKi Notes');
+    expect(onDisk).toBe('');
   });
 
   it('a forced save still goes through the same per-id runExclusive queue as a normal save', async () => {

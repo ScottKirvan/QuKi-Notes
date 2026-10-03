@@ -103,7 +103,8 @@ export function createServer(rootDir: string): McpServer {
         'Creates a new QuKi (omit id) or updates an existing one (pass id). Updating REQUIRES expectedModifiedAt - ' +
         'the modifiedAt from your most recent quki_read or quki_save on this id - so a concurrent edit is detected ' +
         'rather than overwritten; a mismatch comes back as status "conflict" with the current body, not an error. ' +
-        'Saving an empty body never erases the QuKi: it comes back as status "skipped-empty" and the previous content stays on disk.',
+        'Saving an empty body to an existing QuKi saves it empty. Creating a new QuKi with an empty body creates nothing: ' +
+        'it comes back as status "skipped-empty".',
       inputSchema: {
         id: z.string().optional().describe('Omit to create a new QuKi. Provide to update an existing one.'),
         body: z.string().describe('The full markdown body to save.'),

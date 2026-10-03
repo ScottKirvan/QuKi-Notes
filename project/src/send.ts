@@ -60,9 +60,8 @@ export function createClipboardTransport(writeText: (text: string) => Promise<vo
 
 /**
  * BEHAVIOR_SPEC.md §4 "Send": the empty-body guard uses the same definition
- * of empty as STORAGE_CONTRACT.md rule 16 / QuKiStore.save() - the literal
- * empty string, not a whitespace-only check - so this agrees with what
- * auto-save itself would have skipped writing.
+ * of empty as QuKiStore.save() - the literal empty string, not a
+ * whitespace-only check.
  *
  * The caller is responsible for flushing auto-save before calling this (see
  * BEHAVIOR_SPEC.md §4: "Content is flushed to disk before sending") and for
