@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { selectShareTransport, sendQuKi } from "./send.js";
+import { createClipboardTransport, selectShareTransport, sendQuKi } from "./send.js";
 
 describe("sendQuKi", () => {
   it("does not send and returns the empty-body message when the body is the empty string", async () => {
-    const clipboardWriter = vi.fn().mockResolvedValue(undefined);
+    const transport = vi.fn().mockResolvedValue("Copied to clipboard.");
 
-    const result = await sendQuKi("", clipboardWriter);
+    const result = await sendQuKi("", transport);
 
     expect(result).toEqual({
       ok: false,
@@ -14,24 +14,24 @@ describe("sendQuKi", () => {
       durationMs: 2000,
       retryable: false,
     });
-    expect(clipboardWriter).not.toHaveBeenCalled();
+    expect(transport).not.toHaveBeenCalled();
   });
 
   it("treats whitespace-only content as non-empty, matching QuKiStore.save()'s literal-empty-string rule", async () => {
-    const clipboardWriter = vi.fn().mockResolvedValue(undefined);
+    const transport = vi.fn().mockResolvedValue("Copied to clipboard.");
 
-    const result = await sendQuKi("   ", clipboardWriter);
+    const result = await sendQuKi("   ", transport);
 
     expect(result.ok).toBe(true);
-    expect(clipboardWriter).toHaveBeenCalledWith("   ");
+    expect(transport).toHaveBeenCalledWith("   ");
   });
 
-  it("writes the body to the clipboard and reports success", async () => {
-    const clipboardWriter = vi.fn().mockResolvedValue(undefined);
+  it("sends the body through the transport and reports the transport's own success message", async () => {
+    const transport = vi.fn().mockResolvedValue("Copied to clipboard.");
 
-    const result = await sendQuKi("hello world", clipboardWriter);
+    const result = await sendQuKi("hello world", transport);
 
-    expect(clipboardWriter).toHaveBeenCalledWith("hello world");
+    expect(transport).toHaveBeenCalledWith("hello world");
     expect(result).toEqual({
       ok: true,
       message: "Copied to clipboard.",
@@ -40,10 +40,23 @@ describe("sendQuKi", () => {
     });
   });
 
-  it("reports a retryable failure when the clipboard write throws", async () => {
-    const clipboardWriter = vi.fn().mockRejectedValue(new Error("clipboard unavailable"));
+  it("reports no message on success when the transport's own UI is sufficient feedback (e.g. a native share sheet)", async () => {
+    const transport = vi.fn().mockResolvedValue(undefined);
 
-    const result = await sendQuKi("hello world", clipboardWriter);
+    const result = await sendQuKi("hello world", transport);
+
+    expect(result).toEqual({
+      ok: true,
+      message: undefined,
+      durationMs: 2000,
+      retryable: false,
+    });
+  });
+
+  it("reports a retryable failure when the transport throws", async () => {
+    const transport = vi.fn().mockRejectedValue(new Error("clipboard unavailable"));
+
+    const result = await sendQuKi("hello world", transport);
 
     expect(result).toEqual({
       ok: false,
@@ -54,18 +67,41 @@ describe("sendQuKi", () => {
   });
 });
 
+describe("createClipboardTransport", () => {
+  it("writes the text to the clipboard and reports a copied message", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+
+    const transport = createClipboardTransport(writeText);
+    const message = await transport("hello world");
+
+    expect(writeText).toHaveBeenCalledWith("hello world");
+    expect(message).toBe("Copied to clipboard.");
+  });
+});
+
 describe("selectShareTransport", () => {
-  it("picks the Android transport when isAndroid is true", () => {
+  it("picks the Android transport when isAndroid is true, regardless of isElectronDesktop", () => {
     const androidTransport = vi.fn();
     const clipboardTransport = vi.fn();
+    const webTransport = vi.fn();
 
-    expect(selectShareTransport(true, androidTransport, clipboardTransport)).toBe(androidTransport);
+    expect(selectShareTransport(true, true, androidTransport, clipboardTransport, webTransport)).toBe(androidTransport);
+    expect(selectShareTransport(true, false, androidTransport, clipboardTransport, webTransport)).toBe(androidTransport);
   });
 
-  it("picks the clipboard transport when isAndroid is false", () => {
+  it("picks the clipboard transport on Electron desktop when not Android", () => {
     const androidTransport = vi.fn();
     const clipboardTransport = vi.fn();
+    const webTransport = vi.fn();
 
-    expect(selectShareTransport(false, androidTransport, clipboardTransport)).toBe(clipboardTransport);
+    expect(selectShareTransport(false, true, androidTransport, clipboardTransport, webTransport)).toBe(clipboardTransport);
+  });
+
+  it("picks the web transport when neither Android nor Electron desktop", () => {
+    const androidTransport = vi.fn();
+    const clipboardTransport = vi.fn();
+    const webTransport = vi.fn();
+
+    expect(selectShareTransport(false, false, androidTransport, clipboardTransport, webTransport)).toBe(webTransport);
   });
 });

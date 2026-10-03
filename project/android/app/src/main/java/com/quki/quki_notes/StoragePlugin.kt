@@ -1,5 +1,6 @@
 package com.quki.quki_notes
 
+import android.Manifest
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -9,21 +10,46 @@ import android.util.Base64
 import com.getcapacitor.JSArray
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
+import com.getcapacitor.PermissionState
 import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.CapacitorPlugin
+import com.getcapacitor.annotation.Permission
+import com.getcapacitor.annotation.PermissionCallback
 import java.io.File
 import java.io.IOException
 import java.util.UUID
 
 /**
+ * Capacitor permission alias for the classic WRITE_EXTERNAL_STORAGE/
+ * READ_EXTERNAL_STORAGE runtime permissions (AndroidManifest.xml declares
+ * both with android:maxSdkVersion="29" - they don't exist as a request
+ * target above that). These gate real filesystem access on API 24-29: API
+ * <30 has no MANAGE_EXTERNAL_STORAGE/isExternalStorageManager concept at
+ * all (that's API 30+ only, see isExternalStorageManager/
+ * requestAllFilesAccess below), and android:requestLegacyExternalStorage
+ * (also on the <application> element) only restores pre-scoped-storage
+ * *path* access once one of these is actually granted - it does not make
+ * the grant automatic. Confirmed against
+ * https://developer.android.com/training/data-storage/use-cases#opt-out-in-production-app :
+ * "apps targeting Android 10 and higher are given scoped access... without
+ * needing to request any storage-related user permissions" is true only for
+ * apps that stay in scoped storage; requestLegacyExternalStorage opts back
+ * into the pre-Android-10 model, which is exactly the classic dangerous-
+ * permission-group runtime request this alias drives.
+ */
+private const val LEGACY_STORAGE_PERMISSION_ALIAS = "legacyStorage"
+
+/**
  * Real all-files filesystem I/O for the web app's Capacitor storage backend
  * (project/src/capacitorBackend.ts), plus the all-files-access permission
  * primitives ported from the Flutter app's own
- * android/app/src/main/kotlin/com/quki/quki_notes/StoragePlugin.kt (method
- * bodies for isExternalStorageManager/getExternalDocumentsPath/
- * requestAllFilesAccess are unchanged from that source, translated from a
- * Flutter MethodChannel handler to Capacitor's plugin-call model).
+ * android/app/src/main/kotlin/com/quki/quki_notes/StoragePlugin.kt (getExternalDocumentsPath's
+ * body is unchanged from that source, translated from a Flutter
+ * MethodChannel handler to Capacitor's plugin-call model; isExternalStorageManager
+ * and requestAllFilesAccess have since grown a real API<30 runtime-permission
+ * path the Flutter source never had - see LEGACY_STORAGE_PERMISSION_ALIAS's
+ * doc comment above).
  *
  * Every read/write method here takes an already-resolved absolute path -
  * path resolution and the "stays inside the QuKi folder" containment check
@@ -41,7 +67,15 @@ import java.util.UUID
  * Android Context/File API calls that project/src/androidFlutterMigration.ts
  * has no other way to reach from inside a WebView.
  */
-@CapacitorPlugin(name = "Storage")
+@CapacitorPlugin(
+    name = "Storage",
+    permissions = [
+        Permission(
+            strings = [Manifest.permission.WRITE_EXTERNAL_STORAGE, Manifest.permission.READ_EXTERNAL_STORAGE],
+            alias = LEGACY_STORAGE_PERMISSION_ALIAS,
+        ),
+    ],
+)
 class StoragePlugin : Plugin() {
 
     @PluginMethod
@@ -179,7 +213,12 @@ class StoragePlugin : Plugin() {
         val granted = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             Environment.isExternalStorageManager()
         } else {
-            true // Pre-Android 11 does not need this permission
+            // API 24-29: no MANAGE_EXTERNAL_STORAGE/isExternalStorageManager
+            // concept exists yet - the equivalent gate is the classic
+            // WRITE_EXTERNAL_STORAGE/READ_EXTERNAL_STORAGE runtime
+            // permissions (see LEGACY_STORAGE_PERMISSION_ALIAS's doc
+            // comment above).
+            getPermissionState(LEGACY_STORAGE_PERMISSION_ALIAS) == PermissionState.GRANTED
         }
         val ret = JSObject()
         ret.put("granted", granted)
@@ -210,6 +249,16 @@ class StoragePlugin : Plugin() {
         call.resolve(ret)
     }
 
+    /**
+     * Resolves with `{ outcome: "opened-settings" | "granted" | "denied" }`.
+     * "opened-settings" (API 30+ only) means a real app-switch to the system
+     * Settings screen was started - androidStorageAccess.ts's
+     * StorageAccessGate then waits for the app to come back to the
+     * foreground before rechecking. "granted"/"denied" (API <30 only) mean
+     * the runtime permission dialog already ran and resolved in-process,
+     * with no Settings screen and no app-lifecycle transition to wait for -
+     * the gate must treat that result as final immediately.
+     */
     @PluginMethod
     fun requestAllFilesAccess(call: PluginCall) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -219,8 +268,20 @@ class StoragePlugin : Plugin() {
             )
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(intent)
+            val ret = JSObject()
+            ret.put("outcome", "opened-settings")
+            call.resolve(ret)
+        } else {
+            requestPermissionForAlias(LEGACY_STORAGE_PERMISSION_ALIAS, call, "onLegacyStorageAccessResult")
         }
-        call.resolve()
+    }
+
+    @PermissionCallback
+    private fun onLegacyStorageAccessResult(call: PluginCall) {
+        val granted = getPermissionState(LEGACY_STORAGE_PERMISSION_ALIAS) == PermissionState.GRANTED
+        val ret = JSObject()
+        ret.put("outcome", if (granted) "granted" else "denied")
+        call.resolve(ret)
     }
 
     // --- Flutter-to-Capacitor migration detection, Android side. Mirrors

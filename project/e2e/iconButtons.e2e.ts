@@ -348,8 +348,8 @@ async function runWebScenario(browser: Browser, url: string, scheme: "light" | "
     padding: "6px 12px",
     fontSize: "13px",
     borderRadius: "6px",
-    width: 95.4,
-    height: 31,
+    width: 98.96875,
+    height: 29,
   });
   await assertSwipeBackground(trash.locator(".list-row").first(), "trash row");
   await assertMidSwipeIconVisible(page, trash.locator(".list-row").first(), "trash row");
@@ -401,9 +401,13 @@ async function runOverlayScenario(browser: Browser, devUrl: string, scheme: "lig
     const api = { getState: async () => ({}), chooseFilesystem: async () => null, chooseAppStorage: async () => "x", quit: async () => {} };
     const setupView = setupModule.createSetupView(host as HTMLElement, api as never, { isAndroid: false });
     w.__setupView = setupView;
-    w.__permissionView = permissionModule.createAndroidPermissionView(host as HTMLElement, () => {
-      (w.__grantClicks as number)++;
-    });
+    w.__permissionView = permissionModule.createAndroidPermissionView(
+      host as HTMLElement,
+      () => {
+        (w.__grantClicks as number)++;
+      },
+      () => {},
+    );
     void setupView.show({ cancelable: false });
   });
 
@@ -436,8 +440,8 @@ async function runOverlayScenario(browser: Browser, devUrl: string, scheme: "lig
     padding: "12px 20px",
     fontSize: null,
     borderRadius: "8px",
-    width: 130.4,
-    height: 47,
+    width: 136.265625,
+    height: 44,
   });
   const copy = await page.locator(".android-permission-panel").evaluate((el) => ({
     title: el.querySelector("h1")!.textContent,

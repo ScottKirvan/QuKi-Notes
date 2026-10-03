@@ -64,6 +64,16 @@ async function main(): Promise<void> {
   // .md file appears on disk at the expected path with the expected content. ---
   let { app, page } = await launch(storageDir);
 
+  // main.ts suppresses the default Electron menu only when app.isPackaged -
+  // this e2e run always launches the unpackaged dist/main.js directly, so
+  // the default dev menu (Reload, Toggle DevTools, ...) must still be
+  // present here. This only proves the gate is a no-op in dev, not that a
+  // packaged build actually suppresses it - that would need a real
+  // electron-builder distributable, which this run does not build.
+  const hasDefaultMenuInDev = await app.evaluate(({ Menu }) => Menu.getApplicationMenu() !== null);
+  assert(hasDefaultMenuInDev, "the default Electron menu should still be present in an unpackaged/dev run");
+  console.log("[e2e] PASS: default menu is untouched in dev (app.isPackaged is false) - packaged suppression not exercised by this run");
+
   const marker = `Electron e2e proof ${Date.now()}`;
   await page.click(".cm-content");
   await page.keyboard.press("Control+A");
@@ -116,9 +126,109 @@ async function main(): Promise<void> {
   await page.click("#view-settings .back-btn");
   await page.waitForSelector("#view-editor:not([hidden])");
 
-  await app.close();
+  // --- Scenario 5: a link opened from the app's own content (or the Help
+  // screen's Documentation/Discord/GitHub rows, all rendered as
+  // target="_blank" anchors - see reveal/widgets.ts, screens/aboutDialog.ts)
+  // must not open inside the app as a second Electron window
+  // (electron/src/main.ts's attachExternalLinkHandling / setWindowOpenHandler).
+  // window.open() is exactly what Chromium's own target="_blank" handling
+  // triggers under the hood, so this exercises the same main-process hook a
+  // real link click would, without depending on any specific page markup. ---
+  const windowCountBeforeOpen = app.windows().length;
+  await page.evaluate(() => window.open("https://example.com/quki-e2e-window-open-test", "_blank"));
+  await page.waitForTimeout(500);
+  assert(
+    app.windows().length === windowCountBeforeOpen,
+    `window.open() on an external URL must not create a new Electron window (setWindowOpenHandler should deny it), had ${windowCountBeforeOpen}, now ${app.windows().length}`,
+  );
+  console.log("[e2e] PASS: window.open() to an external URL did not open a second Electron window");
 
-  // --- Scenario 5: restart the app (a real process restart, not a page
+  // Best-effort, non-asserted signal that the denied window.open actually
+  // reached shell.openExternal and handed off to a real OS browser, not
+  // just that it was blocked in-app - not asserted on, since whether this
+  // sandbox has a default browser registered at all is environment-
+  // dependent, not something main.ts's code controls.
+  try {
+    const { execSync } = await import("node:child_process");
+    const before = execSync('tasklist /fi "IMAGENAME eq msedge.exe"').toString();
+    await page.evaluate(() => window.open("https://example.com/quki-e2e-real-browser-check", "_blank"));
+    await page.waitForTimeout(1500);
+    const after = execSync('tasklist /fi "IMAGENAME eq msedge.exe"').toString();
+    console.log(
+      after.length > before.length
+        ? "[e2e] INFO: a real msedge.exe process appeared after the denied window.open - shell.openExternal reached the OS browser"
+        : "[e2e] INFO: could not confirm a new OS browser process via tasklist (no default browser registered here, or it uses a different process name) - not asserted on",
+    );
+  } catch (err) {
+    console.log(`[e2e] INFO: skipped the best-effort OS-browser process check (${err instanceof Error ? err.message : String(err)})`);
+  }
+
+  // --- Scenario 6: a top-level navigation away from the app's own origin
+  // (the other way content could leave the app, distinct from window.open)
+  // must also be blocked - attachExternalLinkHandling's will-navigate guard.
+  // Triggered via a real anchor click, exactly as a real link click in the
+  // app's own content would. noWaitAfter is required here: Playwright's
+  // default post-click behavior waits for the navigation the click looks
+  // like it should cause, but main.ts's will-navigate handler cancels that
+  // navigation at the Electron main-process level in a way Playwright's own
+  // wait never observes as resolved, hanging the click until its 30s
+  // timeout - this is precisely Playwright's documented exceptional case
+  // for the option ("navigating to inaccessible pages"). ---
+  await page.evaluate(() => {
+    const a = document.createElement("a");
+    a.id = "quki-e2e-will-navigate-test";
+    a.href = "https://example.com/quki-e2e-will-navigate-test";
+    a.textContent = "external";
+    document.body.appendChild(a);
+  });
+  const urlBeforeNavigate = page.url();
+  await page.click("#quki-e2e-will-navigate-test", { noWaitAfter: true });
+  await page.waitForTimeout(500);
+  assert(
+    page.url() === urlBeforeNavigate,
+    `navigating the window itself to an external origin must be blocked by will-navigate, window is now at ${page.url()}`,
+  );
+  console.log("[e2e] PASS: navigating the window to an external URL was blocked (will-navigate denied it)");
+  await page.evaluate(() => document.getElementById("quki-e2e-will-navigate-test")?.remove());
+
+  // --- Scenario 7: quitting the app must not lose an edit still sitting in
+  // the 2s auto-save debounce - electron/src/main.ts's attachQuitFlush must
+  // hold the window open until the renderer's pending save actually lands
+  // on disk (project/src/main.ts's onFlushBeforeQuit wiring). Closing the
+  // real BrowserWindow (not calling app.close(), which is Playwright's own
+  // teardown, not a signal the app's own close handler necessarily sees the
+  // same way) and waiting for the whole app to actually terminate is what
+  // proves the handshake, not just that the call was made.
+  //
+  // The edit is dispatched straight at the CodeMirror view (window.qukiView,
+  // also used by readEditorBody above) rather than via page.click/keyboard -
+  // scenario 6's will-navigate cancellation above leaves Playwright's own
+  // per-page navigation-lifecycle tracking permanently believing a
+  // navigation is still pending (a known rough edge of cancelling
+  // navigation at the Electron main-process level under Playwright, not
+  // anything this app's code controls), which hangs every subsequent
+  // page.click on this page. The view's updateListener (src/main.ts) calls
+  // autoSave.notifyChange() on any docChanged update regardless of how the
+  // change was made, so this exercises the identical auto-save path a real
+  // keystroke would. ---
+  const unflushedMarker = `${edited}\nunflushed at quit ${Date.now()}`;
+  await page.evaluate((text) => {
+    const view = (window as unknown as { qukiView: { dispatch(spec: unknown): void; state: { doc: { length: number } } } })
+      .qukiView;
+    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text } });
+  }, unflushedMarker);
+  // Deliberately no wait for the 2s auto-save debounce: close immediately
+  // while the save is still only pending, so it's the quit handshake - not
+  // the debounce - that has to get it onto disk.
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.close());
+  await app.waitForEvent("close");
+  assert(
+    fs.readFileSync(mdPath, "utf8") === unflushedMarker,
+    "quitting immediately after an edit should still flush it to disk before the app actually closes",
+  );
+  console.log("[e2e] PASS: quit-time flush handshake saved a still-pending edit before the app closed");
+
+  // --- Scenario 8: restart the app (a real process restart, not a page
   // reload) and confirm the edited content survives - proving the file on
   // disk is the real source of truth, not in-memory state. ---
   ({ app, page } = await launch(storageDir));
@@ -129,7 +239,7 @@ async function main(): Promise<void> {
   );
   console.log("[e2e] PASS: content survived a real Electron process restart (loaded from disk, not memory)");
 
-  // --- Scenario 6: delete via the editor's Delete button moves the real
+  // --- Scenario 9: delete via the editor's Delete button moves the real
   // file into .trash/ on disk; the trash screen then shows it and restoring
   // it moves the real file back. ---
   await page.click("#btn-delete");

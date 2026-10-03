@@ -4,9 +4,9 @@ export const setEditMode = StateEffect.define<boolean>();
 
 /**
  * Whether the editor is genuinely in edit mode right now, per
- * editMode.ts's createEditModeTracker (real DOM focus, or on Android,
- * Capacitor's keyboard-visibility signal) - not derived from the caret's
- * raw position. buildDecorations reads this before treating
+ * editMode.ts's createEditModeTracker (real DOM focus everywhere, plus
+ * Capacitor's keyboard-visibility signal on Android) - not derived from
+ * the caret's raw position. buildDecorations reads this before treating
  * state.selection.main.anchor as a meaningful reveal target: BEHAVIOR_SPEC
  * §4's reading mode has no real cursor position at all, so a caret sitting
  * wherever a load last reset it to (main.ts's loadDocumentIntoEditor always

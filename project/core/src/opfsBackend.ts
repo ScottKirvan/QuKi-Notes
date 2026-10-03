@@ -8,6 +8,19 @@ declare global {
   interface FileSystemDirectoryHandle {
     keys(): AsyncIterableIterator<string>;
   }
+  interface FileSystemHandle {
+    /**
+     * The File System Standard's move() (shipped in Chromium; still missing
+     * from TypeScript's bundled lib.dom.d.ts, same gap as keys() above).
+     * Confirmed by direct measurement (Chromium via Playwright, this
+     * project's own browser test harness) that it performs a real move -
+     * File.lastModified is unchanged across a same-origin move, including
+     * across directories - unlike this backend's copy-then-delete fallback,
+     * which necessarily stamps the destination with the write time.
+     */
+    move?(newName: string): Promise<void>;
+    move?(newParent: FileSystemDirectoryHandle, newName?: string): Promise<void>;
+  }
 }
 
 function notFound(relPath: string): DOMException {
@@ -149,6 +162,22 @@ export class OpfsBackend implements StorageBackend {
 
   async rename(fromRelPath: string, toRelPath: string): Promise<void> {
     const sourceHandle = await this.getFileHandle(fromRelPath, { create: false });
+
+    if (typeof sourceHandle.move === 'function') {
+      const destSegments = this.parseSegments(toRelPath);
+      if (destSegments.length === 0) throw new Error(`Not a file path: ${toRelPath}`);
+      const destDirSegments = destSegments.slice(0, -1);
+      const destName = destSegments[destSegments.length - 1]!;
+      const destDirHandle = await this.getDirHandleForSegments(destDirSegments, { create: true });
+      await sourceHandle.move(destDirHandle, destName);
+      return;
+    }
+
+    // Fallback for engines without FileSystemHandle.move() (the File System
+    // Standard's real rename): copy the bytes to the destination and delete
+    // the source. This necessarily stamps the destination with the write
+    // time rather than preserving the original mtime - see the move()
+    // ambient declaration above for what real OPFS does instead.
     const file = await sourceHandle.getFile();
     const bytes = new Uint8Array(await file.arrayBuffer());
 

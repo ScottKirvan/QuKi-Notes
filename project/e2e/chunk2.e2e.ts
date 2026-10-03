@@ -299,6 +299,41 @@ async function main(): Promise<void> {
     console.log("[e2e-chunk2] PASS: QuKis button disabled with no QuKis");
     await emptyContext.close();
 
+    // --- Going straight to the list right after typing must not outrun the
+    // pending debounced save: the note isn't lost (the save still lands a
+    // couple seconds later), it just wasn't on disk yet for the list to see
+    // if the list read happened before a flush. An existing QuKi has to be
+    // present first so #btn-quki-list is already enabled - otherwise
+    // Playwright's own .click() auto-waits for the button to become
+    // actionable, which only happens once the debounced save completes,
+    // masking the very race this is meant to catch. ---
+    const quickContext = await browser.newContext();
+    const quickPage = await quickContext.newPage();
+    await quickPage.goto(url);
+    await quickPage.waitForSelector(".cm-content");
+
+    await typeIntoEditor(quickPage, `Chunk2 quick setup ${Date.now()}`);
+    await quickPage.waitForTimeout(2500);
+    assert((await quickPage.getAttribute("#btn-quki-list", "disabled")) === null, "QuKis button should already be enabled before the race begins");
+
+    await quickPage.click("#btn-new-quki");
+    await quickPage.waitForTimeout(100);
+
+    const quickMarker = `Chunk2 quick note ${Date.now()}`;
+    await typeIntoEditor(quickPage, quickMarker);
+    // No debounce wait here - this is the whole point of the scenario. The
+    // assertion window below (well under the 2s debounce) is what actually
+    // exercises the race: a generous timeout here would just wait out the
+    // debounce firing on its own and pass regardless of whether the list
+    // button flushes first.
+    await quickPage.click("#btn-quki-list");
+
+    const quickList = quickPage.locator("#view-list");
+    await quickList.locator(".list-row-preview", { hasText: "Chunk2 quick note" }).waitFor({ timeout: 800 });
+    console.log("[e2e-chunk2] PASS: a note typed immediately before opening the list still appears in it");
+
+    await quickContext.close();
+
     console.log("[e2e-chunk2] ALL SCENARIOS PASSED");
   } finally {
     await browser.close();

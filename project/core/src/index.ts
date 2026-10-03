@@ -1,5 +1,5 @@
 export { QuKiStore } from './quKiStore.js';
-export { findImageReferences } from './media.js';
+export { findImageReferences, isOrphanCandidate } from './media.js';
 export type { StorageBackend, FileStat } from './storageBackend.js';
 export type {
   QuKiSummary,
@@ -10,5 +10,6 @@ export type {
   DeleteOptions,
   WriteImageResult,
   ExportResult,
+  RestoreResult,
 } from './types.js';
-export { NotFoundError } from './types.js';
+export { NotFoundError, InvalidIdError } from './types.js';

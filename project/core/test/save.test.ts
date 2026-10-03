@@ -30,6 +30,18 @@ describe('QuKiStore.save', () => {
     expect(detail.body).toBe('# First QuKi');
   });
 
+  it('cleans up the orphaned .md file when the sidecar write fails, so a retry does not create a duplicate', async () => {
+    // Pre-creating .meta as a plain file (not a directory) makes the
+    // sidecar's own mkdir fail with EEXIST, simulating any sidecar-write
+    // failure after the .md file has already landed on disk.
+    await fsp.writeFile(path.join(dir, '.meta'), 'blocks .meta/ from being created as a directory');
+
+    await expect(store.save({ id: null, body: 'should not survive the failed sidecar write' })).rejects.toThrow();
+
+    const entries = await fsp.readdir(dir);
+    expect(entries.filter((f) => f.endsWith('.md'))).toHaveLength(0);
+  });
+
   it('an empty body for a brand new QuKi creates nothing on disk', async () => {
     const result = await store.save({ id: null, body: '' });
     expect(result).toEqual({ status: 'skipped-empty', id: null });
@@ -75,6 +87,57 @@ describe('QuKiStore.save', () => {
 
     const onDisk = await fsp.readFile(mdPath, 'utf8');
     expect(onDisk).toBe('edited outside QuKi Notes');
+  });
+
+  it('a genuine external edit is still a conflict even when expectedBody is supplied', async () => {
+    const created = await store.save({ id: null, body: 'v1' });
+    if (created.status !== 'saved') throw new Error('unreachable');
+
+    const mdPath = path.join(dir, `${created.id}.md`);
+    const future = new Date(Date.now() + 5000);
+    await fsp.writeFile(mdPath, 'edited outside QuKi Notes');
+    await fsp.utimes(mdPath, future, future);
+
+    const result = await store.save({
+      id: created.id,
+      body: 'v2 from the editor',
+      expectedModifiedAt: created.modifiedAt,
+      expectedBody: 'v1', // what the editor still believes is on disk
+    });
+
+    expect(result.status).toBe('conflict');
+    if (result.status !== 'conflict') throw new Error('unreachable');
+    expect(result.currentBody).toBe('edited outside QuKi Notes');
+
+    const onDisk = await fsp.readFile(mdPath, 'utf8');
+    expect(onDisk).toBe('edited outside QuKi Notes');
+  });
+
+  it('a timestamp-only mismatch with byte-identical content is not a conflict', async () => {
+    // Reproduces the false-positive reported on Android's scoped-storage
+    // (FUSE) backend: the app sits backgrounded for a while and the file's
+    // reported mtime drifts with nothing having actually written to it. No
+    // other writer could coincidentally reproduce byte-identical content, so
+    // this must save cleanly rather than block on a conflict banner.
+    const created = await store.save({ id: null, body: 'v1' });
+    if (created.status !== 'saved') throw new Error('unreachable');
+
+    const mdPath = path.join(dir, `${created.id}.md`);
+    const future = new Date(Date.now() + 5000);
+    await fsp.utimes(mdPath, future, future); // mtime moves; content does not
+
+    const result = await store.save({
+      id: created.id,
+      body: 'v2 from the editor',
+      expectedModifiedAt: created.modifiedAt,
+      expectedBody: 'v1', // matches what's still actually on disk
+    });
+
+    expect(result.status).toBe('saved');
+    if (result.status !== 'saved') throw new Error('unreachable');
+
+    const detail = await store.read(created.id);
+    expect(detail.body).toBe('v2 from the editor');
   });
 
   it('a matching expectedModifiedAt saves cleanly and returns a fresh modifiedAt', async () => {

@@ -273,6 +273,51 @@ async function main(): Promise<void> {
     assert((await editorBody(page)) === "- item", `expected Dedent to round-trip Indent exactly, got: ${JSON.stringify(await editorBody(page))}`);
     console.log("[e2e-formattingToolbar] PASS: Indent and Dedent buttons round-trip a list line");
 
+    // --- BEHAVIOR_SPEC.md §12: Indent/Dedent are genuine no-ops on headings,
+    // blockquotes, block images and horizontal rules, in both directions -
+    // clicking the actual toolbar buttons must leave a heading line
+    // untouched, not insert a tab at the cursor. ---
+    await setDocAndSelection(page, "# my heading", 5, 5);
+    await toolbarButton(page, "Indent").click();
+    assert((await editorBody(page)) === "# my heading", `expected Indent to be a no-op on a heading line, got: ${JSON.stringify(await editorBody(page))}`);
+    await toolbarButton(page, "Dedent").click();
+    assert((await editorBody(page)) === "# my heading", `expected Dedent to be a no-op on a heading line, got: ${JSON.stringify(await editorBody(page))}`);
+    console.log("[e2e-formattingToolbar] PASS: Indent and Dedent buttons are no-ops on a heading line");
+
+    // --- Regression: a multi-line selection where every touched line is an
+    // excluded kind (headings here) must leave the selection's content
+    // completely untouched, not replace it with a single literal tab
+    // ("# One\n# Two" previously became "\to"). ---
+    const twoHeadings = "# One\n# Two";
+    await setDocAndSelection(page, twoHeadings, 0, twoHeadings.length);
+    await toolbarButton(page, "Indent").click();
+    assert(
+      (await editorBody(page)) === twoHeadings,
+      `expected Indent over an all-heading multi-line selection to be a full no-op, got: ${JSON.stringify(await editorBody(page))}`,
+    );
+    console.log("[e2e-formattingToolbar] PASS: Indent button does not destroy a multi-line selection covering only excluded lines");
+
+    // --- BEHAVIOR_SPEC.md §4: a multi-line list toggle is judged and applied
+    // uniformly, not line-by-line - if not every touched line already has
+    // the marker, every touched line gets it (regression: "- a\nb" used to
+    // become "a\n- b", flipping each line on its own). ---
+    const mixedListLines = "- a\nb";
+    await setDocAndSelection(page, mixedListLines, 0, mixedListLines.length);
+    await toolbarButton(page, "Unordered list").click();
+    assert(
+      (await editorBody(page)) === "- a\n- b",
+      `expected the marker applied uniformly to both lines, got: ${JSON.stringify(await editorBody(page))}`,
+    );
+    console.log("[e2e-formattingToolbar] PASS: Unordered list applies uniformly across a mixed multi-line selection");
+
+    // --- BEHAVIOR_SPEC.md §12: "-, *, and + all open an unordered item" - a
+    // + marker must be recognized and removed like - and *, not treated as
+    // plain text and given a second, wrong marker. ---
+    await setDocAndSelection(page, "+ plus item", 0, 0);
+    await toolbarButton(page, "Unordered list").click();
+    assert((await editorBody(page)) === "plus item", `expected the + marker to be removed, got: ${JSON.stringify(await editorBody(page))}`);
+    console.log("[e2e-formattingToolbar] PASS: Unordered list recognizes and removes a + marker");
+
     // --- Tab / Shift-Tab remain bound in the editor's own keymap, running
     // the identical indent/dedent commands the buttons use. ---
     await setDocAndSelection(page, "paragraph", 0, 0);

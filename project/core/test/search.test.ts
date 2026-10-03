@@ -1,3 +1,6 @@
+import * as fsp from 'node:fs/promises';
+import * as path from 'node:path';
+
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { QuKiStore } from '../src/index.js';
@@ -45,5 +48,14 @@ describe('search', () => {
 
     const withTrash = await store.search('unique-marker-xyz', { includeTrash: true });
     expect(withTrash.map((r) => r.id)).toContain(trashed.id);
+  });
+
+  it('an unreadable entry (a directory literally named x.md) does not break search for the rest', async () => {
+    const matching = await store.save({ id: null, body: 'find me unique-term' });
+    if (matching.status !== 'saved') throw new Error('unreachable');
+    await fsp.mkdir(path.join(dir, 'bogus.md'));
+
+    const results = await store.search('unique-term');
+    expect(results.map((r) => r.id)).toEqual([matching.id]);
   });
 });

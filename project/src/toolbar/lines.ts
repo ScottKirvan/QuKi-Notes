@@ -8,7 +8,8 @@
 
 const LEADING_WS_RE = /^[ \t]*/;
 const TASK_PREFIX_RE = /^- \[[ xX]\] /;
-const UNORDERED_PREFIX_RE = /^[-*] /;
+// BEHAVIOR_SPEC.md §12: "-, *, and + all open an unordered item."
+const UNORDERED_PREFIX_RE = /^[-*+] /;
 const ORDERED_PREFIX_RE = /^\d+\. /;
 
 export function leadingWs(line: string): string {

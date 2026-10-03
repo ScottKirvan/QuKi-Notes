@@ -7,6 +7,23 @@ export interface QuKiSummary {
 
 export interface TrashedQuKiSummary extends QuKiSummary {
   deletedAt: string | null;
+  /**
+   * The id/filename this QuKi had in the active folder before it was
+   * trashed - what the Trash screen should display. Usually equal to `id`,
+   * but differs when `id` (the on-disk name under .trash/) was disambiguated
+   * because another trashed QuKi already occupied the original name.
+   */
+  originalId: string;
+}
+
+export interface RestoreResult {
+  /** The id the QuKi was actually restored under. */
+  id: string;
+  /**
+   * True when the QuKi's original name was already taken by an active QuKi,
+   * so it was restored under a new, different id instead of overwriting it.
+   */
+  renamed: boolean;
 }
 
 export interface QuKiDetail {
@@ -32,6 +49,22 @@ export interface SaveParams {
   id: string | null;
   body: string;
   expectedModifiedAt?: string;
+  /**
+   * The body the caller last believes it saved (AutoSaveController's own
+   * lastSavedBody). Optional, and only meaningful alongside
+   * expectedModifiedAt: when the on-disk mtime doesn't match
+   * expectedModifiedAt, updateExisting() already reads the file's current
+   * body to report the conflict - if that body is byte-identical to
+   * expectedBody, nothing a conflict needs to protect against actually
+   * happened (no other writer could coincidentally reproduce identical
+   * content), so a timestamp-only mismatch here is treated as no conflict
+   * rather than blocking the save. A genuine external edit changes the
+   * content, not just the clock. Left undefined, the check is unchanged
+   * (an exact expectedModifiedAt match is still required) - the CLI and MCP
+   * server, which have no persistent in-memory "last known body" of their
+   * own across invocations, never pass this.
+   */
+  expectedBody?: string;
   /**
    * Explicit, user-initiated escape hatch from a conflict (STORAGE_CONTRACT.md
    * rule 17): skips the expectedModifiedAt comparison and the deleted-file
@@ -64,5 +97,21 @@ export class NotFoundError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'NotFoundError';
+  }
+}
+
+/**
+ * Thrown by any QuKiStore method that takes a plain root-level QuKi id when
+ * that id contains a path separator or a leading dot. Every such id
+ * ultimately becomes part of a relative path handed to a StorageBackend
+ * (e.g. `${id}.md`, `.meta/${id}.json`) - an unvalidated id containing `/`,
+ * `\` or a leading `.` could otherwise reach `.trash/`, `.meta/`, `media/`
+ * or an arbitrary subfolder, breaking STORAGE_CONTRACT.md rule 9 (the folder
+ * is flat).
+ */
+export class InvalidIdError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'InvalidIdError';
   }
 }

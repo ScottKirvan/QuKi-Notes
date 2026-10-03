@@ -27,12 +27,18 @@ export const AndroidShare = registerPlugin<AndroidSharePlugin>("Share");
 
 /**
  * The Android transport passed to sendQuKi() in place of a clipboard
- * writer - same `(text: string) => Promise<void>` shape, so sendQuKi's
- * empty-body guard and error handling apply unchanged. Any rejection from
- * the native side (no target app, launch failure) propagates as a thrown
- * error, which sendQuKi already catches and reports as a retryable
- * "Send failed" - no separate error handling needed here.
+ * writer - same ShareTransport shape, so sendQuKi's empty-body guard and
+ * error handling apply unchanged. Any rejection from the native side (no
+ * target app, launch failure) propagates as a thrown error, which sendQuKi
+ * already catches and reports as a retryable "Send failed" - no separate
+ * error handling needed here.
+ *
+ * Resolves to undefined, not a success message: the native Android share
+ * sheet this launches is its own feedback (BEHAVIOR_SPEC.md §4's "Send
+ * becomes one action: the system share sheet where one exists"), so no
+ * app-level toast belongs on top of it.
  */
-export async function shareTextViaAndroid(text: string): Promise<void> {
+export async function shareTextViaAndroid(text: string): Promise<undefined> {
   await AndroidShare.shareText({ text });
+  return undefined;
 }

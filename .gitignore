@@ -54,5 +54,12 @@ notes/secret/
 /macos/
 /windows/
 
+# project/electron/build/ is electron-builder's own buildResources dir (its
+# default location for a custom NSIS include script, installer.nsh) - not a
+# Flutter build/ output dir, but the legacy `build/` rule above (line 13)
+# matches it anywhere in the tree, so it needs its own exception.
+!project/electron/build/
+!project/electron/build/**
+
 
 docs/.obsidian/*

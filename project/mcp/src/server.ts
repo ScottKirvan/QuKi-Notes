@@ -1,10 +1,14 @@
 #!/usr/bin/env node
+import { writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { NotFoundError, QuKiStore } from 'quki-core';
 import { NodeFsBackend } from 'quki-core/node';
 import { z } from 'zod';
 
+import { resolveDesktopStorageDir } from './desktopDir.js';
 import {
   exportOutputShape,
   listActiveOutputShape,
@@ -239,15 +243,22 @@ export function createServer(rootDir: string): McpServer {
       title: 'Export the entire library',
       description:
         'Produces the complete library - every active and trashed QuKi, their sidecars, and every image in media/ - ' +
-        'as one gzipped tar archive mirroring the QuKi folder layout, base64-encoded. This is the backup and migration story.',
+        'as one gzipped tar archive mirroring the QuKi folder layout, and writes it to outputPath. This is the ' +
+        'backup and migration story. The archive is written straight to disk and never returned inline: a real ' +
+        'library (especially with images) can easily exceed a tool result size limit, so only counts and the path ' +
+        'come back.',
+      inputSchema: {
+        outputPath: z.string().describe('Absolute (or cwd-relative) filesystem path to write the .tar.gz archive to.'),
+      },
       outputSchema: exportOutputShape,
-      annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     },
-    () =>
+    ({ outputPath }) =>
       wrap(async () => {
         const result = await store.exportLibrary();
+        writeFileSync(outputPath, result.bytes);
         return ok({
-          bytesBase64: Buffer.from(result.bytes).toString('base64'),
+          path: outputPath,
           activeCount: result.activeCount,
           trashCount: result.trashCount,
           mediaCount: result.mediaCount,
@@ -259,7 +270,7 @@ export function createServer(rootDir: string): McpServer {
 }
 
 async function main(): Promise<void> {
-  const rootDir = process.argv[2] ?? process.env.QUKI_DIR;
+  const rootDir = process.argv[2] ?? process.env.QUKI_DIR ?? resolveDesktopStorageDir();
   if (!rootDir) {
     process.stderr.write('Usage: quki-mcp <qukiFolderPath>  (or set QUKI_DIR)\n');
     process.exit(1);
@@ -269,7 +280,23 @@ async function main(): Promise<void> {
   await server.connect(transport);
 }
 
-main().catch((err: unknown) => {
-  process.stderr.write(`Fatal: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}\n`);
-  process.exit(1);
-});
+/**
+ * Only run the server when this module is executed directly (`node
+ * dist/server.js <dir>`, or via the `quki-mcp` bin entry) - never as a side
+ * effect of importing it, e.g. from a test or from another host embedding
+ * createServer() directly. Without this guard the module could never be
+ * imported as a library: main() would always run at load time and, with no
+ * argument, call process.exit(1) before the importer's own code ran.
+ */
+function isRunDirectly(): boolean {
+  const entry = process.argv[1];
+  if (!entry) return false;
+  return fileURLToPath(import.meta.url) === entry;
+}
+
+if (isRunDirectly()) {
+  main().catch((err: unknown) => {
+    process.stderr.write(`Fatal: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}\n`);
+    process.exit(1);
+  });
+}
