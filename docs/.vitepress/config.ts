@@ -26,5 +26,8 @@ export default defineConfig({
     socialLinks: [
       { icon: 'github', link: 'https://github.com/ScottKirvan/QuKi-Notes' },
     ],
+    search: {
+      provider: 'local'
+    },
   },
 })
