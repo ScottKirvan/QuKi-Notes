@@ -440,8 +440,8 @@ async function runOverlayScenario(browser: Browser, devUrl: string, scheme: "lig
     padding: "12px 20px",
     fontSize: null,
     borderRadius: "8px",
-    width: 130.4,
-    height: 47,
+    width: 136.265625,
+    height: 44,
   });
   const copy = await page.locator(".android-permission-panel").evaluate((el) => ({
     title: el.querySelector("h1")!.textContent,
