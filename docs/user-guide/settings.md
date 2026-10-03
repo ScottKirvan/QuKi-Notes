@@ -1,37 +1,50 @@
 # Settings
 
-Open Settings from the editor via **Menu → Settings**, or from the QuKis list via the **Settings icon** in the top right.
+Open Settings with the <i-lucide-settings /> **gear** button in the editor's top bar, or the same button in the QuKis list.
 
 ## Appearance
 
-**Theme** follows the system setting — dark or light, automatically. There is no manual toggle.
+**Theme** follows your system's light or dark setting, and switches automatically when that changes. There's no manual toggle.
 
 ## Storage
 
-Shows where your QuKis are stored. Tap **Change location** to switch between filesystem and app storage.
+**Android, Windows and Linux** show where your QuKis are stored:
 
-- **Filesystem storage** — files are stored in an accessible location on your device (the folder you chose on desktop; `Documents/QuKi_Notes` on Android). Accessible via file manager; survives uninstall.
-- **App storage** — files are stored in the app's private directory. A persistent warning is shown: "Files will be removed on uninstall. Change location."
+- **Filesystem storage**, followed by the folder's path.
+- **App storage (private)**, with the warning "Files will be removed on uninstall. Change location."
 
-Changing the location affects new QuKis only. Existing files remain in the previous location and must be moved manually if needed.
+Tap **Change location** to open the same choice you saw on first launch. Tap the back arrow on that screen to leave things as they are.
 
-## Transports
+Changing the location doesn't move anything. Your existing QuKis, Trash and images stay in the old folder, and QuKi Notes starts using the new one straight away with a blank editor. To bring QuKis along, move or copy the files yourself, including the hidden `.meta` and `.trash` folders and the `media` folder, while QuKi Notes is closed.
 
-Each built-in transport appears as a toggle. Enable or disable transports to control which appear in the send sheet.
+**Web** shows a note instead:
 
-| Transport | Platforms | Description |
-|---|---|---|
-| Clipboard | Android, Windows, Linux | Copies the QuKi text to the system clipboard |
-| Share Sheet | Android, Windows | Opens the system share dialog |
+> QuKis are stored in this browser, not in a folder you choose. Clearing this site's browser data will delete them.
 
-## Notes — Trash
+QuKis in the web version stay in that one browser on that one device. To keep a copy or take them elsewhere, use **Export**. On iPhone and iPad, Safari can clear a website's storage by itself if the site isn't used for a while. Adding QuKi Notes to your home screen makes that much less likely.
 
-Opens the Recently Deleted screen. Shows QuKis you have deleted. Tap to restore; swipe to permanently delete.
+**Export**, on every platform including the web, saves your whole library as one `.tar.gz` archive: every QuKi, everything in Trash, QuKi Notes' records of when each was created and trashed, the `media` folder and the `.quki` settings folder. Extracting it gives you a folder QuKi Notes can open as-is. Where the archive goes depends on the platform:
 
-## Sync
+- **Windows and Linux**: you choose where to save it.
+- **Android**: it's saved in your QuKi folder, and a message shows where.
+- **Web**: your browser downloads it, named `quki-export-` followed by the date and time.
 
-Sync is not available in the current release. It is planned as an opt-in feature in a future version.
+## Notes
+
+**Trash** opens the Trash screen. See [QuKis List → Trash](/user-guide/qukis-list#trash).
 
 ## About
 
-Shows the installed version of QuKi Notes.
+Shows the app's name and version. Tap **Version** to copy the version number to the clipboard.
+
+## Help
+
+
+The **?** button in the editor and the QuKis list opens the Help dialog. It shows the version, plus the branch and date that build was made from. Tap them to copy all three, handy for bug reports. It also has links to:
+
+- **Documentation**: this site
+- **Discord**: chat with other users and get help
+- **GitHub**: source code, issues and release notes
+- **Buy me a coffee**: support the project
+
+Press **Escape**, tap outside the dialog, or tap **Close** to dismiss it.

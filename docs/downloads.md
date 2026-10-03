@@ -1,11 +1,16 @@
-# Downloads
 
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useData } from 'vitepress'
+//import {BVPlatformButton} from 'bojuvue/vitepress'
+import * as BojuVue from 'bojuvue/vitepress'
 
 const { site } = useData()
 const manifest = ref(null)
+
+function download(key) {
+  return manifest.value?.[key] ?? 'https://github.com/ScottKirvan/QuKi-Notes/releases/latest'
+}
 
 onMounted(async () => {
   try {
@@ -15,61 +20,49 @@ onMounted(async () => {
 })
 </script>
 
+<div align="center">
+<img src="/QuKiNotes_v2_Rainbow_transparent.png" alt="QuKi Notes" width="260" />
+
+# QuKi Notes
+&nbsp;
+  <div>
+    <BojuVue.BVPlatformButton
+      manifest-url="/platformButton.json"
+      fallback-href="https://github.com/ScottKirvan/QuKi-Notes/releases"
+    />
+  </div>
 <div v-if="manifest" style="font-size: 0.875rem; color: var(--vp-c-text-2); margin: 1rem 0 2.5rem;">
   Latest release: <strong>{{ manifest.version }}</strong>
 </div>
 
-## Mobile
-
-<div style="display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); margin: 1.5rem 0 2.5rem;">
-
-<div style="border: 1px solid var(--vp-c-divider); border-radius: 8px; padding: 1.25rem;">
-  <div style="font-size: 2rem; margin-bottom: 0.5rem;">🤖</div>
-  <div style="font-weight: 600; margin-bottom: 0.25rem;">Android</div>
-  <div style="font-size: 0.8rem; color: var(--vp-c-text-2); margin-bottom: 1rem;">APK sideload · closed beta</div>
-  <a href="/QuKi-Notes/install/android"
-     style="display: inline-block; background: var(--vp-c-brand-1); color: var(--vp-c-white); padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.875rem; text-decoration: none;">
-    Get for Android
-  </a>
 </div>
 
+
+<div style="display: flex; justify-content: center;">
+  <table><tbody><tr><td>App
+<table style="margin-inline: auto;"><tbody>
+  <tr> <td> iOS </td> <td><a href="/QuKi-Notes/install/ios"><i-lucide-book-open /> Instructions</a></td> </tr>
+  <tr> <td> Android </td> <td>
+  <a href="/QuKi-Notes/install/android"><i-lucide-book-open /> Join The Beta</a><br>
+  <a href="https://play.google.com/store/apps/details?id=com.quki.quki_notes"><i-custom-google /> Google Play (Join beta team first)</a><br>
+  <a :href="download('android')"><i-lucide-circle-arrow-down /> APK</a>
+  </td> </tr>
+  <tr> <td> Windows </td> <td><a :href="download('windows')"><i-lucide-circle-arrow-down /> Installer</a></td> </tr>
+  <tr> <td> Mac </td> <td><a href="/QuKi-Notes/install/ios"><i-lucide-book-open /> Instructions</a></td> </tr>
+  <tr> <td> Linux </td> <td>
+  <a :href="download('linux')"><i-lucide-circle-arrow-down /> AppImage</a><br>
+  <!-- <a :href="download('linux_snap')"><i-lucide-circle-arrow-down /> Snap</a><br> -->
+  <a :href="download('linux_deb')"><i-lucide-circle-arrow-down /> Debian Package</a><br>
+  <a :href="download('linux_arm64')"><i-lucide-circle-arrow-down /> AppImage (AArch64, ARM64)</a><br>
+  <a :href="download('linux_arm64_deb')"><i-lucide-circle-arrow-down /> Debian Package (AArch64, ARM64)</a>
+  <!-- <a :href="download('linux_flatpak')"><i-lucide-circle-arrow-down /> Flatpak (Community maintained)</a> -->
+  </td> </tr>
+  <tr> <td> Web </td> <td>
+  <a href="/QuKi-Notes/install/web"><i-lucide-book-open /> Get for Web</a><br>
+  <a href="https://qukinotes.scottkirvan.com/" target="_blank"><i-lucide-globe /> Use in Browser</a>
+  </td> </tr>
+  </tbody></table>
+  </td></tr></tbody></table>
 </div>
+  
 
-## Desktop
-
-<div style="display: grid; gap: 1rem; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); margin: 1.5rem 0 2.5rem;">
-
-<div style="border: 1px solid var(--vp-c-divider); border-radius: 8px; padding: 1.25rem;">
-  <div style="font-size: 2rem; margin-bottom: 0.5rem;">🪟</div>
-  <div style="font-weight: 600; margin-bottom: 0.25rem;">Windows</div>
-  <div style="font-size: 0.8rem; color: var(--vp-c-text-2); margin-bottom: 1rem;">.exe installer · x64</div>
-  <a v-if="manifest" :href="manifest.windows"
-     style="display: inline-block; background: var(--vp-c-brand-1); color: var(--vp-c-white); padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.875rem; text-decoration: none;">
-    Download for Windows
-  </a>
-  <a v-else href="https://github.com/ScottKirvan/QuKi-Notes/releases/latest" target="_blank"
-     style="display: inline-block; background: var(--vp-c-brand-1); color: var(--vp-c-white); padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.875rem; text-decoration: none;">
-    Download for Windows
-  </a>
-</div>
-
-<div style="border: 1px solid var(--vp-c-divider); border-radius: 8px; padding: 1.25rem;">
-  <div style="font-size: 2rem; margin-bottom: 0.5rem;">🐧</div>
-  <div style="font-weight: 600; margin-bottom: 0.25rem;">Linux</div>
-  <div style="font-size: 0.8rem; color: var(--vp-c-text-2); margin-bottom: 1rem;">AppImage · x64</div>
-  <a v-if="manifest" :href="manifest.linux"
-     style="display: inline-block; background: var(--vp-c-brand-1); color: var(--vp-c-white); padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.875rem; text-decoration: none;">
-    Download AppImage
-  </a>
-  <a v-else href="https://github.com/ScottKirvan/QuKi-Notes/releases/latest" target="_blank"
-     style="display: inline-block; background: var(--vp-c-brand-1); color: var(--vp-c-white); padding: 0.5rem 1rem; border-radius: 6px; font-size: 0.875rem; text-decoration: none;">
-    Download AppImage
-  </a>
-</div>
-
-</div>
-
-<p style="font-size: 0.875rem; color: var(--vp-c-text-2);">
-  All releases and changelogs →
-  <a href="https://github.com/ScottKirvan/QuKi-Notes/releases" target="_blank">GitHub Releases</a>
-</p>
