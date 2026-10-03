@@ -3,6 +3,11 @@
   "private": true,
   "version": "0.25.0",
   "description": "Electron desktop wrapper for QuKi Notes: hosts NodeFsBackend in the main process and serves the existing web app renderer unchanged, over IPC.",
+  "homepage": "https://scottkirvan.com/QuKi-Notes/",
+  "author": {
+    "name": "Scott Kirvan",
+    "email": "bojustudio@skvfx.com"
+  },
   "main": "dist/main.js",
   "scripts": {
     "build": "tsc -b",
