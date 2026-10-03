@@ -10,13 +10,13 @@ Once you've joined the group, open the [Downloads](/downloads) page and, under *
 
 ## Installing QuKi Notes from an APK
 
-### 1. Download and extract
+### 1. Download it
 
-On your Android device, go to the [downloads](/downloads) page and download the Android **APK**. It comes as a `.zip` file — open it in your Files app and tap **Extract** (or **Unzip**) to get the `.apk`.
+On your Android device, go to the [downloads](/downloads) page and download the Android **APK**.
 
 ### 2. Install it
 
-Tap the extracted `.apk`. What happens next depends on your phone, since Google is in the middle of rolling out a new, stricter flow:
+Tap the downloaded `.apk`. If your phone shows it as an archive or offers to extract it, open it with the package installer instead (an APK is a ZIP file inside, which some file managers pick up on). What happens next depends on your phone, since Google is in the middle of rolling out a new, stricter flow:
 
 - **Most phones right now:** Android blocks it with a prompt like *"For your security, your phone is not allowed to install unknown apps from this source."* Tap **Settings** on that prompt, turn on **Allow from this source**, then tap back to return to the install screen and tap **Install**.
 - **If your phone has the new "Advanced Flow" already** (rolling out through 2026–2027): installing an app from a developer Google hasn't verified prompts you to turn on a setting in Developer Options, confirm your identity, restart your phone, and then wait 24 hours before the install is allowed to go through. After that, you can allow it for 7 days or indefinitely.
