@@ -388,8 +388,8 @@ async function main(): Promise<void> {
     console.log(`[e2e-image-paste] PASS: two images pasted back-to-back with no wait between them both landed intact, neither lost nor corrupted: ${JSON.stringify(bodyAfterRacingPastes)}`);
 
     // --- Scenario 5: an image pasted into a QuKi that is then cleared back
-    // to empty and never saved (STORAGE_CONTRACT.md rule 16 - an empty body
-    // is never written) has no .md file that will ever reference it. It
+    // to empty before its first save (a new QuKi's empty body is never
+    // written) has no .md file that will ever reference it. It
     // must not stay in media/ forever: the next app startup sweeps it away
     // (STORAGE_CONTRACT.md rule 13, gated on its "delete orphaned images"
     // setting, which defaults on). ---
@@ -410,7 +410,7 @@ async function main(): Promise<void> {
     console.log(`[e2e-image-paste] media/${orphanFilename} exists on OPFS immediately after paste, before this QuKi has ever been saved`);
 
     // Clear the editor back to empty. auto-save's debounce still fires, but
-    // save() skips writing (rule 16) - no .md file is ever created, so no
+    // save() never creates a new QuKi from an empty body - no .md file is ever created, so no
     // file anywhere will ever reference this image.
     await page.keyboard.press("Control+A");
     await page.keyboard.press("Delete");

@@ -77,8 +77,8 @@ export function createTrashView(store: QuKiStore, container: HTMLElement, callba
     // and every entry point here (opening Trash, restoring, permanently
     // deleting, emptying) already calls this - so this is also where a full
     // media/ sweep runs for images an active/trashed QuKi never referenced
-    // in the first place (e.g. pasted into a QuKi that was never saved -
-    // STORAGE_CONTRACT.md rule 16), which the candidate-based cleanup below
+    // in the first place (e.g. pasted into a new QuKi that was cleared
+    // before its first save), which the candidate-based cleanup below
     // can never catch on its own. Gated on the same setting as the rest of
     // orphan cleanup (rule 13).
     if (callbacks.getDeleteOrphanedImages()) {
