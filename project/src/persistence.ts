@@ -280,7 +280,7 @@ export class AutoSaveController {
       this.onSaved({ id: result.id, modifiedAt: result.modifiedAt });
       return { status: "saved", id: result.id, modifiedAt: result.modifiedAt };
     }
-    // "skipped-empty": rule 16 still applies under force - leave the
+    // "skipped-empty": a brand-new QuKi with an empty body (QuKiStore's createNew never writes one) - leave the
     // baseline untouched, same as a normal save's skipped-empty branch.
     // "conflict" is unreachable here since force skips both conflict
     // branches in QuKiStore.updateExisting.
@@ -348,8 +348,9 @@ export class AutoSaveController {
       this.onSaved({ id: result.id, modifiedAt: result.modifiedAt });
       return { status: "saved", id: result.id, modifiedAt: result.modifiedAt };
     } else if (result.status === "skipped-empty") {
-      // Deliberate no-op (STORAGE_CONTRACT.md rule 16): leave the baseline
-      // as-is so a later non-empty edit is still recognised as a change.
+      // Only a brand-new QuKi with an empty body (QuKiStore's createNew never writes one):
+      // leave the baseline as-is so a later non-empty edit is still
+      // recognised as a change.
       return { status: "skipped-empty" };
     } else {
       this.onConflict({ reason: result.reason, currentBody: result.currentBody });

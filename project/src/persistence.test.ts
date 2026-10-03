@@ -52,7 +52,7 @@ function makeFakeStore() {
   let nextModifiedAt = 1;
   const save = vi.fn(async (params: SaveParams): Promise<SaveResult> => {
     calls.push(params);
-    if (params.body === "") return { status: "skipped-empty", id: params.id };
+    if (params.id === null && params.body === "") return { status: "skipped-empty", id: null };
     const id = params.id ?? "fake-id";
     return {
       status: "saved",
@@ -356,7 +356,7 @@ describe("AutoSaveController behavior against a real backend", () => {
     expect(onDisk.body).toBe("local edit after the backgrounded gap");
   });
 
-  it("invokes onSaved with the id and modifiedAt after a real save, and not on a skipped-empty save", async () => {
+  it("invokes onSaved with the id and modifiedAt after a real save, including clearing a saved QuKi", async () => {
     let body = "hello";
     const saved: Array<{ id: string; modifiedAt: string }> = [];
     const controller = new AutoSaveController(
@@ -372,9 +372,29 @@ describe("AutoSaveController behavior against a real backend", () => {
     expect(saved[0]!.id).toBe(controller.currentId);
     expect(saved[0]!.modifiedAt).toBeTruthy();
 
-    body = ""; // now delete all content - save() skips empty bodies
-    await controller.flush();
-    expect(saved).toHaveLength(1); // unchanged - no onSaved for skipped-empty
+    const id = controller.currentId!;
+    body = "";
+    expect(await controller.flush()).toMatchObject({ status: "saved", id });
+    expect(saved).toHaveLength(2);
+    expect((await store.read(id)).body).toBe("");
+  });
+
+  it("does not create or report a QuKi for a new, never-typed-in editor", async () => {
+    const saved: Array<{ id: string; modifiedAt: string }> = [];
+    let body = "typed";
+    const controller = new AutoSaveController(
+      store,
+      () => body,
+      () => {},
+      { id: null, body: "typed", modifiedAt: null },
+      { onSaved: (info) => saved.push(info) },
+    );
+
+    body = "";
+    expect(await controller.flush()).toEqual({ status: "skipped-empty" });
+    expect(saved).toHaveLength(0);
+    expect(controller.currentId).toBeNull();
+    expect(await store.list()).toHaveLength(0);
   });
 
   it("does not invoke onSaved when the save conflicts", async () => {

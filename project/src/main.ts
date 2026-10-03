@@ -50,6 +50,7 @@ import { sendQuKi, selectShareTransport, createClipboardTransport } from "./send
 import { shareTextViaAndroid } from "./androidShare";
 import { createWebShareTransport } from "./webShare";
 import { buildExportFileName } from "./exportFileName";
+import { isQuKisButtonEnabled } from "./quKisButton";
 import { onSharedTextReceived } from "./shareIn";
 import { Navigator, type ViewName } from "./navigation";
 import { createListView } from "./screens/listView";
@@ -474,8 +475,8 @@ async function init(): Promise<void> {
     console.error("QuKi trash purge failed unexpectedly:", error);
   });
 
-  // STORAGE_CONTRACT.md rule 13: an image pasted into a QuKi that is never
-  // saved (rule 16 - an empty body is never written) has no .md file that
+  // STORAGE_CONTRACT.md rule 13: an image pasted into a new QuKi that is
+  // cleared before its first save (createNew never writes an empty body) has no .md file that
   // ever references it, so it can never become a candidate for the
   // deletion-triggered cleanup inside purgeExpiredTrash/permanentlyDelete/
   // emptyTrash above and in trashView.ts. Sweeping media/ against every
@@ -508,6 +509,7 @@ async function init(): Promise<void> {
   // does not fire the change event - this is what stops a load from
   // triggering a save."
   let suppressAutoSaveNotify = false;
+  let hasSavedQuKis = false;
 
   // Forward-declared and assigned once `view` exists (just below), the same
   // pattern `autoSave` already uses in this function: the closures inside
@@ -597,6 +599,7 @@ async function init(): Promise<void> {
       EditorView.lineWrapping,
       EditorView.updateListener.of((update) => {
         if (update.docChanged && !suppressAutoSaveNotify) autoSave.notifyChange();
+        if (update.docChanged) updateQuKisButtonState();
         toolbarController?.onUpdate(update);
         // The first selection change after reading mode just switched to
         // edit mode (pendingToolbarScrollCheck, set below) may be the very
@@ -913,10 +916,14 @@ async function init(): Promise<void> {
   }
   updateDeleteButtonState();
 
+  function updateQuKisButtonState(): void {
+    quKiListBtn.disabled = !isQuKisButtonEnabled({ hasSavedQuKis, editorHasText: view.state.doc.length > 0 });
+  }
+
   async function refreshQuKisButton(): Promise<void> {
     try {
-      const list = await store.list();
-      quKiListBtn.disabled = list.length === 0;
+      hasSavedQuKis = (await store.list()).length > 0;
+      updateQuKisButtonState();
     } catch (error) {
       console.error("QuKi list refresh (for the QuKis button state) failed unexpectedly:", error);
     }

@@ -66,7 +66,7 @@
 
 ## Saving
 
-16. **An empty body is never written.** Deleting all the text in a QuKi does not save an empty file — the last non-empty content stays on disk. This is current behavior (`save()` returns early on `body.isEmpty`) and it is intentional: it prevents a stray select-all-delete from destroying a QuKi. Preserve it deliberately rather than dropping it as an oversight.
+16. **Clearing a QuKi saves it empty.** Deleting all the text in an existing QuKi writes an empty file, the same as any other edit. A new QuKi that has never been saved is not created from an empty body, so opening the app and leaving without typing writes nothing. (Scott's decision, 2026-10-03. It replaces an earlier agent-written rule that an empty body is never written, which was not his.)
 
 17. **The save baseline is the file, not memory.** Today the controller skips a write when the new body equals the last body *it* wrote — an in-memory value that knows nothing about the file. Under this contract other programs edit these files, so the controller must also record the file's modification time when it loads or writes a QuKi, compare it at the top of every save, and branch to a conflict path when it doesn't match. A save must never overwrite a file that changed underneath it. An automatic save must never overwrite on its own; only an explicit, user-initiated action taken after a conflict is already shown may force the write.
 

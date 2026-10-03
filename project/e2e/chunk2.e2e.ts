@@ -297,6 +297,38 @@ async function main(): Promise<void> {
     await emptyPage.waitForSelector(".cm-content");
     assert((await emptyPage.getAttribute("#btn-quki-list", "disabled")) !== null, "QuKis button should be disabled with no QuKis yet");
     console.log("[e2e-chunk2] PASS: QuKis button disabled with no QuKis");
+
+    // --- Typing the first character enables the QuKis button straight away.
+    // The 1s wait is shorter than the 2s auto-save debounce, so a pass can't
+    // come from the save landing. Tapping the button saves on the way out,
+    // so the list has the QuKi. ---
+    const docOf = (p: Page) =>
+      p.evaluate(() => (window as unknown as { qukiView: { state: { doc: { toString(): string } } } }).qukiView.state.doc.toString());
+    await typeIntoEditor(emptyPage, "x");
+    await emptyPage.waitForSelector("#btn-quki-list:not([disabled])", { timeout: 1000 });
+    console.log("[e2e-chunk2] PASS: QuKis button enabled as soon as a character is typed");
+    await emptyPage.click("#btn-quki-list");
+    const emptyList = emptyPage.locator("#view-list");
+    await emptyList.locator(".list-row").first().waitFor({ timeout: 5000 });
+    assert((await emptyList.locator(".list-row").count()) === 1, "the list should hold the QuKi typed before leaving the editor");
+    console.log("[e2e-chunk2] PASS: leaving the editor saved the just-typed QuKi");
+
+    // --- Clearing all of a saved QuKi's text and leaving the editor saves
+    // it empty: reopening it shows nothing, not the old text. ---
+    await emptyList.locator(".list-row-preview", { hasText: "x" }).click();
+    await emptyPage.waitForFunction(() => (window as unknown as { qukiView: { state: { doc: { toString(): string } } } }).qukiView.state.doc.toString() === "x", null, { timeout: 5000 });
+    await emptyPage.click(".cm-content");
+    await emptyPage.keyboard.press("Control+A");
+    await emptyPage.keyboard.press("Delete");
+    assert((await docOf(emptyPage)) === "", "the editor should be empty after deleting everything");
+    await emptyPage.click("#btn-quki-list");
+    await emptyList.locator(".list-row").first().waitFor({ timeout: 5000 });
+    await emptyPage.waitForTimeout(500);
+    await emptyList.locator(".list-row").first().click();
+    await emptyPage.waitForTimeout(1000);
+    const reopened = await docOf(emptyPage);
+    assert(reopened === "", `a QuKi cleared before leaving the editor should reopen empty, got: ${JSON.stringify(reopened)}`);
+    console.log("[e2e-chunk2] PASS: a QuKi cleared of all text is saved empty");
     await emptyContext.close();
 
     // --- Going straight to the list right after typing must not outrun the

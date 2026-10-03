@@ -245,9 +245,7 @@ export class QuKiStore {
     // force (STORAGE_CONTRACT.md rule 17's explicit, user-initiated
     // escape hatch): skip both conflict branches below and write
     // unconditionally - creating the file if it was deleted, overwriting it
-    // if it was modified. Rule 16 (never write an empty body) still applies
-    // unconditionally further down, so force can never wipe a QuKi via an
-    // accidental empty overwrite.
+    // if it was modified.
     let priorStat: FileStat | undefined;
     if (!force) {
       if (!exists) {
@@ -274,10 +272,6 @@ export class QuKiStore {
       // exists - forcing a write is about the content, not about resetting
       // the QuKi's creation time.
       priorStat = await this.backend.stat(mdPath);
-    }
-
-    if (body === '') {
-      return { status: 'skipped-empty', id };
     }
 
     const sidecar = await readSidecar(this.backend, `.meta/${id}.json`);
@@ -442,8 +436,8 @@ export class QuKiStore {
    *
    * This exists because the candidate-based cleanup above only ever
    * considers images that *were* referenced by a QuKi that is now being
-   * deleted - an image pasted into a QuKi that is never saved (rule 16: an
-   * empty body is never written) never becomes a candidate there, since no
+   * deleted - an image pasted into a new QuKi that is cleared before its first
+   * save (createNew never writes an empty body) never becomes a candidate there, since no
    * .md file ever referenced it in the first place. Callers are expected to
    * run this at points other than deletion - e.g. app startup - so those
    * images still get cleaned up eventually.
