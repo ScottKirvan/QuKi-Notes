@@ -1,10 +1,14 @@
-﻿---
+---
 layout: home
+
 hero:
   name: QuKi Notes
   text: Open. Type. Done.
   tagline: Scratchpad. Pasteboard. Blank canvas. For the thought that won't wait.
-  actions:
+  image:
+    src: /QuKiNotes_v2_Rainbow_transparent.png
+    alt: QuKi Notes
+  actions_dead:
     - theme: brand
       text: Get Started
       link: /user-guide/getting-started
@@ -12,54 +16,16 @@ hero:
       text: GitHub
       link: https://github.com/ScottKirvan/QuKi-Notes
 features:
-  - title: Open and go
+  - icon: lucide:pen-tool
+    title: Open and write
     details: Tap the icon, start typing. No title, no template, no folder to pick first.
-  - title: Send when ready
-    details: Clipboard, share sheet, or any transport you wire up. A QuKi goes somewhere when you decide — not before.
-  - title: Plain files, always yours
-    details: Every QuKi is a plain .md file on your device. No cloud, no account, no lock-in. Read or move them without ever opening the app.
+  - icon: lucide:send
+    title: Send when ready
+    details: One button. The share sheet on Android, the clipboard on Windows and Linux. A QuKi goes somewhere when you decide — not before.
+  - icon: lucide:scroll-text
+    title: Plain files, always yours
+    details: On Android, Windows and Linux, every QuKi is a plain .md file in a folder on your device. No cloud, no account, no lock-in. Read or move them without ever opening the app.
 ---
-
-<script setup>
-import { ref, onMounted } from 'vue'
-import { useData } from 'vitepress'
-
-const { site } = useData()
-const manifest = ref(null)
-const downloadHref = ref(null)
-const downloadLabel = ref(null)
-
-onMounted(async () => {
-  try {
-    const res = await fetch(`${site.value.base}latest.json`)
-    manifest.value = await res.json()
-  } catch (e) {}
-
-  if (!manifest.value) return
-  const ua = navigator.userAgent
-  if (/Android/i.test(ua)) {
-    downloadHref.value = '/QuKi-Notes/install/android'
-    downloadLabel.value = 'Get for Android'
-  } else if (/Win/i.test(navigator.platform)) {
-    downloadHref.value = manifest.value.windows
-    downloadLabel.value = 'Download for Windows'
-  } else if (/Linux/i.test(navigator.platform)) {
-    downloadHref.value = manifest.value.linux
-    downloadLabel.value = 'Download for Linux'
-  }
-})
-</script>
-
-<div v-if="manifest" style="text-align: center; margin: 2.5rem 0 1.5rem;">
-  <a v-if="downloadHref" :href="downloadHref"
-     style="display: inline-block; background: var(--vp-c-brand-1); color: var(--vp-c-white); padding: 0.65rem 1.5rem; border-radius: 8px; font-weight: 600; font-size: 1rem; text-decoration: none; margin-bottom: 0.75rem;">
-    {{ downloadLabel }}
-  </a>
-  <div style="font-size: 0.875rem; color: var(--vp-c-text-2); margin-top: 0.5rem;">
-    {{ manifest.version }} &nbsp;·&nbsp;
-    <a href="/QuKi-Notes/downloads">all platforms</a>
-  </div>
-</div>
 
 <div style="text-align:center; margin-top: 2rem; font-size: 0.875rem; color: var(--vp-c-text-2);">
   <a href="/QuKi-Notes/privacy">Privacy Policy</a>

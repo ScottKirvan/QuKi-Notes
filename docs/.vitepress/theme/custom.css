@@ -25,3 +25,17 @@ html.dark .sponsor-logo.light-only {
 .sponsor-logo:hover {
   filter: grayscale(0%);
 }
+
+/* Icons from <i-lucide-... /> tags: VitePress makes every svg display:block,
+   which would put each icon on its own line. */
+.icon {
+  display: inline-block;
+  vertical-align: -0.125em;
+}
+
+/* Feature icons from lucide:/custom: in frontmatter (scripts/featureIcons.mjs):
+   custom SVG files carry no size of their own. */
+.VPFeature .icon svg {
+  width: 1em;
+  height: 1em;
+}

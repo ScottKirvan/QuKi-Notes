@@ -1,0 +1,8 @@
+{
+  "windows": { "download": "windows", "label": "Download for Windows" },
+  "macos": { "href": "https://ScottKirvan.com/QuKi-Notes/install/ios", "label": "Download for macOS" },
+  "linux": { "download": "linux", "label": "Download for Linux" },
+  "android": { "href": "https://ScottKirvan.com/QuKi-Notes/install/android", "label": "Download for Android" },
+  "ios": { "href": "https://ScottKirvan.com/QuKi-Notes/install/ios", "label": "Download for iOS" },
+  "chromeos": { "href": "https://qukinotes.scottkirvan.com/", "label": "Run on ChromeOS" }
+}

@@ -1,3 +1,5 @@
 node_modules
 .vitepress/dist
 .vitepress/cache
+# generated at build time from platforms.json + public/latest.json
+public/platformButton.json

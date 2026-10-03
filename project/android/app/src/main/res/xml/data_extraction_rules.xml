@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Modern Auto Backup / data-transfer rules (android:dataExtractionRules),
+  read on API 31+. API 23-30 devices instead use backup_rules.xml - both
+  exist because this app's minSdkVersion (24) and targetSdkVersion (36)
+  straddle the API 31 cutover.
+
+  <cloud-backup> covers uninstall/reinstall via Google's cloud backup
+  (the scenario the original bug report was about). <device-transfer>
+  covers getting a new phone via Android's device-to-device transfer. Both
+  are realistic paths to what a user experiences as "a fresh install", so
+  both sections carry the same rules rather than only covering one.
+
+  No <include> elements in either section, for the same reason as
+  backup_rules.xml: adding one switches that section from "everything except
+  what's excluded" to "only what's included", and an allow-list would need
+  to track every file this app ever writes under the files directory.
+  Exclude-only keeps QuKi_Notes/ (the app-storage QuKi content) included by
+  default in both transfer paths, which is the whole point of re-enabling
+  backup.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <!--
+          LOAD-BEARING: see backup_rules.xml's matching comment - this is
+          what actually caused the original stale-first-launch bug.
+          quki_settings.json must never come back from a cloud restore, or a
+          genuinely fresh install will look like a returning one to
+          androidSetupDecision.ts.
+        -->
+        <exclude domain="file" path="quki_settings.json" />
+
+        <!--
+          Not load-bearing - hygiene only. See backup_rules.xml's matching
+          comment for the full reasoning and the caveat that this exact path
+          is confirmed from Chromium/WebView community sources, not a single
+          developer.android.com page.
+        -->
+        <exclude domain="root" path="app_webview/" />
+    </cloud-backup>
+
+    <device-transfer>
+        <!-- Same rules, same reasoning, for the device-to-device transfer path. -->
+        <exclude domain="file" path="quki_settings.json" />
+        <exclude domain="root" path="app_webview/" />
+    </device-transfer>
+</data-extraction-rules>

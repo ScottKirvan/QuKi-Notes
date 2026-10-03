@@ -1,8 +1,8 @@
 name: Deploy Web App
 
-# Manual only on main, where the web app doesn't exist yet. Run it against
-# a branch that has project/.
 on:
+  release:
+    types: [published]
   workflow_dispatch:
 
 permissions:

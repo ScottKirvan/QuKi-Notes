@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Legacy Auto Backup rules (android:fullBackupContent), read on API 23-30.
+  API 31+ devices instead use data_extraction_rules.xml - both exist because
+  this app's minSdkVersion (24) and targetSdkVersion (36) straddle the API 31
+  cutover, so real users can land on either mechanism.
+
+  No <include> elements: per Android's own documentation, adding any
+  <include> switches this file from "back up everything except what's
+  excluded" to "back up only what's included" - an allow-list would have to
+  be kept in sync with every file this app ever writes under the files
+  directory. Exclude-only keeps QuKi_Notes/ (the app-storage QuKi content)
+  backed up by default, which is the whole point of re-enabling backup, and
+  only carves out the specific paths known to cause problems if restored.
+-->
+<full-backup-content>
+    <!--
+      LOAD-BEARING: this is what actually caused the original stale-first-launch
+      bug. quki_settings.json (AndroidSettingsStore, see
+      project/src/androidSettingsStore.ts) records the storage-location choice
+      as already made. Restoring it from a backup makes a genuinely fresh
+      install look like a returning one, so androidSetupDecision.ts's
+      precedence logic skips first-launch setup entirely. Must never be
+      restored, regardless of everything else in this file.
+    -->
+    <exclude domain="file" path="quki_settings.json" />
+
+    <!--
+      Not load-bearing. app_webview/ is Android WebView's own per-app profile
+      directory (cookies, HTTP cache, IndexedDB/localStorage backing store),
+      a sibling of files/ under the app's private data root - confirmed
+      against Chromium/WebView community documentation, not a single
+      developer.android.com page naming this exact folder, so treat the path
+      itself as reasonably-but-not-authoritatively confirmed. Nothing this
+      app cares about lives here: StoragePlugin.kt does plain java.io.File
+      I/O straight to context.filesDir, and there is no localStorage/
+      IndexedDB usage anywhere in project/src or project/core (verified by
+      search). Excluding it is hygiene - avoids restoring stale browser-engine
+      cache/state - not a fix for the original bug, which
+      staleServiceWorkerCleanup.ts already handles independently of backup.
+      Getting this one path wrong would only lose a nice-to-have, not reopen
+      the settings-file bug above.
+    -->
+    <exclude domain="root" path="app_webview/" />
+</full-backup-content>
