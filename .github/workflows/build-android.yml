@@ -14,28 +14,45 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: subosito/flutter-action@v2
+      - uses: actions/setup-node@v4
         with:
-          channel: stable
-          cache: true
+          node-version: 22
 
-      - name: Install dependencies
-        run: flutter pub get
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # core must be built first — the web app imports from core/dist/
+      - name: Install (core)
+        run: npm ci
+        working-directory: project/core
+
+      - name: Build (core)
+        run: npm run build
+        working-directory: project/core
+
+      - name: Install (app)
+        run: npm ci
+        working-directory: project
+
+      - name: Build web app
+        run: npm run build
+        working-directory: project
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+        working-directory: project
 
       - name: Decode keystore
-        # Populate these secrets in the GitHub repo settings:
-        #   KEYSTORE_BASE64   — base64-encoded .jks keystore file
-        #   KEY_ALIAS         — key alias
-        #   KEY_PASSWORD      — key password
-        #   STORE_PASSWORD    — keystore password
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/keystore.jks
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > project/android/app/keystore.jks
 
-      - name: Compute version code and build name
+      - name: Compute version
         id: version
         run: |
           BUILD_NUMBER=$(date -u +"%y%j%H%M")
-          BASE_VERSION=$(grep '^version:' pubspec.yaml | sed 's/version: //' | sed 's/+.*//' | tr -d '[:space:]')
+          BASE_VERSION=$(node -p "require('./project/package.json').version")
           echo "build_number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "build_name=${BASE_VERSION}.${BUILD_NUMBER}" >> "$GITHUB_OUTPUT"
@@ -43,28 +60,37 @@ jobs:
             echo "build_name=${BASE_VERSION}" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Make gradlew executable
+        run: chmod +x project/android/gradlew
+
       - name: Build APK (release)
-        run: flutter build apk --release --build-name=${{ steps.version.outputs.build_name }} --build-number=${{ steps.version.outputs.build_number }}
+        run: ./gradlew assembleRelease
+        working-directory: project/android
         env:
           STORE_FILE: keystore.jks
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
+          BUILD_NAME: ${{ steps.version.outputs.build_name }}
 
       - name: Build AAB (release)
-        run: flutter build appbundle --release --build-name=${{ steps.version.outputs.build_name }} --build-number=${{ steps.version.outputs.build_number }}
+        run: ./gradlew bundleRelease
+        working-directory: project/android
         env:
           STORE_FILE: keystore.jks
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          BUILD_NUMBER: ${{ steps.version.outputs.build_number }}
+          BUILD_NAME: ${{ steps.version.outputs.build_name }}
 
       - name: Upload APK as artifact (manual dispatch)
         if: github.event_name == 'workflow_dispatch'
         uses: actions/upload-artifact@v4
         with:
           name: quki-notes-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          path: project/android/app/build/outputs/apk/release/app-release.apk
           retention-days: 14
 
       - name: Rename APK with version tag
@@ -72,17 +98,14 @@ jobs:
         env:
           TAG: ${{ github.event.release.tag_name }}
         run: |
-          mv build/app/outputs/flutter-apk/app-release.apk \
-             "build/app/outputs/flutter-apk/quki-notes-android-${TAG}.apk"
+          mv project/android/app/build/outputs/apk/release/app-release.apk \
+             "project/android/app/build/outputs/apk/release/quki-notes-android-${TAG}.apk"
 
       - name: Upload to GitHub Release
         if: github.event_name != 'workflow_dispatch'
         uses: softprops/action-gh-release@v2
         with:
-          files: build/app/outputs/flutter-apk/quki-notes-android-${{ github.event.release.tag_name }}.apk
-
-      - name: Prepare whatsnew directory
-        run: mkdir -p whatsnew
+          files: project/android/app/build/outputs/apk/release/quki-notes-android-${{ github.event.release.tag_name }}.apk
 
       - name: Find play store notes artifact
         if: github.event_name == 'release'
@@ -112,9 +135,8 @@ jobs:
       - name: Write whatsnew file
         if: github.event_name == 'release' && steps.find-notes.outputs.run_id != ''
         run: |
+          mkdir -p whatsnew
           cp /tmp/play-notes/play-store-notes.txt whatsnew/whatsnew-en-US
-          echo "Play Store notes:"
-          cat whatsnew/whatsnew-en-US
 
       - name: Upload to Play Store (alpha)
         if: github.event_name == 'release'
@@ -122,7 +144,7 @@ jobs:
         with:
           serviceAccountJsonPlainText: ${{ secrets.PLAY_STORE_JSON_KEY }}
           packageName: com.quki.quki_notes
-          releaseFiles: build/app/outputs/bundle/release/app-release.aab
+          releaseFiles: project/android/app/build/outputs/bundle/release/app-release.aab
           tracks: alpha
           status: completed
           whatsNewDirectory: whatsnew

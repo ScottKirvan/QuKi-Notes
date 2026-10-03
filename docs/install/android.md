@@ -1,38 +1,31 @@
 # Get QuKi Notes for Android
 
-## Closed Beta
+## Installing from Google Play (recommended)
 
-QuKi Notes for Android is currently in closed testing.
-
-<!-- TODO: Add closed beta signup instructions here -->
+QuKi Notes for Android is currently in testing mode on the google play store (this is a Google Play requirement for new apps).  In order to access the beta, you need to join the beta testing program. It's free, it's easy, you only have to do it once.  This step will go away once the app is publicly available.
 
 To get the permissions required to access the closed alpha test versions, first join this google group:  https://groups.google.com/g/boju-studio-beta
 
-Once you've joined the group, you'll have access to download directly from the Play Store on Android:  https://play.google.com/store/apps/details?id=com.quki.quki_notes
+Once you've joined the group, open the [Downloads](/downloads) page and, under **Android**, choose **Google Play**.
 
-Or, if you prefer, you can access the same version using the Play Store Weblink:  https://play.google.com/apps/testing/com.quki.quki_notes
+## Installing QuKi Notes from an APK
 
-Use GitHub, or Discord to report any issues, request any new features, or to simply introduce yourself and say "hi!"  :-)
+### 1. Download it
 
+On your Android device, go to the [downloads](/downloads) page and download the Android **APK**.
 
----
+### 2. Install it
 
-## Sideload (APK)
+Tap the downloaded `.apk`. If your phone shows it as an archive or offers to extract it, open it with the package installer instead (an APK is a ZIP file inside, which some file managers pick up on). What happens next depends on your phone, since Google is in the middle of rolling out a new, stricter flow:
 
-If you have been accepted into the beta, you can install QuKi Notes directly from the APK.
+- **Most phones right now:** Android blocks it with a prompt like *"For your security, your phone is not allowed to install unknown apps from this source."* Tap **Settings** on that prompt, turn on **Allow from this source**, then tap back to return to the install screen and tap **Install**.
+- **If your phone has the new "Advanced Flow" already** (rolling out through 2026–2027): installing an app from a developer Google hasn't verified prompts you to turn on a setting in Developer Options, confirm your identity, restart your phone, and then wait 24 hours before the install is allowed to go through. After that, you can allow it for 7 days or indefinitely.
 
-### Before you install
+If what you see doesn't match either of these, Android's own current instructions are the ones to trust — this is changing quickly.
 
-Android blocks installation of apps from outside the Play Store by default. You'll need to allow your browser or file manager to install unknown apps:
+### Updating later
 
-1. Download the APK using the button below
-2. When Android prompts _"Your phone is not allowed to install unknown apps from this source"_, tap **Settings**
-3. Enable **Allow from this source**, then tap the back arrow to return
-4. Tap **Install**
-
-<!-- TODO: Replace with manifest-driven download button or direct link once beta is open -->
-
-[Download APK from GitHub Releases](https://github.com/ScottKirvan/QuKi-Notes/releases/latest)
+Download the newer build from the same place and install it the same way — it updates QuKi Notes in place without losing your notes, since every release is signed with the same key. You don't need to uninstall first.
 
 ---
 

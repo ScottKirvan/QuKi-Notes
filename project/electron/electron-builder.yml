@@ -1,0 +1,38 @@
+appId: com.quki.quki_notes
+productName: QuKi Notes
+directories:
+  output: release
+files:
+  - dist/**
+# project/dist (Vite web build) is copied into resources/webdist inside the
+# package. main.ts reads process.resourcesPath + '/webdist' when app.isPackaged.
+#
+# ../cli/dist-bundle and ../mcp/dist-bundle are each a single self-contained
+# .mjs file (see cli/scripts/bundle.mjs and mcp/scripts/bundle.mjs) - run
+# through this app's own Electron binary with ELECTRON_RUN_AS_NODE=1 by the
+# Windows installer's quki.cmd/quki-mcp.cmd (build/installer.nsh) and by the
+# Linux AppImage's AppRun dispatch (see build-linux.yml). Both packages'
+# `npm run bundle` must run before packaging - CI runs it; there is no
+# prepack hook here, to keep this config declarative about what it expects
+# rather than reaching into a sibling package's build.
+extraResources:
+  - from: ../dist
+    to: webdist
+  - from: ../cli/dist-bundle
+    to: cli
+  - from: ../mcp/dist-bundle
+    to: mcp
+win:
+  target:
+    - target: nsis
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+linux:
+  target:
+    - target: AppImage
+    - target: deb
+  category: Utility
+deb:
+  afterInstall: build/afterInstall.sh
+  afterRemove: build/afterRemove.sh
