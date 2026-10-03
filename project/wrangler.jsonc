@@ -1,0 +1,13 @@
+{
+  "name": "qukinotes",
+  "compatibility_date": "2026-10-03",
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  },
+  "routes": [{ "pattern": "qukinotes.scottkirvan.com", "custom_domain": true }],
+  // Browser storage is per origin: a second URL for the same app would split
+  // a user's QuKis between two separate stores.
+  "workers_dev": false,
+  "preview_urls": false
+}

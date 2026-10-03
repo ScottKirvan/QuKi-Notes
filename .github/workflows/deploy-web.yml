@@ -1,0 +1,49 @@
+name: Deploy Web App
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-web
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # core must be built first — the web app imports from core/dist/
+      - name: Install (core)
+        run: npm ci
+        working-directory: project/core
+
+      - name: Build (core)
+        run: npm run build
+        working-directory: project/core
+
+      - name: Install (app)
+        run: npm ci
+        working-directory: project
+
+      - name: Build web app
+        run: npm run build
+        working-directory: project
+
+      - name: Deploy to Cloudflare
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: project
+          wranglerVersion: "4"
+          command: deploy
