@@ -1,5 +1,10 @@
 appId: com.quki.quki_notes
 productName: QuKi Notes
+# The web app's PWA icon (512x512) — one source for every platform.
+# electron-builder converts it to .ico for Windows and the sized PNGs Linux
+# needs; without it, the exe, installer, AppImage and .deb get Electron's
+# default icon.
+icon: ../public/icons/icon-512.png
 directories:
   output: release
 files:
