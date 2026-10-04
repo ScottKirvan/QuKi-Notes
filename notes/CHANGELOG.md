@@ -5,9 +5,9 @@
 
 ### Bug Fixes
 
-* only enable USE_SYSTEM_FPM on the arm64 Linux build ([c34feb0](https://github.com/ScottKirvan/QuKi-Notes/commit/c34feb0c4126a775ec0e8096918ac5de7eb9c1d1))
-* unblock Windows and Linux desktop packaging ([4f4febb](https://github.com/ScottKirvan/QuKi-Notes/commit/4f4febbca1331862c13c630152ff2e5dede1fec6))
-* use system fpm for the arm64 Linux .deb build ([b770fdf](https://github.com/ScottKirvan/QuKi-Notes/commit/b770fdfb78fc629c0e0de042bb82bfc53cebd2d4))
+* only enable USE_SYSTEM_FPM on the arm64 Linux build ([#478](https://github.com/ScottKirvan/QuKi-Notes/pull/478))
+* unblock Windows and Linux desktop packaging ([#478](https://github.com/ScottKirvan/QuKi-Notes/pull/478))
+* use system fpm for the arm64 Linux .deb build ([#478](https://github.com/ScottKirvan/QuKi-Notes/pull/478))
 
 ## [0.25.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.24.1...v0.25.0) (2026-10-03)
 
