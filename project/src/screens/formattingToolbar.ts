@@ -1,3 +1,4 @@
+import { redo, redoDepth, undo, undoDepth } from "@codemirror/commands";
 import type { EditorView, ViewUpdate } from "@codemirror/view";
 import {
   Bold,
@@ -12,7 +13,9 @@ import {
   List,
   ListChecks,
   ListOrdered,
+  Redo2,
   Strikethrough,
+  Undo2,
   createElement,
 } from "lucide";
 
@@ -108,17 +111,17 @@ export interface FormattingToolbarHandle {
 }
 
 /**
- * Builds the ten-button formatting toolbar (BEHAVIOR_SPEC.md "Formatting
- * toolbar — ten buttons") and mounts it into `container`. Button order,
- * icons and inline delimiters match formatting_toolbar.dart exactly, aside
- * from the heading button, which BEHAVIOR_SPEC.md explicitly changes from
- * an H1-only toggle to the normal/H1/H2/H3 cycle `toolbar/heading.ts`
- * implements.
+ * Builds the formatting toolbar (BEHAVIOR_SPEC.md "Formatting toolbar —
+ * twelve buttons") and mounts it into `container`: Undo and Redo first, then
+ * the ten formatting buttons in formatting_toolbar.dart's order, icons and
+ * inline delimiters, aside from the heading button, which BEHAVIOR_SPEC.md
+ * changes from an H1-only toggle to the normal/H1/H2/H3 cycle
+ * `toolbar/heading.ts` implements.
  *
- * Every button routes through `runToolbarCommand`, which dispatches a real
- * transaction (auto-save-triggering, undoable) and returns focus to the
- * editor — never the suppressed programmatic-load path `main.ts` uses when
- * switching QuKis.
+ * Every formatting button routes through `runToolbarCommand`, which
+ * dispatches a real transaction (auto-save-triggering, undoable) and returns
+ * focus to the editor — never the suppressed programmatic-load path
+ * `main.ts` uses when switching QuKis.
  */
 export function createFormattingToolbar(view: EditorView, container: HTMLElement): FormattingToolbarHandle {
   const element = document.createElement("div");
@@ -132,8 +135,25 @@ export function createFormattingToolbar(view: EditorView, container: HTMLElement
   }
 
   const headingButton = makeButton(Heading, "Heading", () => run(cycleHeading));
+  const undoButton = makeButton(Undo2, "Undo", () => {
+    undo(view);
+    view.focus();
+  });
+  const redoButton = makeButton(Redo2, "Redo", () => {
+    redo(view);
+    view.focus();
+  });
+
+  // aria-disabled, not the disabled attribute: a disabled button can't
+  // cancel its own mousedown, so tapping it would take focus from the editor
+  // and, on Android, drop the keyboard out of edit mode.
+  function setUnavailable(button: HTMLButtonElement, unavailable: boolean): void {
+    button.setAttribute("aria-disabled", String(unavailable));
+  }
 
   element.append(
+    undoButton,
+    redoButton,
     makeButton(Bold, "Bold", () => run((v) => wrapSelection(v, "**", "**"))),
     makeButton(Italic, "Italic", () => run((v) => wrapSelection(v, "_", "_"))),
     makeButton(Strikethrough, "Strikethrough", () => run((v) => wrapSelection(v, "~~", "~~"))),
@@ -154,12 +174,21 @@ export function createFormattingToolbar(view: EditorView, container: HTMLElement
   }
   updateHeadingIcon();
 
+  function updateHistoryButtons(): void {
+    setUnavailable(undoButton, undoDepth(view.state) === 0);
+    setUnavailable(redoButton, redoDepth(view.state) === 0);
+  }
+  updateHistoryButtons();
+
   return {
     setVisible(visible: boolean): void {
       element.hidden = !visible;
     },
     onUpdate(update: ViewUpdate): void {
       if (update.docChanged || update.selectionSet) updateHeadingIcon();
+      // Not gated on docChanged: loading a QuKi clears the history in a
+      // transaction that changes nothing else.
+      updateHistoryButtons();
     },
     scrollMarginBottom(): number {
       // `element.hidden` (display: none) makes getBoundingClientRect()

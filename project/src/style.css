@@ -164,7 +164,7 @@ body {
 .new-btn:hover:not(:disabled),
 .help-btn:hover:not(:disabled),
 .settings-btn:hover:not(:disabled),
-.toolbar-btn:hover:not(:disabled) {
+.toolbar-btn:hover:not(:disabled):not([aria-disabled="true"]) {
   background: var(--background-modifier-hover);
 }
 
@@ -173,7 +173,7 @@ body {
 .new-btn:active:not(:disabled),
 .help-btn:active:not(:disabled),
 .settings-btn:active:not(:disabled),
-.toolbar-btn:active:not(:disabled) {
+.toolbar-btn:active:not(:disabled):not([aria-disabled="true"]) {
   background: var(--background-modifier-active-hover);
 }
 
@@ -192,7 +192,8 @@ body {
 .new-btn:disabled,
 .help-btn:disabled,
 .settings-btn:disabled,
-.toolbar-btn:disabled {
+.toolbar-btn:disabled,
+.toolbar-btn[aria-disabled="true"] {
   opacity: 0.45;
   cursor: default;
 }
