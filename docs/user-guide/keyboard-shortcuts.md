@@ -14,6 +14,8 @@ QuKi Notes has no app-wide shortcuts of its own, such as for New or Send. The sh
 | Ctrl+Y (also Ctrl+Shift+Z on Linux; Cmd+Shift+Z on a Mac) | Redo |
 | Ctrl+A | Select all |
 
+On a touchscreen, the Undo and Redo buttons at the left end of the [formatting toolbar](/user-guide/capturing-qukis#formatting-toolbar) do the same as Ctrl+Z and Ctrl+Y.
+
 Because Tab and Shift+Tab indent and dedent, neither moves keyboard focus out of the editor. Use the mouse or touch to reach the top-bar buttons from the editor.
 
 ## QuKis list and Trash

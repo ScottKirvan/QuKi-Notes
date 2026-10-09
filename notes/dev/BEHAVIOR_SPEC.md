@@ -166,7 +166,7 @@ A floating toolbar offers cut, copy, paste and select-all. It is dismissed by th
 
 ### Programmatic updates
 
-Setting the editor's value programmatically **resets the caret to the start** and **does not fire the change event** — this is what stops a load from triggering a save. In-place edits that must keep the caret, such as a checkbox toggle, use a separate path that preserves the selection.
+Setting the editor's value programmatically **resets the caret to the start**, **does not fire the change event** and **clears undo and redo history** — the first is what stops a load from triggering a save; the last stops Undo from putting the previous QuKi's text into this one. In-place edits that must keep the caret, such as a checkbox toggle, use a separate path that preserves the selection and stays undoable.
 
 A literal tab renders at roughly **four times the width of a space**, in both rendered and plain-text modes.
 
@@ -363,9 +363,11 @@ This is the app's defining behavior and the hardest part of the port. The rules 
 
 **7. Collapsed elements are interactive; revealed ones are not.** A collapsed link opens on tap and a collapsed checkbox toggles on tap. Once revealed, both behave as ordinary text — the caret moves normally and no action fires. Slots for tap-handling are recorded only for collapsed elements.
 
-### Formatting toolbar — ten buttons
+### Formatting toolbar — twelve buttons
 
-Bold, italic, strikethrough, inline code, heading, unordered list, ordered list, task list, indent, dedent.
+Undo, redo, bold, italic, strikethrough, inline code, heading, unordered list, ordered list, task list, indent, dedent.
+
+Undo and redo sit at the left edge, on every platform — they are the only way to undo on a touchscreen, and the left edge stays on screen when a narrow toolbar scrolls. They do what Ctrl+Z and Ctrl+Y do: step back and forward through this QuKi's edits, typing and toolbar formatting alike. Each is greyed out while there is nothing to undo or redo; tapping a greyed one does nothing and leaves the editor in edit mode. History belongs to one QuKi and lives only in memory: opening a QuKi, starting a new one, or relaunching starts with nothing to undo (§4).
 
 The heading button currently toggles `# ` on and off — H1 only.
 

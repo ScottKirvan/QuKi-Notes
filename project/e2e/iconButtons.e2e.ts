@@ -265,15 +265,15 @@ async function runWebScenario(browser: Browser, url: string, scheme: "light" | "
   await page.setViewportSize({ width: 420, height: 700 });
   const toolbarButtons = page.locator("#view-editor .toolbar-btn");
   const toolbarCount = await toolbarButtons.count();
-  assert(toolbarCount === 10, `expected 10 toolbar buttons, got ${toolbarCount}`);
+  assert(toolbarCount === 12, `expected 12 toolbar buttons, got ${toolbarCount}`);
   for (let i = 0; i < toolbarCount; i++) {
     const f = await assertIconButton(toolbarButtons.nth(i), `toolbar button ${i}`);
     assertSizes(f, `toolbar button ${i}`, TOOLBAR_BUTTON_SIZE, TOOLBAR_ICON_SIZE);
   }
-  await assertHoverAndFocusFeedback(page, toolbarButtons.nth(0), "toolbar Bold button");
+  await assertHoverAndFocusFeedback(page, page.locator('#view-editor .toolbar-btn[aria-label="Bold"]'), "toolbar Bold button");
   await assertHoverAndFocusFeedback(page, page.locator("#btn-settings"), "editor app bar Settings button");
   await assertKeyboardFocusRing(page, "#btn-settings", "editor app bar Settings button");
-  console.log(`${tag} PASS: editor app bar (7) and formatting toolbar (10) buttons are icon-only SVG, labelled, borderless, with hover tint`);
+  console.log(`${tag} PASS: editor app bar (7) and formatting toolbar (12) buttons are icon-only SVG, labelled, borderless, with hover tint`);
 
   // --- List screen ---
   await page.click("#btn-quki-list");
