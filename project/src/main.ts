@@ -7,7 +7,7 @@ import {
   type KeyBinding,
 } from "@codemirror/view";
 import { EditorState } from "@codemirror/state";
-import { history, defaultKeymap, historyKeymap } from "@codemirror/commands";
+import { defaultKeymap, historyKeymap } from "@codemirror/commands";
 import { indentOnInput, HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { markdown } from "@codemirror/lang-markdown";
 import { GFM } from "@lezer/markdown";
@@ -29,6 +29,7 @@ import { AppSettingsStore } from "./appSettings";
 import type { ElectronSetupApi } from "./electronSetupApi";
 import { applyDedent, applyIndent } from "./toolbar/indentDedent";
 import { runToolbarCommand } from "./toolbarAdapter";
+import { replaceDocumentAndForgetHistory, resettableHistory } from "./editorHistory";
 import { createFormattingToolbar, type FormattingToolbarHandle } from "./screens/formattingToolbar";
 import { revealPlugin, blockRevealField } from "./reveal/decorations";
 import { hangingIndent } from "./reveal/hangingIndent";
@@ -563,7 +564,7 @@ async function init(): Promise<void> {
       // rectangular selection, crosshair cursor or selection-match
       // highlighting, none of which appear in the spec's editor surface.
       highlightSpecialChars(),
-      history(),
+      resettableHistory,
       drawSelection(),
       dropCursor(),
       EditorState.allowMultipleSelections.of(true),
@@ -939,10 +940,7 @@ async function init(): Promise<void> {
   function loadDocumentIntoEditor(body: string): void {
     suppressAutoSaveNotify = true;
     try {
-      view.dispatch({
-        changes: { from: 0, to: view.state.doc.length, insert: body },
-        selection: { anchor: 0 },
-      });
+      for (const spec of replaceDocumentAndForgetHistory(body, view.state.doc.length)) view.dispatch(spec);
     } finally {
       suppressAutoSaveNotify = false;
     }
