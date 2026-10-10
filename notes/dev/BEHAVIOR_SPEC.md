@@ -168,7 +168,9 @@ The share sheet itself splits by platform: **Android** goes through a small nati
 
 ### List auto-continue
 
-Pressing Enter at the end of a list item **continues the list**: after `- item` the next line begins `- `; after `- [ ] item` it begins `- [ ] `. Pressing Enter on an item that is empty apart from its marker **exits the list** instead, removing the marker.
+Pressing Enter at the end of a list item **continues the list**: after `- item` the next line begins `- `; after `- [ ] item` it begins `- [ ] `. Pressing Enter on an item that is empty apart from its marker **exits the list** instead, removing the marker. This holds wherever the empty item sits, including straight after other items: `- item`, Enter, Enter gives `- item` followed by an empty line, never a blank line inserted above a still-present `- `. The same goes for numbered items and tasks.
+
+An empty **indented** item moves out one level instead of ending the list outright: Enter on the empty `\t- ` in `- a⏎\t- ` gives `- a⏎- `, and a further Enter on that empty item ends the list. *[Proposed — unconfirmed]* — one level per Enter mirrors Shift+Tab, and keeps the outer list going for the common case of finishing a sub-list and carrying on with the parent.
 
 **Backspace deletes the underlying markdown one character at a time**, exactly as in ordinary text, never a whole marker at once. This holds for every list item (bullets `- `, `* `, `+ `; numbered items `1. `, `1) `; checkboxes `- [ ] `, `- [x] `), for quote markers (`> `, nested `> > `, and quotes inside or around lists), and at any indentation. With the caret just before `buy` in `- [ ] buy milk`, Backspace removes the space, then `]`, then `[`, and so on. In the rendered view each step shows what is now in the text: once `- [ ]buy milk` is no longer a task it shows as a bullet followed by the literal `[ ]`.
 

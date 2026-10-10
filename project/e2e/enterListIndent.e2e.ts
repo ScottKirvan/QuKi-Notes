@@ -69,6 +69,20 @@ async function enterKeepsIndentInPlainText(browser: Browser, url: string): Promi
   await done();
 }
 
+async function enterOnEmptySecondItemEndsList(browser: Browser, url: string): Promise<void> {
+  const tag = "[e2e-enter-indent:empty-second-item]";
+  const { page, done } = await openEditor(browser, url);
+  await clickFirstLine(page);
+  await page.keyboard.type("- item");
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Enter");
+
+  const body = await editorBody(page);
+  assert(body === "- item\n", `${tag} Enter on the empty second item must end the list, got ${JSON.stringify(body)}`);
+  console.log(`${tag} PASS: Enter on an empty second item ends the list`);
+  await done();
+}
+
 async function main(): Promise<void> {
   const { server, url } = await serveDist();
   console.log(`[e2e-enter-indent] serving dist/ at ${url}`);
@@ -76,6 +90,7 @@ async function main(): Promise<void> {
   try {
     await enterKeepsIndentedTaskDepth(browser, url);
     await enterKeepsIndentInPlainText(browser, url);
+    await enterOnEmptySecondItemEndsList(browser, url);
     console.log("[e2e-enter-indent] ALL SCENARIOS PASSED");
   } finally {
     await browser.close();
