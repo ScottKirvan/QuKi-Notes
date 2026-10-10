@@ -170,6 +170,8 @@ The share sheet itself splits by platform: **Android** goes through a small nati
 
 Pressing Enter at the end of a list item **continues the list**: after `- item` the next line begins `- `; after `- [ ] item` it begins `- [ ] `. Pressing Enter on an item that is empty apart from its marker **exits the list** instead, removing the marker.
 
+**Backspace deletes the underlying markdown one character at a time**, exactly as in ordinary text, never a whole marker at once. This holds for every list item (bullets `- `, `* `, `+ `; numbered items `1. `, `1) `; checkboxes `- [ ] `, `- [x] `), for quote markers (`> `, nested `> > `, and quotes inside or around lists), and at any indentation. With the caret just before `buy` in `- [ ] buy milk`, Backspace removes the space, then `]`, then `[`, and so on. In the rendered view each step shows what is now in the text: once `- [ ]buy milk` is no longer a task it shows as a bullet followed by the literal `[ ]`.
+
 ### Toolbar toggle semantics
 
 The list buttons — unordered, ordered, task — **convert in place** rather than stacking markers. Pressing ordered on a line that is already an unordered item replaces the marker; pressing it on a line that is already ordered removes it. Every pairing converts: unordered ↔ ordered ↔ task, in both directions, and each removes its own type.
