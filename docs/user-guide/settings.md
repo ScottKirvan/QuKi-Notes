@@ -10,8 +10,8 @@ Open Settings with the <i-lucide-settings /> **gear** button in the editor's top
 
 **Android, Windows and Linux** show where your QuKis are stored:
 
-- **Filesystem storage**, followed by the folder's path.
-- **App storage (private)**, with the warning "Files will be removed on uninstall. Change location."
+- **Filesystem storage**, followed by the folder's path. This is what Windows and Linux always show, including when you chose **Use app storage** (that's just a `qukis` folder in your Documents folder). Uninstalling QuKi Notes leaves it in place.
+- **App storage (private)**, with the warning "Files will be removed on uninstall. Change location." Only Android shows this, when you chose **Use app storage** there: Android keeps those QuKis in the app's private storage, which is deleted when you uninstall.
 
 Tap **Change location** to open the same choice you saw on first launch. Tap the back arrow on that screen to leave things as they are.
 
