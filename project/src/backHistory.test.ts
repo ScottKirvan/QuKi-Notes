@@ -32,6 +32,7 @@ describe("BackHistory", () => {
 
     expect(where(await back(history))).toBe("list");
     expect(where(await back(history))).toBe("quki:a");
+    expect(where(await back(history))).toBe("blank");
     expect(where(await back(history))).toBe("exit");
   });
 
@@ -69,13 +70,97 @@ describe("BackHistory", () => {
     expect(where(await back(history))).toBe("quki:a");
   });
 
-  it("skips a blank QuKi the user never typed into", async () => {
+  it("a blank QuKi the user never typed into is a stop", async () => {
     const history = new BackHistory<number>();
     history.visitQuKi("a");
     history.visitQuKi(null);
     history.visitList();
 
+    expect(where(await back(history))).toBe("blank");
     expect(where(await back(history))).toBe("quki:a");
+  });
+
+  it("returns to the blank QuKi the app launched with, then exits", async () => {
+    const history = new BackHistory<number>();
+    history.visitList();
+
+    expect(where(await back(history))).toBe("blank");
+    expect(where(await back(history))).toBe("exit");
+  });
+
+  it("launch -> list -> A -> Back -> list -> Back reaches the blank launch QuKi, then exits", async () => {
+    const history = new BackHistory<number>();
+    history.visitList();
+    history.visitQuKi("a");
+
+    expect(where(await back(history))).toBe("list");
+    expect(where(await back(history))).toBe("blank");
+    expect(where(await back(history))).toBe("exit");
+  });
+
+  it("the blank launch QuKi is a stop again after reset", async () => {
+    const history = new BackHistory<number>();
+    history.visitQuKi("a");
+    history.reset();
+    history.visitList();
+
+    expect(where(await back(history))).toBe("blank");
+  });
+
+  it("New while already looking at an untyped blank QuKi adds no stop", async () => {
+    const history = new BackHistory<number>();
+    history.visitQuKi("a");
+    history.visitQuKi(null);
+    history.visitQuKi(null);
+    history.visitQuKi(null);
+
+    expect(where(await back(history))).toBe("quki:a");
+  });
+
+  it("New at launch, before typing anything, adds no stop", async () => {
+    const history = new BackHistory<number>();
+    history.visitQuKi(null);
+
+    expect(where(await back(history))).toBe("exit");
+  });
+
+  it("New from the list adds a stop even when the editor below holds an untyped blank QuKi", async () => {
+    const history = new BackHistory<number>();
+    history.visitList();
+    history.visitQuKi(null);
+
+    expect(where(await back(history))).toBe("list");
+    expect(where(await back(history))).toBe("blank");
+  });
+
+  it("New after the blank QuKi was typed into adds a stop", async () => {
+    const history = new BackHistory<number>();
+    history.assignId("typed");
+    history.visitQuKi(null);
+
+    expect(where(await back(history))).toBe("quki:typed");
+  });
+
+  it("does not stop on a blank QuKi when leaving a blank QuKi", async () => {
+    const history = new BackHistory<number>();
+    history.visitQuKi("a");
+    history.visitQuKi(null);
+    history.visitQuKi("gone");
+    history.visitQuKi(null);
+
+    expect(where(await back(history, existing("a")))).toBe("quki:a");
+  });
+
+  it("returning to a blank stop makes it the editor's QuKi, so its first save names it", async () => {
+    const history = new BackHistory<number>();
+    history.visitQuKi("a");
+    history.visitQuKi(null);
+    history.visitList();
+    await back(history);
+    history.assignId("typed-after-back");
+    history.visitList();
+
+    expect(where(await back(history))).toBe("quki:typed-after-back");
   });
 
   it("skips QuKis that no longer exist at the moment of going back", async () => {
@@ -89,7 +174,7 @@ describe("BackHistory", () => {
 
   it("asks about existence at the moment of going back, not when the QuKi was visited", async () => {
     const history = new BackHistory<number>();
-    history.visitQuKi("a");
+    history.assignId("a");
     history.visitQuKi("b");
     const present = new Set(["a", "b"]);
     const exists = async (id: string): Promise<boolean> => present.has(id);
@@ -102,7 +187,7 @@ describe("BackHistory", () => {
 
   it("exits when every earlier QuKi is gone", async () => {
     const history = new BackHistory<number>();
-    history.visitQuKi("a");
+    history.assignId("a");
     history.visitQuKi("b");
 
     expect(where(await back(history, existing("b")))).toBe("exit");
@@ -177,7 +262,7 @@ describe("BackHistory", () => {
     history.visitList();
     history.returnToEditor();
 
-    expect(where(await back(history))).toBe("exit");
+    expect(where(await back(history))).toBe("blank");
   });
 
   it("after Back lands on the list, its back arrow records the QuKi the editor still holds", async () => {
