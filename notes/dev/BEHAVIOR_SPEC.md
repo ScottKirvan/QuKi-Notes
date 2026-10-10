@@ -23,11 +23,37 @@ In order, before the UI exists:
 
 ## 2. Navigation model
 
-The **editor is the permanent root**. It never shows a back button, and no second editor is ever pushed.
+The **editor is the permanent root screen**. It never shows a back button, and no second editor screen is ever pushed: switching QuKis loads the new one into the same editor. This is about what's on screen only — the QuKis the user moves through are remembered as a session history for Android's system Back (§2a), without a screen per QuKi.
 
 A single piece of app state holds the id of the QuKi currently loaded in the editor. `null` means a blank, unsaved QuKi. The QuKi list sets that id and pops back; the editor observes it and loads accordingly.
 
 From the editor, the QuKi list slides in **from the left** and Settings slides in **from the right** — matching the side each control sits on. Settings opened from the QuKi list uses a plain push instead.
+
+---
+
+## 2a. Android system Back
+
+Android's system Back (the edge-swipe gesture or a Back button), received through Capacitor's App plugin `backButton` event, walks back through where the user has been. It is the only trigger: there is no in-app swipe for it, and desktop and web have no equivalent.
+
+1. **Dialogs first.** If a dialog is open (Help, any confirmation), Back closes it as Cancel and does nothing else.
+2. **Stops.** Every QuKi the user opens from the QuKi list or starts (New, or share-in, which starts one), and the QuKi list screen. Back from a fresh blank QuKi returns to the QuKi the user was in before it.
+3. **Never stops on Settings or Trash.** Back from either returns to wherever the user was before them (from Trash, past Settings too), and going back never lands on either.
+4. **Deleted QuKis are skipped.** A QuKi in the history that has since been trashed or has gone from the folder is passed over. Whether it still exists is asked of the store at the moment of going back; the history is never a record of what exists (STORAGE_CONTRACT.md rules 2 and 6).
+5. **Scroll position.** Returning to a QuKi restores its scroll position as it was when the user left it.
+6. **Exit.** Back past the first stop of the session exits the app.
+
+The history lives in memory for the session only and is never persisted. A new QuKi's place in it follows the id its first save assigns. Every switch to a QuKi goes through the same path as opening one from the list: flush auto-save first and stay put if that fails, then load the text (which also clears undo).
+
+Choices made for cases the rules above don't settle — each `[Proposed — unconfirmed]`:
+
+- `[Proposed — unconfirmed]` A QuKi reopened by Back opens in reading mode (keyboard down), the same as opening it from the list.
+- `[Proposed — unconfirmed]` A blank QuKi the user never typed into is not a stop: there is no file to return to. This includes the blank QuKi every launch starts with, until the user types into it.
+- `[Proposed — unconfirmed]` Deleting the open QuKi from the editor starts a blank QuKi, which becomes a new stop; the deleted one is then skipped by rule 4. Deleting it from the list leaves the list where it is; the list's own back arrow then returns to that blank QuKi.
+- `[Proposed — unconfirmed]` The list's own back arrow (to the editor) counts as going back: the list is no longer a stop.
+- `[Proposed — unconfirmed]` A stop for the QuKi or screen being left is skipped too, so Back never appears to do nothing (e.g. QuKi B, a deleted QuKi, then B again).
+- `[Proposed — unconfirmed]` Back on the first-launch storage-setup screen exits the app, as Android does by default. On the setup screen reached from Settings → Change location (or the unreachable-folder screen at launch), Back is its back arrow. On the all-files permission screen, Back is its back arrow (to the storage choice).
+- `[Proposed — unconfirmed]` Settings → Change location starts the history over, as a launch would: the earlier stops belong to the old folder.
+- `[Proposed — unconfirmed]` Exiting flushes auto-save first, and if that fails the app stays open with the same message as a blocked switch.
 
 ---
 

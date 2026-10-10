@@ -1,5 +1,6 @@
 import { BookOpen } from "lucide";
 
+import type { BackDismissStack } from "../backDismissStack";
 import { buildLineParts, formatBuildString, type BuildInfo } from "../buildInfo";
 import { createIcon } from "./icons";
 import type { ShowToast } from "./toast";
@@ -8,6 +9,7 @@ export interface AboutDialogOptions {
   version: string;
   buildInfo: BuildInfo;
   showToast: ShowToast;
+  backDismiss?: BackDismissStack;
 }
 
 export interface AboutDialog {
@@ -154,10 +156,12 @@ export function createAboutDialog(container: HTMLElement, options: AboutDialogOp
   const closeBtn = overlay.querySelector<HTMLButtonElement>(".about-close")!;
 
   let opener: HTMLElement | null = null;
+  let unregisterBack = (): void => {};
 
   const close = (): void => {
     if (overlay.hidden) return;
     overlay.hidden = true;
+    unregisterBack();
     document.removeEventListener("keydown", onKeyDown);
     opener?.focus();
     opener = null;
@@ -204,6 +208,8 @@ export function createAboutDialog(container: HTMLElement, options: AboutDialogOp
       opener = openedFrom;
       overlay.hidden = false;
       document.addEventListener("keydown", onKeyDown);
+      unregisterBack();
+      unregisterBack = options.backDismiss?.push(close) ?? ((): void => {});
       closeBtn.focus();
     },
     close,

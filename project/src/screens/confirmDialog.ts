@@ -1,3 +1,5 @@
+import type { BackDismissStack } from "../backDismissStack";
+
 export interface ConfirmOptions {
   title: string;
   message?: string;
@@ -14,7 +16,7 @@ export type Confirm = (options: ConfirmOptions) => Promise<boolean>;
  * empty-trash, neither of which the spec gives exact copy for beyond
  * "Restore note?" itself - see the PROPOSAL notes at each call site.
  */
-export function createConfirmDialog(container: HTMLElement): Confirm {
+export function createConfirmDialog(container: HTMLElement, backDismiss?: BackDismissStack): Confirm {
   const overlay = document.createElement("div");
   overlay.className = "confirm-overlay";
   overlay.hidden = true;
@@ -45,6 +47,7 @@ export function createConfirmDialog(container: HTMLElement): Confirm {
       confirmBtn.classList.toggle("danger", options.danger === true);
 
       const cleanup = (result: boolean): void => {
+        unregisterBack();
         overlay.hidden = true;
         cancelBtn.removeEventListener("click", onCancel);
         confirmBtn.removeEventListener("click", onConfirm);
@@ -60,6 +63,7 @@ export function createConfirmDialog(container: HTMLElement): Confirm {
       cancelBtn.addEventListener("click", onCancel);
       confirmBtn.addEventListener("click", onConfirm);
       overlay.addEventListener("click", onOverlayClick);
+      const unregisterBack = backDismiss?.push(onCancel) ?? ((): void => {});
 
       overlay.hidden = false;
       confirmBtn.focus();
