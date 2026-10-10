@@ -1,3 +1,4 @@
+import type { Page } from "playwright";
 import * as fs from "node:fs";
 import * as http from "node:http";
 import * as path from "node:path";
@@ -49,4 +50,13 @@ export function serveDist(): Promise<{ server: http.Server; url: string }> {
 
 export function assert(condition: boolean, message: string): asserts condition {
   if (!condition) throw new Error(`ASSERTION FAILED: ${message}`);
+}
+
+/**
+ * Clicks the editor's first line. A tap below the last line pads down to
+ * where it landed, so tests that mean "put the caret in the text" click the
+ * text itself rather than the middle of a mostly empty editor.
+ */
+export async function clickFirstLine(page: Page): Promise<void> {
+  await page.locator(".cm-content .cm-line").first().click();
 }

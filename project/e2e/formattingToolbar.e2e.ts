@@ -4,6 +4,7 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { chromium, type Page } from "playwright";
+import { clickFirstLine } from "./serveDist.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(__dirname, "..", "dist");
@@ -126,7 +127,7 @@ async function main(): Promise<void> {
     // --- Bold on a collapsed (no) selection inserts the delimiter pair
     // with the caret placed between them, and — being a real dispatched
     // edit, not the suppressed load path — triggers auto-save. ---
-    await page.click(".cm-content");
+    await clickFirstLine(page);
     await toolbarButton(page, "Bold").click();
     assert((await editorBody(page)) === "****", `expected "****" after Bold with no selection, got: "${await editorBody(page)}"`);
     const boldCollapsedSelection = await editorSelection(page);
@@ -161,7 +162,7 @@ async function main(): Promise<void> {
 
     // --- Toolbar visibility tracks editor focus/blur directly (editMode.ts's
     // tracker), not some separate listener. ---
-    await page.click(".cm-content");
+    await clickFirstLine(page);
     assert(await isToolbarVisible(page), "toolbar should appear once the editor gains focus");
     console.log("[e2e-formattingToolbar] PASS: toolbar appears on focus");
 
@@ -169,7 +170,7 @@ async function main(): Promise<void> {
     assert(!(await isToolbarVisible(page)), "toolbar should disappear once the editor loses focus");
     console.log("[e2e-formattingToolbar] PASS: toolbar disappears on blur");
 
-    await page.click(".cm-content");
+    await clickFirstLine(page);
     assert(await isToolbarVisible(page), "toolbar should reappear once the editor regains focus");
 
     // --- Bold with a real, mouse-driven selection (double-click to select
@@ -321,7 +322,7 @@ async function main(): Promise<void> {
     // --- Tab / Shift-Tab remain bound in the editor's own keymap, running
     // the identical indent/dedent commands the buttons use. ---
     await setDocAndSelection(page, "paragraph", 0, 0);
-    await page.click(".cm-content");
+    await clickFirstLine(page);
     await page.keyboard.press("Tab");
     assert((await editorBody(page)) === "\tparagraph", `expected Tab to insert a leading tab, got: ${JSON.stringify(await editorBody(page))}`);
     await page.keyboard.press("Shift+Tab");

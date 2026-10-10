@@ -26,6 +26,8 @@ The editor has two states:
 
 A new QuKi opens in editing mode. A QuKi you open from the list opens in reading mode; tap into the text to start editing.
 
+Tap anywhere below your text to start typing right there: QuKi Notes adds blank lines down to where you tapped, so you can jot something mid-page without touching what's already written. If you don't type anything, those blank lines aren't saved.
+
 ::: info
 On Android, editing mode follows the on-screen keyboard. If you type with a hardware keyboard, the on-screen keyboard may never appear, and the toolbar and raw-markdown reveal with it.
 :::
