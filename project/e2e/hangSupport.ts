@@ -174,9 +174,11 @@ export async function hangGeometry(page: Page, needle: string, prefixLengthOrAut
 
 export const WRAP = "lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore magna aliqua";
 
-// Scott's screenshot: the deeply indented line is not a list item to the
-// parser, so it stays raw; the two collapsed bullets follow it.
-export const SCREENSHOT_LINE = "        - jdjd djdid rhe rndjdu ejwu heyie jehehe dhejeb dhej";
+// Scott's screenshot, with the deep line numbered 2: a deeply indented line
+// is a list item wherever the same item unindented would be, and like an
+// unindented one, a numbered item other than 1 cannot end a paragraph, so this
+// one stays part of `blah` and raw. The two collapsed bullets follow it.
+export const SCREENSHOT_LINE = "        2. jdjd djdid rhe rndjdu ejwu heyie jehehe dhejeb dhej";
 export const SCREENSHOT_DOC = `- blah\n${SCREENSHOT_LINE}\n- jdjd\n- `;
 
 async function shot(page: Page, envName: string, name: string): Promise<void> {
@@ -243,7 +245,7 @@ export async function runHangScenarios(env: HangEnvironment): Promise<void> {
     watch(page);
     if (scheme === "light") console.log(`${tag} engine: ${await env.assertEngine(page)}`);
     await setDocAndSelection(page, SCREENSHOT_DOC, SCREENSHOT_DOC.length);
-    await assertHangs(page, `screenshot document (${scheme})`, "jdjd djdid", 10);
+    await assertHangs(page, `screenshot document (${scheme})`, "jdjd djdid", 11);
     await shot(page, env.name, `screenshot-doc-${scheme}`);
     await session.close();
   }
@@ -300,24 +302,24 @@ export async function runHangScenarios(env: HangEnvironment): Promise<void> {
   console.log(`${tag} PASS: collapsed items keep their own hang and are not also marked`);
 
   // Tab characters anywhere in the leading whitespace, on a line the parser leaves raw.
-  const tabDoc = `- top\n\t\t\t- tabbed ${WRAP}\n  \t  - mixed ${WRAP}\n`;
+  const tabDoc = `- top\n\t\t\t2. tabbed ${WRAP}\n  \t  2. mixed ${WRAP}\n`;
   await setDocAndSelection(page, tabDoc, tabDoc.length);
-  await assertHangs(page, "line indented with tabs", "tabbed", 5);
-  await assertHangs(page, "line indented with spaces and a tab", "mixed", 7);
+  await assertHangs(page, "line indented with tabs", "tabbed", 6);
+  await assertHangs(page, "line indented with spaces and a tab", "mixed", 8);
   console.log(`${tag} PASS: tabs in the leading whitespace do not disturb the first row or the wrapped rows`);
 
   // A tab in the item's own text, on the first row and on a wrapped row.
-  const bodyTabDoc = `- top\n\t\t- has\ttab\there ${WRAP} and\tanother ${WRAP}\n- [ ] task\twith\ttabs ${WRAP}\n`;
+  const bodyTabDoc = `- top\n\t\t2. has\ttab\there ${WRAP} and\tanother ${WRAP}\n- [ ] task\twith\ttabs ${WRAP}\n`;
   await setDocAndSelection(page, bodyTabDoc, bodyTabDoc.indexOf("- [ ] task") + 1);
-  await assertHangs(page, "raw line with tabs in its text", "has", 4);
+  await assertHangs(page, "raw line with tabs in its text", "has", 5);
   await assertHangs(page, "revealed task with tabs in its text", "task", 6);
   console.log(`${tag} PASS: tabs in the item's own text keep their exact positions on the first row`);
 
   // An unbroken word longer than the line must not push wrapped rows down or out.
   const longWord = "x".repeat(150);
-  const longDoc = `- top\n\t\t- start ${longWord} end\n- after\n`;
+  const longDoc = `- top\n\t\t2. start ${longWord} end\n- after\n`;
   await setDocAndSelection(page, longDoc, longDoc.length);
-  const long = await assertHangs(page, "line with an unbroken word", "start", 4);
+  const long = await assertHangs(page, "line with an unbroken word", "start", 5);
   const gaps = long.rows.slice(1).map((row, i) => row.top - long.rows[i]!.top);
   assert(gaps.every((gap) => near(gap, gaps[0]!, 1.5)), `rows of the unbroken-word line should be evenly spaced, got ${gaps}`);
   console.log(`${tag} PASS: an unbroken word wraps under the text without gaps`);
@@ -339,14 +341,14 @@ export async function runHangScenarios(env: HangEnvironment): Promise<void> {
   await page.keyboard.type(" and more words that keep going and going");
   await settle(page);
   assert((await lineText(page, "jdjd djdid")).endsWith("dhej and more words that keep going and going"), "the typed text should be in the line, got " + JSON.stringify(await lineText(page, "jdjd djdid")));
-  await assertHangs(page, "after typing into the deep line", "jdjd djdid", 10);
-  await setSelection(page, SCREENSHOT_DOC.indexOf("- jdjd djdid"));
+  await assertHangs(page, "after typing into the deep line", "jdjd djdid", 11);
+  await setSelection(page, SCREENSHOT_DOC.indexOf("2. jdjd djdid"));
   await page.keyboard.press("Backspace");
   await settle(page);
   await page.keyboard.press("Backspace");
   await settle(page);
   const shortened = await lineText(page, "jdjd djdid");
-  assert(/^ *- jdjd/.test(shortened) && shortened.indexOf("-") < 8, `Backspace should have removed leading whitespace, got ${JSON.stringify(shortened.slice(0, 12))}`);
+  assert(/^ *2\. jdjd/.test(shortened) && shortened.indexOf("2") < 8, `Backspace should have removed leading whitespace, got ${JSON.stringify(shortened.slice(0, 12))}`);
   await assertHangs(page, "after deleting leading whitespace", "jdjd djdid", "auto");
   await page.keyboard.type("  ");
   await settle(page);
@@ -373,7 +375,7 @@ export async function runHangScenarios(env: HangEnvironment): Promise<void> {
   for (const [width, height] of [[320, 700], [700, 400], [400, 900], [900, 500]] as const) {
     await session.resize(width, height);
     await settle(page);
-    const g = await hangGeometry(page, "jdjd djdid", 10);
+    const g = await hangGeometry(page, "jdjd djdid", 11);
     if (g.rows.length < 2) continue;
     wrappedWidths += 1;
     for (const row of g.rows.slice(1)) {
@@ -396,10 +398,10 @@ export async function runHangScenarios(env: HangEnvironment): Promise<void> {
     await page.addStyleTag({ content: `.cm-content { font-family: ${family} !important; font-size: 19px !important; }` });
     await settle(page);
     await setDocAndSelection(page, SCREENSHOT_DOC, SCREENSHOT_DOC.length);
-    const inFont = await assertHangs(page, `font ${family}`, "jdjd djdid", 10);
+    const inFont = await assertHangs(page, `font ${family}`, "jdjd djdid", 11);
     seenTextStarts.add(Math.round(inFont.textStartLeft));
     await setDocAndSelection(page, tabDoc, tabDoc.length);
-    await assertHangs(page, `font ${family} with tabs`, "tabbed", 5);
+    await assertHangs(page, `font ${family} with tabs`, "tabbed", 6);
     await setDocAndSelection(page, doc, at("- alpha") + 1);
     await assertHangs(page, `font ${family} revealed item`, "alpha", 2);
   }

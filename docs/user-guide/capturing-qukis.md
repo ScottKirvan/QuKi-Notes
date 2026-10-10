@@ -120,7 +120,7 @@ Press **Enter** at the end of a list item, task item or quote line, and the next
 | GFM pipe tables (`\| a \| b \|`)      | A table, with bold, italic, code and links inside cells                                     |
 | ` ``` ` fenced code blocks            | A monospace block with a shaded background and the fence lines hidden. No syntax colouring. |
 
-Lists, task lists and quotes nest by indentation, and wrapped lines stay indented under their item. Nested numbered lists count independently of their parent.
+Lists, task lists and quotes nest by indentation, and wrapped lines stay indented under their item. An indented item is a list item wherever it is, including on a QuKi's first line or right under a paragraph. Nested numbered lists count independently of their parent.
 
 **What isn't rendered:**
 
