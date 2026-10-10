@@ -63,7 +63,7 @@ Leading: a **QuKis** button opening the list. **Disabled when no QuKis exist.**
 
 Actions, in this order:
 
-1. **Mode toggle** — switches the whole QuKi between rendered and plain-text. Its icon reports the current state: a code icon in plain-text mode, a markdown mark when the editor has focus, an open book otherwise. The choice persists across launches.
+1. **Mode toggle** — in edit mode, switches the whole QuKi between rendered and plain-text, and never takes focus from the editor (on Android the keyboard stays up). In reading mode (on Android, keyboard down), a tap only returns to edit mode — focusing the editor and bringing the keyboard back — and leaves rendered/plain-text unchanged. Its icon reports the current state: a code icon in plain-text mode, a markdown mark when the editor has focus, an open book otherwise. The choice persists across launches.
 2. **New QuKi**
 3. **Help** — opens the help/about dialog
 4. **Send**

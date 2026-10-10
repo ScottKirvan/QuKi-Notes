@@ -123,7 +123,7 @@ The editor's top bar, left to right:
 | Button                                 | What it does                                                                                                           |
 | -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | <i-lucide-file-stack /> **QuKis** (far left) | Opens your QuKis list. Greyed out until you start typing your first QuKi.                                                    |
-| <i-lucide-book-open /> <i-custom-markdown-mark /> <i-lucide-code-xml /> **Mode** | Switches between the rendered view and plain text. See [Capturing QuKis](/user-guide/capturing-qukis#plain-text-mode). |
+| <i-lucide-book-open /> <i-custom-markdown-mark /> <i-lucide-code-xml /> **Mode** | While editing, switches between the rendered view and plain text; while reading, brings editing back. See [Capturing QuKis](/user-guide/capturing-qukis#plain-text-mode). |
 | <i-lucide-plus /> **New QuKi** | Starts a new, blank QuKi                                                                                               |
 | <i-lucide-circle-help /> **Help** | Help: version, documentation, Discord, GitHub and support links                                                        |
 | <i-lucide-send /> **Send** | Sends the QuKi. See [Sending QuKis](/user-guide/sending-qukis).                                                        |

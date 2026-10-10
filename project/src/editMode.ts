@@ -62,6 +62,17 @@ export function resolveModeIconState(isPlainText: boolean, isEditMode: boolean):
   return isEditMode ? "edit" : "reading";
 }
 
+export type ModeToggleAction = "toggle-plain-text" | "start-editing";
+
+/**
+ * BEHAVIOR_SPEC.md §4: while editing, the mode toggle switches between
+ * rendered and plain text; while reading (on Android, keyboard down) it only
+ * brings editing back and leaves the mode as it is.
+ */
+export function modeToggleAction(isEditMode: boolean): ModeToggleAction {
+  return isEditMode ? "toggle-plain-text" : "start-editing";
+}
+
 export interface EditModeTracker {
   isEditMode(): boolean;
   /** Removes whatever native/DOM listeners this tracker installed. */

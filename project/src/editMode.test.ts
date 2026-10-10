@@ -29,6 +29,7 @@ vi.mock("@capacitor/keyboard", () => ({
 
 const {
   createEditModeTracker,
+  modeToggleAction,
   resolveModeIconState,
   shouldFocusOnOpen,
   toolbarScrollCorrectionTiming,
@@ -110,6 +111,16 @@ describe("resolveModeIconState", () => {
 
   it("is reading when rendered and not in edit mode", () => {
     expect(resolveModeIconState(false, false)).toBe("reading");
+  });
+});
+
+describe("modeToggleAction", () => {
+  it("switches between rendered and plain text while editing", () => {
+    expect(modeToggleAction(true)).toBe("toggle-plain-text");
+  });
+
+  it("only brings editing back (the keyboard, on Android) while reading", () => {
+    expect(modeToggleAction(false)).toBe("start-editing");
   });
 });
 
