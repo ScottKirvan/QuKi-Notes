@@ -38,6 +38,7 @@ import { readPlainTextModePreference, writePlainTextModePreference } from "./web
 import { editModeField, setEditMode } from "./reveal/editModeField";
 import {
   createEditModeTracker,
+  modeToggleAction,
   resolveModeIconState,
   shouldFocusOnOpen,
   toolbarScrollCorrectionTiming,
@@ -789,18 +790,20 @@ async function init(): Promise<void> {
       pendingToolbarScrollCheck = true;
     }
   });
-  if (shouldFocusOnOpen(initial.id)) {
+  function focusEditorAndShowKeyboard(): void {
     view.focus();
-    // A cold launch has no preceding user gesture, so the WebView will not
-    // reliably auto-show the soft keyboard from this plain DOM focus() call
-    // alone (confirmed on-device; matches Capacitor's own issue #3115).
-    // Keyboard.show() asks Android's InputMethodManager directly instead of
-    // going through DOM focus, so it isn't subject to that same gesture
-    // requirement. Android-only (usesKeyboardSignal) - other platforms show
-    // the keyboard from focus() correctly already.
+    // DOM focus alone doesn't reliably bring up Android's soft keyboard: not
+    // on a cold launch with no preceding user gesture (confirmed on-device;
+    // matches Capacitor's own issue #3115), and not when the editor already
+    // has focus because the user dismissed the keyboard without blurring it.
+    // Keyboard.show() asks Android's InputMethodManager directly. Other
+    // platforms show the keyboard from focus() correctly already.
     if (usesKeyboardSignal(Capacitor.getPlatform(), Capacitor.isNativePlatform())) {
       void Keyboard.show();
     }
+  }
+  if (shouldFocusOnOpen(initial.id)) {
+    focusEditorAndShowKeyboard();
   }
   // Seeds the toolbar's initial shown/hidden state the same way
   // updateModeToggleIcon() below seeds the mode icon from
@@ -874,14 +877,13 @@ async function init(): Promise<void> {
    * icon in plain-text mode, a markdown-mark icon in edit mode, an open
    * book in reading mode (editModeTracker/resolveModeIconState - see
    * editMode.ts for what actually drives edit vs. reading: Capacitor
-   * keyboard events on Android, editor focus everywhere else). The
-   * button's own action (toggle plain-text) is unaffected by edit/reading,
-   * so its label always describes that action, not the icon currently
-   * shown.
+   * keyboard events on Android, editor focus everywhere else). The label
+   * describes what a tap will do (modeToggleAction), not the icon shown.
    */
   function updateModeToggleIcon(): void {
     const isPlainText = view.state.field(plainTextMode);
-    const iconState = resolveModeIconState(isPlainText, editModeTracker?.isEditMode() ?? false);
+    const isEditMode = editModeTracker?.isEditMode() ?? false;
+    const iconState = resolveModeIconState(isPlainText, isEditMode);
     const icon =
       iconState === "plain-text"
         ? createElement(CodeXml, { width: 24, height: 24, "aria-hidden": "true", focusable: "false" })
@@ -889,14 +891,24 @@ async function init(): Promise<void> {
           ? createMarkdownMarkIcon()
           : createElement(BookOpen, { width: 24, height: 24, "aria-hidden": "true", focusable: "false" });
     modeToggleBtn.replaceChildren(icon);
-    const label = isPlainText ? "Rendered mode" : "Plain text";
+    const label =
+      modeToggleAction(isEditMode) === "start-editing" ? "Start editing" : isPlainText ? "Rendered mode" : "Plain text";
     modeToggleBtn.title = label;
     modeToggleBtn.setAttribute("aria-label", label);
     modeToggleBtn.setAttribute("aria-pressed", String(isPlainText));
   }
   updateModeToggleIcon();
 
+  // Keeps the tap from taking focus off the editor, same as the toolbar's
+  // buttons: losing focus even briefly drops Android's keyboard, and on
+  // desktop it swapped this button's icon mid-click, which swallowed the
+  // click.
+  modeToggleBtn.addEventListener("mousedown", (event) => event.preventDefault());
   modeToggleBtn.addEventListener("click", () => {
+    if (modeToggleAction(editModeTracker?.isEditMode() ?? false) === "start-editing") {
+      focusEditorAndShowKeyboard();
+      return;
+    }
     const next = !view.state.field(plainTextMode);
     view.dispatch({
       effects: setPlainTextMode.of(next),
