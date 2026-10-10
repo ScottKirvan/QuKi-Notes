@@ -339,6 +339,8 @@ These are decisions, not incidental behavior. Each is asserted somewhere in the 
 - `-`, `*` and `+` all open an unordered item.
 - `- [ ] ` and `- [x] ` are task items, **not** unordered items — the checkbox wins.
 - `- [X] ` with a capital X counts as checked.
+- **A list item may be indented by any amount.** A tab is one depth, so `\t- item` is an item at depth 1 — on a QuKi's first line, after a blank line or a heading, right under a paragraph, or two or more levels below its parent — and Enter continues it at the same indentation. CommonMark would make a line indented four or more columns an indented code block, or more of the paragraph above it; list lines are exempt from that. Indented lines that are not list items keep CommonMark's reading.
+- An indented item ends a paragraph exactly where the same item unindented would: not when it is empty, and not when it is numbered other than `1.`, unless the paragraph is itself inside a list of that kind. Such a line stays part of the paragraph and shows as raw text. *[Proposed — unconfirmed]* — this mirrors CommonMark's rule for unindented items rather than making indentation change what counts as an item.
 - An image is a block element **only on a line of its own**. An image reference inside surrounding text is not a block image.
 - Ordered lists renumber **block-relative**: consecutive items are numbered from the first item's own digit, so `1. / 1. / 1.` renders 1, 2, 3, and a block starting at `5.` renders 5, 6, 7. A break in the run starts a new block that keeps its own source digit.
 
