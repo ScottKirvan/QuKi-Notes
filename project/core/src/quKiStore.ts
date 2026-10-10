@@ -1,5 +1,5 @@
 import { exportLibrary as buildExport } from './export.js';
-import { findImageReferences, isOrphanCandidate, writeImage as writeImageFile } from './media.js';
+import { findImageReferences, isOrphanCandidate, isReadableFile, writeImage as writeImageFile } from './media.js';
 import { readSidecar, writeSidecar, type SidecarData } from './sidecar.js';
 import type { FileStat, StorageBackend } from './storageBackend.js';
 import {
@@ -425,14 +425,27 @@ export class QuKiStore {
     for (const ref of candidates) {
       if (stillReferenced.has(ref)) continue;
       if (!isOrphanCandidate(ref, mediaDirEntries)) continue;
-      await this.backend.remove(ref);
+      await this.removeImageFile(ref, 'removeOrphanedImages');
+    }
+  }
+
+  /** Never removes a subfolder of media/; a failed delete is logged, not thrown. */
+  private async removeImageFile(relPath: string, context: string): Promise<boolean> {
+    if (!(await isReadableFile(this.backend, relPath))) return false;
+    try {
+      await this.backend.remove(relPath);
+      return true;
+    } catch (err) {
+      console.error(`QuKiStore.${context}: skipping "${relPath}" - ${describeError(err)}`);
+      return false;
     }
   }
 
   /**
    * A full pass over media/, independent of any single QuKi's
-   * deletion/trash lifecycle: removes every file under media/ that no
-   * active or trashed QuKi's body currently references.
+   * deletion/trash lifecycle: removes every file directly in media/ that no
+   * active or trashed QuKi's body currently references. Subfolders of media/
+   * and their contents are never touched.
    *
    * This exists because the candidate-based cleanup above only ever
    * considers images that *were* referenced by a QuKi that is now being
@@ -449,8 +462,7 @@ export class QuKiStore {
     let removedCount = 0;
     for (const name of files) {
       const ref = `media/${name}`;
-      if (!referenced.has(ref)) {
-        await this.backend.remove(ref);
+      if (!referenced.has(ref) && (await this.removeImageFile(ref, 'sweepOrphanedImages'))) {
         removedCount++;
       }
     }

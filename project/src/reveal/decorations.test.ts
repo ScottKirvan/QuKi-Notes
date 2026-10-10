@@ -190,6 +190,19 @@ describe("reveal requires a real edit-mode caret, not just wherever it defaults 
   });
 });
 
+describe("image in a subfolder of media/", () => {
+  it("given an image linked from media/photos/, when decorated, then its widget asks the resolver for that exact nested path", () => {
+    const doc = "text\n\n![cat](media/photos/cat.png)";
+    const state = EditorState.create({ doc, selection: { anchor: 0 }, extensions: [markdown({ extensions: GFM }), plainTextMode] });
+    const sources: string[] = [];
+    buildDecorations(state).between(0, doc.length, (_from, _to, value) => {
+      const widget = (value.spec as { widget?: { src?: string } }).widget;
+      if (widget?.src !== undefined) sources.push(widget.src);
+    });
+    expect(sources).toEqual(["media/photos/cat.png"]);
+  });
+});
+
 function byClass(decos: Deco[], cls: string): Deco[] {
   return decos.filter((d) => d.cls === cls);
 }
