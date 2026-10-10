@@ -74,6 +74,8 @@ Actions, in this order:
 
 Fills the screen above the toolbar. Text renders at 16px with 1.4 line height; content is inset 12px on three sides and 36px at the bottom so the last line clears the toolbar.
 
+**A tap below the last line starts a line where the tap landed**, in reading or edit mode: blank lines are added down to that height and the caret goes to the start of the last one, so the user can write mid-page without hunting for the end of the text (the manifesto's velocity). The text above is untouched. Trailing blank lines with nothing typed after them are padding, not content: they are never saved or sent, so tapping a blank QuKi and typing nothing creates no QuKi. Once anything is typed after them they are part of the QuKi.
+
 The editor reports three events: content changed (which notifies auto-save), a link tapped, and a checkbox tapped.
 
 ### Modes

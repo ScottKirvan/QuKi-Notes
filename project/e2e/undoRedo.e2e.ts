@@ -1,6 +1,6 @@
 import { chromium, type Browser, type Locator, type Page } from "playwright";
 
-import { assert, serveDist } from "./serveDist.ts";
+import { assert, clickFirstLine, serveDist } from "./serveDist.ts";
 
 type WindowWithQukiView = typeof window & {
   qukiView: { state: { doc: { toString(): string } }; contentDOM: HTMLElement };
@@ -51,13 +51,13 @@ async function undoDoesNotReachIntoThePreviousQuKiAfterNew(browser: Browser, url
   const tag = "[e2e-undo:new-quki]";
   const { page, done } = await openFreshEditor(browser, url);
 
-  await page.click(".cm-content");
+  await clickFirstLine(page);
   await page.keyboard.type("Undo QuKi A");
   await page.waitForTimeout(PAST_UNDO_GROUPING_MS);
   await page.click("#btn-new-quki");
   await waitForBody(page, "");
 
-  await page.click(".cm-content");
+  await clickFirstLine(page);
   await page.keyboard.press("Control+z");
   await page.waitForTimeout(200);
   const body = await editorBody(page);
@@ -70,12 +70,12 @@ async function undoDoesNotReachIntoThePreviousQuKiAfterOpeningOne(browser: Brows
   const tag = "[e2e-undo:opened-quki]";
   const { page, done } = await openFreshEditor(browser, url);
 
-  await page.click(".cm-content");
+  await clickFirstLine(page);
   await page.keyboard.type("Undo QuKi A");
   await page.waitForTimeout(PAST_UNDO_GROUPING_MS);
   await page.click("#btn-new-quki");
   await waitForBody(page, "");
-  await page.click(".cm-content");
+  await clickFirstLine(page);
   await page.keyboard.type("Undo QuKi B");
   await page.waitForTimeout(PAST_UNDO_GROUPING_MS);
 
@@ -84,7 +84,7 @@ async function undoDoesNotReachIntoThePreviousQuKiAfterOpeningOne(browser: Brows
   await list.locator(".list-row-preview", { hasText: "Undo QuKi A" }).click({ timeout: 5000 });
   await waitForBody(page, "Undo QuKi A");
 
-  await page.click(".cm-content");
+  await clickFirstLine(page);
   await page.keyboard.press("Control+z");
   await page.waitForTimeout(200);
   const body = await editorBody(page);
@@ -99,7 +99,7 @@ async function toolbarUndoAndRedo(browser: Browser, url: string): Promise<void> 
   const undoBtn = toolbarButton(page, "Undo");
   const redoBtn = toolbarButton(page, "Redo");
 
-  await page.click(".cm-content");
+  await clickFirstLine(page);
   await page.locator(".formatting-toolbar").waitFor({ state: "visible" });
 
   const labels = await page.locator(".formatting-toolbar .toolbar-btn").evaluateAll((els) => els.map((el) => el.getAttribute("aria-label")));
@@ -148,7 +148,7 @@ async function toolbarUndoAndRedo(browser: Browser, url: string): Promise<void> 
 
   await page.click("#btn-new-quki");
   await waitForBody(page, "");
-  await page.click(".cm-content");
+  await clickFirstLine(page);
   await page.locator(".formatting-toolbar").waitFor({ state: "visible" });
   assert(await isDisabled(undoBtn), `${tag} Undo must be disabled in a freshly started QuKi`);
   assert(await isDisabled(redoBtn), `${tag} Redo must be disabled in a freshly started QuKi`);

@@ -30,6 +30,7 @@ import type { ElectronSetupApi } from "./electronSetupApi";
 import { applyDedent, applyIndent } from "./toolbar/indentDedent";
 import { runToolbarCommand } from "./toolbarAdapter";
 import { replaceDocumentAndForgetHistory, resettableHistory } from "./editorHistory";
+import { bodyWithoutUnusedPadding, forgetTapPadding, tapBelowTextStartsALine } from "./tapBelowText";
 import { createFormattingToolbar, type FormattingToolbarHandle } from "./screens/formattingToolbar";
 import { revealPlugin, blockRevealField } from "./reveal/decorations";
 import { hangingIndent } from "./reveal/hangingIndent";
@@ -566,6 +567,7 @@ async function init(): Promise<void> {
       // highlighting, none of which appear in the spec's editor surface.
       highlightSpecialChars(),
       resettableHistory,
+      tapBelowTextStartsALine(() => focusEditorAndShowKeyboard()),
       drawSelection(),
       dropCursor(),
       EditorState.allowMultipleSelections.of(true),
@@ -708,7 +710,7 @@ async function init(): Promise<void> {
   let overwritePending = false;
   const autoSave = new AutoSaveController(
     store,
-    () => view.state.doc.toString(),
+    () => bodyWithoutUnusedPadding(view.state),
     (info) => {
       const detail = info.reason === "deleted" ? "it was deleted elsewhere" : "it changed elsewhere";
       showSaveStatus(`Could not save — ${detail}. Your latest edits have not been written to disk.`, {
@@ -930,7 +932,7 @@ async function init(): Promise<void> {
   updateDeleteButtonState();
 
   function updateQuKisButtonState(): void {
-    quKiListBtn.disabled = !isQuKisButtonEnabled({ hasSavedQuKis, editorHasText: view.state.doc.length > 0 });
+    quKiListBtn.disabled = !isQuKisButtonEnabled({ hasSavedQuKis, editorHasText: bodyWithoutUnusedPadding(view.state).length > 0 });
   }
 
   async function refreshQuKisButton(): Promise<void> {
@@ -953,6 +955,7 @@ async function init(): Promise<void> {
     suppressAutoSaveNotify = true;
     try {
       for (const spec of replaceDocumentAndForgetHistory(body, view.state.doc.length)) view.dispatch(spec);
+      view.dispatch(forgetTapPadding());
     } finally {
       suppressAutoSaveNotify = false;
     }
@@ -1035,7 +1038,7 @@ async function init(): Promise<void> {
    */
   async function sendCurrentQuKi(): Promise<void> {
     await autoSave.flush();
-    const body = view.state.doc.toString();
+    const body = bodyWithoutUnusedPadding(view.state);
     const clipboardTransport = createClipboardTransport((text) => navigator.clipboard.writeText(text));
     const webShareApi = typeof navigator.share === "function" ? (data: ShareData) => navigator.share(data) : undefined;
     const webTransport = createWebShareTransport(webShareApi, clipboardTransport);

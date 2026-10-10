@@ -4,6 +4,7 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { chromium, type Page } from "playwright";
+import { clickFirstLine } from "./serveDist.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distDir = path.join(__dirname, "..", "dist");
@@ -165,7 +166,7 @@ async function main(): Promise<void> {
 
     const textMarker = `ImagePaste text-paste marker ${Date.now()}`;
     await page.evaluate((t) => navigator.clipboard.writeText(t), textMarker);
-    await page.click(".cm-content");
+    await clickFirstLine(page);
     await page.keyboard.press("Control+V");
 
     const bodyAfterTextPaste = await editorBody(page);
@@ -192,7 +193,7 @@ async function main(): Promise<void> {
     assert((await editorBody(page)) === "", "New QuKi should start blank");
     assert((await page.getAttribute("#btn-delete", "disabled")) !== null, "Delete should be disabled on a fresh, unsaved New QuKi");
 
-    await page.click(".cm-content");
+    await clickFirstLine(page);
     await page.keyboard.type("AB");
     await page.keyboard.press("ArrowLeft"); // cursor now sits between "A" and "B"
 
@@ -312,7 +313,7 @@ async function main(): Promise<void> {
     assert(bodyBeforeSavedPaste === textMarker, `expected to have reopened the text-paste QuKi, got: ${JSON.stringify(bodyBeforeSavedPaste)}`);
     assert((await page.getAttribute("#btn-delete", "disabled")) === null, "Delete should be enabled for this already-saved QuKi");
 
-    await page.click(".cm-content");
+    await clickFirstLine(page);
     await page.keyboard.press("End"); // cursor at the end of the existing saved text
     await pasteImageViaClipboard(page, ONE_PX_PNG_BASE64);
     await page.waitForFunction(() => /!\[\]\(media\//.test((window as unknown as { qukiView: { state: { doc: { toString(): string } } } }).qukiView.state.doc.toString()), { timeout: 5000 });
@@ -347,7 +348,7 @@ async function main(): Promise<void> {
     // clearing the editor - wait for that to actually land rather than
     // asserting immediately after the click event fires.
     await page.waitForFunction(() => (window as unknown as { qukiView: { state: { doc: { toString(): string } } } }).qukiView.state.doc.toString() === "", { timeout: 5000 });
-    await page.click(".cm-content");
+    await clickFirstLine(page);
 
     // A real selection, not a bare cursor: both pastes below replace it,
     // which is the dangerous case a stale, unmapped position corrupts -
@@ -395,7 +396,7 @@ async function main(): Promise<void> {
     // setting, which defaults on). ---
     await page.click("#btn-new-quki");
     await page.waitForFunction(() => (window as unknown as { qukiView: { state: { doc: { toString(): string } } } }).qukiView.state.doc.toString() === "", { timeout: 5000 });
-    await page.click(".cm-content");
+    await clickFirstLine(page);
 
     await pasteImageViaClipboard(page, ONE_PX_PNG_BASE64);
     await page.waitForFunction(() => /!\[\]\(media\//.test((window as unknown as { qukiView: { state: { doc: { toString(): string } } } }).qukiView.state.doc.toString()), { timeout: 5000 });
