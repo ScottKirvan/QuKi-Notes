@@ -37,20 +37,22 @@ Android's system Back (the edge-swipe gesture or a Back button), received throug
 
 1. **Dialogs first.** If a dialog is open (Help, any confirmation), Back closes it as Cancel and does nothing else.
 2. **Stops.** Every QuKi the user opens from the QuKi list or starts (New, or share-in, which starts one), and the QuKi list screen. Back from a fresh blank QuKi returns to the QuKi the user was in before it.
-3. **Never stops on Settings or Trash.** Back from either returns to wherever the user was before them (from Trash, past Settings too), and going back never lands on either.
-4. **Deleted QuKis are skipped.** A QuKi in the history that has since been trashed or has gone from the folder is passed over. Whether it still exists is asked of the store at the moment of going back; the history is never a record of what exists (STORAGE_CONTRACT.md rules 2 and 6).
-5. **Scroll position.** Returning to a QuKi restores its scroll position as it was when the user left it.
-6. **Exit.** Back past the first stop of the session exits the app.
+3. **Blank QuKis are stops.** Every blank QuKi is a stop, even if the user never typed into it: the one the app launches with (and the one Settings → Change location starts) and any started with New. Back returns to one as a fresh blank QuKi, through the same safe path as New (flush auto-save first and stay put if that fails), without adding a stop. A blank QuKi the user types into gets an id from its first save and is then a stop like any other QuKi.
+4. **Never stops on Settings or Trash.** Back from either returns to wherever the user was before them (from Trash, past Settings too), and going back never lands on either.
+5. **Deleted QuKis are skipped.** A QuKi in the history that has since been trashed or has gone from the folder is passed over. Whether it still exists is asked of the store at the moment of going back; the history is never a record of what exists (STORAGE_CONTRACT.md rules 2 and 6).
+6. **Scroll position.** Returning to a QuKi restores its scroll position as it was when the user left it.
+7. **Exit.** Back past the first stop of the session exits the app.
 
 The history lives in memory for the session only and is never persisted. A new QuKi's place in it follows the id its first save assigns. Every switch to a QuKi goes through the same path as opening one from the list: flush auto-save first and stay put if that fails, then load the text (which also clears undo).
 
 Choices made for cases the rules above don't settle — each `[Proposed — unconfirmed]`:
 
 - `[Proposed — unconfirmed]` A QuKi reopened by Back opens in reading mode (keyboard down), the same as opening it from the list.
-- `[Proposed — unconfirmed]` A blank QuKi the user never typed into is not a stop: there is no file to return to. This includes the blank QuKi every launch starts with, until the user types into it.
-- `[Proposed — unconfirmed]` Deleting the open QuKi from the editor starts a blank QuKi, which becomes a new stop; the deleted one is then skipped by rule 4. Deleting it from the list leaves the list where it is; the list's own back arrow then returns to that blank QuKi.
+- `[Proposed — unconfirmed]` A blank QuKi returned to by Back opens ready for typing (keyboard up), as New and launch open one.
+- `[Proposed — unconfirmed]` New pressed while the editor already shows an untyped blank QuKi changes nothing on screen, so it adds no stop (otherwise Back would appear to do nothing). New pressed from the QuKi list does add one, since the screen changes.
+- `[Proposed — unconfirmed]` Deleting the open QuKi from the editor starts a blank QuKi, which becomes a new stop; the deleted one is then skipped by rule 5. Deleting it from the list leaves the list where it is; the list's own back arrow then returns to that blank QuKi.
 - `[Proposed — unconfirmed]` The list's own back arrow (to the editor) counts as going back: the list is no longer a stop.
-- `[Proposed — unconfirmed]` A stop for the QuKi or screen being left is skipped too, so Back never appears to do nothing (e.g. QuKi B, a deleted QuKi, then B again).
+- `[Proposed — unconfirmed]` A stop for the QuKi or screen being left is skipped too, so Back never appears to do nothing (e.g. QuKi B, a deleted QuKi, then B again; or a blank QuKi when leaving a blank QuKi).
 - `[Proposed — unconfirmed]` Back on the first-launch storage-setup screen exits the app, as Android does by default. On the setup screen reached from Settings → Change location (or the unreachable-folder screen at launch), Back is its back arrow. On the all-files permission screen, Back is its back arrow (to the storage choice).
 - `[Proposed — unconfirmed]` Settings → Change location starts the history over, as a launch would: the earlier stops belong to the old folder.
 - `[Proposed — unconfirmed]` Exiting flushes auto-save first, and if that fails the app stays open with the same message as a blocked switch.

@@ -165,6 +165,96 @@ async function backClosesTheHelpDialogFirst(browser: Browser, url: string): Prom
   await done();
 }
 
+async function backReturnsToTheBlankLaunchQuKiThenExits(browser: Browser, url: string): Promise<void> {
+  const tag = "[e2e-back:launch-blank]";
+  const context = await browser.newContext({ viewport: { width: 420, height: 700 } });
+  const page = await context.newPage();
+  const pageErrors: string[] = [];
+  const exitWarnings: string[] = [];
+  page.on("pageerror", (err) => pageErrors.push(String(err)));
+  page.on("console", (msg) => {
+    if (msg.text().includes("exit on Back")) exitWarnings.push(msg.text());
+  });
+  const bodyA = "Back launch QuKi A";
+
+  await page.goto(url);
+  await page.waitForSelector(".cm-content");
+  await typeQuKi(page, bodyA);
+  await page.waitForFunction(() => !document.querySelector<HTMLButtonElement>("#btn-delete")!.disabled, undefined, { timeout: 5000 });
+
+  // A new session: the app launches on a blank QuKi again, with A on disk.
+  await page.reload();
+  await page.waitForSelector(".cm-content");
+  await page.waitForFunction(() => typeof (window as QukiWindow).qukiSystemBack === "function");
+  await page.waitForFunction(() => !document.querySelector<HTMLButtonElement>("#btn-quki-list")!.disabled, undefined, { timeout: 5000 });
+
+  await page.click("#btn-quki-list");
+  const list = page.locator("#view-list");
+  await list.locator(".list-row-preview", { hasText: bodyA }).waitFor({ timeout: 5000 });
+  await pressBack(page);
+  assert((await visibleView(page)) === "editor", `${tag} Back from the list must return to the blank launch QuKi, got ${await visibleView(page)}`);
+  assert((await editorBody(page)) === "", `${tag} the launch QuKi must still be blank`);
+  assert(exitWarnings.length === 0, `${tag} Back from the list must not exit`);
+  console.log(`${tag} PASS: launch -> list -> Back returns to the blank launch QuKi`);
+
+  await pressBack(page);
+  await page.waitForTimeout(200);
+  assert(exitWarnings.length === 1, `${tag} Back from the blank launch QuKi must exit, got ${exitWarnings.length} exit attempts`);
+  console.log(`${tag} PASS: Back from the blank launch QuKi exits`);
+
+  await page.reload();
+  await page.waitForSelector(".cm-content");
+  await page.waitForFunction(() => !document.querySelector<HTMLButtonElement>("#btn-quki-list")!.disabled, undefined, { timeout: 5000 });
+  exitWarnings.length = 0;
+  await page.click("#btn-quki-list");
+  await list.locator(".list-row-preview", { hasText: bodyA }).click({ timeout: 5000 });
+  await waitForBody(page, bodyA);
+  await pressBack(page);
+  assert((await visibleView(page)) === "list", `${tag} Back from A must land on the list, got ${await visibleView(page)}`);
+  await pressBack(page);
+  await waitForBody(page, "");
+  assert((await visibleView(page)) === "editor", `${tag} Back from the list must show the editor`);
+  assert(exitWarnings.length === 0, `${tag} reaching the blank launch QuKi must not exit`);
+  const focused = await page.evaluate(() => document.activeElement === (window as QukiWindow).qukiView.contentDOM);
+  assert(focused, `${tag} the blank launch QuKi comes back ready for typing, like New`);
+  const deleteDisabled = await page.evaluate(() => document.querySelector<HTMLButtonElement>("#btn-delete")!.disabled);
+  assert(deleteDisabled, `${tag} the blank QuKi must be unsaved (Delete greyed out), not A`);
+  console.log(`${tag} PASS: launch -> list -> A -> Back -> list -> Back reloads the blank launch QuKi`);
+
+  await pressBack(page);
+  await page.waitForTimeout(200);
+  assert(exitWarnings.length === 1, `${tag} Back from it then exits`);
+  console.log(`${tag} PASS: and Back from it exits`);
+
+  assert(pageErrors.length === 0, `page errors: ${pageErrors.join("; ")}`);
+  await context.close();
+}
+
+async function backReturnsToABlankNewQuKi(browser: Browser, url: string): Promise<void> {
+  const tag = "[e2e-back:new-blank]";
+  const { page, done } = await openFreshApp(browser, url);
+  const bodyA = "Back new-blank QuKi A";
+  await typeQuKi(page, bodyA);
+  await page.click("#btn-new-quki");
+  await waitForBody(page, "");
+  await page.click("#btn-new-quki");
+  await page.click("#btn-new-quki");
+  await page.click("#btn-quki-list");
+  await page.locator("#view-list .list-row-preview", { hasText: bodyA }).waitFor({ timeout: 5000 });
+
+  await pressBack(page);
+  assert((await visibleView(page)) === "editor", `${tag} Back from the list must return to the blank QuKi, got ${await visibleView(page)}`);
+  assert((await editorBody(page)) === "", `${tag} the blank QuKi started with New must come back blank`);
+  const focused = await page.evaluate(() => document.activeElement === (window as QukiWindow).qukiView.contentDOM);
+  assert(focused, `${tag} the blank QuKi comes back ready for typing, like New`);
+  console.log(`${tag} PASS: a blank QuKi started with New and never typed into is a stop`);
+
+  await pressBack(page);
+  await waitForBody(page, bodyA);
+  console.log(`${tag} PASS: pressing New again on an untyped blank QuKi added no stops; the next Back reaches A`);
+  await done();
+}
+
 async function main(): Promise<void> {
   const { server, url } = await serveDist();
   console.log(`[e2e-back] serving dist/ at ${url}`);
@@ -173,6 +263,8 @@ async function main(): Promise<void> {
     await backWalksQuKisAndTheListAndRestoresScroll(browser, url);
     await backSkipsSettingsTrashAndDeletedQuKis(browser, url);
     await backClosesTheHelpDialogFirst(browser, url);
+    await backReturnsToABlankNewQuKi(browser, url);
+    await backReturnsToTheBlankLaunchQuKiThenExits(browser, url);
     console.log("[e2e-back] ALL SCENARIOS PASSED");
   } finally {
     await browser.close();

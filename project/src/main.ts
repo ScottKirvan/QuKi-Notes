@@ -1238,6 +1238,17 @@ async function init(): Promise<void> {
       if (backHistory.commit(plan)) showList();
       return;
     }
+    if (plan.target === "blank") {
+      if (!(await flushAutoSaveOrBlock("Could not save your changes — resolve the save issue before switching QuKis."))) return;
+      if (!backHistory.commit(plan)) return;
+      loadDocumentIntoEditor("");
+      autoSave.resetBaseline(blankInitialQuKi());
+      updateDeleteButtonState();
+      navigator_.popToRoot();
+      focusEditorAndShowKeyboard();
+      void refreshQuKisButton();
+      return;
+    }
     if (autoSave.currentId !== plan.id && !(await switchEditorToQuKi(plan.id))) return;
     if (!backHistory.commit(plan)) backHistory.visitQuKi(plan.id);
     navigator_.popToRoot();

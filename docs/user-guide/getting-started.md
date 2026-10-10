@@ -138,7 +138,8 @@ On Android, the system Back (swipe in from the edge of the screen, or the Back b
 - Otherwise it steps back through the QuKis you've opened or started and the QuKis list, in the order you visited them. Starting a new QuKi and pressing Back takes you to the QuKi you were in before.
 - A QuKi you come back to opens for reading, scrolled to where you left it.
 - Settings and Trash are never stops. Back from either takes you to wherever you were before you opened them.
-- A QuKi you've deleted since is skipped. So is a new QuKi you never typed anything into.
+- A QuKi you've deleted since is skipped.
+- A blank QuKi counts as a stop too, even if you never typed anything into it, including the one the app opens with. Back brings it back blank and ready for typing.
 - Pressing Back on the first place you visited closes the app.
 
 Your path is forgotten when the app closes. Each launch starts fresh.
