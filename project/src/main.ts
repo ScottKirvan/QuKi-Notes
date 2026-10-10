@@ -9,8 +9,7 @@ import {
 import { EditorState } from "@codemirror/state";
 import { defaultKeymap, historyKeymap } from "@codemirror/commands";
 import { indentOnInput, HighlightStyle, syntaxHighlighting } from "@codemirror/language";
-import { markdown } from "@codemirror/lang-markdown";
-import { GFM } from "@lezer/markdown";
+import { markdownEditing } from "./markdownEditing";
 import { tags } from "@lezer/highlight";
 import { createElement, FileStack, CodeXml, BookOpen, Plus, CircleHelp, Send, Settings, Trash2 } from "lucide";
 import { Capacitor } from "@capacitor/core";
@@ -617,7 +616,7 @@ async function init(): Promise<void> {
       EditorState.allowMultipleSelections.of(true),
       indentOnInput(),
       keymap.of([...indentDedentKeymap, ...defaultKeymap, ...historyKeymap]),
-      markdown({ extensions: GFM }),
+      markdownEditing(),
       syntaxHighlighting(qukiSyntaxHighlighting),
       // BEHAVIOR_SPEC.md §4: the persisted plain-text/rendered choice - see
       // initialPlainTextMode above for where this comes from.
