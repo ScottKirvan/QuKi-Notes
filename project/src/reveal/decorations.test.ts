@@ -456,6 +456,38 @@ describe("list item layout indentation", () => {
   });
 });
 
+describe("an empty list item with the caret after its marker", () => {
+  it.each([
+    ["bullet", "- top\n\t- ", "BulletWidget"],
+    ["task", "- [ ] top\n\t- [ ] ", "CheckboxWidget"],
+    ["ordered", "1. top\n\t2. ", "OrderedMarkerWidget"],
+  ])("given a new empty indented %s item, when decorated, then it is drawn collapsed at its depth's indentation", (_kind, doc, widget) => {
+    const decos = decorationsFor(doc, doc.length);
+    const lineFrom = doc.lastIndexOf("\n") + 1;
+    expect(widgets(decos, widget).map((d) => [d.from, d.to])).toContainEqual([lineFrom, doc.length]);
+    expect(listLines(decos).filter((d) => d.from === lineFrom)).toEqual([
+      expect.objectContaining({ style: listStyle(46) }),
+    ]);
+    expect(hangLines(decos)).not.toContain(lineFrom);
+  });
+
+  it("given a new empty item at depth 0, when decorated, then it is drawn collapsed too", () => {
+    const doc = "- a\n- ";
+    expect(widgets(decorationsFor(doc, doc.length), "BulletWidget").map((d) => d.from)).toEqual([0, 4]);
+  });
+
+  it("given the caret at the start of an empty item, when decorated, then its raw marker shows", () => {
+    const doc = "- top\n\t- ";
+    const decos = decorationsFor(doc, 6);
+    expect(widgets(decos, "BulletWidget").map((d) => d.from)).toEqual([0]);
+  });
+
+  it("given the caret inside an empty task's marker, when decorated, then its raw marker shows", () => {
+    const doc = "- [ ] ";
+    expect(widgets(decorationsFor(doc, 3), "CheckboxWidget")).toEqual([]);
+  });
+});
+
 function hangLines(decos: Deco[]): number[] {
   return byClass(decos, "cm-quki-hang").map((d) => d.from);
 }

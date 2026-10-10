@@ -208,3 +208,22 @@ describe("coverage across element kinds", () => {
     );
   });
 });
+
+describe("an empty list item's marker", () => {
+  it.each([
+    ["bullet", "- "],
+    ["task", "- [ ] "],
+    ["ordered", "1. "],
+    ["indented bullet", "- a\n\t- "],
+  ])("does not reveal for a caret right after an empty %s marker", (_kind, doc) => {
+    expect(typesRevealed(elementsFor(doc), doc.length)).toEqual([]);
+  });
+
+  it("still reveals for a caret at the start of the empty item", () => {
+    expect(typesRevealed(elementsFor("- "), 0)).toEqual(["BulletItem"]);
+  });
+
+  it("still reveals for a caret right after the marker of an item with text", () => {
+    expect(typesRevealed(elementsFor("- a"), 2)).toEqual(["BulletItem"]);
+  });
+});

@@ -38,7 +38,7 @@ While you're editing, headings look like headings, links show their label, image
 
 - **Inline formatting** (bold, italic, strikethrough, code, links) reveals as a whole unit. If formatting is nested, such as a bold phrase with italics inside, the outermost element reveals all at once.
 - **The cursor right after the closing marker still counts as inside.** Type `**bold**` and stop, and the asterisks stay visible. Type one more character and they disappear.
-- **Headings, list bullets, numbers, checkboxes and quote markers** reveal only the marker itself, when the cursor is right at it. Elsewhere on the line, the marker stays rendered.
+- **Headings, list bullets, numbers, checkboxes and quote markers** reveal only the marker itself, when the cursor is right at it. Elsewhere on the line, the marker stays rendered. A new, empty list item shows its bullet, number or checkbox straight away, ready for you to type.
 - **Images, horizontal rules, tables and fenced code blocks** reveal completely whenever the cursor is anywhere inside them.
 - **If you select text**, what reveals follows where the selection *started*, not where you dragged to.
 

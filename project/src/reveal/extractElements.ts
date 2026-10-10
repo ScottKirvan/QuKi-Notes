@@ -235,6 +235,7 @@ export function extractElements(state: EditorState): ExtractResult {
             checkEnd: marker.end,
             parentId: null,
             indentDepth: indentDepth(state.sliceDoc(line.from, marker.start)),
+            ...(marker.end === line.to && { empty: true }),
             ...(marker.checked !== undefined && { checked: marker.checked }),
           };
           elements.push(element);

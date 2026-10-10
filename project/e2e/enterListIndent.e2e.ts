@@ -55,6 +55,20 @@ async function enterKeepsIndentedTaskDepth(browser: Browser, url: string): Promi
   await done();
 }
 
+async function newEmptyItemDrawnAtDepth(browser: Browser, url: string): Promise<void> {
+  const tag = "[e2e-enter-indent:empty-item-depth]";
+  const { page, done } = await openEditor(browser, url);
+  await typeIndentedTask(page);
+
+  const above = await linePaddingLeft(page, 1);
+  const below = await linePaddingLeft(page, 2);
+  assert(above === below, `${tag} the new empty task must be drawn at its depth (${above}) before anything is typed, got ${below}`);
+  const checkboxes = await page.locator(".cm-content .cm-line").nth(2).locator(".cm-quki-checkbox").count();
+  assert(checkboxes === 1, `${tag} the new empty task must show its checkbox, got ${checkboxes}`);
+  console.log(`${tag} PASS: a new empty indented task is drawn at its depth straight away`);
+  await done();
+}
+
 async function enterKeepsIndentInPlainText(browser: Browser, url: string): Promise<void> {
   const tag = "[e2e-enter-indent:plain-text]";
   const { page, done } = await openEditor(browser, url);
@@ -89,6 +103,7 @@ async function main(): Promise<void> {
   const browser = await chromium.launch();
   try {
     await enterKeepsIndentedTaskDepth(browser, url);
+    await newEmptyItemDrawnAtDepth(browser, url);
     await enterKeepsIndentInPlainText(browser, url);
     await enterOnEmptySecondItemEndsList(browser, url);
     console.log("[e2e-enter-indent] ALL SCENARIOS PASSED");
