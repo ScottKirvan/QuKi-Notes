@@ -9,7 +9,7 @@ QuKi Notes has no app-wide shortcuts of its own, such as for New or Send. The sh
 | Tab | Indent the current or selected lines (see [Indenting](/user-guide/capturing-qukis#indenting)) |
 | Shift+Tab | Dedent the current or selected lines |
 | Enter | New line. In a list, task list or quote, continues it; on an empty item, ends it. |
-| Backspace | Right after a list or quote marker, removes the marker |
+| Backspace | Deletes one character, including inside a list, task or quote marker |
 | Ctrl+Z | Undo |
 | Ctrl+Y (also Ctrl+Shift+Z on Linux; Cmd+Shift+Z on a Mac) | Redo |
 | Ctrl+A | Select all |
