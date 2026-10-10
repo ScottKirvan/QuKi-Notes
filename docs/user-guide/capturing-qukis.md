@@ -56,7 +56,7 @@ The button's icon shows where you are:
 | <i-custom-markdown-mark /> Markdown logo (M↓) | Rendered view, editing |
 | <i-lucide-code-xml /> Code brackets           | Plain-text mode        |
 
-QuKi Notes doesn't remember plain-text mode between launches; every launch starts in the rendered view.
+QuKi Notes remembers your choice: if you leave it in plain-text mode, it starts in plain-text mode next time.
 
 ## Formatting toolbar
 
