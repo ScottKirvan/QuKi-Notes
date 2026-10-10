@@ -8,6 +8,8 @@ The list is read fresh from your QuKi folder every time you open it, so it alway
 
 The list's top bar has <i-lucide-arrow-left /> **Back** (to the editor), <i-lucide-plus /> **New**, <i-lucide-circle-help /> **Help** and <i-lucide-settings /> **Settings**.
 
+On Android, the system Back also brings you back to the list from a QuKi you opened from it. See [Going back on Android](/user-guide/getting-started#going-back-on-android).
+
 ## What you see
 
 QuKis are listed newest first, by when each file was last modified, whether by QuKi Notes or by another program. Each row shows:

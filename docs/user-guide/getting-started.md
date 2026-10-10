@@ -129,3 +129,16 @@ The editor's top bar, left to right:
 | <i-lucide-send /> **Send** | Sends the QuKi. See [Sending QuKis](/user-guide/sending-qukis).                                                        |
 | <i-lucide-settings /> **Settings** | Opens Settings                                                                                                         |
 | <i-lucide-trash-2 /> **Delete** (red, far right) | Moves the current QuKi to Trash. Greyed out until the QuKi has been saved at least once.                               |
+
+### Going back on Android
+
+On Android, the system Back (swipe in from the edge of the screen, or the Back button) takes you back through where you've been:
+
+- If a dialog is open, Back closes it, the same as tapping Cancel or Close.
+- Otherwise it steps back through the QuKis you've opened or started and the QuKis list, in the order you visited them. Starting a new QuKi and pressing Back takes you to the QuKi you were in before.
+- A QuKi you come back to opens for reading, scrolled to where you left it.
+- Settings and Trash are never stops. Back from either takes you to wherever you were before you opened them.
+- A QuKi you've deleted since is skipped. So is a new QuKi you never typed anything into.
+- Pressing Back on the first place you visited closes the app.
+
+Your path is forgotten when the app closes. Each launch starts fresh.

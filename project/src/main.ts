@@ -16,7 +16,7 @@ import { createElement, FileStack, CodeXml, BookOpen, Plus, CircleHelp, Send, Se
 import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
 import { Keyboard } from "@capacitor/keyboard";
-import { QuKiStore, type StorageBackend } from "quki-core";
+import { NotFoundError, QuKiStore, type StorageBackend } from "quki-core";
 import { OpfsBackend } from "quki-core/opfs";
 import { ElectronIpcBackend } from "./electronIpcBackend";
 import { cleanupStaleServiceWorker } from "./staleServiceWorkerCleanup";
@@ -56,6 +56,8 @@ import { buildExportFileName } from "./exportFileName";
 import { isQuKisButtonEnabled } from "./quKisButton";
 import { onSharedTextReceived } from "./shareIn";
 import { Navigator, type ViewName } from "./navigation";
+import { BackHistory } from "./backHistory";
+import { createBackDismissStack } from "./backDismissStack";
 import { createListView } from "./screens/listView";
 import { createSettingsView } from "./screens/settingsView";
 import { createSetupView } from "./screens/setupView";
@@ -209,6 +211,7 @@ async function ensureAndroidStorageAccess(overlayHost: HTMLElement): Promise<boo
     overlayHost,
     () => void gate.requestAccess(),
     () => gate.cancel(),
+    backDismiss,
   );
   gate = createStorageAccessGate(
     {
@@ -360,8 +363,48 @@ async function requestPersistentStorage(): Promise<void> {
   }
 }
 
+/**
+ * BEHAVIOR_SPEC.md §2a: Android's system Back. Module scope because it is
+ * listened for from the very start of init(), before the storage setup
+ * screens: an open dialog or screen with a cancel always takes Back first
+ * (backDismiss); otherwise, until init() hands over `goBackInApp`, there is
+ * nowhere in the app to go back to and Back leaves it.
+ */
+const backDismiss = createBackDismissStack();
+let goBackInApp: (() => Promise<void>) | null = null;
+let backInProgress = false;
+
+function exitApp(): void {
+  void CapacitorApp.exitApp().catch((error: unknown) => {
+    console.warn("QuKi exit on Back failed:", error);
+  });
+}
+
+async function handleSystemBack(): Promise<void> {
+  if (backDismiss.dismissTop()) return;
+  if (!goBackInApp) {
+    exitApp();
+    return;
+  }
+  if (backInProgress) return;
+  backInProgress = true;
+  try {
+    await goBackInApp();
+  } finally {
+    backInProgress = false;
+  }
+}
+
 async function init(): Promise<void> {
   void requestPersistentStorage();
+
+  if (Capacitor.getPlatform() === "android") {
+    void CapacitorApp.addListener("backButton", () => {
+      void handleSystemBack().catch((error: unknown) => {
+        console.error("QuKi Back failed unexpectedly:", error);
+      });
+    });
+  }
 
   const host = document.querySelector<HTMLDivElement>("#editor-host");
   if (!host) {
@@ -373,8 +416,8 @@ async function init(): Promise<void> {
   // backend or store can even be constructed.
   const overlayHost = document.querySelector<HTMLElement>("#overlay-host")!;
   const showToast = createToast(overlayHost);
-  const confirm = createConfirmDialog(overlayHost);
-  const aboutDialog = createAboutDialog(overlayHost, { version: __APP_VERSION__, buildInfo: __BUILD_INFO__, showToast });
+  const confirm = createConfirmDialog(overlayHost, backDismiss);
+  const aboutDialog = createAboutDialog(overlayHost, { version: __APP_VERSION__, buildInfo: __BUILD_INFO__, showToast, backDismiss });
 
   // Capacitor.getPlatform() reports "android" only inside the native
   // Android wrapper (Capacitor.isNativePlatform() implied) - used both to
@@ -419,7 +462,7 @@ async function init(): Promise<void> {
       : isAndroid
         ? await createAndroidSetupApiForMain(overlayHost, onAndroidLocationResolved)
         : undefined;
-  const setupView = setupApi ? createSetupView(overlayHost, setupApi, { isAndroid }) : undefined;
+  const setupView = setupApi ? createSetupView(overlayHost, setupApi, { isAndroid, backDismiss }) : undefined;
 
   // BEHAVIOR_SPEC.md §3: "if no storage location has ever been chosen, the
   // setup screen appears instead of the editor" - nothing below this may
@@ -695,6 +738,13 @@ async function init(): Promise<void> {
 
   toolbarController = createFormattingToolbar(view, host);
 
+  interface EditorScroll {
+    snapshot: ReturnType<EditorView["scrollSnapshot"]>;
+    docLength: number;
+    scrollTop: number;
+  }
+  const backHistory = new BackHistory<EditorScroll>();
+
   // PROPOSAL: a plain visible status banner is the minimal way to satisfy
   // STORAGE_CONTRACT.md rule 18 ("a failed save is surfaced, not just
   // logged") for this slice. It is not a merge UI or a real notification
@@ -728,7 +778,8 @@ async function init(): Promise<void> {
       onSaveError: () => {
         showSaveStatus("Could not save — an unexpected error occurred. Your latest edits have not been written to disk.");
       },
-      onSaved: () => {
+      onSaved: (info) => {
+        backHistory.assignId(info.id);
         hideSaveStatus();
         if (overwritePending) {
           overwritePending = false;
@@ -1013,6 +1064,8 @@ async function init(): Promise<void> {
       loadDocumentIntoEditor("");
       autoSave.resetBaseline({ id: null, body: "", modifiedAt: null });
       updateDeleteButtonState();
+      if (navigator_.current === "editor") backHistory.visitQuKi(null);
+      else backHistory.holdInEditor(null);
     } else {
       await autoSave.flush();
     }
@@ -1107,9 +1160,10 @@ async function init(): Promise<void> {
     showToast("Export downloaded.", 2000);
   }
 
-  async function openQuKiInEditor(id: string): Promise<void> {
+  /** Shared by opening from the list and by Back: false (editor untouched) if the open QuKi won't save or the new one can't be read. */
+  async function switchEditorToQuKi(id: string): Promise<boolean> {
     if (!(await flushAutoSaveOrBlock("Could not save your changes — resolve the save issue before switching QuKis."))) {
-      return;
+      return false;
     }
     let detail;
     try {
@@ -1117,22 +1171,91 @@ async function init(): Promise<void> {
     } catch (error) {
       console.error("QuKi open (read) failed unexpectedly:", error);
       showSaveStatus("Could not open that QuKi — an unexpected error occurred.");
-      return;
+      return false;
     }
     loadDocumentIntoEditor(detail.body);
     autoSave.resetBaseline({ id: detail.id, body: detail.body, modifiedAt: detail.modifiedAt });
     updateDeleteButtonState();
+    return true;
+  }
+
+  async function openQuKiInEditor(id: string): Promise<void> {
+    if (!(await switchEditorToQuKi(id))) return;
+    backHistory.visitQuKi(id);
     navigator_.popToRoot();
+  }
+
+  function rememberEditorScroll(): void {
+    if (navigator_.current !== "editor") return;
+    backHistory.rememberScroll({
+      snapshot: view.scrollSnapshot(),
+      docLength: view.state.doc.length,
+      scrollTop: view.scrollDOM.scrollTop,
+    });
+  }
+
+  // The snapshot holds a document position, so it only applies to the same
+  // text; if the file changed since, fall back to the raw pixel offset.
+  function restoreEditorScroll(scroll: EditorScroll | undefined): void {
+    if (!scroll) return;
+    if (view.state.doc.length === scroll.docLength) {
+      view.dispatch({ effects: scroll.snapshot });
+      return;
+    }
+    view.requestMeasure({
+      read: () => null,
+      write: () => {
+        view.scrollDOM.scrollTop = scroll.scrollTop;
+      },
+    });
+  }
+
+  async function quKiExists(id: string): Promise<boolean> {
+    try {
+      await store.read(id);
+      return true;
+    } catch (error) {
+      if (error instanceof NotFoundError) return false;
+      // Not proof it's gone: let the switch's own read report the failure.
+      console.error("QuKi Back (existence check) failed unexpectedly:", error);
+      return true;
+    }
+  }
+
+  /** BEHAVIOR_SPEC.md §2a. */
+  async function goBack(): Promise<void> {
+    if (navigator_.current === "settings" || navigator_.current === "trash") {
+      while (navigator_.current === "settings" || navigator_.current === "trash") popView();
+      return;
+    }
+    const plan = await backHistory.planBack(quKiExists);
+    if (plan.target === "exit") {
+      if (await flushAutoSaveOrBlock("Could not save your changes — resolve the save issue before leaving.")) exitApp();
+      return;
+    }
+    if (plan.target === "list") {
+      rememberEditorScroll();
+      if (backHistory.commit(plan)) showList();
+      return;
+    }
+    if (autoSave.currentId !== plan.id && !(await switchEditorToQuKi(plan.id))) return;
+    if (!backHistory.commit(plan)) backHistory.visitQuKi(plan.id);
+    navigator_.popToRoot();
+    view.contentDOM.blur();
+    restoreEditorScroll(plan.scroll);
+    void refreshQuKisButton();
   }
 
   async function startNewQuKi(): Promise<void> {
     if (!(await flushAutoSaveOrBlock("Could not save your changes — resolve the save issue before starting a new QuKi."))) {
       return;
     }
+    rememberEditorScroll();
     const blank: InitialQuKi = { id: null, body: "", modifiedAt: null };
     loadDocumentIntoEditor("");
     autoSave.resetBaseline(blank);
     updateDeleteButtonState();
+    backHistory.visitQuKi(null);
     navigator_.popToRoot();
     view.focus();
   }
@@ -1174,10 +1297,12 @@ async function init(): Promise<void> {
       showToast("Failed to save shared content.", 4000);
       return;
     }
+    rememberEditorScroll();
     loadDocumentIntoEditor(text);
     autoSave.resetBaseline({ id: result.id, body: text, modifiedAt: result.modifiedAt });
     updateDeleteButtonState();
     void refreshQuKisButton();
+    backHistory.visitQuKi(result.id);
     navigator_.popToRoot();
   }
 
@@ -1194,7 +1319,28 @@ async function init(): Promise<void> {
   function popView(): void {
     navigator_.pop();
     if (navigator_.current === "list") void listView.open();
-    if (navigator_.current === "editor") void refreshQuKisButton();
+    if (navigator_.current === "editor") {
+      backHistory.returnToEditor();
+      void refreshQuKisButton();
+    }
+  }
+
+  /** Opening the list from the editor, or Back landing on it. */
+  function showList(): void {
+    // Push the screen transition immediately so it feels responsive, but
+    // flush first and wait for it before the list actually reads the
+    // folder - otherwise a note typed seconds ago, still sitting behind the
+    // debounce, hasn't been written yet and the list reads a stale snapshot
+    // that simply doesn't have it. Not lost (the pending save still lands),
+    // just not yet visible here. Unlike openQuKiInEditor/startNewQuKi/
+    // deleteQuKi, going to the list never replaces the editor's own content,
+    // so there's nothing here for a flush conflict/error to discard - no
+    // need for flushAutoSaveOrBlock's blocking behavior, just the flush.
+    navigator_.push("list");
+    void (async () => {
+      await autoSave.flush();
+      await listView.open();
+    })();
   }
 
   /**
@@ -1224,6 +1370,8 @@ async function init(): Promise<void> {
     autoSave.resetBaseline(blank);
     updateDeleteButtonState();
     void refreshQuKisButton();
+    // Like a launch: the earlier stops belong to the old folder.
+    backHistory.reset();
   }
 
   const listView = createListView(store, viewElements.list, {
@@ -1266,25 +1414,15 @@ async function init(): Promise<void> {
   });
 
   quKiListBtn.addEventListener("click", () => {
-    // Push the screen transition immediately so it feels responsive, but
-    // flush first and wait for it before the list actually reads the
-    // folder - otherwise a note typed seconds ago, still sitting behind the
-    // debounce, hasn't been written yet and the list reads a stale snapshot
-    // that simply doesn't have it. Not lost (the pending save still lands),
-    // just not yet visible here. Unlike openQuKiInEditor/startNewQuKi/
-    // deleteQuKi, going to the list never replaces the editor's own content,
-    // so there's nothing here for a flush conflict/error to discard - no
-    // need for flushAutoSaveOrBlock's blocking behavior, just the flush.
-    navigator_.push("list");
-    void (async () => {
-      await autoSave.flush();
-      await listView.open();
-    })();
+    rememberEditorScroll();
+    backHistory.visitList();
+    showList();
   });
   newQuKiBtn.addEventListener("click", () => {
     void startNewQuKi();
   });
   settingsBtn.addEventListener("click", () => {
+    rememberEditorScroll();
     navigator_.push("settings");
   });
   deleteBtn.addEventListener("click", () => {
@@ -1326,6 +1464,10 @@ async function init(): Promise<void> {
       void handleSharedText(text);
     });
   }
+
+  goBackInApp = goBack;
+  // Chromium can't fire Capacitor's backButton, so the e2e tests press Back through this.
+  (window as unknown as { qukiSystemBack: () => Promise<void> }).qukiSystemBack = handleSystemBack;
 
   // Exposed for interactive debugging from the browser console while proving
   // the mechanism out — not part of the reveal engine itself.

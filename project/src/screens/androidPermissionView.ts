@@ -1,6 +1,7 @@
 import { ArrowLeft } from "lucide";
 
 import type { StorageAccessState } from "../androidStorageAccess.js";
+import type { BackDismissStack } from "../backDismissStack";
 import { setIconButton } from "./icons";
 
 export interface AndroidPermissionView {
@@ -45,6 +46,7 @@ export function createAndroidPermissionView(
   container: HTMLElement,
   onRequestAccess: () => void,
   onUseAppStorageInstead: () => void,
+  backDismiss?: BackDismissStack,
 ): AndroidPermissionView {
   const overlay = document.createElement("div");
   overlay.className = "android-permission-overlay";
@@ -69,24 +71,34 @@ export function createAndroidPermissionView(
   const waitingEl = overlay.querySelector<HTMLParagraphElement>(".android-permission-waiting")!;
 
   button.addEventListener("click", () => onRequestAccess());
-  backBtn.addEventListener("click", () => {
+  let unregisterBack: (() => void) | null = null;
+  const setShown = (shown: boolean): void => {
+    overlay.hidden = !shown;
+    if (shown && !unregisterBack) unregisterBack = backDismiss?.push(useAppStorageInstead) ?? null;
+    if (!shown && unregisterBack) {
+      unregisterBack();
+      unregisterBack = null;
+    }
+  };
+  const useAppStorageInstead = (): void => {
     // Hidden here rather than left to the next render(state) call: cancel()
     // (androidStorageAccess.ts) leaves ready() pending forever once already
     // settled granted/cancelled once, so no further state change is
     // guaranteed to arrive and hide this overlay on its own.
-    overlay.hidden = true;
+    setShown(false);
     onUseAppStorageInstead();
-  });
+  };
+  backBtn.addEventListener("click", useAppStorageInstead);
 
   return {
     render(state: StorageAccessState): void {
       if (state === "granted") {
-        overlay.hidden = true;
+        setShown(false);
         return;
       }
       if (state === "checking") return;
 
-      overlay.hidden = false;
+      setShown(true);
       const waiting = state === "waiting-for-settings";
       button.disabled = waiting;
       waitingEl.hidden = !waiting;

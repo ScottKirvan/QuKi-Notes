@@ -1,5 +1,6 @@
 import { ArrowLeft } from "lucide";
 
+import type { BackDismissStack } from "../backDismissStack";
 import type { ElectronSetupApi } from "../electronSetupApi";
 import { setIconButton } from "./icons";
 
@@ -44,6 +45,8 @@ export interface SetupViewOptions {
    * folder choice instead, since there is no single fixed destination there.
    */
   isAndroid: boolean;
+  /** Android's system Back cancels the screen while it is cancelable, the same as its own back arrow. */
+  backDismiss?: BackDismissStack;
 }
 
 const FILESYSTEM_CARD_COPY = {
@@ -88,6 +91,7 @@ const APP_STORAGE_CARD_COPY = {
  * as one of Navigator's managed view sections.
  */
 export function createSetupView(container: HTMLElement, api: ElectronSetupApi, options: SetupViewOptions): SetupView {
+  const backDismiss = options.backDismiss;
   const filesystemCopy = options.isAndroid ? FILESYSTEM_CARD_COPY.android : FILESYSTEM_CARD_COPY.desktop;
   const appStorageCopy = options.isAndroid ? APP_STORAGE_CARD_COPY.android : APP_STORAGE_CARD_COPY.desktop;
 
@@ -152,6 +156,7 @@ export function createSetupView(container: HTMLElement, api: ElectronSetupApi, o
         overlay.hidden = false;
 
         const cleanup = (): void => {
+          unregisterBack();
           overlay.hidden = true;
           filesystemBtn.removeEventListener("click", onFilesystem);
           appStorageBtn.removeEventListener("click", onAppStorage);
@@ -201,6 +206,12 @@ export function createSetupView(container: HTMLElement, api: ElectronSetupApi, o
         filesystemBtn.addEventListener("click", onFilesystem);
         appStorageBtn.addEventListener("click", onAppStorage);
         cancelBtn.addEventListener("click", onCancel);
+        const unregisterBack =
+          options.cancelable && backDismiss
+            ? backDismiss.push(() => {
+                if (!cancelBtn.disabled) onCancel();
+              })
+            : (): void => {};
       });
     },
   };
