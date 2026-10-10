@@ -98,7 +98,7 @@ With several lines selected, the list buttons toggle each line on its own, so a 
 
 ### Lists and quotes continue on Enter 
 
-Press **Enter** at the end of a list item, task item or quote line, and the next line starts with the same marker at the same indentation. Press Enter on an item that has nothing after its marker to end the list. **Backspace** deletes one character at a time, markers included: with the caret just after `- [ ] `, each press removes one more character of the marker.
+Press **Enter** at the end of a list item, task item or quote line, and the next line starts with the same marker at the same indentation. Press Enter on an item that has nothing after its marker to end the list. On an indented item, that Enter moves the empty item out one level instead; press Enter again to keep going until the list ends. **Backspace** deletes one character at a time, markers included: with the caret just after `- [ ] `, each press removes one more character of the marker.
 
 ## Supported markdown
 
