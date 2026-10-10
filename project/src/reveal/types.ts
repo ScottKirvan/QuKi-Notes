@@ -41,6 +41,11 @@ export interface RevealElement {
    * rounded down).
    */
   indentDepth?: number;
+  /**
+   * List, ordered and task items: nothing follows the marker on its line, so
+   * `checkEnd` is the end of the line.
+   */
+  empty?: boolean;
   /** OrderedItem only: the block-relative number to render. */
   orderedNumber?: number;
   /** TaskItem only. */

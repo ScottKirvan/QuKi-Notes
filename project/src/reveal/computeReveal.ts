@@ -20,6 +20,10 @@ export function computeRevealedIds(
   // the same check) are independent of each other and of inline nesting.
   for (const el of elements) {
     if (el.category !== "block-marker") continue;
+    // An empty item's text starts at the end of its marker, so a caret there
+    // is about to type the item, not edit the marker: it stays drawn as an
+    // item at its depth. A caret at the line's start still reveals it.
+    if (el.empty && caret === el.checkEnd) continue;
     if (el.checkStart <= caret && caret <= el.checkEnd) {
       revealed.add(el.id);
     }

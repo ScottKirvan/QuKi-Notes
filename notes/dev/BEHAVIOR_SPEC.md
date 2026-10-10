@@ -391,6 +391,8 @@ This is the app's defining behavior and the hardest part of the port. The rules 
 
 > Two tests pin this. In `# A`: a caret at offset 2 — the boundary between `# ` and `A` — reveals the marker. A caret at offset 3, inside the heading text, leaves the marker collapsed and the text styled as a heading. Without this rule, putting the cursor anywhere on a heading line snapped the entire line to raw source.
 
+> **An empty list item is drawn as an item straight away.** On a list, numbered or task item with nothing after its marker (the new item Enter just started, say), a caret at the end of the marker does **not** reveal it: the item shows its bullet, number or checkbox at its depth's indentation from the moment it appears, rather than raw source at the left margin until something is typed. A caret at the start of the line, or inside the marker, still reveals it. *[Proposed — unconfirmed]* — rules 2 and 3 would otherwise reveal it, since the end of an empty item's marker is the only place to type its text.
+
 **4. Images and horizontal rules are the exception** — their marker spans the whole line by definition, so rule 3 degenerates and they reveal wholly.
 
 **5. With a selection, the caret position used is the selection's ANCHOR** — where the selection began — not its moving end and not both. A selection dragged across several elements resolves reveal against its starting point only.
