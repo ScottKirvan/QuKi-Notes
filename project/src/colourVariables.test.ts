@@ -12,9 +12,13 @@ const srcDir = join(projectDir, "src");
 // Empty today: the default layer declares everything the app uses.
 const EXTERNAL_OBSIDIAN_VARIABLES: string[] = [];
 
-// Not colours and not Obsidian's: geometry that reveal/hangingIndent.ts sets
-// per line at runtime.
-const RUNTIME_LAYOUT_VARIABLES = ["--quki-hang-width", "--quki-hang-height", "--quki-hang-top"];
+// Not colours and not Obsidian's: geometry set at runtime, keyed by the
+// source file (under src/) that sets it.
+const RUNTIME_LAYOUT_VARIABLES_BY_FILE: Record<string, string[]> = {
+  "reveal/hangingIndent.ts": ["--quki-hang-width", "--quki-hang-height", "--quki-hang-top"],
+  "caretClearance.ts": ["--quki-caret-clearance"],
+};
+const RUNTIME_LAYOUT_VARIABLES = Object.values(RUNTIME_LAYOUT_VARIABLES_BY_FILE).flat();
 
 // The app's own colour names before it adopted Obsidian's. --text-muted is not
 // listed: Obsidian's name for muted text is the same string.
@@ -118,10 +122,10 @@ describe("colour variables use Obsidian's names", () => {
     }
   });
 
-  it("sets each runtime layout variable in hangingIndent.ts", () => {
-    const hangingIndent = read(join(srcDir, "reveal", "hangingIndent.ts"));
-    for (const name of RUNTIME_LAYOUT_VARIABLES) {
-      expect(hangingIndent, name).toContain(`"${name}"`);
+  it("sets each runtime layout variable in the file that owns it", () => {
+    for (const [file, names] of Object.entries(RUNTIME_LAYOUT_VARIABLES_BY_FILE)) {
+      const source = read(join(srcDir, file));
+      for (const name of names) expect(source, `${file}: ${name}`).toContain(`"${name}"`);
     }
   });
 
