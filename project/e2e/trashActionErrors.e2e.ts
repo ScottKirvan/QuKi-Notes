@@ -128,20 +128,17 @@ async function main(): Promise<void> {
     assert((await trash.locator(".list-row").count()) === 2, "both trashed QuKis should be listed in Trash before the failure scenarios run");
     await waitForToastHidden(page); // clears seeding's own "QuKi moved to Trash." toast before the failure scenarios below look for their own
 
-    // Forces every backend removeEntry (restore's cleanup rename, permanent
-    // delete, and empty-trash's per-item delete all go through it -
-    // core/src/opfsBackend.ts) to fail from here on, reproducing a real
-    // permission-denied/disk-full class of failure. Installed only now, after
-    // the setup writes above (creating and trashing both QuKis) already
-    // succeeded - the same "break it only for the action under test" shape
-    // persistence.e2e.ts's own load-failure scenario uses.
+    // Restore moves the file with FileSystemFileHandle.move() where Chromium
+    // provides it, so failing removeEntry alone would let restore move the
+    // QuKi out of Trash before failing on its sidecar cleanup. Failing both
+    // makes every action under test fail before it changes anything.
+    // Installed only after the setup writes above succeeded.
     await page.evaluate(() => {
-      Object.defineProperty(FileSystemDirectoryHandle.prototype, "removeEntry", {
-        configurable: true,
-        value: () => {
-          throw new DOMException("simulated permission-denied removeEntry", "NotAllowedError");
-        },
-      });
+      const fail = (what: string) => () => {
+        throw new DOMException(`simulated permission-denied ${what}`, "NotAllowedError");
+      };
+      Object.defineProperty(FileSystemDirectoryHandle.prototype, "removeEntry", { configurable: true, value: fail("removeEntry") });
+      Object.defineProperty(FileSystemFileHandle.prototype, "move", { configurable: true, value: fail("move") });
     });
 
     // --- Restore, forced to fail ---
@@ -154,6 +151,7 @@ async function main(): Promise<void> {
     const restoreToast = await page.waitForSelector(".toast:not([hidden])", { timeout: 5000 }).then((el) => el.textContent());
     assert(!!restoreToast && /could not restore/i.test(restoreToast), `a failed restore must surface a visible "could not restore" message, got: "${restoreToast}"`);
     assert(await trash.isVisible(), "a failed restore must leave the user on the Trash screen, not navigate away as if it had succeeded");
+    assert((await trash.locator(".list-row").count()) === 2, "a failed restore must leave the QuKi in Trash");
     console.log(`[e2e-trash-errors] PASS: a rejected restore() surfaced a visible message instead of vanishing: "${restoreToast}"`);
     // Waits for the toast's own auto-dismiss timer (screens/toast.ts) to
     // clear, so the next scenario's waitForSelector(".toast:not([hidden])")
