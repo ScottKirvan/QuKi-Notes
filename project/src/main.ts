@@ -31,6 +31,7 @@ import { applyDedent, applyIndent } from "./toolbar/indentDedent";
 import { runToolbarCommand } from "./toolbarAdapter";
 import { replaceDocumentAndForgetHistory, resettableHistory } from "./editorHistory";
 import { bodyWithoutUnusedPadding, forgetTapPadding, tapBelowTextStartsALine } from "./tapBelowText";
+import { keepCaretClearOfToolbar } from "./caretClearance";
 import { createFormattingToolbar, type FormattingToolbarHandle } from "./screens/formattingToolbar";
 import { revealPlugin, blockRevealField } from "./reveal/decorations";
 import { hangingIndent } from "./reveal/hangingIndent";
@@ -679,18 +680,7 @@ async function init(): Promise<void> {
           update.view.dispatch({ effects: EditorView.scrollIntoView(update.state.selection.main.head) });
         }
       }),
-      // The formatting toolbar overlays the scroller's own bottom edge
-      // rather than pushing it up (style.css's .formatting-toolbar is
-      // `position: absolute`) — CodeMirror's own scroll-into-view has no
-      // way to know that band is visually covered, so typing to the true
-      // bottom of a long QuKi can otherwise leave the caret hidden
-      // underneath the toolbar. Confirmed on a real Android emulator with
-      // the keyboard up (chunk 3's report). scrollMargins is CodeMirror's
-      // documented mechanism for exactly this ("the plugin introduces
-      // elements that cover part of [the scrolling element]") —
-      // toolbarController is forward-declared/assigned the same way its
-      // onUpdate call above already relies on.
-      EditorView.scrollMargins.of(() => ({ bottom: toolbarController?.scrollMarginBottom() ?? 0 })),
+      keepCaretClearOfToolbar(() => toolbarController?.scrollMarginBottom() ?? 0),
       EditorView.theme({
         "&": { fontSize: "16px" },
         // BEHAVIOR_SPEC.md §4: "content is inset 12px on three sides and
@@ -704,8 +694,9 @@ async function init(): Promise<void> {
         // toolbar (style.css's .formatting-toolbar, height: 36px, pinned
         // `position: absolute` over the scroller's own bottom edge) could
         // end up covering the caret's own line (chunk 3's report has the
-        // measurements). 36px here must keep matching that height.
-        ".cm-content": { lineHeight: "1.4", padding: "12px", paddingBottom: "36px" },
+        // measurements). 36px here must keep matching that height; the two
+        // lines on top of it are caretClearance.ts's.
+        ".cm-content": { lineHeight: "1.4", padding: "12px", paddingBottom: "calc(36px + var(--quki-caret-clearance, 0px))" },
         // CodeMirror's baseTheme sets `font-family: monospace` on
         // .cm-scroller, which a plain rule in style.css cannot out-rank (same
         // reason as the padding above).
