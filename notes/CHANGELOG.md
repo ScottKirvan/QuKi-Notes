@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.26.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.25.1...v0.26.0) (2026-10-10)
+
+
+### Features
+
+* Android Back returns to blank QuKis, including the one the app launches with ([56ade4b](https://github.com/ScottKirvan/QuKi-Notes/commit/56ade4b6253cda4d2a5f39f9571bdb7bef5bbb36))
+* Android Back walks back through the QuKis and list you visited ([a5ef367](https://github.com/ScottKirvan/QuKi-Notes/commit/a5ef367078a1a1dcb411900786c2caa3938be50b))
+* Undo and Redo buttons on the formatting toolbar ([4e5bc5a](https://github.com/ScottKirvan/QuKi-Notes/commit/4e5bc5a315ef9eb80d63ae058ad638b52ad62b7e))
+
+
+### Bug Fixes
+
+* give the desktop app the QuKi icon instead of Electron's default ([384e677](https://github.com/ScottKirvan/QuKi-Notes/commit/384e677e2b9f8d554247e19a6443f3784d0f6647))
+* install the Linux app icon at real sizes, not hicolor/0x0 ([ef63a25](https://github.com/ScottKirvan/QuKi-Notes/commit/ef63a258ee7be6075df01289678c4e498a6bff23))
+* keep the caret two lines above the toolbar and out from under the keyboard ([2492fc3](https://github.com/ScottKirvan/QuKi-Notes/commit/2492fc3dd253dfecc43f9f5f300f796302a6411a))
+* tapping below the text starts a line where you tapped ([2fdce9f](https://github.com/ScottKirvan/QuKi-Notes/commit/2fdce9f731e470c415188501fdddc2d9577875bb))
+* the mode button keeps the keyboard up and only switches modes while editing ([21939d7](https://github.com/ScottKirvan/QuKi-Notes/commit/21939d7bf5ff9c5615f8046dd9eb52bb3c145cca))
+* undo no longer reaches into the previously loaded QuKi ([764e548](https://github.com/ScottKirvan/QuKi-Notes/commit/764e5481087dab6761b515575099e4443dff1e6e))
+
 ## [0.25.1](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.25.0...v0.25.1) (2026-10-03)
 
 
