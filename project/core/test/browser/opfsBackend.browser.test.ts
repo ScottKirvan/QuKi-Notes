@@ -153,6 +153,26 @@ describe('OpfsBackend against real OPFS (Chromium via Playwright)', () => {
     });
   });
 
+  describe('orphaned-image sweep with subfolders in media/', () => {
+    it('removes unused top-level images and leaves empty and non-empty subfolders untouched', async () => {
+      const backend = new OpfsBackend(rootDirName);
+      const store = new QuKiStore(backend);
+      await backend.writeBinaryAtomic('media/aaa-unused.png', new Uint8Array([1]));
+      await backend.writeBinaryAtomic('media/zzz-unused.png', new Uint8Array([2]));
+      await backend.writeBinaryAtomic('media/photos/linked.png', new Uint8Array([3]));
+      await backend.writeBinaryAtomic('media/photos/unlinked.png', new Uint8Array([4]));
+      await backend.mkdirp('media/empty-folder');
+      const quki = await store.save({ id: null, body: '![cat](media/photos/linked.png)' });
+      if (quki.status !== 'saved') throw new Error('unreachable');
+
+      const result = await store.sweepOrphanedImages();
+
+      expect(result.removedCount).toBe(2);
+      expect((await backend.listDir('media')).sort()).toEqual(['empty-folder', 'photos']);
+      expect((await backend.listDir('media/photos')).sort()).toEqual(['linked.png', 'unlinked.png']);
+    });
+  });
+
   describe('path-escape guard', () => {
     it('rejects a relative path that walks above the root via ../', () => {
       const backend = new OpfsBackend(rootDirName);

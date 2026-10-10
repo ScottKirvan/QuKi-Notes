@@ -3,7 +3,7 @@ import * as path from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { QuKiStore } from '../src/index.js';
+import { findImageReferences, QuKiStore } from '../src/index.js';
 import { NodeFsBackend } from '../src/node.js';
 import { cleanupTempDir, makeTempQuKiDir } from './helpers.js';
 
@@ -134,6 +134,16 @@ describe('images', () => {
     await expect(fsp.access(image.absolutePath)).rejects.toThrow();
   });
 
+  it('reads an image linked from a subfolder of media/ by the path exactly as written in the link', async () => {
+    await fsp.mkdir(path.join(dir, 'media', 'photos'), { recursive: true });
+    await fsp.writeFile(path.join(dir, 'media', 'photos', 'cat.png'), new Uint8Array([7, 8]));
+
+    const [ref] = findImageReferences('![cat](media/photos/cat.png)');
+    const bytes = await new NodeFsBackend(dir).readBinary(ref!);
+
+    expect([...bytes]).toEqual([7, 8]);
+  });
+
   describe('sweepOrphanedImages', () => {
     it('removes an image that no QuKi has ever referenced (e.g. pasted into a QuKi that was never saved)', async () => {
       const image = await store.writeImage(new Uint8Array([5, 5, 5]), 'png');
@@ -172,5 +182,66 @@ describe('images', () => {
     it('is a no-op when media/ does not exist yet', async () => {
       await expect(store.sweepOrphanedImages()).resolves.toEqual({ removedCount: 0 });
     });
+
+    describe('given media/ holds subfolders alongside unused top-level images', () => {
+      const media = (...parts: string[]) => path.join(dir, 'media', ...parts);
+
+      beforeEach(async () => {
+        await fsp.mkdir(media('photos'), { recursive: true });
+        await fsp.mkdir(media('empty-folder'), { recursive: true });
+        await fsp.writeFile(media('aaa-unused.png'), new Uint8Array([1]));
+        await fsp.writeFile(media('zzz-unused.png'), new Uint8Array([2]));
+        await fsp.writeFile(media('photos', 'linked.png'), new Uint8Array([3]));
+        await fsp.writeFile(media('photos', 'unlinked.png'), new Uint8Array([4]));
+        const quki = await store.save({ id: null, body: '![cat](media/photos/linked.png)' });
+        if (quki.status !== 'saved') throw new Error('unreachable');
+      });
+
+      it('removes the unused top-level images whether they sort before or after a subfolder', async () => {
+        const result = await store.sweepOrphanedImages();
+
+        expect(result.removedCount).toBe(2);
+        await expect(fsp.access(media('aaa-unused.png'))).rejects.toThrow();
+        await expect(fsp.access(media('zzz-unused.png'))).rejects.toThrow();
+      });
+
+      it('leaves both subfolders and everything inside them untouched', async () => {
+        await store.sweepOrphanedImages();
+
+        expect((await fsp.stat(media('empty-folder'))).isDirectory()).toBe(true);
+        expect((await fsp.readdir(media('photos'))).sort()).toEqual(['linked.png', 'unlinked.png']);
+      });
+    });
+
+    it('keeps going past an entry it fails to delete', async () => {
+      const failing = 'media/aaa-locked.png';
+      const backend = new NodeFsBackend(dir);
+      const realRemove = backend.remove.bind(backend);
+      backend.remove = async (relPath: string) => {
+        if (relPath === failing) throw new Error('EPERM: simulated');
+        return realRemove(relPath);
+      };
+      const sweepStore = new QuKiStore(backend);
+      await fsp.mkdir(path.join(dir, 'media'), { recursive: true });
+      await fsp.writeFile(path.join(dir, failing), new Uint8Array([1]));
+      await fsp.writeFile(path.join(dir, 'media', 'zzz-unused.png'), new Uint8Array([2]));
+
+      const result = await sweepStore.sweepOrphanedImages();
+
+      expect(result.removedCount).toBe(1);
+      await expect(fsp.access(path.join(dir, failing))).resolves.toBeUndefined();
+      await expect(fsp.access(path.join(dir, 'media', 'zzz-unused.png'))).rejects.toThrow();
+    });
+  });
+
+  it('permanently deleting a QuKi that links a subfolder by name leaves the subfolder alone', async () => {
+    await fsp.mkdir(path.join(dir, 'media', 'photos'), { recursive: true });
+    const quki = await store.save({ id: null, body: '![odd](media/photos)' });
+    if (quki.status !== 'saved') throw new Error('unreachable');
+
+    await store.moveToTrash(quki.id);
+    await store.permanentlyDelete(quki.id);
+
+    expect((await fsp.stat(path.join(dir, 'media', 'photos'))).isDirectory()).toBe(true);
   });
 });

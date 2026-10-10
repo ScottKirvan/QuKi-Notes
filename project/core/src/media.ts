@@ -30,6 +30,23 @@ export function isOrphanCandidate(ref: string, mediaDirEntries: Iterable<string>
   return entries.has(name);
 }
 
+/**
+ * StorageBackend has no is-directory flag, and listDir/stat can't tell a
+ * folder from a file on every backend (Android's listDir returns [] for a
+ * file; Node's stat succeeds on a folder). Reading as a file fails for a
+ * folder on all of them - the same test export.ts's collectFilesRecursive
+ * uses. Anything that can't be read is treated as not-a-file, so a caller
+ * deciding whether to delete only ever deletes what it positively read.
+ */
+export async function isReadableFile(backend: StorageBackend, relPath: string): Promise<boolean> {
+  try {
+    await backend.readBinary(relPath);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function writeImage(
   backend: StorageBackend,
   bytes: Uint8Array,
