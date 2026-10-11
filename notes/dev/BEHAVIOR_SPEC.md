@@ -159,6 +159,8 @@ A save is skipped when the body is **empty** or **unchanged since the last write
 
 The QuKi's **file is created by its first save**, not when the editor opens.
 
+A failed save (STORAGE_CONTRACT.md rule 18), and the other errors that share its banner, is shown **on whichever screen is active** — the editor, the QuKi list, Settings or Trash — since a save can fail in the background after the editor is left (the flush on opening the list). [Proposed — unconfirmed] The banner sits at the top of the window, above every screen's app bar, and pushes the screen down rather than covering any of its controls.
+
 ### Delete
 
 **No confirmation** — matching the list's swipe-to-delete.

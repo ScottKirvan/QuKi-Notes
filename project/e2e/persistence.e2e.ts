@@ -243,15 +243,9 @@ async function main(): Promise<void> {
 
     await seedRow.click();
     // openQuKiInEditor's flush-then-read is async, so the click resolving
-    // doesn't mean the resulting catch block has updated the DOM yet. This
-    // checks the element's own "hidden" attribute directly, not Playwright's
-    // notion of on-screen visibility - #save-status lives inside
-    // #view-editor's markup (index.html), which the Navigator itself marks
-    // hidden while the QuKi list is the active screen, regardless of
-    // #save-status's own state. That's a real, pre-existing quirk (the same
-    // showSaveStatus call deleteQuKi's error path uses from the list has the
-    // identical issue), out of scope for this change - not something to
-    // paper over here.
+    // doesn't mean the resulting catch block has updated the DOM yet. That
+    // the banner is on screen while the QuKi list shows is checked in
+    // saveStatusEveryScreen.e2e.ts.
     await loadErrorPage.waitForFunction(
       () => document.querySelector("#save-status")?.hasAttribute("hidden") === false,
       { timeout: 5000 },
