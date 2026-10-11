@@ -74,6 +74,12 @@ async function main(): Promise<void> {
   assert(hasDefaultMenuInDev, "the default Electron menu should still be present in an unpackaged/dev run");
   console.log("[e2e] PASS: default menu is untouched in dev (app.isPackaged is false) - packaged suppression not exercised by this run");
 
+  const spellcheckerOn = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.webContents.session.isSpellCheckerEnabled());
+  const editorSpellcheck = await page.evaluate(() => document.querySelector(".cm-content")!.getAttribute("spellcheck"));
+  assert(spellcheckerOn, "Electron's spellchecker should be enabled for the window's session");
+  assert(editorSpellcheck === "true", `the editor should ask for spellcheck, got spellcheck="${editorSpellcheck}"`);
+  console.log("[e2e] PASS: Electron's spellchecker is on and the editor asks for spellcheck");
+
   const marker = `Electron e2e proof ${Date.now()}`;
   await page.click(".cm-content");
   await page.keyboard.press("Control+A");
