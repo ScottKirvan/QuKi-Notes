@@ -12,6 +12,8 @@ QuKi Notes has no app-wide shortcuts of its own, such as for New or Send. The sh
 | Backspace | Deletes one character, including inside a list, task or quote marker |
 | Ctrl+Z | Undo |
 | Ctrl+Y (also Ctrl+Shift+Z on Linux; Cmd+Shift+Z on a Mac) | Redo |
+| Ctrl+V | Paste. Copied web content keeps its formatting as markdown (see [Pasting from a web page](/user-guide/capturing-qukis#pasting-from-a-web-page)) |
+| Ctrl+Shift+V | Paste as plain text, without formatting |
 | Ctrl+A | Select all |
 
 On a touchscreen, the Undo and Redo buttons at the left end of the [formatting toolbar](/user-guide/capturing-qukis#formatting-toolbar) do the same as Ctrl+Z and Ctrl+Y.

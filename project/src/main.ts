@@ -47,6 +47,7 @@ import {
   type EditModeTracker,
 } from "./editMode";
 import { imageResolver } from "./reveal/imageResolver";
+import { createHtmlPastePlugin } from "./pasteHtml";
 import { createImagePastePlugin } from "./pasteImage";
 import { AutoSaveController, blankInitialQuKi, type InitialQuKi } from "./persistence";
 import { sendQuKi, selectShareTransport, createClipboardTransport } from "./send";
@@ -635,14 +636,15 @@ async function init(): Promise<void> {
       hangingIndent,
       // STORAGE_CONTRACT.md rule 12 / web-specific "images paste in the
       // same way [as text]": a pasted image is written into the shared
-      // media/ folder and its link inserted at the cursor. Plain-text
-      // paste is untouched by this — see pasteImage.ts.
+      // media/ folder and its link inserted at the cursor.
       createImagePastePlugin({
         writeImage: (bytes, extension) => store.writeImage(bytes, extension),
         onError: () => {
           showSaveStatus("Could not paste image — an unexpected error occurred.");
         },
       }),
+      // Issue #498: copied web content pastes as markdown; Ctrl+Shift+V pastes plain text.
+      createHtmlPastePlugin(),
       EditorView.lineWrapping,
       EditorView.updateListener.of((update) => {
         if (update.docChanged && !suppressAutoSaveNotify) autoSave.notifyChange();
