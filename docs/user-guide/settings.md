@@ -6,6 +6,8 @@ Open Settings with the <i-lucide-settings /> **gear** button in the editor's top
 
 **Theme** follows your system's light or dark setting, and switches automatically when that changes. There's no manual toggle.
 
+**Text size** sets how big the text in the editor is: **Small**, **Normal** (the default), **Large** or **Extra large**. The change shows as soon as you go back to the editor, and QuKi Notes remembers it next time. Headings, list indentation and quotes grow and shrink with it. It changes the editor only, not the QuKis list or the menus.
+
 ## Storage
 
 **Android, Windows and Linux** show where your QuKis are stored:

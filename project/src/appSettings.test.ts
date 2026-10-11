@@ -63,3 +63,38 @@ describe("AppSettingsStore", () => {
     expect(() => new AppSettingsStore(throwing).setDeleteOrphanedImages(false)).not.toThrow();
   });
 });
+
+describe("AppSettingsStore font size", () => {
+  it("defaults to Normal when nothing has been stored", () => {
+    expect(new AppSettingsStore(new FakeStorage()).getFontSize()).toBe("normal");
+  });
+
+  it("persists a chosen size across separate instances sharing the same storage", () => {
+    const storage = new FakeStorage();
+    new AppSettingsStore(storage).setFontSize("extra-large");
+    expect(new AppSettingsStore(storage).getFontSize()).toBe("extra-large");
+  });
+
+  it("does not disturb the orphaned-images setting", () => {
+    const storage = new FakeStorage();
+    const store = new AppSettingsStore(storage);
+    store.setDeleteOrphanedImages(false);
+    store.setFontSize("small");
+    expect(store.getDeleteOrphanedImages()).toBe(false);
+    expect(store.getFontSize()).toBe("small");
+  });
+
+  it("falls back to Normal when the underlying storage throws on read, and does not throw on write", () => {
+    const throwing: AppSettingsStorage = {
+      getItem(): string {
+        throw new Error("boom");
+      },
+      setItem(): void {
+        throw new Error("boom");
+      },
+    };
+    const store = new AppSettingsStore(throwing);
+    expect(store.getFontSize()).toBe("normal");
+    expect(() => store.setFontSize("large")).not.toThrow();
+  });
+});

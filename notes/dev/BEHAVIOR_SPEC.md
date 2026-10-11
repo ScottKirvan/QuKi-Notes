@@ -100,7 +100,7 @@ Actions, in this order:
 
 ### Editing surface
 
-Fills the screen above the toolbar. Text renders at 16px with 1.4 line height; content is inset 12px on three sides and, at the bottom, 36px plus two lines, so the last line can sit two lines above the toolbar.
+Fills the screen above the toolbar. Text renders at the size chosen in Settings → Text size (Normal is 16px) with 1.4 line height; content is inset 12px on three sides and, at the bottom, 36px plus two lines, so the last line can sit two lines above the toolbar.
 
 **While editing, the caret keeps two lines of text between itself and the formatting toolbar.** Whenever the editor scrolls the caret into view — typing, Enter, moving the caret, a tap on a line, a tap below the text — it stops at least two lines (the editor's own line height) above the toolbar, not against it. When the editor shrinks while editing (on Android, the keyboard rising after the tap that started editing), the caret is scrolled back into view with the same clearance, never left under the keyboard.
 
@@ -257,13 +257,20 @@ Sections with small uppercase, letter-spaced, accent-colored headers:
 
 | Section | Contents |
 |---|---|
-| **Appearance** | Theme — displays `System`, not adjustable |
+| **Appearance** | Theme — displays `System`, not adjustable. **Text size** — a few fixed steps, not a slider: Small, Normal (default), Large, Extra large (see below). |
 | **Storage** | Current location. App storage shows *"Files will be removed on uninstall. Change location."* in the error color; filesystem storage shows the path over up to two lines. Below it, **Change location**. |
 | **Notes** | **Trash** |
 | **Sync** | *"No sync backends installed"*, disabled |
 | **About** | App name and version. **Tapping copies the version string to the clipboard** and confirms with *"Copied to clipboard."* |
 
 There is **no section for send destinations**, despite the per-destination enable/disable preference existing in code. Nothing can reach it.
+
+### Text size
+
+Sets the editor's text size only; app chrome, the QuKi list and Settings keep their sizes. Normal is the editor's original 16px. The choice applies immediately and persists across launches. Headings, list and quote indentation, the list-marker gutter, the hanging indent of raw list lines and the caret's two-line clearance above the toolbar all scale with it (they are sized in `em` or measured from the rendered text).
+
+- `[Proposed — unconfirmed]` The steps are Small 14px, Normal 16px, Large 19px, Extra large 22px.
+- `[Proposed — unconfirmed]` Stored in the WebView's `localStorage` on every platform, beside "Delete orphaned images", rather than in Electron's preferences file or Android's settings file.
 
 ### Help dialog
 
