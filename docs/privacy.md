@@ -2,7 +2,7 @@
 
 **App**: QuKi Notes
 **Developer**: Scott Kirvan  
-**Effective date**: 2026-09-26
+**Effective date**: 2026-10-11
 
 ---
 
@@ -35,7 +35,7 @@ QuKi Notes itself has no server to talk to, but a few things you do can reach th
 
 - **Images from the web.** If a QuKi contains an image linked by web address (`https://…`), QuKi Notes downloads that image from its server when the QuKi is shown. As with any web request, that server sees your IP address and the time of the request. No QuKi content is sent. Images you paste in are stored locally and involve no network access.
 - **Links.** Tapping a link in a QuKi, or in the Help dialog, opens that website.
-- **The web version.** The web version is itself a website, hosted on GitHub Pages. When your browser loads it, GitHub receives the usual request information (such as your IP address), as it does for any GitHub Pages site. Your QuKis stay in your browser and are not sent to GitHub.
+- **The web version.** The web version is itself a website, served by Cloudflare at qukinotes.scottkirvan.com. When your browser loads it, Cloudflare receives the usual request information (such as your IP address), as it does for any website it serves. Your QuKis stay in your browser and are not sent to Cloudflare.
 
 ## The command-line tools and AI assistants
 
@@ -63,8 +63,20 @@ QuKi Notes does not knowingly collect information from anyone. It collects no in
 
 ## Changes to this policy
 
-If anything here ever changes, the updated policy will be posted at this URL with a new effective date. The core commitment — no data collection — is not subject to change.
+If anything here ever changes, the updated policy will be posted at this URL with a new effective date, and the change will be listed in the [policy history](#policy-history) at the end of this page. The core commitment — no data collection — is not subject to change.
 
 ## Contact
 
 Questions? Open an issue on [GitHub](https://github.com/ScottKirvan/QuKi-Notes/issues) or reach out on [Discord](https://discord.gg/TN6XJSNK5Y).
+
+## Policy history
+
+Every change to this policy, newest first. The version is the first QuKi Notes release that included the change.
+
+| Date | Version | Change |
+|---|---|---|
+| 2026-10-11 | v0.26.0 | The web version is hosted on Cloudflare, not GitHub Pages. |
+| 2026-09-26 | v0.25.0 | Rewritten for the new app: QuKis are plain files rather than a database. Covers images, settings, Send on each platform, web images, the web version and the command-line tools. The analytics section now calls "no analytics" a current design decision instead of a permanent one. |
+| 2026-06-29 | v0.14.1 | Updated the Discord contact link. |
+| 2026-06-25 | v0.13.1 | App name written as "QuKi Notes"; no change in meaning. |
+| 2026-06-05 | v0.9.2 | First published. |
