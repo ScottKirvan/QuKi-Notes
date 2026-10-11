@@ -10,6 +10,7 @@ import { Compartment, EditorState } from "@codemirror/state";
 import { defaultKeymap, historyKeymap } from "@codemirror/commands";
 import { indentOnInput, HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { markdownEditing } from "./markdownEditing";
+import { codeHighlighting } from "./codeHighlighting";
 import { tags } from "@lezer/highlight";
 import { createElement, FileStack, CodeXml, BookOpen, Plus, CircleHelp, Send, Settings, Trash2 } from "lucide";
 import { Capacitor } from "@capacitor/core";
@@ -104,7 +105,9 @@ if (!Capacitor.isNativePlatform()) {
 // highlighter, this mirrors defaultHighlightStyle's rules except that it ties
 // the colors that were only readable on light backgrounds to the page's own
 // CSS custom properties — the same fix pattern as the cursor/selection
-// colors below — and does not underline headings. A non-fallback syntaxHighlighting() extension fully
+// colors below — and does not underline headings. Its code-only rules are
+// gone: code in fenced blocks is coloured by codeHighlighting.ts. A
+// non-fallback syntaxHighlighting() extension fully
 // supersedes basicSetup's fallback one (see @codemirror/language's
 // getHighlighters), so this replaces it deterministically regardless of
 // extension order.
@@ -115,25 +118,16 @@ const qukiSyntaxHighlighting = HighlightStyle.define([
   { tag: tags.emphasis, fontStyle: "italic" },
   { tag: tags.strong, fontWeight: "bold" },
   { tag: tags.strikethrough, textDecoration: "line-through" },
-  { tag: tags.keyword, color: "#708" },
   {
     tag: [tags.atom, tags.bool, tags.url, tags.contentSeparator, tags.labelName],
     color: "var(--text-accent)",
   },
-  { tag: [tags.literal, tags.inserted], color: "#164" },
   { tag: [tags.string, tags.deleted], color: "var(--text-normal)" },
   {
     tag: [tags.regexp, tags.escape, tags.special(tags.string)],
     color: "var(--text-muted)",
   },
-  { tag: tags.definition(tags.variableName), color: "#00f" },
-  { tag: tags.local(tags.variableName), color: "#30a" },
-  { tag: [tags.typeName, tags.namespace], color: "#085" },
-  { tag: tags.className, color: "#167" },
-  { tag: [tags.special(tags.variableName), tags.macroName], color: "#256" },
-  { tag: tags.definition(tags.propertyName), color: "#00c" },
   { tag: tags.comment, color: "var(--text-muted)" },
-  { tag: tags.invalid, color: "#f00" },
 ]);
 
 type IconNode = Parameters<typeof createElement>[0];
@@ -624,6 +618,7 @@ async function init(): Promise<void> {
       keymap.of([...indentDedentKeymap, ...defaultKeymap, ...historyKeymap]),
       markdownEditing(),
       syntaxHighlighting(qukiSyntaxHighlighting),
+      codeHighlighting(),
       // BEHAVIOR_SPEC.md §4: the persisted plain-text/rendered choice - see
       // initialPlainTextMode above for where this comes from.
       plainTextMode.init(() => initialPlainTextMode),
