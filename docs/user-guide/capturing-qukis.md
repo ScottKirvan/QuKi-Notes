@@ -11,11 +11,11 @@ Tap <i-lucide-plus /> **New QuKi** in the top bar to start another new QuKi.
 QuKis auto save as you type.  No need to manually save them, pick filesystem locations, or create names for them.
 ### When a save fails
 
-If a QuKi's file was changed or deleted by another program since QuKi Notes last saved it, QuKi Notes won't overwrite it automatically. A banner appears at the top of the editor:
+If a QuKi's file was changed or deleted by another program since QuKi Notes last saved it, QuKi Notes won't overwrite it automatically. A banner appears at the top of the screen, above the app bar, on whichever screen you're on (the editor, the QuKi list, Settings or Trash) — a save can fail in the background after you've left the editor, such as the save made when you open the QuKi list:
 
 > Could not save — it changed elsewhere. Your latest edits have not been written to disk.
 
-It says "it was deleted elsewhere" if the file is gone. Tap **Overwrite** to save what's on screen over the other version (or recreate the file), or copy your text somewhere safe first. A similar banner appears if a save fails for any other reason, such as a full disk or a folder that's no longer reachable.
+It says "it was deleted elsewhere" if the file is gone. Tap **Overwrite** to save what's on screen over the other version (or recreate the file), or copy your text somewhere safe first. A similar banner appears if a save fails for any other reason, such as a full disk or a folder that's no longer reachable, and the same place shows other errors, such as a QuKi that could not be opened from the list.
 
 ## Reading and editing
 
