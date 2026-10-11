@@ -59,6 +59,7 @@ import { isQuKisButtonEnabled } from "./quKisButton";
 import { onSharedTextReceived } from "./shareIn";
 import { Navigator, type ViewName } from "./navigation";
 import { BackHistory } from "./backHistory";
+import { AwayTracker } from "./awayTimeout";
 import { createBackDismissStack } from "./backDismissStack";
 import { createListView } from "./screens/listView";
 import { createSettingsView } from "./screens/settingsView";
@@ -796,6 +797,10 @@ async function init(): Promise<void> {
   );
   autoSave.start();
 
+  const awayTracker = new AwayTracker(() => Date.now());
+  let sharedInCount = 0;
+  let locationChangeInProgress = false;
+
   const flushOnHide = (): void => {
     void autoSave.flush();
   };
@@ -1102,6 +1107,7 @@ async function init(): Promise<void> {
     const webShareApi = typeof navigator.share === "function" ? (data: ShareData) => navigator.share(data) : undefined;
     const webTransport = createWebShareTransport(webShareApi, clipboardTransport);
     const transport = selectShareTransport(isAndroid, isElectronDesktop, shareTextViaAndroid, clipboardTransport, webTransport);
+    awayTracker.noteSend();
     const result = await sendQuKi(body, transport);
     if (result.message !== undefined) {
       showToast(result.message, result.durationMs, result.retryable ? { label: "Retry", onClick: () => void sendCurrentQuKi() } : undefined);
@@ -1267,6 +1273,11 @@ async function init(): Promise<void> {
     if (!(await flushAutoSaveOrBlock("Could not save your changes — resolve the save issue before starting a new QuKi."))) {
       return;
     }
+    showBlankQuKi();
+    view.focus();
+  }
+
+  function showBlankQuKi(): void {
     rememberEditorScroll();
     const blank: InitialQuKi = { id: null, body: "", modifiedAt: null };
     loadDocumentIntoEditor("");
@@ -1274,7 +1285,26 @@ async function init(): Promise<void> {
     updateDeleteButtonState();
     backHistory.visitQuKi(null);
     navigator_.popToRoot();
-    view.focus();
+  }
+
+  /**
+   * BEHAVIOR_SPEC.md §4 "Coming back after being away". A share that arrives
+   * while this waits for the flush opens its own QuKi instead.
+   */
+  async function startNewQuKiAfterAway(): Promise<void> {
+    const sharesBefore = sharedInCount;
+    if (!(await flushAutoSaveOrBlock("Could not save your changes — resolve the save issue before starting a new QuKi."))) {
+      return;
+    }
+    if (sharedInCount !== sharesBefore) return;
+    showBlankQuKi();
+    focusEditorAndShowKeyboard();
+    void refreshQuKisButton();
+  }
+
+  function onAppReturned(): void {
+    const minutes = locationChangeInProgress ? null : appSettings.getNewQuKiAfterAway();
+    if (awayTracker.shown(minutes)) void startNewQuKiAfterAway();
   }
 
   /**
@@ -1294,6 +1324,8 @@ async function init(): Promise<void> {
    * replaced with the shared text, or that edit would be lost.
    */
   async function handleSharedText(text: string): Promise<void> {
+    sharedInCount++;
+    awayTracker.noteShareIn();
     if (!(await flushAutoSaveOrBlock("Could not save your changes — the shared text was not opened."))) {
       return;
     }
@@ -1376,10 +1408,18 @@ async function init(): Promise<void> {
     if (!(await flushAutoSaveOrBlock("Could not save your changes — resolve the save issue before changing storage location."))) {
       return;
     }
-    const chosenPath = await setupView.show({
-      cancelable: true,
-      onError: (message) => showSaveStatus(message),
-    });
+    // Android's all-files permission screen takes the user out of the app.
+    locationChangeInProgress = true;
+    let chosenPath: string | null;
+    try {
+      chosenPath = await setupView.show({
+        cancelable: true,
+        onError: (message) => showSaveStatus(message),
+      });
+    } finally {
+      locationChangeInProgress = false;
+      awayTracker.forget();
+    }
     if (chosenPath === null) return; // cancelled; nothing changed
 
     const blank = blankInitialQuKi();
@@ -1433,6 +1473,10 @@ async function init(): Promise<void> {
         appSettings.setShowWordCount(value);
         wordCount?.setEnabled(value);
       },
+    },
+    newQuKiAfterAway: {
+      get: () => appSettings.getNewQuKiAfterAway(),
+      set: (value) => appSettings.setNewQuKiAfterAway(value),
     },
     onExport: exportQuKiLibrary,
   });
@@ -1494,6 +1538,17 @@ async function init(): Promise<void> {
     void onSharedTextReceived((text) => {
       void handleSharedText(text);
     });
+  }
+
+  // Page visibility covers every platform; on Android the native lifecycle
+  // is listened to as well, and the tracker ignores the repeat.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") awayTracker.hidden();
+    else onAppReturned();
+  });
+  if (isAndroid) {
+    void CapacitorApp.addListener("pause", () => awayTracker.hidden());
+    void CapacitorApp.addListener("resume", () => onAppReturned());
   }
 
   goBackInApp = goBack;

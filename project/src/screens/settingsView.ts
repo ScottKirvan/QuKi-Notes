@@ -1,5 +1,6 @@
 import { ArrowLeft } from "lucide";
 
+import { AWAY_CHOICES, parseAwayMinutes, serializeAwayMinutes, type AwayMinutes } from "../awayTimeout";
 import { FONT_SIZES, type FontSize } from "../fontSize";
 import { setIconButton } from "./icons";
 import type { ShowToast } from "./toast";
@@ -54,6 +55,8 @@ export interface SettingsViewCallbacks {
   fontSize: FontSizeCallbacks;
   /** Whether the editor shows its word and character count; applied as soon as it changes. */
   showWordCount: { get: () => boolean; set: (value: boolean) => void };
+  /** How long the app must be out of sight before coming back starts a new QuKi. */
+  newQuKiAfterAway: { get: () => AwayMinutes; set: (value: AwayMinutes) => void };
   /**
    * Settings -> Export (STORAGE_CONTRACT.md "The core API": "a single call
    * that produces the complete library... the backup story, and... also the
@@ -157,6 +160,12 @@ export function createSettingsView(container: HTMLElement, callbacks: SettingsVi
           <span>Delete orphaned images</span>
           <input type="checkbox" class="delete-orphaned-images-toggle" />
         </label>
+        <label class="settings-row">
+          <span>New QuKi after being away</span>
+          <select class="settings-select away-select">
+            ${AWAY_CHOICES.map((c) => `<option value="${serializeAwayMinutes(c.minutes)}">${c.label}</option>`).join("")}
+          </select>
+        </label>
       </section>
       <section class="settings-section">
         <h2>About</h2>
@@ -195,6 +204,12 @@ export function createSettingsView(container: HTMLElement, callbacks: SettingsVi
   wordCountToggle.checked = callbacks.showWordCount.get();
   wordCountToggle.addEventListener("change", () => {
     callbacks.showWordCount.set(wordCountToggle.checked);
+  });
+
+  const awaySelect = container.querySelector<HTMLSelectElement>(".away-select")!;
+  awaySelect.value = serializeAwayMinutes(callbacks.newQuKiAfterAway.get());
+  awaySelect.addEventListener("change", () => {
+    callbacks.newQuKiAfterAway.set(parseAwayMinutes(awaySelect.value));
   });
 
   if (callbacks.storage) {

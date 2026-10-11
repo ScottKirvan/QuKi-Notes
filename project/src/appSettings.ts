@@ -2,8 +2,8 @@
  * App-level user preferences that are not QuKi content, not an image, and
  * not trash state - STORAGE_CONTRACT.md's rules don't govern where these
  * live: "delete orphaned images" (rule 13: "This behavior is a user-facing
- * setting, defaulting to delete."), the editor's text size and whether the
- * word count shows.
+ * setting, defaulting to delete."), the editor's text size, whether the
+ * word count shows, and how long away starts a new QuKi.
  *
  * [Proposed — unconfirmed] Backed by whatever key/value storage the caller
  * hands in (real usage: window.localStorage) rather than a file under the
@@ -18,6 +18,7 @@
  * AndroidSettingsStore) so tests don't depend on a real browser global.
  */
 
+import { DEFAULT_AWAY_MINUTES, parseAwayMinutes, serializeAwayMinutes, type AwayMinutes } from "./awayTimeout";
 import { DEFAULT_FONT_SIZE, parseFontSize, type FontSize } from "./fontSize";
 
 export interface AppSettingsStorage {
@@ -28,6 +29,7 @@ export interface AppSettingsStorage {
 const DELETE_ORPHANED_IMAGES_KEY = "quki.settings.deleteOrphanedImages";
 const FONT_SIZE_KEY = "quki.settings.fontSize";
 const SHOW_WORD_COUNT_KEY = "quki.settings.showWordCount";
+const NEW_QUKI_AFTER_AWAY_KEY = "quki.settings.newQuKiAfterAway";
 
 /** STORAGE_CONTRACT.md rule 13: "This behavior is a user-facing setting, defaulting to delete." */
 const DELETE_ORPHANED_IMAGES_DEFAULT = true;
@@ -84,6 +86,22 @@ export class AppSettingsStore {
   setShowWordCount(value: boolean): void {
     try {
       this.storage.setItem(SHOW_WORD_COUNT_KEY, String(value));
+    } catch {
+      // Best-effort, as setDeleteOrphanedImages.
+    }
+  }
+
+  getNewQuKiAfterAway(): AwayMinutes {
+    try {
+      return parseAwayMinutes(this.storage.getItem(NEW_QUKI_AFTER_AWAY_KEY));
+    } catch {
+      return DEFAULT_AWAY_MINUTES;
+    }
+  }
+
+  setNewQuKiAfterAway(value: AwayMinutes): void {
+    try {
+      this.storage.setItem(NEW_QUKI_AFTER_AWAY_KEY, serializeAwayMinutes(value));
     } catch {
       // Best-effort, as setDeleteOrphanedImages.
     }

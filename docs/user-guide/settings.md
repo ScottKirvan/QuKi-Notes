@@ -37,6 +37,8 @@ QuKis in the web version stay in that one browser on that one device. To keep a 
 
 **Trash** opens the Trash screen. See [QuKis List → Trash](/user-guide/qukis-list#trash).
 
+**New QuKi after being away** starts a fresh, blank QuKi when you come back to QuKi Notes after it has been out of sight for a while, so it's ready for your next thought. Choose **After 2 minutes** (the default), **5**, **15** or **30 minutes**, or **Off**. See [Capturing QuKis → Coming back after being away](/user-guide/capturing-qukis#coming-back-after-being-away).
+
 ## About
 
 Shows the app's name and version. Tap **Version** to copy the version number to the clipboard.
