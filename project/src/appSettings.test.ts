@@ -64,6 +64,34 @@ describe("AppSettingsStore", () => {
   });
 });
 
+describe("AppSettingsStore new QuKi after being away", () => {
+  it("defaults to 2 minutes when nothing has been stored", () => {
+    expect(new AppSettingsStore(new FakeStorage()).getNewQuKiAfterAway()).toBe(2);
+  });
+
+  it("persists a chosen time, and Off, across instances", () => {
+    const storage = new FakeStorage();
+    new AppSettingsStore(storage).setNewQuKiAfterAway(15);
+    expect(new AppSettingsStore(storage).getNewQuKiAfterAway()).toBe(15);
+    new AppSettingsStore(storage).setNewQuKiAfterAway(null);
+    expect(new AppSettingsStore(storage).getNewQuKiAfterAway()).toBe(null);
+  });
+
+  it("falls back to 2 minutes when the underlying storage throws on read, and does not throw on write", () => {
+    const throwing: AppSettingsStorage = {
+      getItem(): string {
+        throw new Error("boom");
+      },
+      setItem(): void {
+        throw new Error("boom");
+      },
+    };
+    const store = new AppSettingsStore(throwing);
+    expect(store.getNewQuKiAfterAway()).toBe(2);
+    expect(() => store.setNewQuKiAfterAway(null)).not.toThrow();
+  });
+});
+
 describe("AppSettingsStore word count", () => {
   it("is off when nothing has been stored", () => {
     expect(new AppSettingsStore(new FakeStorage()).getShowWordCount()).toBe(false);
