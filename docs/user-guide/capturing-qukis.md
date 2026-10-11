@@ -60,6 +60,15 @@ The button's icon shows where you are:
 
 QuKi Notes remembers your choice: if you leave it in plain-text mode, it starts in plain-text mode next time.
 
+### Word and character count
+
+Turn on **Word and character count** in [Settings](/user-guide/settings#appearance) to see how long the QuKi is, for example `42 words · 260 characters`. It sits in the lower right corner of the editor, just above the formatting toolbar while you're editing, and at the bottom edge while you're reading. It updates as you type, and stays clear of the line you're typing on.
+
+The count is of the text as **Send** delivers it, so it matches what a character-limited app (such as Bluesky's 300 or Mastodon's 500) will see:
+
+- **Characters** include spaces, line breaks and markdown symbols such as `**` and `- `. An emoji or an accented letter counts as one.
+- **Words** don't include markdown symbols on their own: `- [ ] buy milk` is two words, and `**bold**` is one.
+
 ## Formatting toolbar
 
 While you're editing, a toolbar sits at the bottom of the editor:
