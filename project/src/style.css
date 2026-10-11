@@ -106,8 +106,16 @@ body {
 }
 
 #app {
-  position: relative;
   min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* #save-status sits above this, outside every screen, so it shows whichever
+   screen is active and pushes that screen down rather than covering it. */
+#views {
+  position: relative;
+  flex: 1 1 auto;
   overflow: hidden;
 }
 
@@ -697,7 +705,8 @@ body.theme-light .about-link-btn.accent {
  * little contrast for the error colour itself to double as body text.
  */
 #save-status {
-  margin: 12px 24px 0;
+  flex: 0 0 auto;
+  margin: 8px 16px;
   padding: 8px 12px;
   border-radius: 6px;
   font-size: 13px;
