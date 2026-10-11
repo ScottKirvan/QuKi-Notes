@@ -1,5 +1,6 @@
 import type { EditorState } from "@codemirror/state";
 import type { SyntaxNode } from "@lezer/common";
+import { linkParts } from "./linkParts";
 
 /**
  * Pure conversion from a GFM `Table` syntax node to a plain-data model the
@@ -91,9 +92,17 @@ function autolinkHref(raw: string): string {
   return `mailto:${raw}`;
 }
 
-function directChildrenWithin(node: SyntaxNode, from: number, to: number): SyntaxNode[] {
+// A link's label holds no nested link or autolink (BEHAVIOR_SPEC.md), so a
+// URL-looking run inside one stays plain text.
+function directChildrenWithin(
+  node: SyntaxNode,
+  from: number,
+  to: number,
+  inLinkLabel: boolean,
+): SyntaxNode[] {
   const result: SyntaxNode[] = [];
   for (let child = node.firstChild; child; child = child.nextSibling) {
+    if (inLinkLabel && (child.name === "URL" || child.name === "Link")) continue;
     if (child.from >= from && child.to <= to && FORMATTING_TYPES.has(child.name)) {
       result.push(child);
     }
@@ -101,14 +110,20 @@ function directChildrenWithin(node: SyntaxNode, from: number, to: number): Synta
   return result;
 }
 
-function buildSpans(state: EditorState, node: SyntaxNode, from: number, to: number): InlineSpan[] {
+function buildSpans(
+  state: EditorState,
+  node: SyntaxNode,
+  from: number,
+  to: number,
+  inLinkLabel = false,
+): InlineSpan[] {
   const spans: InlineSpan[] = [];
   let pos = from;
-  for (const child of directChildrenWithin(node, from, to)) {
+  for (const child of directChildrenWithin(node, from, to, inLinkLabel)) {
     if (child.from > pos) {
       spans.push({ kind: "text", text: state.sliceDoc(pos, child.from) });
     }
-    spans.push(buildSpan(state, child));
+    spans.push(buildSpan(state, child, inLinkLabel));
     pos = child.to;
   }
   if (pos < to) {
@@ -123,31 +138,28 @@ function wrappedContentRange(node: SyntaxNode, markType: string): { from: number
   return { from: marks[0]!.to, to: marks[marks.length - 1]!.from };
 }
 
-function buildSpan(state: EditorState, node: SyntaxNode): InlineSpan {
+function buildSpan(state: EditorState, node: SyntaxNode, inLinkLabel: boolean): InlineSpan {
   switch (node.name) {
     case "StrongEmphasis": {
       const { from, to } = wrappedContentRange(node, "EmphasisMark");
-      return { kind: "strong", children: buildSpans(state, node, from, to) };
+      return { kind: "strong", children: buildSpans(state, node, from, to, inLinkLabel) };
     }
     case "Emphasis": {
       const { from, to } = wrappedContentRange(node, "EmphasisMark");
-      return { kind: "em", children: buildSpans(state, node, from, to) };
+      return { kind: "em", children: buildSpans(state, node, from, to, inLinkLabel) };
     }
     case "Strikethrough": {
       const { from, to } = wrappedContentRange(node, "StrikethroughMark");
-      return { kind: "strike", children: buildSpans(state, node, from, to) };
+      return { kind: "strike", children: buildSpans(state, node, from, to, inLinkLabel) };
     }
     case "InlineCode": {
       const { from, to } = wrappedContentRange(node, "CodeMark");
       return { kind: "code", text: state.sliceDoc(from, to) };
     }
     case "Link": {
-      const marks = node.getChildren("LinkMark");
-      const urlNode = node.getChild("URL");
-      const from = marks.length >= 1 ? marks[0]!.to : node.from;
-      const to = marks.length >= 2 ? marks[1]!.from : node.to;
-      const url = urlNode ? state.sliceDoc(urlNode.from, urlNode.to) : "";
-      return { kind: "link", url, children: buildSpans(state, node, from, to) };
+      const { labelFrom, labelTo, destination } = linkParts(node);
+      const url = destination ? state.sliceDoc(destination.from, destination.to) : "";
+      return { kind: "link", url, children: buildSpans(state, node, labelFrom, labelTo, true) };
     }
     case "URL": {
       const raw = state.sliceDoc(node.from, node.to);

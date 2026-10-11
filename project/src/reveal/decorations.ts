@@ -14,6 +14,7 @@ import { plainTextMode } from "./plainTextMode";
 import { editModeField, isEditMode } from "./editModeField";
 import { listPrefixLength } from "./listPrefix";
 import { buildTableModel } from "./tableModel";
+import { linkParts } from "./linkParts";
 import {
   BulletWidget,
   CheckboxWidget,
@@ -229,11 +230,10 @@ function readLabelAndUrl(
 ): { label: string; url: string } {
   // Both Link and Image share this shape: LinkMark("[" or "!["), label
   // content, LinkMark("]"), LinkMark("("), URL, LinkMark(")").
-  const marks = node.getChildren("LinkMark");
-  const urlNode = node.getChild("URL");
-  const label =
-    marks.length >= 2 ? state.sliceDoc(marks[0].to, marks[1].from) : "";
-  const url = urlNode ? state.sliceDoc(urlNode.from, urlNode.to) : "";
+  const hasLabel = node.getChildren("LinkMark").length >= 2;
+  const { labelFrom, labelTo, destination } = linkParts(node);
+  const label = hasLabel ? state.sliceDoc(labelFrom, labelTo) : "";
+  const url = destination ? state.sliceDoc(destination.from, destination.to) : "";
   return { label, url };
 }
 

@@ -38,7 +38,7 @@ function decorationsFor(doc: string, caret: number, plain = false, editMode?: bo
   const out: Deco[] = [];
   buildDecorations(state).between(0, doc.length, (from, to, value) => {
     const spec = value.spec as {
-      widget?: { checked?: boolean; label?: string; url?: string };
+      widget?: { checked?: boolean; label?: string; url?: string; alt?: string; src?: string };
       class?: string;
       attributes?: { style?: string };
     };
@@ -49,8 +49,8 @@ function decorationsFor(doc: string, caret: number, plain = false, editMode?: bo
       cls: spec.class ?? null,
       style: spec.attributes?.style ?? null,
       checked: spec.widget?.checked ?? null,
-      label: spec.widget?.label,
-      url: spec.widget?.url,
+      label: spec.widget?.label ?? spec.widget?.alt,
+      url: spec.widget?.url ?? spec.widget?.src,
     });
   });
   return out;
@@ -604,6 +604,46 @@ describe("bare autolinks", () => {
     expect(widgets(decos, "LinkWidget")).toHaveLength(1);
     const [link] = widgets(decos, "LinkWidget");
     expect(link.label).toBe("see https://example.com here");
+  });
+});
+
+describe("link destination with a URL in the label (issue #440)", () => {
+  it("given a link whose label contains a bare URL, when decorated, then the href is the link's own destination", () => {
+    const doc = "plain\n[see http://example.com for more](https://real.example.org)";
+    const [link] = widgets(decorationsFor(doc, 0), "LinkWidget");
+    expect(link.label).toBe("see http://example.com for more");
+    expect(link.url).toBe("https://real.example.org");
+  });
+
+  it("given a link whose label contains a bare email address, when decorated, then the href is the link's own destination", () => {
+    const doc = "plain\n[mail foo@bar.com](https://real.example.org)";
+    const [link] = widgets(decorationsFor(doc, 0), "LinkWidget");
+    expect(link.url).toBe("https://real.example.org");
+  });
+
+  it("given a link on a heading line whose label contains a bare URL, when decorated, then the href is the link's own destination", () => {
+    const doc = "plain\n# [see www.example.com](https://real.example.org)";
+    const [link] = widgets(decorationsFor(doc, 0), "LinkWidget");
+    expect(link.url).toBe("https://real.example.org");
+  });
+
+  it("given an image whose alt text contains a bare URL, when decorated, then its source is the image's own destination", () => {
+    const doc = "plain\n![from http://example.com](https://real.example.org/p.png)";
+    const [image] = widgets(decorationsFor(doc, 0), "ImageWidget");
+    expect(image.label).toBe("from http://example.com");
+    expect(image.url).toBe("https://real.example.org/p.png");
+  });
+
+  it("given an angle-bracket autolink, when decorated, then the href is its URL", () => {
+    const doc = "plain\n<https://auto.example.org>";
+    const [link] = widgets(decorationsFor(doc, 0), "LinkWidget");
+    expect(link.url).toBe("https://auto.example.org");
+  });
+
+  it("given a reference-style link with no destination of its own, when decorated, then a URL in its label is not used as the href", () => {
+    const doc = "plain\n[see http://example.com][ref]\n\n[ref]: https://real.example.org";
+    const links = widgets(decorationsFor(doc, 0), "LinkWidget");
+    expect(links.map((l) => l.url)).not.toContain("http://example.com");
   });
 });
 
