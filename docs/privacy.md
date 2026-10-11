@@ -35,6 +35,7 @@ QuKi Notes itself has no server to talk to, but a few things you do can reach th
 
 - **Images from the web.** If a QuKi contains an image linked by web address (`https://…`), QuKi Notes downloads that image from its server when the QuKi is shown. As with any web request, that server sees your IP address and the time of the request. No QuKi content is sent. Images you paste in are stored locally and involve no network access.
 - **Links.** Tapping a link in a QuKi, or in the Help dialog, opens that website.
+- **Spell-check dictionaries (Linux desktop app).** On Linux, the desktop app downloads the spell-check dictionary for your language from Google's servers the first time it needs one, as the Electron framework it's built on does by default. Only the dictionary is requested; no QuKi content is sent. On Windows, Android and the web version, spell check uses your system's or browser's own spellchecker.
 - **The web version.** The web version is itself a website, hosted on GitHub Pages. When your browser loads it, GitHub receives the usual request information (such as your IP address), as it does for any GitHub Pages site. Your QuKis stay in your browser and are not sent to GitHub.
 
 ## The command-line tools and AI assistants

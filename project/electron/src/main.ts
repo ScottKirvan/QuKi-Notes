@@ -12,6 +12,7 @@ import type { StorageBackend } from 'quki-core' with { 'resolution-mode': 'impor
 
 import { resolveMigratedStorageRoot } from './flutterMigration.js';
 import { PreferencesStore } from './preferences.js';
+import { spellingMenuTemplate } from './spellingMenu.js';
 import { isValidWritableDirectory } from './storageValidation.js';
 import {
   APP_LIFECYCLE_CHANNELS,
@@ -426,6 +427,16 @@ function attachExternalLinkHandling(win: BrowserWindow): void {
   });
 }
 
+function attachSpellingMenu(win: BrowserWindow): void {
+  win.webContents.on('context-menu', (_event, params) => {
+    const template = spellingMenuTemplate(params, {
+      replaceMisspelling: (word) => win.webContents.replaceMisspelling(word),
+      addToDictionary: (word) => win.webContents.session.addWordToSpellCheckerDictionary(word),
+    });
+    if (template.length > 0) Menu.buildFromTemplate(template).popup({ window: win });
+  });
+}
+
 // How long the main process waits for the renderer's onFlushBeforeQuit
 // acknowledgement (see attachQuitFlush) before giving up and closing anyway
 // - a hung or crashed renderer must never make the window unclosable.
@@ -482,10 +493,12 @@ async function createWindow(prefsStore: PreferencesStore): Promise<BrowserWindow
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      spellcheck: true,
     },
   });
   attachWindowBoundsPersistence(win, prefsStore);
   attachExternalLinkHandling(win);
+  attachSpellingMenu(win);
   attachQuitFlush(win);
 
   // Vite dev-server workflow (see project/scripts/electron-dev.mjs): when

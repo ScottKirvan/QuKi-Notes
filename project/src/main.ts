@@ -10,6 +10,7 @@ import { EditorState } from "@codemirror/state";
 import { defaultKeymap, historyKeymap } from "@codemirror/commands";
 import { indentOnInput, HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { markdownEditing } from "./markdownEditing";
+import { spellcheck } from "./spellcheck";
 import { tags } from "@lezer/highlight";
 import { createElement, FileStack, CodeXml, BookOpen, Plus, CircleHelp, Send, Settings, Trash2 } from "lucide";
 import { Capacitor } from "@capacitor/core";
@@ -618,6 +619,7 @@ async function init(): Promise<void> {
       indentOnInput(),
       keymap.of([...indentDedentKeymap, ...defaultKeymap, ...historyKeymap]),
       markdownEditing(),
+      spellcheck(),
       syntaxHighlighting(qukiSyntaxHighlighting),
       // BEHAVIOR_SPEC.md §4: the persisted plain-text/rendered choice - see
       // initialPlainTextMode above for where this comes from.
