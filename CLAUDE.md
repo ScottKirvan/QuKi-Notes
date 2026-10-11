@@ -1,39 +1,29 @@
 # CLAUDE.md — QuKi Notes 
 
-## Current status (2026-10-03)
+## Current status
 
-The TypeScript rewrite (`project/`) has reached the end of
-`notes/dev/quki-rewrite-path.md`'s phase 06 (Capacitor/Android) per that phase's own
-stated scope: storage backend swap + Flutter-migration detection, the all-files
-permission Kotlin, the keyboard-aware formatting toolbar, Send (share-out), and
-share-in are all built and independently reviewed. All four day-one targets (web,
-Android, Windows, Linux) have working implementations.
+QuKi Notes is a TypeScript app in `project/` on `main`; the old Flutter code is gone.
+One codebase ships to four platforms: web (a PWA at qukinotes.scottkirvan.com, deployed
+to Cloudflare by `.github/workflows/deploy-web.yml`), Android (Capacitor, `project/android/`),
+and Windows and Linux (Electron, `project/electron/`, which also bundles the `quki` CLI and
+the `quki-mcp` MCP server). The latest release is v0.25.1; release-please opens the next
+release PR from the conventional commits on `main`.
 
-A formal code review across the whole rewrite codebase (2026-09-26) produced 16
-findings, Critical through Low. All 16 are merged into `QuKi_Notes_Rewrite` (PR #466),
-each fixed on its own branch, independently reviewed and tested, then combined.
-Notable fixes: the auto-save generation race on QuKi switch, trash/restore name
-collisions, orphan-image cleanup's `media/../` path traversal, and making the CLI and
-MCP server actually distributable (Windows NSIS component, Linux AppImage/`.deb`).
-Two further bugs turned up during Scott's own device testing of the combined branch,
-not in the original review, and landed in the same PR:
-- A false "edited elsewhere" save conflict on Android after the app sat backgrounded
-  10–20 minutes with no real edit. Cause: Android's scoped-storage (FUSE) layer drifts
-  reported mtimes even when content hasn't changed. Fix: conflict detection
-  (`QuKiStore.updateExisting` in `project/core/src/quKiStore.ts`) now also checks
-  whether on-disk content is byte-identical to what the app already believes is
-  saved before reporting a conflict — a genuine external edit still conflicts.
-- A newly-typed QuKi not showing up in the QuKi list immediately — not lost, just read
-  before the pending debounced save landed. The list button (`project/src/main.ts`)
-  now flushes the pending save before opening the list, matching every other
-  navigation that already did this.
+Layout under `project/`:
+- `core/`: storage and the QuKi rules (`QuKiStore`, the Node/OPFS backends, export),
+  shared by the app, CLI and MCP server. The app imports its built `dist/`, so run
+  `npm run build` in `core/` first, or the app shows bogus type errors.
+- `src/`: the app (CodeMirror editor, reveal/rendering in `src/reveal/`, screens in
+  `src/screens/`). `cli/`, `mcp/`, `electron/`, `android/`: the other targets.
+- `e2e/`: Playwright tests against the built web app (`npm run build`, then
+  `npm run test:e2e`; Electron ones via `npm run test:e2e:electron`). Unit tests:
+  `npm test` (vitest) in `project/` and in each package.
 
-The Linux build pipeline was separately reworked to multi-arch (x64/arm64) plus a
-`.deb` package in the meantime (PR #465) and reconciled into the same batch.
+User docs are the VitePress site in `docs/` (`npm run docs:build`). The specs are in
+`notes/dev/` (see Sources of truth below).
 
 **Open work is tracked in GitHub issues** (`gh issue list --state open`), not in a
-notes file. The tracker was reconciled against the rewrite on 2026-10-03: issues the
-rewrite fixed or made obsolete are closed, and what's open is real.
+notes file.
 
 ## Keeping This File Current
 
@@ -43,6 +33,10 @@ the top. As key files, build commands, and architectural decisions emerge, recor
 here so future sessions start with full context rather than re-deriving it.
 
 Update this file in the same commit as the work it documents.
+
+What this file claims as current must be true now. Don't record history here (what
+merged when, which PR fixed what): git and the PRs hold that, and it only clouds the
+context. When something stops being true, change or delete it.
 
 ## Working Conventions
 
