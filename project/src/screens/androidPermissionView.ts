@@ -63,7 +63,6 @@ export function createAndroidPermissionView(
       <p class="android-permission-waiting" hidden>Waiting for you to grant access in Settings&hellip;</p>
     </div>
   `;
-  container.appendChild(overlay);
 
   const backBtn = overlay.querySelector<HTMLButtonElement>(".android-permission-back-btn")!;
   setIconButton(backBtn, ArrowLeft, "Use app storage instead");
@@ -72,8 +71,13 @@ export function createAndroidPermissionView(
 
   button.addEventListener("click", () => onRequestAccess());
   let unregisterBack: (() => void) | null = null;
+  // Attached only while shown: main.ts builds a fresh view for every
+  // Filesystem-storage request, so a hidden overlay left in the shared host
+  // would pile up one per request.
   const setShown = (shown: boolean): void => {
     overlay.hidden = !shown;
+    if (shown && !overlay.isConnected) container.appendChild(overlay);
+    if (!shown) overlay.remove();
     if (shown && !unregisterBack) unregisterBack = backDismiss?.push(useAppStorageInstead) ?? null;
     if (!shown && unregisterBack) {
       unregisterBack();
