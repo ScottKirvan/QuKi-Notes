@@ -1,3 +1,5 @@
+import type { CalloutType } from "./callout";
+
 export type ElementCategory = "inline" | "block-marker";
 
 /**
@@ -52,6 +54,12 @@ export interface RevealElement {
   checked?: boolean;
   /** BlockquoteLine only: how many `>` levels the marker consumed. */
   quoteDepth?: number;
+  /**
+   * BlockquoteLine and CalloutTitle: the GitHub alert type of the top-level
+   * quote this line belongs to. A CalloutTitle is the alert's `> [!TYPE]`
+   * line, with the whole line as its marker span.
+   */
+  calloutType?: CalloutType;
   /**
    * FencedCode only: the raw text of the optional info string (e.g. `dart`
    * in ` ```dart `). Captured for a later syntax-highlighting feature; no
