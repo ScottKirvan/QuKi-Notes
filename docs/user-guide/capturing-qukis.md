@@ -6,6 +6,10 @@ The editor is the first thing you see when you open the app, and it's always hom
 
 Tap <i-lucide-plus /> **New QuKi** in the top bar to start another new QuKi.
 
+### Spell check
+
+Misspelled words are underlined using your device's own spellchecker (your keyboard's on Android, Windows' on Windows, your browser's on the web), so the language and any words you've added to its dictionary carry over. On Linux the app uses its own built-in spellchecker in your system language. On Android, your keyboard's autocorrect and automatic capitals work the same as in any other app. On Windows and Linux, right-click an underlined word to pick a suggestion or add the word to the dictionary. Text inside `inline code` and code blocks is never underlined.
+
 ## Auto-save
 
 QuKis auto save as you type.  No need to manually save them, pick filesystem locations, or create names for them.
