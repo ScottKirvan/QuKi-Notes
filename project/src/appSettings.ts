@@ -1,9 +1,8 @@
 /**
  * App-level user preferences that are not QuKi content, not an image, and
  * not trash state - STORAGE_CONTRACT.md's rules don't govern where these
- * live. Today this holds exactly one setting: "delete orphaned images"
- * (rule 13: "This behavior is a user-facing setting, defaulting to
- * delete.").
+ * live: "delete orphaned images" (rule 13: "This behavior is a user-facing
+ * setting, defaulting to delete.") and the editor's text size.
  *
  * [Proposed — unconfirmed] Backed by whatever key/value storage the caller
  * hands in (real usage: window.localStorage) rather than a file under the
@@ -18,12 +17,15 @@
  * AndroidSettingsStore) so tests don't depend on a real browser global.
  */
 
+import { DEFAULT_FONT_SIZE, parseFontSize, type FontSize } from "./fontSize";
+
 export interface AppSettingsStorage {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
 }
 
 const DELETE_ORPHANED_IMAGES_KEY = "quki.settings.deleteOrphanedImages";
+const FONT_SIZE_KEY = "quki.settings.fontSize";
 
 /** STORAGE_CONTRACT.md rule 13: "This behavior is a user-facing setting, defaulting to delete." */
 const DELETE_ORPHANED_IMAGES_DEFAULT = true;
@@ -50,6 +52,22 @@ export class AppSettingsStore {
     } catch {
       // Best-effort, same reasoning as the read side above - the toggle
       // just won't persist across reloads in that case.
+    }
+  }
+
+  getFontSize(): FontSize {
+    try {
+      return parseFontSize(this.storage.getItem(FONT_SIZE_KEY));
+    } catch {
+      return DEFAULT_FONT_SIZE;
+    }
+  }
+
+  setFontSize(value: FontSize): void {
+    try {
+      this.storage.setItem(FONT_SIZE_KEY, value);
+    } catch {
+      // Best-effort, as setDeleteOrphanedImages.
     }
   }
 }

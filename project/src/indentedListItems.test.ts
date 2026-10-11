@@ -53,9 +53,9 @@ function listLineStyle(doc: string, lineFrom: number): string | null {
   return drawn(doc).find((d) => d.cls === "cm-quki-list-line" && d.from === lineFrom)?.style ?? null;
 }
 
-// CodeMirror's 6px line inset + 16px per depth + the 24px marker gutter.
+// CodeMirror's 6px line inset + 1em per depth + the 1.5em marker gutter.
 function depthStyle(depth: number): string {
-  return `padding-left:${6 + depth * 16 + 24}px;text-indent:-24px`;
+  return `padding-left:calc(6px + ${depth + 1.5}em);text-indent:-1.5em`;
 }
 
 function enterAtEnd(doc: string): string {

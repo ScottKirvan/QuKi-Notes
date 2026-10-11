@@ -6,7 +6,7 @@ import {
   keymap,
   type KeyBinding,
 } from "@codemirror/view";
-import { EditorState } from "@codemirror/state";
+import { Compartment, EditorState } from "@codemirror/state";
 import { defaultKeymap, historyKeymap } from "@codemirror/commands";
 import { indentOnInput, HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { markdownEditing } from "./markdownEditing";
@@ -25,6 +25,7 @@ import { resolveMigratedStorageRoot, type AndroidFlutterMigrationDeps } from "./
 import { createAndroidSetupApi } from "./androidSetupApi";
 import { AndroidSettingsStore } from "./androidSettingsStore";
 import { AppSettingsStore } from "./appSettings";
+import { editorFontSizeTheme } from "./fontSize";
 import type { ElectronSetupApi } from "./electronSetupApi";
 import { applyDedent, applyIndent } from "./toolbar/indentDedent";
 import { runToolbarCommand } from "./toolbarAdapter";
@@ -578,6 +579,8 @@ async function init(): Promise<void> {
   // found to occasionally nudge the scroll position for no reason.
   let pendingToolbarScrollCheck = false;
 
+  const editorFontSize = new Compartment();
+
   // BEHAVIOR_SPEC.md §12 "Indentation": "Indent and dedent act on whole
   // lines, and are bound to both the toolbar buttons and Tab / Shift-Tab."
   // `defaultKeymap` (@codemirror/commands) does not bind Tab itself - that
@@ -680,8 +683,8 @@ async function init(): Promise<void> {
         }
       }),
       keepCaretClearOfToolbar(() => toolbarController?.scrollMarginBottom() ?? 0),
+      editorFontSize.of(editorFontSizeTheme(appSettings.getFontSize())),
       EditorView.theme({
-        "&": { fontSize: "16px" },
         // BEHAVIOR_SPEC.md §4: "content is inset 12px on three sides and
         // 36px at the bottom so the last line clears the toolbar." This has
         // to be set through EditorView.theme() rather than a plain rule in
@@ -1403,6 +1406,13 @@ async function init(): Promise<void> {
     deleteOrphanedImages: {
       get: () => appSettings.getDeleteOrphanedImages(),
       set: (value) => appSettings.setDeleteOrphanedImages(value),
+    },
+    fontSize: {
+      get: () => appSettings.getFontSize(),
+      set: (value) => {
+        appSettings.setFontSize(value);
+        view.dispatch({ effects: editorFontSize.reconfigure(editorFontSizeTheme(value)) });
+      },
     },
     onExport: exportQuKiLibrary,
   });
