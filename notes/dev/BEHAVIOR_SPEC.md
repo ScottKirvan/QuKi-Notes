@@ -259,6 +259,8 @@ Newest first by modification time.
 
 Each row shows a **preview**: the first non-blank line, with any leading heading markers stripped, truncated to 80 characters with an ellipsis. Empty or unreadable QuKis show `(empty)`. The preview is read from the file per row, so opening the list reads every QuKi's body.
 
+Opening the list, or a search, never flickers: the rows already on screen stay until every new row and its preview has been read, then the whole list is replaced in one step — no blank list and no placeholder previews in between. [Proposed — unconfirmed: keeping the previous rows on screen while the fresh ones are read.]
+
 Below it, a **relative timestamp** (see §9).
 
 Tapping a row opens that QuKi and returns to the editor. **Swiping right-to-left deletes it** — red background, trash icon, no confirmation — with the same *"QuKi moved to Trash."* snackbar. If the deleted QuKi was the one open in the editor, the editor resets to blank.
