@@ -64,6 +64,34 @@ describe("AppSettingsStore", () => {
   });
 });
 
+describe("AppSettingsStore word count", () => {
+  it("is off when nothing has been stored", () => {
+    expect(new AppSettingsStore(new FakeStorage()).getShowWordCount()).toBe(false);
+  });
+
+  it("persists being turned on and off across instances", () => {
+    const storage = new FakeStorage();
+    new AppSettingsStore(storage).setShowWordCount(true);
+    expect(new AppSettingsStore(storage).getShowWordCount()).toBe(true);
+    new AppSettingsStore(storage).setShowWordCount(false);
+    expect(new AppSettingsStore(storage).getShowWordCount()).toBe(false);
+  });
+
+  it("is off when the underlying storage throws on read, and does not throw on write", () => {
+    const throwing: AppSettingsStorage = {
+      getItem(): string {
+        throw new Error("boom");
+      },
+      setItem(): void {
+        throw new Error("boom");
+      },
+    };
+    const store = new AppSettingsStore(throwing);
+    expect(store.getShowWordCount()).toBe(false);
+    expect(() => store.setShowWordCount(true)).not.toThrow();
+  });
+});
+
 describe("AppSettingsStore font size", () => {
   it("defaults to Normal when nothing has been stored", () => {
     expect(new AppSettingsStore(new FakeStorage()).getFontSize()).toBe("normal");

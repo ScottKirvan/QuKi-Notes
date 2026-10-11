@@ -52,6 +52,8 @@ export interface SettingsViewCallbacks {
   deleteOrphanedImages: DeleteOrphanedImagesCallbacks;
   /** The editor's text size; applied as soon as it changes. */
   fontSize: FontSizeCallbacks;
+  /** Whether the editor shows its word and character count; applied as soon as it changes. */
+  showWordCount: { get: () => boolean; set: (value: boolean) => void };
   /**
    * Settings -> Export (STORAGE_CONTRACT.md "The core API": "a single call
    * that produces the complete library... the backup story, and... also the
@@ -140,6 +142,10 @@ export function createSettingsView(container: HTMLElement, callbacks: SettingsVi
             ${FONT_SIZES.map((size) => `<option value="${size.id}">${size.label}</option>`).join("")}
           </select>
         </label>
+        <label class="settings-row">
+          <span>Word and character count</span>
+          <input type="checkbox" class="word-count-toggle" />
+        </label>
       </section>
       ${storageSectionHtml}
       <section class="settings-section">
@@ -183,6 +189,12 @@ export function createSettingsView(container: HTMLElement, callbacks: SettingsVi
   fontSizeSelect.value = callbacks.fontSize.get();
   fontSizeSelect.addEventListener("change", () => {
     callbacks.fontSize.set(fontSizeSelect.value as FontSize);
+  });
+
+  const wordCountToggle = container.querySelector<HTMLInputElement>(".word-count-toggle")!;
+  wordCountToggle.checked = callbacks.showWordCount.get();
+  wordCountToggle.addEventListener("change", () => {
+    callbacks.showWordCount.set(wordCountToggle.checked);
   });
 
   if (callbacks.storage) {

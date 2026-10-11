@@ -8,6 +8,8 @@ Open Settings with the <i-lucide-settings /> **gear** button in the editor's top
 
 **Text size** sets how big the text in the editor is: **Small**, **Normal** (the default), **Large** or **Extra large**. The change shows as soon as you go back to the editor, and QuKi Notes remembers it next time. Headings, list indentation and quotes grow and shrink with it. It changes the editor only, not the QuKis list or the menus.
 
+**Word and character count** shows a small count of the QuKi's words and characters in the editor's lower right corner. It's off until you turn it on. See [Capturing QuKis → Word and character count](/user-guide/capturing-qukis#word-and-character-count).
+
 ## Storage
 
 **Android, Windows and Linux** show where your QuKis are stored:

@@ -808,6 +808,26 @@ body.theme-light .about-link-btn.accent {
   display: none !important;
 }
 
+.word-count {
+  position: absolute;
+  right: 8px;
+  bottom: 4px;
+  z-index: 5;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--background-primary-alt);
+  color: var(--text-muted);
+  font-family: var(--font-interface);
+  font-size: 11px;
+  line-height: 16px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.word-count[hidden] {
+  display: none;
+}
+
 .toolbar-btn {
   flex: 0 0 auto;
   width: 28px;

@@ -2,7 +2,8 @@
  * App-level user preferences that are not QuKi content, not an image, and
  * not trash state - STORAGE_CONTRACT.md's rules don't govern where these
  * live: "delete orphaned images" (rule 13: "This behavior is a user-facing
- * setting, defaulting to delete.") and the editor's text size.
+ * setting, defaulting to delete."), the editor's text size and whether the
+ * word count shows.
  *
  * [Proposed — unconfirmed] Backed by whatever key/value storage the caller
  * hands in (real usage: window.localStorage) rather than a file under the
@@ -26,6 +27,7 @@ export interface AppSettingsStorage {
 
 const DELETE_ORPHANED_IMAGES_KEY = "quki.settings.deleteOrphanedImages";
 const FONT_SIZE_KEY = "quki.settings.fontSize";
+const SHOW_WORD_COUNT_KEY = "quki.settings.showWordCount";
 
 /** STORAGE_CONTRACT.md rule 13: "This behavior is a user-facing setting, defaulting to delete." */
 const DELETE_ORPHANED_IMAGES_DEFAULT = true;
@@ -66,6 +68,22 @@ export class AppSettingsStore {
   setFontSize(value: FontSize): void {
     try {
       this.storage.setItem(FONT_SIZE_KEY, value);
+    } catch {
+      // Best-effort, as setDeleteOrphanedImages.
+    }
+  }
+
+  getShowWordCount(): boolean {
+    try {
+      return this.storage.getItem(SHOW_WORD_COUNT_KEY) === "true";
+    } catch {
+      return false;
+    }
+  }
+
+  setShowWordCount(value: boolean): void {
+    try {
+      this.storage.setItem(SHOW_WORD_COUNT_KEY, String(value));
     } catch {
       // Best-effort, as setDeleteOrphanedImages.
     }
