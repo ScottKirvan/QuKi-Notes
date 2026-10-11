@@ -67,7 +67,11 @@ describe('search', () => {
 
       const results = await store.searchWithSnippets('brown');
       expect(results.map((r) => r.item)).toEqual(await store.search('brown'));
-      expect(results[0].snippet).toEqual({ text: 'The quick Brown Fox', highlights: [{ start: 10, end: 15 }] });
+      expect(results[0].snippet).toEqual({
+        text: 'The quick Brown Fox',
+        highlights: [{ start: 10, end: 15 }],
+        onFirstLine: false,
+      });
     });
 
     it('an empty query returns every active QuKi with no snippet', async () => {

@@ -8,6 +8,8 @@ export interface SearchSnippet {
   text: string;
   /** Every match visible in `text`, as offsets into `text`. */
   highlights: SnippetRange[];
+  /** True when the first match is on the body's first non-blank line, the one the list's preview shows. */
+  onFirstLine: boolean;
 }
 
 const SNIPPET_MAX_LENGTH = 80;
@@ -28,7 +30,7 @@ export function bodyMatches(body: string, query: string): boolean {
  * same toLowerCase comparison bodyMatches uses, so a body that matches always
  * yields at least one range.
  */
-function findMatchRanges(body: string, query: string): SnippetRange[] {
+export function findMatches(body: string, query: string): SnippetRange[] {
   const lowerBody = body.toLowerCase();
   const lowerQuery = query.toLowerCase();
   if (lowerQuery === '') return [];
@@ -191,7 +193,7 @@ function trimWhitespace(visible: VisibleLine): VisibleLine {
   return { text, highlights };
 }
 
-function windowAround(visible: VisibleLine): SearchSnippet {
+function windowAround(visible: VisibleLine): VisibleLine {
   const { text } = visible;
   const n = text.length;
   if (n <= SNIPPET_MAX_LENGTH || visible.highlights.length === 0) return visible;
@@ -236,7 +238,7 @@ function windowAround(visible: VisibleLine): SearchSnippet {
  * match inside a link target, say) the line is shown unstripped instead.
  */
 export function buildSearchSnippet(body: string, query: string): SearchSnippet | null {
-  const ranges = findMatchRanges(body, query);
+  const ranges = findMatches(body, query);
   if (ranges.length === 0) return null;
 
   const first = ranges[0];
@@ -252,5 +254,6 @@ export function buildSearchSnippet(body: string, query: string): SearchSnippet |
   let keep = visibleMask(line);
   if (!keep.slice(firstOnLine.start, firstOnLine.end).some(Boolean)) keep = keep.map(() => true);
 
-  return windowAround(trimWhitespace(project(line, lineRanges, keep)));
+  const onFirstLine = body.slice(0, lineStart).trim() === '';
+  return { ...windowAround(trimWhitespace(project(line, lineRanges, keep))), onFirstLine };
 }

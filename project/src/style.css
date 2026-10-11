@@ -339,6 +339,15 @@ body {
   text-overflow: ellipsis;
 }
 
+.list-row-snippet {
+  font-size: 13px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
 .search-hit {
   background: var(--text-highlight-bg);
   color: inherit;

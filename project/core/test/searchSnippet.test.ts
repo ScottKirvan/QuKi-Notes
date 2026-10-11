@@ -1,11 +1,26 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildSearchSnippet, type SearchSnippet } from '../src/index.js';
+import { buildSearchSnippet, findMatches, type SearchSnippet } from '../src/index.js';
 
 function highlighted(snippet: SearchSnippet | null): string[] {
   if (!snippet) return [];
   return snippet.highlights.map((h) => snippet.text.slice(h.start, h.end));
 }
+
+describe('findMatches', () => {
+  it('finds every case-insensitive occurrence, as offsets into the text', () => {
+    expect(findMatches('Cat, cat… CAT', 'cat')).toEqual([
+      { start: 0, end: 3 },
+      { start: 5, end: 8 },
+      { start: 10, end: 13 },
+    ]);
+  });
+
+  it('finds nothing for an absent or empty query', () => {
+    expect(findMatches('Title', 'dog')).toEqual([]);
+    expect(findMatches('Title', '')).toEqual([]);
+  });
+});
 
 describe('buildSearchSnippet', () => {
   it('returns null when the query does not occur in the body', () => {
@@ -103,6 +118,12 @@ describe('buildSearchSnippet', () => {
     const snippet = buildSearchSnippet('first needle\nsecond', 'needle\nsec');
     expect(snippet?.text).toBe('first needle');
     expect(highlighted(snippet)).toEqual(['needle']);
+  });
+
+  it('says whether the first match is on the first non-blank line', () => {
+    expect(buildSearchSnippet('\n\n# Needle title\nbody needle', 'needle')?.onFirstLine).toBe(true);
+    expect(buildSearchSnippet('\n  \nTitle\nbody needle', 'needle')?.onFirstLine).toBe(false);
+    expect(buildSearchSnippet('Title\r\nbody needle', 'needle')?.onFirstLine).toBe(false);
   });
 
   it('copes with characters whose lowercase form is longer', () => {

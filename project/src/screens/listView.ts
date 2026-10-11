@@ -1,5 +1,5 @@
 import { ArrowLeft, CircleHelp, Plus, Settings, Trash2 } from "lucide";
-import type { QuKiStore, SearchMatch, SearchSnippet } from "quki-core";
+import { findMatches, type QuKiStore, type SearchMatch, type SnippetRange } from "quki-core";
 
 import { guardLatest } from "../asyncGuard";
 import { extractPreview } from "../preview";
@@ -26,19 +26,18 @@ export interface ListView {
   open: () => Promise<void>;
 }
 
-export function showSnippet(preview: HTMLElement, snippet: SearchSnippet): void {
-  preview.classList.add("list-row-snippet");
-  preview.replaceChildren();
+function showHighlighted(target: HTMLElement, text: string, highlights: readonly SnippetRange[]): void {
+  target.replaceChildren();
   let at = 0;
-  for (const { start, end } of snippet.highlights) {
-    if (start > at) preview.append(snippet.text.slice(at, start));
+  for (const { start, end } of highlights) {
+    if (start > at) target.append(text.slice(at, start));
     const hit = document.createElement("mark");
     hit.className = "search-hit";
-    hit.textContent = snippet.text.slice(start, end);
-    preview.append(hit);
+    hit.textContent = text.slice(start, end);
+    target.append(hit);
     at = end;
   }
-  if (at < snippet.text.length) preview.append(snippet.text.slice(at));
+  if (at < text.length) target.append(text.slice(at));
 }
 
 export function createListView(store: QuKiStore, container: HTMLElement, callbacks: ListViewCallbacks): ListView {
@@ -97,10 +96,10 @@ export function createListView(store: QuKiStore, container: HTMLElement, callbac
       listBody.appendChild(empty);
       return;
     }
-    for (const item of items) listBody.appendChild(renderRow(item));
+    for (const item of items) listBody.appendChild(renderRow(item, query));
   }
 
-  function renderRow({ item, snippet }: SearchMatch): HTMLElement {
+  function renderRow({ item, snippet }: SearchMatch, query: string): HTMLElement {
     const row = document.createElement("div");
     row.className = "list-row";
 
@@ -125,23 +124,29 @@ export function createListView(store: QuKiStore, container: HTMLElement, callbac
     time.className = "list-row-time";
     time.textContent = formatRelativeTime(item.modifiedAt);
 
-    main.append(preview, time);
+    main.append(preview);
+    if (snippet && !snippet.onFirstLine) {
+      const matchingLine = document.createElement("div");
+      matchingLine.className = "list-row-snippet";
+      showHighlighted(matchingLine, snippet.text, snippet.highlights);
+      main.append(matchingLine);
+    }
+    main.append(time);
     content.append(main);
     row.append(swipeBg, content);
 
-    if (snippet) {
-      showSnippet(preview, snippet);
+    if (snippet?.onFirstLine) {
+      showHighlighted(preview, snippet.text, snippet.highlights);
     } else {
       // The preview requires reading the body, per row (BEHAVIOR_SPEC.md §5:
       // "the preview is read from the file per row"). A read failure means
       // "unreadable" - extractPreview(null) resolves that to "(empty)".
+      const showPreview = (text: string): void => {
+        showHighlighted(preview, text, snippet ? findMatches(text, query) : []);
+      };
       store.read(item.id).then(
-        (detail) => {
-          preview.textContent = extractPreview(detail.body);
-        },
-        () => {
-          preview.textContent = extractPreview(null);
-        },
+        (detail) => showPreview(extractPreview(detail.body)),
+        () => showPreview(extractPreview(null)),
       );
     }
 
