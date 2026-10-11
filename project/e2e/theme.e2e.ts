@@ -82,6 +82,63 @@ const DELIBERATE_DEFAULTS: Record<Scheme, Record<string, { value: string; reason
   light: {},
 };
 
+// Obsidian's callout colours are RGB triples, not colours, and GitHubDHC sets
+// its callout colours per type (.callout[data-callout=...] { --callout-color })
+// rather than on these variables, so each is compared with GitHubDHC's colour
+// for the GitHub alert type the app draws with it.
+const CALLOUT_VARIABLES: Record<string, string> = {
+  "--callout-default": "note",
+  "--callout-tip": "tip",
+  "--callout-important": "important",
+  "--callout-warning": "warning",
+  "--callout-error": "caution",
+};
+
+// GitHubDHC uses its dark callout colours in light mode too, too pale on white; light uses github.com light's alert colours.
+const DELIBERATE_CALLOUT_DEFAULTS: Record<Scheme, Record<string, string>> = {
+  dark: {},
+  light: {
+    "--callout-default": "rgb(9, 105, 218)",
+    "--callout-tip": "rgb(26, 127, 55)",
+    "--callout-important": "rgb(130, 80, 223)",
+    "--callout-warning": "rgb(154, 103, 0)",
+    "--callout-error": "rgb(209, 36, 47)",
+  },
+};
+
+async function probeCalloutColours(page: Page, names: string[]): Promise<Record<string, string>> {
+  return page.evaluate((varNames) => {
+    const probe = document.createElement("div");
+    document.body.appendChild(probe);
+    const result: Record<string, string> = {};
+    for (const name of varNames) {
+      probe.style.setProperty("background-color", `rgb(var(${name}))`);
+      result[name] = getComputedStyle(probe).backgroundColor;
+    }
+    probe.remove();
+    return result;
+  }, names);
+}
+
+async function referenceCalloutColours(browser: Browser, scheme: Scheme): Promise<Record<string, string>> {
+  const context = await browser.newContext();
+  try {
+    const page = await context.newPage();
+    const divs = Object.values(CALLOUT_VARIABLES)
+      .map((type) => `<div class="callout" data-callout="${type}"><div class="probe" style="background-color: var(--callout-color)"></div></div>`)
+      .join("");
+    await page.setContent(`<html><head><style>${referenceCss}</style></head><body class="theme-${scheme}">${divs}</body></html>`);
+    const byType = await page.evaluate(() =>
+      Object.fromEntries(
+        [...document.querySelectorAll<HTMLElement>(".callout")].map((d) => [d.dataset.callout!, getComputedStyle(d.querySelector(".probe")!).backgroundColor]),
+      ),
+    );
+    return Object.fromEntries(Object.entries(CALLOUT_VARIABLES).map(([name, type]) => [name, byType[type]!]));
+  } finally {
+    await context.close();
+  }
+}
+
 // The font variables a theme sets. The computed --font-interface, --font-text and --font-monospace are the app's own
 // mechanism (Obsidian's), which GitHubDHC does not define, so there is nothing to compare them with.
 const THEME_FONT_VARIABLES = ["--font-interface-theme", "--font-text-theme", "--font-monospace-theme"];
@@ -213,7 +270,8 @@ async function runScenario(browser: Browser, url: string, scheme: Scheme): Promi
 
   const declaredNames = await defaultLayerNames(page, scheme);
   const fontNames = declaredNames.filter((n) => n.startsWith("--font-"));
-  const names = declaredNames.filter((n) => !n.startsWith("--font-"));
+  const names = declaredNames.filter((n) => !n.startsWith("--font-") && !(n in CALLOUT_VARIABLES));
+  const calloutNames = declaredNames.filter((n) => n in CALLOUT_VARIABLES);
   assert(names.length >= 20, `expected the app's default layer to declare 20+ variables on body.theme-${scheme}, found ${names.length}`);
   const app = await probeColours(page, names);
   const reference = await referenceColours(browser, scheme, names);
@@ -236,6 +294,18 @@ async function runScenario(browser: Browser, url: string, scheme: Scheme): Promi
   const caret = (await probeColours(page, ["--caret-color", "--text-accent"]));
   assert(caret["--caret-color"] === caret["--text-accent"], `--caret-color should default to --text-accent, got ${caret["--caret-color"]} vs ${caret["--text-accent"]}`);
   console.log(`${tag} PASS: all ${names.length} default variables match GitHubDHC's computed values (${NOT_A_GITHUBDHC_COLOUR.join(", ")} is the app's own choice${Object.keys(deliberate).length > 0 ? `; ${Object.keys(deliberate).join(", ")} deliberately differs` : ""})`);
+
+  assert([...calloutNames].sort().join(",") === Object.keys(CALLOUT_VARIABLES).sort().join(","), `body.theme-${scheme} must declare exactly ${Object.keys(CALLOUT_VARIABLES).join(", ")}, got ${calloutNames.join(", ")}`);
+  const appCallouts = await probeCalloutColours(page, calloutNames);
+  const referenceCallouts = await referenceCalloutColours(browser, scheme);
+  for (const name of calloutNames) {
+    const deliberateCallout = DELIBERATE_CALLOUT_DEFAULTS[scheme][name];
+    const expected = deliberateCallout ?? referenceCallouts[name]!;
+    assert(/^rgb\(/.test(expected), `no colour to compare ${name} with in ${scheme}, got "${expected}"`);
+    assert(appCallouts[name] === expected, `${name} in ${scheme} must be ${expected}, got ${appCallouts[name]}`);
+    if (deliberateCallout) assert(deliberateCallout !== referenceCallouts[name], `${name} is listed as deliberately different from GitHubDHC in ${scheme} but equals it`);
+  }
+  console.log(`${tag} PASS: the callout colours match ${scheme === "dark" ? "GitHubDHC's per-type callout colours" : "github.com light's alert colours"}`);
 
   assert([...fontNames].sort().join(",") === [...THEME_FONT_VARIABLES, ...COMPUTED_FONT_VARIABLES].sort().join(","), `body.theme-${scheme} must declare exactly the three --font-*-theme defaults and the three computed --font-* variables, got ${fontNames.join(", ")}`);
   const appFonts = await computedVariables(page, THEME_FONT_VARIABLES);
