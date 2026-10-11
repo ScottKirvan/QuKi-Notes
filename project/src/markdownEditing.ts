@@ -7,6 +7,7 @@ import { GFM } from "@lezer/markdown";
 import { continueListOnEnter } from "./continueListOnEnter";
 import { fencedCodeKeepsLineIndentation, findCodeLanguage } from "./codeLanguages";
 import { IndentedListItems } from "./indentedListItems";
+import { markerBackspaceGuard } from "./markerBackspaceGuard";
 
 /**
  * The editor's markdown language, tuned to BEHAVIOR_SPEC.md §4 and §12:
@@ -20,7 +21,8 @@ import { IndentedListItems } from "./indentedListItems";
  * - Only Enter from markdown()'s own keymap, as continueListOnEnter: that
  *   keymap also binds Backspace to deleteMarkupBackward, which removes a whole
  *   list or quote marker at once, where Backspace must delete one character
- *   at a time.
+ *   at a time. markerBackspaceGuard keeps that true when the deletion comes
+ *   from the DOM rather than a key (Android without EditContext).
  * - A fenced code block's info string picks a code language, loaded the first
  *   time a block names it (codeLanguages.ts).
  */
@@ -30,5 +32,6 @@ export function markdownEditing(): Extension {
     markdown({ extensions: [GFM, IndentedListItems], addKeymap: false, codeLanguages: findCodeLanguage }),
     fencedCodeKeepsLineIndentation,
     Prec.high(keymap.of([{ key: "Enter", run: continueListOnEnter }])),
+    markerBackspaceGuard,
   ];
 }

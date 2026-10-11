@@ -91,6 +91,27 @@ async function main(): Promise<void> {
       ["deeper", "deeper"],
     ]);
     console.log("[e2e-listBackspace] PASS: quote markers step back one character at a time");
+
+    // execCommand("delete") is the browser's own backward delete in the DOM,
+    // bypassing CodeMirror's keymap - the path an Android keyboard takes
+    // without EditContext. An empty item keeps its marker drawn with the
+    // caret after it, so the browser removes the whole widget in one go.
+    for (const [item, steps] of [
+      ["- [ ] ", ["- [ ]", "- [ ", "- ["]],
+      ["- ", ["-", ""]],
+      ["1. ", ["1.", "1"]],
+    ] as const) {
+      const doc = `intro\n\n${item}\n\nend`;
+      await setDocAndCaret(page, doc, doc.indexOf("\n\nend"));
+      assert((await page.locator(".cm-content .cm-quki-marker").count()) === 1, `the empty item ${JSON.stringify(item)} should draw its marker`);
+      for (const expected of steps) {
+        await page.evaluate(() => document.execCommand("delete"));
+        await page.waitForTimeout(100);
+        const line = (await editorBody(page)).split("\n")[2];
+        assert(line === expected, `a DOM backward delete in ${JSON.stringify(item)} should leave ${JSON.stringify(expected)}, got ${JSON.stringify(line)}`);
+      }
+    }
+    console.log("[e2e-listBackspace] PASS: a DOM backward delete over a drawn marker removes one character at a time");
   } finally {
     await browser.close();
     server.close();
