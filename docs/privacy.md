@@ -35,6 +35,7 @@ QuKi Notes itself has no server to talk to, but a few things you do can reach th
 
 - **Images from the web.** If a QuKi contains an image linked by web address (`https://…`), QuKi Notes downloads that image from its server when the QuKi is shown. As with any web request, that server sees your IP address and the time of the request. No QuKi content is sent. Images you paste in are stored locally and involve no network access.
 - **Links.** Tapping a link in a QuKi, or in the Help dialog, opens that website.
+- **Spell-check dictionaries (Linux desktop app).** On Linux, the desktop app downloads the spell-check dictionary for your language from Google's servers the first time it needs one, as the Electron framework it's built on does by default. Only the dictionary is requested; no QuKi content is sent. On Windows, Android and the web version, spell check uses your system's or browser's own spellchecker.
 - **The web version.** The web version is itself a website, served by Cloudflare at qukinotes.scottkirvan.com. When your browser loads it, Cloudflare receives the usual request information (such as your IP address), as it does for any website it serves. Your QuKis stay in your browser and are not sent to Cloudflare.
 
 ## The command-line tools and AI assistants
@@ -75,6 +76,7 @@ Every change to this policy, newest first. The version is the first QuKi Notes r
 
 | Date | Version | Change |
 |---|---|---|
+| 2026-10-11 | v0.26.0 | Lists the spell-check dictionary download made by the Linux desktop app. |
 | 2026-10-11 | v0.26.0 | The web version is hosted on Cloudflare, not GitHub Pages. |
 | 2026-09-26 | v0.25.0 | Rewritten for the new app: QuKis are plain files rather than a database. Covers images, settings, Send on each platform, web images, the web version and the command-line tools. The analytics section now calls "no analytics" a current design decision instead of a permanent one. |
 | 2026-06-29 | v0.14.1 | Updated the Discord contact link. |
