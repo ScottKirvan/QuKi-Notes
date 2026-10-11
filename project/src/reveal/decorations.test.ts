@@ -813,6 +813,43 @@ describe("backslash escape collapse", () => {
   it("given plain-text mode, when decorated, then an escape gets no decoration at all", () => {
     expect(decorationsFor("\\*x", 0, true)).toEqual([]);
   });
+
+  it.each(["\\# foo", "\\- item", "\\> quote"])(
+    "given %j and the caret elsewhere, when decorated, then only the backslash is hidden - no heading, bullet or quote rendering",
+    (doc) => {
+      const decos = decorationsFor(`plain\n${doc}`, 0);
+      expect(decos).toEqual([{ from: 6, to: 7, widget: null, cls: null, style: null, checked: null, label: undefined, url: undefined }]);
+    },
+  );
+
+  it("given \\1. item and the caret elsewhere, when decorated, then nothing is decorated - a backslash before a digit is literal and the line is no numbered item", () => {
+    expect(decorationsFor("plain\n\\1. item", 0)).toEqual([]);
+  });
+
+  it.each([
+    ["\\*foo*", "cm-quki-em"],
+    ["\\_foo_", "cm-quki-em"],
+    ["\\_foo\\_", "cm-quki-em"],
+    ["\\`code\\`", "cm-quki-code"],
+    ["\\~~strike\\~~", "cm-quki-strike"],
+  ])("given %j and the caret elsewhere, when decorated, then no %s styling is applied", (doc, cls) => {
+    expect(byClass(decorationsFor(`plain\n${doc}`, 0), cls)).toEqual([]);
+  });
+
+  it("given \\**foo** and the caret elsewhere, when decorated, then no bold styling is applied", () => {
+    expect(byClass(decorationsFor("plain\n\\**foo**", 0), "cm-quki-strong")).toEqual([]);
+  });
+
+  it("given an escaped link opener and the caret elsewhere, when decorated, then no link widget is drawn", () => {
+    expect(widgets(decorationsFor("plain\n\\[link](page.md)", 0), "LinkWidget")).toEqual([]);
+  });
+
+  it.each(["—", "¿"])(
+    "given a backslash before the non-ASCII punctuation character %j and the caret elsewhere, when decorated, then nothing is hidden",
+    (ch) => {
+      expect(hiddenRanges(decorationsFor(`plain\n\\${ch}x`, 0))).toEqual([]);
+    },
+  );
 });
 
 describe("fenced code block collapse", () => {
