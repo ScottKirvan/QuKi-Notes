@@ -452,7 +452,8 @@ button.settings-row {
    way plain text does - browsers give form controls their own UA default
    font unless told otherwise, same reason button.settings-row above needs
    its own explicit `font: inherit` rather than relying on .settings-row's. */
-.delete-orphaned-images-toggle {
+.delete-orphaned-images-toggle,
+.word-count-toggle {
   font: inherit;
 }
 
