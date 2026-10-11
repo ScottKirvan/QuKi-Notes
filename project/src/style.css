@@ -28,6 +28,7 @@ body.theme-dark {
   --text-error: #ff9492;
   /* github.com dark selection, measured from a phone screenshot: blends to #33649C on #010409 */
   --text-selection: rgba(88, 166, 255, 0.6);
+  --text-highlight-bg: rgba(255, 208, 0, 0.4);
   --caret-color: var(--text-accent);
   --link-color: #71b7ff;
   --blockquote-border-color: #7a828e;
@@ -74,6 +75,7 @@ body.theme-light {
   --text-on-accent: black;
   --text-error: #cf222e;
   --text-selection: rgba(9, 108, 220, 0.2);
+  --text-highlight-bg: rgba(255, 208, 0, 0.4);
   --caret-color: var(--text-accent);
   --link-color: #0969da;
   --blockquote-border-color: #6e7781;
@@ -335,6 +337,12 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.search-hit {
+  background: var(--text-highlight-bg);
+  color: inherit;
+  border-radius: 2px;
 }
 
 .list-row-time {

@@ -220,6 +220,8 @@ Titled **QuKis**, with a back button — unlike the editor, this screen is pushe
 
 A rounded, filled field with a search icon and a clear button that appears once there's text. It filters on **every keystroke** with no debounce, trimmed, case-insensitive, matching anywhere in a QuKi's full body. Results from a superseded query are discarded.
 
+While the field has text, each result row shows a **snippet** in place of its preview: the line holding the QuKi's first match, with every match on that line highlighted in `--text-highlight-bg`. [Proposed — unconfirmed] The snippet's details: leading block markers (quote, heading, list bullet, task box) and inline markers (bold, italic, strikethrough, code-span backticks, link brackets and targets) are stripped, keeping markers inside code spans and `_`/`*` inside words; a match that lies entirely in stripped markup shows that line unstripped instead. A line longer than 80 characters is cut to about 80 around the match, starting up to 20 characters before it, at word boundaries where there are any, with `…` on each cut side. A match spanning a line break is highlighted to the end of its first line. With the field empty, rows show the normal preview.
+
 ### Rows
 
 Newest first by modification time.
