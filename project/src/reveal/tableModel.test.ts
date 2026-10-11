@@ -112,6 +112,14 @@ describe("buildTableModel", () => {
     ]);
   });
 
+  it("given a link in a cell whose label contains a bare URL, then the link span's url is the link's own destination and the label URL stays plain text (issue #440)", () => {
+    const doc = "| A |\n|---|\n| [see http://example.com here](https://real.example.org) |\n";
+    const model = tableModelFor(doc);
+    expect(model.rows[0]?.cells[0]?.spans).toEqual([
+      { kind: "link", url: "https://real.example.org", children: [{ kind: "text", text: "see http://example.com here" }] },
+    ]);
+  });
+
   it("given a bare autolink in a cell, then it becomes a link span over its own matched text", () => {
     const doc = "| A |\n|---|\n| see www.example.com |\n";
     const model = tableModelFor(doc);
