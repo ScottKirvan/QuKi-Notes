@@ -643,7 +643,6 @@ async function init(): Promise<void> {
           showSaveStatus("Could not paste image — an unexpected error occurred.");
         },
       }),
-      // Issue #498: copied web content pastes as markdown; Ctrl+Shift+V pastes plain text.
       createHtmlPastePlugin(),
       EditorView.lineWrapping,
       EditorView.updateListener.of((update) => {
