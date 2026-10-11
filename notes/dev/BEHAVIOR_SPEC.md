@@ -367,6 +367,13 @@ Twenty element kinds, from the parser:
 
 Block indentation and nested blockquote depth are tracked per line and rendered as real layout indentation.
 
+**GitHub alerts (callouts)** are built in and always on, with no setting. A blockquote whose first line is `> [!NOTE]`, `> [!TIP]`, `> [!IMPORTANT]`, `> [!WARNING]` or `> [!CAUTION]` (any case) renders as GitHub draws it: the quote's bar takes the type's colour, the marker line becomes a title showing the type's Octicon (`info`, `light-bulb`, `report`, `alert`, `stop`) and its name (Note, Tip, Important, Warning, Caution) in that colour, and the body text stays the normal text colour rather than a quote's muted one. Anything else inside the alert renders as it would inside any quote. Colours come from Obsidian's callout variables (`--callout-default`, `--callout-tip`, `--callout-important`, `--callout-warning`, `--callout-error`, RGB triples); the dark defaults are GitHubDHC's callout colours and the light defaults github.com's light alert colours.
+
+- Only a top-level blockquote can be an alert: one inside a list item or nested in another quote stays an ordinary quote, as on GitHub. *[Proposed — unconfirmed]* for the details below.
+- The marker line must hold nothing but `[!TYPE]` after its `>` (trailing whitespace allowed); `> [!NOTE] text` is an ordinary quote. An unknown type (`> [!FOO]`) is an ordinary quote.
+- A marker line with no body under it still renders as an alert title.
+- With the caret anywhere on the marker line, that whole line shows raw (`> [!NOTE]`), with no bar; the body lines keep the rule-3 behaviour of quote lines. Plain-text mode shows the raw text.
+
 Tables and fenced code blocks are rendered too.
 
 ### Fenced code blocks
@@ -445,7 +452,7 @@ This is the app's defining behavior and the hardest part of the port. The rules 
 
 > **An empty list item is drawn as an item straight away.** On a list, numbered or task item with nothing after its marker (the new item Enter just started, say), a caret at the end of the marker does **not** reveal it: the item shows its bullet, number or checkbox at its depth's indentation from the moment it appears, rather than raw source at the left margin until something is typed. A caret at the start of the line, or inside the marker, still reveals it. *[Proposed — unconfirmed]* — rules 2 and 3 would otherwise reveal it, since the end of an empty item's marker is the only place to type its text.
 
-**4. Images and horizontal rules are the exception** — their marker spans the whole line by definition, so rule 3 degenerates and they reveal wholly.
+**4. Images and horizontal rules are the exception** — their marker spans the whole line by definition, so rule 3 degenerates and they reveal wholly. A GitHub alert's `> [!TYPE]` line is the same: the whole line is its marker.
 
 **5. With a selection, the caret position used is the selection's ANCHOR** — where the selection began — not its moving end and not both. A selection dragged across several elements resolves reveal against its starting point only.
 
