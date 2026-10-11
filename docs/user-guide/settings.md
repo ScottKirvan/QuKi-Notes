@@ -6,6 +6,10 @@ Open Settings with the <i-lucide-settings /> **gear** button in the editor's top
 
 **Theme** follows your system's light or dark setting, and switches automatically when that changes. There's no manual toggle.
 
+**Text size** sets how big the text in the editor is: **Small**, **Normal** (the default), **Large** or **Extra large**. The change shows as soon as you go back to the editor, and QuKi Notes remembers it next time. Headings, list indentation and quotes grow and shrink with it. It changes the editor only, not the QuKis list or the menus.
+
+**Word and character count** shows a small count of the QuKi's words and characters in the editor's lower right corner. It's off until you turn it on. See [Capturing QuKis → Word and character count](/user-guide/capturing-qukis#word-and-character-count).
+
 ## Storage
 
 **Android, Windows and Linux** show where your QuKis are stored:
@@ -32,6 +36,8 @@ QuKis in the web version stay in that one browser on that one device. To keep a 
 ## Notes
 
 **Trash** opens the Trash screen. See [QuKis List → Trash](/user-guide/qukis-list#trash).
+
+**New QuKi after being away** starts a fresh, blank QuKi when you come back to QuKi Notes after it has been out of sight for a while, so it's ready for your next thought. Choose **After 2 minutes** (the default), **5**, **15** or **30 minutes**, or **Off**. See [Capturing QuKis → Coming back after being away](/user-guide/capturing-qukis#coming-back-after-being-away).
 
 ## About
 

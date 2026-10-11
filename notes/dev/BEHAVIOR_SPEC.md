@@ -37,7 +37,7 @@ Android's system Back (the edge-swipe gesture or a Back button), received throug
 
 1. **Dialogs first.** If a dialog is open (Help, any confirmation), Back closes it as Cancel and does nothing else.
 2. **Stops.** Every QuKi the user opens from the QuKi list or starts (New, or share-in, which starts one), and the QuKi list screen. Back from a fresh blank QuKi returns to the QuKi the user was in before it.
-3. **Blank QuKis are stops.** Every blank QuKi is a stop, even if the user never typed into it: the one the app launches with (and the one Settings → Change location starts) and any started with New. Back returns to one as a fresh blank QuKi, through the same safe path as New (flush auto-save first and stay put if that fails), without adding a stop. A blank QuKi the user types into gets an id from its first save and is then a stop like any other QuKi.
+3. **Blank QuKis are stops.** Every blank QuKi is a stop, even if the user never typed into it: the one the app launches with (and the one Settings → Change location starts) and any started with New or by coming back after being away (§4). Back returns to one as a fresh blank QuKi, through the same safe path as New (flush auto-save first and stay put if that fails), without adding a stop. A blank QuKi the user types into gets an id from its first save and is then a stop like any other QuKi.
 4. **Never stops on Settings or Trash.** Back from either returns to wherever the user was before them (from Trash, past Settings too), and going back never lands on either.
 5. **Deleted QuKis are skipped.** A QuKi in the history that has since been trashed or has gone from the folder is passed over. Whether it still exists is asked of the store at the moment of going back; the history is never a record of what exists (STORAGE_CONTRACT.md rules 2 and 6).
 6. **Scroll position.** Returning to a QuKi restores its scroll position as it was when the user left it.
@@ -100,7 +100,7 @@ Actions, in this order:
 
 ### Editing surface
 
-Fills the screen above the toolbar. Text renders at 16px with 1.4 line height; content is inset 12px on three sides and, at the bottom, 36px plus two lines, so the last line can sit two lines above the toolbar.
+Fills the screen above the toolbar. Text renders at the size chosen in Settings → Text size (Normal is 16px) with 1.4 line height; content is inset 12px on three sides and, at the bottom, 36px plus two lines, so the last line can sit two lines above the toolbar.
 
 **While editing, the caret keeps two lines of text between itself and the formatting toolbar.** Whenever the editor scrolls the caret into view — typing, Enter, moving the caret, a tap on a line, a tap below the text — it stops at least two lines (the editor's own line height) above the toolbar, not against it. When the editor shrinks while editing (on Android, the keyboard rising after the tap that started editing), the caret is scrolled back into view with the same clearance, never left under the keyboard.
 
@@ -109,6 +109,26 @@ Fills the screen above the toolbar. Text renders at 16px with 1.4 line height; c
 **The editor is spellchecked like an ordinary text field**, in rendered and plain-text mode alike, by the platform's own spellchecker (the device keyboard's on Android, the OS's or Electron's on desktop, the browser's on the web). On Android the keyboard capitalises the start of a sentence and autocorrects as the user has set it up to. Inline code and fenced code blocks are never spellchecked, whether collapsed or revealed. [Proposed — unconfirmed: the code exclusion, autocorrect on, and sentence capitalisation.] On Windows and Linux, right-clicking a misspelled word offers the spellchecker's suggestions and "Add to dictionary"; right-clicking anywhere else shows no menu, as before. [Proposed — unconfirmed]
 
 The editor reports three events: content changed (which notifies auto-save), a link tapped, and a checkbox tapped.
+
+### Coming back after being away
+
+When the app has been **in the background — not visible — for 2 minutes**, coming back starts a new, blank QuKi, exactly as **New** does: the QuKi that was open is flushed first through the same safe path (if that fails, nothing changes and the save problem shows), the blank QuKi takes focus, and it is a new Back stop (§2a), so Back returns to the QuKi that was left, or to the QuKi list if that is where the user was. If the app stays open and visible but untouched, **no** new QuKi is created, however long it sits. Only time hidden counts, measured from the moment it was hidden to the moment it is visible again (page visibility on every platform, plus the native pause/resume lifecycle on Android), never a timer running in the background.
+
+It does not trigger on launch, when coming back from Send's share sheet, or when text is shared in (share-in opens its own new QuKi, §8).
+
+- `[Proposed — unconfirmed]` A Settings choice, **New QuKi after being away**: Off, 2 (default), 5, 15 or 30 minutes. The issue's choice of action (new QuKi or QuKi list) is not offered: Scott's decision names the new QuKi only.
+- `[Proposed — unconfirmed]` "Coming back from Send's share sheet" is recognised as the app being hidden within 10 seconds of Send.
+- `[Proposed — unconfirmed]` Time away during Settings → Change location (Android's all-files permission screen) does not count.
+- `[Proposed — unconfirmed]` Leaving through a tapped link (the browser opens) counts like any other time away.
+
+### Word and character count
+
+An optional user setting. When on, a small readout in the **lower right of the editor, just above the formatting toolbar**, shows the QuKi's word and character count, small, on a darkened background with light text in dark mode and the matching inverse in light mode, both from theme variables. It updates live as the text changes, and must never cover the caret or the line being typed: it sits inside the two-line caret clearance above the toolbar. Taps pass through it.
+
+- `[Proposed — unconfirmed]` Off by default (the issue describes it as always present; Scott's decision made it optional, and off keeps the blank-canvas launch unchanged).
+- `[Proposed — unconfirmed]` It also shows in reading mode, at the editor's bottom edge where the hidden toolbar was: the count matters most when deciding whether to Send, which is usually done from reading mode.
+- `[Proposed — unconfirmed]` It counts the text Send delivers (trailing tap-padding excluded). **Characters** count everything, markdown markers, spaces and line breaks included, as user-perceived characters (an emoji or a letter with a combining accent is one), which is how character-limited destinations count. **Words** are whitespace-separated runs containing a letter or digit, after removing a line's leading block markers (`#`, `-`/`*`/`+`, `- [ ]`, `1.`/`1)`, `>`), so a lone marker is not a word and `**bold**` or `[label](url)` is one. Text without spaces between words (Chinese, Japanese, Thai) counts each run as one word.
+- `[Proposed — unconfirmed]` Format: `N words · N characters`, singular for one. Background `--background-primary-alt`, text `--text-muted`.
 
 ### Modes
 
@@ -277,13 +297,20 @@ Sections with small uppercase, letter-spaced, accent-colored headers:
 
 | Section | Contents |
 |---|---|
-| **Appearance** | Theme — displays `System`, not adjustable |
+| **Appearance** | Theme — displays `System`, not adjustable. **Text size** — a few fixed steps, not a slider: Small, Normal (default), Large, Extra large (see below). **Word and character count** — an on/off setting (§4 "Word and character count"). |
 | **Storage** | Current location. App storage shows *"Files will be removed on uninstall. Change location."* in the error color; filesystem storage shows the path over up to two lines. Below it, **Change location**. |
-| **Notes** | **Trash** |
+| **Notes** | **Trash**. **New QuKi after being away** (§4 "Coming back after being away"). |
 | **Sync** | *"No sync backends installed"*, disabled |
 | **About** | App name and version. **Tapping copies the version string to the clipboard** and confirms with *"Copied to clipboard."* |
 
 There is **no section for send destinations**, despite the per-destination enable/disable preference existing in code. Nothing can reach it.
+
+### Text size
+
+Sets the editor's text size only; app chrome, the QuKi list and Settings keep their sizes. Normal is the editor's original 16px. The choice applies immediately and persists across launches. Headings, list and quote indentation, the list-marker gutter, the hanging indent of raw list lines and the caret's two-line clearance above the toolbar all scale with it (they are sized in `em` or measured from the rendered text).
+
+- `[Proposed — unconfirmed]` The steps are Small 14px, Normal 16px, Large 19px, Extra large 22px.
+- `[Proposed — unconfirmed]` Stored in the WebView's `localStorage` on every platform, beside "Delete orphaned images", rather than in Electron's preferences file or Android's settings file.
 
 ### Help dialog
 

@@ -1,5 +1,7 @@
 import { ArrowLeft } from "lucide";
 
+import { AWAY_CHOICES, parseAwayMinutes, serializeAwayMinutes, type AwayMinutes } from "../awayTimeout";
+import { FONT_SIZES, type FontSize } from "../fontSize";
 import { setIconButton } from "./icons";
 import type { ShowToast } from "./toast";
 
@@ -26,6 +28,11 @@ export interface DeleteOrphanedImagesCallbacks {
   set: (value: boolean) => void;
 }
 
+export interface FontSizeCallbacks {
+  get: () => FontSize;
+  set: (value: FontSize) => void;
+}
+
 export interface SettingsViewCallbacks {
   onBack: () => void;
   onOpenTrash: () => void;
@@ -44,6 +51,12 @@ export interface SettingsViewCallbacks {
    * `storage` above.
    */
   deleteOrphanedImages: DeleteOrphanedImagesCallbacks;
+  /** The editor's text size; applied as soon as it changes. */
+  fontSize: FontSizeCallbacks;
+  /** Whether the editor shows its word and character count; applied as soon as it changes. */
+  showWordCount: { get: () => boolean; set: (value: boolean) => void };
+  /** How long the app must be out of sight before coming back starts a new QuKi. */
+  newQuKiAfterAway: { get: () => AwayMinutes; set: (value: AwayMinutes) => void };
   /**
    * Settings -> Export (STORAGE_CONTRACT.md "The core API": "a single call
    * that produces the complete library... the backup story, and... also the
@@ -126,6 +139,16 @@ export function createSettingsView(container: HTMLElement, callbacks: SettingsVi
           <span>Theme</span>
           <span class="settings-value">System</span>
         </div>
+        <label class="settings-row">
+          <span>Text size</span>
+          <select class="settings-select font-size-select">
+            ${FONT_SIZES.map((size) => `<option value="${size.id}">${size.label}</option>`).join("")}
+          </select>
+        </label>
+        <label class="settings-row">
+          <span>Word and character count</span>
+          <input type="checkbox" class="word-count-toggle" />
+        </label>
       </section>
       ${storageSectionHtml}
       <section class="settings-section">
@@ -136,6 +159,12 @@ export function createSettingsView(container: HTMLElement, callbacks: SettingsVi
         <label class="settings-row">
           <span>Delete orphaned images</span>
           <input type="checkbox" class="delete-orphaned-images-toggle" />
+        </label>
+        <label class="settings-row">
+          <span>New QuKi after being away</span>
+          <select class="settings-select away-select">
+            ${AWAY_CHOICES.map((c) => `<option value="${serializeAwayMinutes(c.minutes)}">${c.label}</option>`).join("")}
+          </select>
         </label>
       </section>
       <section class="settings-section">
@@ -163,6 +192,24 @@ export function createSettingsView(container: HTMLElement, callbacks: SettingsVi
   deleteOrphanedImagesToggle.checked = callbacks.deleteOrphanedImages.get();
   deleteOrphanedImagesToggle.addEventListener("change", () => {
     callbacks.deleteOrphanedImages.set(deleteOrphanedImagesToggle.checked);
+  });
+
+  const fontSizeSelect = container.querySelector<HTMLSelectElement>(".font-size-select")!;
+  fontSizeSelect.value = callbacks.fontSize.get();
+  fontSizeSelect.addEventListener("change", () => {
+    callbacks.fontSize.set(fontSizeSelect.value as FontSize);
+  });
+
+  const wordCountToggle = container.querySelector<HTMLInputElement>(".word-count-toggle")!;
+  wordCountToggle.checked = callbacks.showWordCount.get();
+  wordCountToggle.addEventListener("change", () => {
+    callbacks.showWordCount.set(wordCountToggle.checked);
+  });
+
+  const awaySelect = container.querySelector<HTMLSelectElement>(".away-select")!;
+  awaySelect.value = serializeAwayMinutes(callbacks.newQuKiAfterAway.get());
+  awaySelect.addEventListener("change", () => {
+    callbacks.newQuKiAfterAway.set(parseAwayMinutes(awaySelect.value));
   });
 
   if (callbacks.storage) {

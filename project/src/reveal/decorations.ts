@@ -30,15 +30,16 @@ function headingLevel(type: string): number {
   return Number(type.slice(-1));
 }
 
-const QUOTE_INDENT_PX = 16;
+// Indents are in em so they scale with the editor's text size setting.
+const QUOTE_INDENT_EM = 1;
 const QUOTE_BAR_WIDTH_PX = 3;
-const QUOTE_BAR_INSET_PX = 4;
+const QUOTE_BAR_INSET_EM = 0.25;
 
 // One 3px bar per nesting level, level K at (K-1)*16+4px, with the content
-// indented 16px per level — the Flutter editor's geometry. Consecutive quote
-// lines' backgrounds meet, so a level's bar is continuous across the lines
-// that share it. A callout's own level (always the outermost) is drawn in the
-// callout's colour.
+// indented 16px per level at the 16px text size — the Flutter editor's
+// geometry. Consecutive quote lines' backgrounds meet, so a level's bar is
+// continuous across the lines that share it. A callout's own level (always the
+// outermost) is drawn in the callout's colour.
 function quoteLineStyle(depth: number, calloutType?: CalloutType): string {
   const barOf = (colour: string): string => `linear-gradient(${colour}, ${colour})`;
   const quoteBar = barOf("var(--blockquote-border-color)");
@@ -48,10 +49,10 @@ function quoteLineStyle(depth: number, calloutType?: CalloutType): string {
   for (let level = 1; level <= depth; level++) {
     images.push(level === 1 && calloutType ? barOf(calloutColour(calloutType)) : quoteBar);
     sizes.push(`${QUOTE_BAR_WIDTH_PX}px 100%`);
-    positions.push(`${(level - 1) * QUOTE_INDENT_PX + QUOTE_BAR_INSET_PX}px 0`);
+    positions.push(`${(level - 1) * QUOTE_INDENT_EM + QUOTE_BAR_INSET_EM}em 0`);
   }
   return [
-    `padding-left:${depth * QUOTE_INDENT_PX}px`,
+    `padding-left:${depth * QUOTE_INDENT_EM}em`,
     `background-image:${images.join(",")}`,
     `background-size:${sizes.join(",")}`,
     `background-position:${positions.join(",")}`,
@@ -59,22 +60,22 @@ function quoteLineStyle(depth: number, calloutType?: CalloutType): string {
   ].join(";");
 }
 
-const LIST_INDENT_PX = 16;
-const LIST_MARKER_GUTTER_PX = 24;
+const LIST_INDENT_EM = 1;
+// style.css's .cm-quki-marker width.
+const LIST_MARKER_GUTTER_EM = 1.5;
 // CodeMirror's own `.cm-line` left padding, which an inline padding-left
 // replaces rather than adds to.
 const EDITOR_LINE_INSET_PX = 6;
 
-// A list line's marker widget fills the 24px gutter at the line's first row,
+// A list line's marker widget fills the gutter at the line's first row,
 // so the first row is pulled back by the gutter while every wrapped row
 // starts at the padding edge, directly under the content.
 function listLineDecoration(depth: number): Decoration {
-  const contentX =
-    EDITOR_LINE_INSET_PX + depth * LIST_INDENT_PX + LIST_MARKER_GUTTER_PX;
+  const indentEm = depth * LIST_INDENT_EM + LIST_MARKER_GUTTER_EM;
   return Decoration.line({
     class: "cm-quki-list-line",
     attributes: {
-      style: `padding-left:${contentX}px;text-indent:-${LIST_MARKER_GUTTER_PX}px`,
+      style: `padding-left:calc(${EDITOR_LINE_INSET_PX}px + ${indentEm}em);text-indent:-${LIST_MARKER_GUTTER_EM}em`,
     },
   });
 }

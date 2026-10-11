@@ -6,7 +6,7 @@ import {
   keymap,
   type KeyBinding,
 } from "@codemirror/view";
-import { EditorState } from "@codemirror/state";
+import { Compartment, EditorState } from "@codemirror/state";
 import { defaultKeymap, historyKeymap } from "@codemirror/commands";
 import { indentOnInput, HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { markdownEditing } from "./markdownEditing";
@@ -27,6 +27,7 @@ import { resolveMigratedStorageRoot, type AndroidFlutterMigrationDeps } from "./
 import { createAndroidSetupApi } from "./androidSetupApi";
 import { AndroidSettingsStore } from "./androidSettingsStore";
 import { AppSettingsStore } from "./appSettings";
+import { editorFontSizeTheme } from "./fontSize";
 import type { ElectronSetupApi } from "./electronSetupApi";
 import { applyDedent, applyIndent } from "./toolbar/indentDedent";
 import { runToolbarCommand } from "./toolbarAdapter";
@@ -34,6 +35,7 @@ import { replaceDocumentAndForgetHistory, resettableHistory } from "./editorHist
 import { bodyWithoutUnusedPadding, forgetTapPadding, tapBelowTextStartsALine } from "./tapBelowText";
 import { keepCaretClearOfToolbar } from "./caretClearance";
 import { createFormattingToolbar, type FormattingToolbarHandle } from "./screens/formattingToolbar";
+import { createWordCountReadout, type WordCountReadout } from "./screens/wordCountReadout";
 import { revealPlugin, blockRevealField } from "./reveal/decorations";
 import { hangingIndent } from "./reveal/hangingIndent";
 import { plainTextMode, setPlainTextMode } from "./reveal/plainTextMode";
@@ -60,6 +62,7 @@ import { isQuKisButtonEnabled } from "./quKisButton";
 import { onSharedTextReceived } from "./shareIn";
 import { Navigator, type ViewName } from "./navigation";
 import { BackHistory } from "./backHistory";
+import { AwayTracker } from "./awayTimeout";
 import { createBackDismissStack } from "./backDismissStack";
 import { createListView } from "./screens/listView";
 import { createSettingsView } from "./screens/settingsView";
@@ -560,6 +563,7 @@ async function init(): Promise<void> {
   // reaches these callbacks - which can only happen after `init()`'s
   // synchronous setup below has finished running.
   let toolbarController: FormattingToolbarHandle | undefined;
+  let wordCount: WordCountReadout | undefined;
   // Same forward-declared pattern, for the scroll-margin fix on the update
   // listener below.
   let editModeTracker: EditModeTracker | undefined;
@@ -573,6 +577,8 @@ async function init(): Promise<void> {
   // whole time), and re-running this on every keystroke's caret move was
   // found to occasionally nudge the scroll position for no reason.
   let pendingToolbarScrollCheck = false;
+
+  const editorFontSize = new Compartment();
 
   // BEHAVIOR_SPEC.md §12 "Indentation": "Indent and dedent act on whole
   // lines, and are bound to both the toolbar buttons and Tab / Shift-Tab."
@@ -646,6 +652,8 @@ async function init(): Promise<void> {
         if (update.docChanged && !suppressAutoSaveNotify) autoSave.notifyChange();
         if (update.docChanged) updateQuKisButtonState();
         toolbarController?.onUpdate(update);
+        if (update.docChanged) wordCount?.refresh();
+        if (update.geometryChanged) wordCount?.reposition();
         // The first selection change after reading mode just switched to
         // edit mode (pendingToolbarScrollCheck, set below) may be the very
         // tap that caused the switch: the toolbar was hidden - scroll
@@ -678,8 +686,8 @@ async function init(): Promise<void> {
         }
       }),
       keepCaretClearOfToolbar(() => toolbarController?.scrollMarginBottom() ?? 0),
+      editorFontSize.of(editorFontSizeTheme(appSettings.getFontSize())),
       EditorView.theme({
-        "&": { fontSize: "16px" },
         // BEHAVIOR_SPEC.md §4: "content is inset 12px on three sides and
         // 36px at the bottom so the last line clears the toolbar." This has
         // to be set through EditorView.theme() rather than a plain rule in
@@ -725,6 +733,13 @@ async function init(): Promise<void> {
   });
 
   toolbarController = createFormattingToolbar(view, host);
+  wordCount = createWordCountReadout(
+    host,
+    view.scrollDOM,
+    () => bodyWithoutUnusedPadding(view.state),
+    () => toolbarController?.scrollMarginBottom() ?? 0,
+    appSettings.getShowWordCount(),
+  );
 
   interface EditorScroll {
     snapshot: ReturnType<EditorView["scrollSnapshot"]>;
@@ -780,6 +795,10 @@ async function init(): Promise<void> {
   );
   autoSave.start();
 
+  const awayTracker = new AwayTracker(() => Date.now());
+  let sharedInCount = 0;
+  let locationChangeInProgress = false;
+
   const flushOnHide = (): void => {
     void autoSave.flush();
   };
@@ -809,6 +828,7 @@ async function init(): Promise<void> {
     view.dispatch({ effects: setEditMode.of(isEditMode) });
     updateModeToggleIcon();
     toolbarController?.setVisible(isEditMode);
+    wordCount?.reposition();
     // See pendingToolbarScrollCheck's declaration and the update listener
     // above. Cleared on leaving edit mode too, so a flag left pending by a
     // focus with no following selection change (rare, but possible) can't
@@ -851,6 +871,7 @@ async function init(): Promise<void> {
   // editModeTracker.isEditMode() - both read the one tracker, so the
   // toolbar and the mode icon can never disagree about edit vs. reading.
   toolbarController.setVisible(editModeTracker.isEditMode());
+  wordCount.reposition();
 
   // --- Navigation: list / settings / trash, and the app bar actions that open them ---
 
@@ -1084,6 +1105,7 @@ async function init(): Promise<void> {
     const webShareApi = typeof navigator.share === "function" ? (data: ShareData) => navigator.share(data) : undefined;
     const webTransport = createWebShareTransport(webShareApi, clipboardTransport);
     const transport = selectShareTransport(isAndroid, isElectronDesktop, shareTextViaAndroid, clipboardTransport, webTransport);
+    awayTracker.noteSend();
     const result = await sendQuKi(body, transport);
     if (result.message !== undefined) {
       showToast(result.message, result.durationMs, result.retryable ? { label: "Retry", onClick: () => void sendCurrentQuKi() } : undefined);
@@ -1249,6 +1271,11 @@ async function init(): Promise<void> {
     if (!(await flushAutoSaveOrBlock("Could not save your changes — resolve the save issue before starting a new QuKi."))) {
       return;
     }
+    showBlankQuKi();
+    view.focus();
+  }
+
+  function showBlankQuKi(): void {
     rememberEditorScroll();
     const blank: InitialQuKi = { id: null, body: "", modifiedAt: null };
     loadDocumentIntoEditor("");
@@ -1256,7 +1283,26 @@ async function init(): Promise<void> {
     updateDeleteButtonState();
     backHistory.visitQuKi(null);
     navigator_.popToRoot();
-    view.focus();
+  }
+
+  /**
+   * BEHAVIOR_SPEC.md §4 "Coming back after being away". A share that arrives
+   * while this waits for the flush opens its own QuKi instead.
+   */
+  async function startNewQuKiAfterAway(): Promise<void> {
+    const sharesBefore = sharedInCount;
+    if (!(await flushAutoSaveOrBlock("Could not save your changes — resolve the save issue before starting a new QuKi."))) {
+      return;
+    }
+    if (sharedInCount !== sharesBefore) return;
+    showBlankQuKi();
+    focusEditorAndShowKeyboard();
+    void refreshQuKisButton();
+  }
+
+  function onAppReturned(): void {
+    const minutes = locationChangeInProgress ? null : appSettings.getNewQuKiAfterAway();
+    if (awayTracker.shown(minutes)) void startNewQuKiAfterAway();
   }
 
   /**
@@ -1276,6 +1322,8 @@ async function init(): Promise<void> {
    * replaced with the shared text, or that edit would be lost.
    */
   async function handleSharedText(text: string): Promise<void> {
+    sharedInCount++;
+    awayTracker.noteShareIn();
     if (!(await flushAutoSaveOrBlock("Could not save your changes — the shared text was not opened."))) {
       return;
     }
@@ -1358,10 +1406,18 @@ async function init(): Promise<void> {
     if (!(await flushAutoSaveOrBlock("Could not save your changes — resolve the save issue before changing storage location."))) {
       return;
     }
-    const chosenPath = await setupView.show({
-      cancelable: true,
-      onError: (message) => showSaveStatus(message),
-    });
+    // Android's all-files permission screen takes the user out of the app.
+    locationChangeInProgress = true;
+    let chosenPath: string | null;
+    try {
+      chosenPath = await setupView.show({
+        cancelable: true,
+        onError: (message) => showSaveStatus(message),
+      });
+    } finally {
+      locationChangeInProgress = false;
+      awayTracker.forget();
+    }
     if (chosenPath === null) return; // cancelled; nothing changed
 
     const blank = blankInitialQuKi();
@@ -1401,6 +1457,24 @@ async function init(): Promise<void> {
     deleteOrphanedImages: {
       get: () => appSettings.getDeleteOrphanedImages(),
       set: (value) => appSettings.setDeleteOrphanedImages(value),
+    },
+    fontSize: {
+      get: () => appSettings.getFontSize(),
+      set: (value) => {
+        appSettings.setFontSize(value);
+        view.dispatch({ effects: editorFontSize.reconfigure(editorFontSizeTheme(value)) });
+      },
+    },
+    showWordCount: {
+      get: () => appSettings.getShowWordCount(),
+      set: (value) => {
+        appSettings.setShowWordCount(value);
+        wordCount?.setEnabled(value);
+      },
+    },
+    newQuKiAfterAway: {
+      get: () => appSettings.getNewQuKiAfterAway(),
+      set: (value) => appSettings.setNewQuKiAfterAway(value),
     },
     onExport: exportQuKiLibrary,
   });
@@ -1462,6 +1536,17 @@ async function init(): Promise<void> {
     void onSharedTextReceived((text) => {
       void handleSharedText(text);
     });
+  }
+
+  // Page visibility covers every platform; on Android the native lifecycle
+  // is listened to as well, and the tracker ignores the repeat.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") awayTracker.hidden();
+    else onAppReturned();
+  });
+  if (isAndroid) {
+    void CapacitorApp.addListener("pause", () => awayTracker.hidden());
+    void CapacitorApp.addListener("resume", () => onAppReturned());
   }
 
   goBackInApp = goBack;

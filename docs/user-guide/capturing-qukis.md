@@ -10,6 +10,14 @@ Tap <i-lucide-plus /> **New QuKi** in the top bar to start another new QuKi.
 
 Misspelled words are underlined using your device's own spellchecker (your keyboard's on Android, Windows' on Windows, your browser's on the web), so the language and any words you've added to its dictionary carry over. On Linux the app uses its own built-in spellchecker in your system language. On Android, your keyboard's autocorrect and automatic capitals work the same as in any other app. On Windows and Linux, right-click an underlined word to pick a suggestion or add the word to the dictionary. Text inside `inline code` and code blocks is never underlined.
 
+### Coming back after being away
+
+If QuKi Notes has been out of sight for 2 minutes or more (you switched to another app, went to the home screen, or minimized the window), coming back starts a new, blank QuKi, ready to type. The QuKi you were on was saved when you left. On Android, press **Back** to return to it, or find it in the QuKis list.
+
+Leaving QuKi Notes open and on screen never does this, however long it sits. Neither does coming back from **Send**'s share sheet, or sharing text into QuKi Notes from another app (that opens the shared text instead).
+
+Change the time, or turn it off, with **New QuKi after being away** in [Settings](/user-guide/settings#notes).
+
 ## Auto-save
 
 QuKis auto save as you type.  No need to manually save them, pick filesystem locations, or create names for them.
@@ -64,6 +72,15 @@ The button's icon shows where you are:
 | <i-lucide-code-xml /> Code brackets           | Plain-text mode        |
 
 QuKi Notes remembers your choice: if you leave it in plain-text mode, it starts in plain-text mode next time.
+
+### Word and character count
+
+Turn on **Word and character count** in [Settings](/user-guide/settings#appearance) to see how long the QuKi is, for example `42 words · 260 characters`. It sits in the lower right corner of the editor, just above the formatting toolbar while you're editing, and at the bottom edge while you're reading. It updates as you type, and stays clear of the line you're typing on.
+
+The count is of the text as **Send** delivers it, so it matches what a character-limited app (such as Bluesky's 300 or Mastodon's 500) will see:
+
+- **Characters** include spaces, line breaks and markdown symbols such as `**` and `- `. An emoji or an accented letter counts as one.
+- **Words** don't include markdown symbols on their own: `- [ ] buy milk` is two words, and `**bold**` is one.
 
 ## Formatting toolbar
 

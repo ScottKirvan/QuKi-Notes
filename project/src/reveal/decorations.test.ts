@@ -269,13 +269,13 @@ describe("blockquote marker collapse", () => {
     const decos = decorationsFor("plain\n\n> > deep", 0);
     expect(hiddenRanges(decos)).toEqual([[7, 11]]);
     const [bar] = byClass(decos, "cm-quki-quote");
-    expect(bar.style).toContain("padding-left:32px");
+    expect(bar.style).toContain("padding-left:2em");
     expect(bar.style?.match(/linear-gradient/g)).toHaveLength(2);
   });
 
-  it("given a single-level quote, when collapsed, then the bar is one gradient and the content is indented 16px", () => {
+  it("given a single-level quote, when collapsed, then the bar is one gradient and the content is indented 1em", () => {
     const [bar] = byClass(decorationsFor("plain\n\n> q", 0), "cm-quki-quote");
-    expect(bar.style).toContain("padding-left:16px");
+    expect(bar.style).toContain("padding-left:1em");
     expect(bar.style?.match(/linear-gradient/g)).toHaveLength(1);
   });
 
@@ -360,10 +360,11 @@ function listLines(decos: Deco[]): Deco[] {
   return byClass(decos, "cm-quki-list-line");
 }
 
-// Content starts at CodeMirror's 6px line inset + 16px per depth level + the
-// 24px marker gutter; the first row is pulled back left by that gutter.
+// Content starts at CodeMirror's 6px line inset + 1em per depth level + the
+// 1.5em marker gutter; the first row is pulled back left by that gutter.
+// contentX is where the content starts at the 16px text size.
 function listStyle(contentX: number): string {
-  return `padding-left:${contentX}px;text-indent:-24px`;
+  return `padding-left:calc(6px + ${(contentX - 6) / 16}em);text-indent:-1.5em`;
 }
 
 describe("list item layout indentation", () => {
@@ -442,7 +443,7 @@ describe("list item layout indentation", () => {
     expect(listLines(decos).map((d) => d.from)).toEqual([0]);
     const [bar] = byClass(decos, "cm-quki-quote");
     expect(bar.from).toBe(5);
-    expect(bar.style).toContain("padding-left:16px");
+    expect(bar.style).toContain("padding-left:1em");
     expect(bar.style).not.toContain("text-indent");
   });
 

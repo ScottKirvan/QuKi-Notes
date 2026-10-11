@@ -63,3 +63,94 @@ describe("AppSettingsStore", () => {
     expect(() => new AppSettingsStore(throwing).setDeleteOrphanedImages(false)).not.toThrow();
   });
 });
+
+describe("AppSettingsStore new QuKi after being away", () => {
+  it("defaults to 2 minutes when nothing has been stored", () => {
+    expect(new AppSettingsStore(new FakeStorage()).getNewQuKiAfterAway()).toBe(2);
+  });
+
+  it("persists a chosen time, and Off, across instances", () => {
+    const storage = new FakeStorage();
+    new AppSettingsStore(storage).setNewQuKiAfterAway(15);
+    expect(new AppSettingsStore(storage).getNewQuKiAfterAway()).toBe(15);
+    new AppSettingsStore(storage).setNewQuKiAfterAway(null);
+    expect(new AppSettingsStore(storage).getNewQuKiAfterAway()).toBe(null);
+  });
+
+  it("falls back to 2 minutes when the underlying storage throws on read, and does not throw on write", () => {
+    const throwing: AppSettingsStorage = {
+      getItem(): string {
+        throw new Error("boom");
+      },
+      setItem(): void {
+        throw new Error("boom");
+      },
+    };
+    const store = new AppSettingsStore(throwing);
+    expect(store.getNewQuKiAfterAway()).toBe(2);
+    expect(() => store.setNewQuKiAfterAway(null)).not.toThrow();
+  });
+});
+
+describe("AppSettingsStore word count", () => {
+  it("is off when nothing has been stored", () => {
+    expect(new AppSettingsStore(new FakeStorage()).getShowWordCount()).toBe(false);
+  });
+
+  it("persists being turned on and off across instances", () => {
+    const storage = new FakeStorage();
+    new AppSettingsStore(storage).setShowWordCount(true);
+    expect(new AppSettingsStore(storage).getShowWordCount()).toBe(true);
+    new AppSettingsStore(storage).setShowWordCount(false);
+    expect(new AppSettingsStore(storage).getShowWordCount()).toBe(false);
+  });
+
+  it("is off when the underlying storage throws on read, and does not throw on write", () => {
+    const throwing: AppSettingsStorage = {
+      getItem(): string {
+        throw new Error("boom");
+      },
+      setItem(): void {
+        throw new Error("boom");
+      },
+    };
+    const store = new AppSettingsStore(throwing);
+    expect(store.getShowWordCount()).toBe(false);
+    expect(() => store.setShowWordCount(true)).not.toThrow();
+  });
+});
+
+describe("AppSettingsStore font size", () => {
+  it("defaults to Normal when nothing has been stored", () => {
+    expect(new AppSettingsStore(new FakeStorage()).getFontSize()).toBe("normal");
+  });
+
+  it("persists a chosen size across separate instances sharing the same storage", () => {
+    const storage = new FakeStorage();
+    new AppSettingsStore(storage).setFontSize("extra-large");
+    expect(new AppSettingsStore(storage).getFontSize()).toBe("extra-large");
+  });
+
+  it("does not disturb the orphaned-images setting", () => {
+    const storage = new FakeStorage();
+    const store = new AppSettingsStore(storage);
+    store.setDeleteOrphanedImages(false);
+    store.setFontSize("small");
+    expect(store.getDeleteOrphanedImages()).toBe(false);
+    expect(store.getFontSize()).toBe("small");
+  });
+
+  it("falls back to Normal when the underlying storage throws on read, and does not throw on write", () => {
+    const throwing: AppSettingsStorage = {
+      getItem(): string {
+        throw new Error("boom");
+      },
+      setItem(): void {
+        throw new Error("boom");
+      },
+    };
+    const store = new AppSettingsStore(throwing);
+    expect(store.getFontSize()).toBe("normal");
+    expect(() => store.setFontSize("large")).not.toThrow();
+  });
+});
