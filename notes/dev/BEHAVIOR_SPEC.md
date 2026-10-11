@@ -37,7 +37,7 @@ Android's system Back (the edge-swipe gesture or a Back button), received throug
 
 1. **Dialogs first.** If a dialog is open (Help, any confirmation), Back closes it as Cancel and does nothing else.
 2. **Stops.** Every QuKi the user opens from the QuKi list or starts (New, or share-in, which starts one), and the QuKi list screen. Back from a fresh blank QuKi returns to the QuKi the user was in before it.
-3. **Blank QuKis are stops.** Every blank QuKi is a stop, even if the user never typed into it: the one the app launches with (and the one Settings → Change location starts) and any started with New. Back returns to one as a fresh blank QuKi, through the same safe path as New (flush auto-save first and stay put if that fails), without adding a stop. A blank QuKi the user types into gets an id from its first save and is then a stop like any other QuKi.
+3. **Blank QuKis are stops.** Every blank QuKi is a stop, even if the user never typed into it: the one the app launches with (and the one Settings → Change location starts) and any started with New or by coming back after being away (§4). Back returns to one as a fresh blank QuKi, through the same safe path as New (flush auto-save first and stay put if that fails), without adding a stop. A blank QuKi the user types into gets an id from its first save and is then a stop like any other QuKi.
 4. **Never stops on Settings or Trash.** Back from either returns to wherever the user was before them (from Trash, past Settings too), and going back never lands on either.
 5. **Deleted QuKis are skipped.** A QuKi in the history that has since been trashed or has gone from the folder is passed over. Whether it still exists is asked of the store at the moment of going back; the history is never a record of what exists (STORAGE_CONTRACT.md rules 2 and 6).
 6. **Scroll position.** Returning to a QuKi restores its scroll position as it was when the user left it.
@@ -107,6 +107,17 @@ Fills the screen above the toolbar. Text renders at the size chosen in Settings 
 **A tap below the last line starts a line where the tap landed**, in reading or edit mode: blank lines are added down to that height and the caret goes to the start of the last one, so the user can write mid-page without hunting for the end of the text (the manifesto's velocity). The text above is untouched. Trailing blank lines with nothing typed after them are padding, not content: they are never saved or sent, so tapping a blank QuKi and typing nothing creates no QuKi. Once anything is typed after them they are part of the QuKi.
 
 The editor reports three events: content changed (which notifies auto-save), a link tapped, and a checkbox tapped.
+
+### Coming back after being away
+
+When the app has been **in the background — not visible — for 2 minutes**, coming back starts a new, blank QuKi, exactly as **New** does: the QuKi that was open is flushed first through the same safe path (if that fails, nothing changes and the save problem shows), the blank QuKi takes focus, and it is a new Back stop (§2a), so Back returns to the QuKi that was left, or to the QuKi list if that is where the user was. If the app stays open and visible but untouched, **no** new QuKi is created, however long it sits. Only time hidden counts, measured from the moment it was hidden to the moment it is visible again (page visibility on every platform, plus the native pause/resume lifecycle on Android), never a timer running in the background.
+
+It does not trigger on launch, when coming back from Send's share sheet, or when text is shared in (share-in opens its own new QuKi, §8).
+
+- `[Proposed — unconfirmed]` A Settings choice, **New QuKi after being away**: Off, 2 (default), 5, 15 or 30 minutes. The issue's choice of action (new QuKi or QuKi list) is not offered: Scott's decision names the new QuKi only.
+- `[Proposed — unconfirmed]` "Coming back from Send's share sheet" is recognised as the app being hidden within 10 seconds of Send.
+- `[Proposed — unconfirmed]` Time away during Settings → Change location (Android's all-files permission screen) does not count.
+- `[Proposed — unconfirmed]` Leaving through a tapped link (the browser opens) counts like any other time away.
 
 ### Word and character count
 
@@ -268,7 +279,7 @@ Sections with small uppercase, letter-spaced, accent-colored headers:
 |---|---|
 | **Appearance** | Theme — displays `System`, not adjustable. **Text size** — a few fixed steps, not a slider: Small, Normal (default), Large, Extra large (see below). **Word and character count** — an on/off setting (§4 "Word and character count"). |
 | **Storage** | Current location. App storage shows *"Files will be removed on uninstall. Change location."* in the error color; filesystem storage shows the path over up to two lines. Below it, **Change location**. |
-| **Notes** | **Trash** |
+| **Notes** | **Trash**. **New QuKi after being away** (§4 "Coming back after being away"). |
 | **Sync** | *"No sync backends installed"*, disabled |
 | **About** | App name and version. **Tapping copies the version string to the clipboard** and confirms with *"Copied to clipboard."* |
 

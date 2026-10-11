@@ -6,6 +6,14 @@ The editor is the first thing you see when you open the app, and it's always hom
 
 Tap <i-lucide-plus /> **New QuKi** in the top bar to start another new QuKi.
 
+### Coming back after being away
+
+If QuKi Notes has been out of sight for 2 minutes or more (you switched to another app, went to the home screen, or minimized the window), coming back starts a new, blank QuKi, ready to type. The QuKi you were on was saved when you left. On Android, press **Back** to return to it, or find it in the QuKis list.
+
+Leaving QuKi Notes open and on screen never does this, however long it sits. Neither does coming back from **Send**'s share sheet, or sharing text into QuKi Notes from another app (that opens the shared text instead).
+
+Change the time, or turn it off, with **New QuKi after being away** in [Settings](/user-guide/settings#notes).
+
 ## Auto-save
 
 QuKis auto save as you type.  No need to manually save them, pick filesystem locations, or create names for them.
