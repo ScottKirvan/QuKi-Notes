@@ -1,0 +1,70 @@
+import { chromium } from "playwright";
+
+import { assert, serveDist } from "./serveDist.ts";
+
+async function main(): Promise<void> {
+  const { server, url } = await serveDist();
+  console.log(`[e2e-search-snippet] serving dist/ at ${url}`);
+  const browser = await chromium.launch();
+
+  try {
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await page.goto(url);
+    await page.waitForSelector(".cm-content");
+
+    // Given a QuKi whose match is not on its first line, inside bold markup
+    await page.click(".cm-content");
+    await page.keyboard.press("Control+A");
+    await page.keyboard.type("Weekend plans\nRemember to buy **ripe bananas** for the cake");
+    await page.waitForTimeout(2500); // 2s auto-save debounce + margin
+
+    const list = page.locator("#view-list");
+    await page.click("#btn-quki-list");
+    await list.locator(".list-row").first().waitFor({ timeout: 5000 });
+    const preview = list.locator(".list-row-preview").first();
+    await page.waitForFunction(() => document.querySelector("#view-list .list-row-preview")?.textContent === "Weekend plans");
+
+    // When the user searches, in different case from the body
+    await list.locator(".search-input").fill("BANANAS");
+    await list.locator(".search-hit").first().waitFor({ timeout: 5000 });
+
+    // Then the row shows the matching line, markers stripped, with the match highlighted
+    const text = await preview.textContent();
+    assert(text === "Remember to buy ripe bananas for the cake", `expected the matching line as the snippet, got "${text}"`);
+    const hits = await list.locator(".search-hit").allTextContents();
+    assert(JSON.stringify(hits) === JSON.stringify(["bananas"]), `expected one highlighted "bananas", got ${JSON.stringify(hits)}`);
+    const hitBackground = await list.locator(".search-hit").first().evaluate((el) => getComputedStyle(el).backgroundColor);
+    const expected = await page.evaluate(() => {
+      const probe = document.createElement("div");
+      probe.style.background = "var(--text-highlight-bg)";
+      document.body.append(probe);
+      const resolved = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return resolved;
+    });
+    assert(expected !== "rgba(0, 0, 0, 0)", "--text-highlight-bg should have a default on the body theme class");
+    assert(hitBackground === expected, `highlight background should be --text-highlight-bg (${expected}), got ${hitBackground}`);
+    console.log(`[e2e-search-snippet] PASS: snippet "${text}" with "${hits[0]}" highlighted in ${hitBackground}`);
+
+    // When the search box is cleared, rows go back to the normal preview
+    await list.locator(".search-input").fill("");
+    await page.waitForFunction(() => document.querySelector("#view-list .list-row-preview")?.textContent === "Weekend plans");
+    assert((await list.locator(".search-hit").count()) === 0, "no highlight should remain once the search box is empty");
+    assert((await list.locator(".list-row-snippet").count()) === 0, "rows should not keep the snippet class once the search box is empty");
+    console.log("[e2e-search-snippet] PASS: clearing the search restores the normal preview");
+
+    await context.close();
+    console.log("[e2e-search-snippet] ALL SCENARIOS PASSED");
+  } finally {
+    await browser.close();
+    server.close();
+  }
+}
+
+main()
+  .then(() => process.exit(0))
+  .catch((err: unknown) => {
+    console.error("[e2e-search-snippet] FAILED:", err);
+    process.exit(1);
+  });

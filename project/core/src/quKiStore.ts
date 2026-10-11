@@ -1,5 +1,6 @@
 import { exportLibrary as buildExport } from './export.js';
 import { findImageReferences, isOrphanCandidate, isReadableFile, writeImage as writeImageFile } from './media.js';
+import { bodyMatches, buildSearchSnippet } from './searchSnippet.js';
 import { readSidecar, writeSidecar, type SidecarData } from './sidecar.js';
 import type { FileStat, StorageBackend } from './storageBackend.js';
 import {
@@ -12,6 +13,7 @@ import {
   type RestoreResult,
   type SaveParams,
   type SaveResult,
+  type SearchMatch,
   type TrashedQuKiSummary,
   type WriteImageResult,
 } from './types.js';
@@ -491,25 +493,34 @@ export class QuKiStore {
   }
 
   async search(query: string, options: { includeTrash?: boolean } = {}): Promise<QuKiSummary[]> {
+    return (await this.searchWithSnippets(query, options)).map((match) => match.item);
+  }
+
+  /** search(), with each result's snippet: the text around its first match. */
+  async searchWithSnippets(query: string, options: { includeTrash?: boolean } = {}): Promise<SearchMatch[]> {
     const trimmed = query.trim();
     const active = await this.list();
+    const unfiltered = (items: QuKiSummary[]): SearchMatch[] => items.map((item) => ({ item, snippet: null }));
 
     if (!options.includeTrash) {
-      if (trimmed === '') return active;
+      if (trimmed === '') return unfiltered(active);
       return this.matchBodies(active, trimmed, (s) => `${s.id}.md`);
     }
 
     const trash = await this.listTrash();
-    if (trimmed === '') return [...active, ...trash];
+    if (trimmed === '') return unfiltered([...active, ...trash]);
 
     const activeMatches = await this.matchBodies(active, trimmed, (s) => `${s.id}.md`);
     const trashMatches = await this.matchBodies(trash, trimmed, (s) => `.trash/${s.id}.md`);
     return [...activeMatches, ...trashMatches];
   }
 
-  private async matchBodies<T extends QuKiSummary>(items: T[], query: string, pathFor: (item: T) => string): Promise<T[]> {
-    const lower = query.toLowerCase();
-    const matches: T[] = [];
+  private async matchBodies<T extends QuKiSummary>(
+    items: T[],
+    query: string,
+    pathFor: (item: T) => string,
+  ): Promise<SearchMatch<T>[]> {
+    const matches: SearchMatch<T>[] = [];
     for (const item of items) {
       let body: string;
       try {
@@ -518,7 +529,7 @@ export class QuKiStore {
         console.error(`QuKiStore.search: skipping "${pathFor(item)}" - ${describeError(err)}`);
         continue;
       }
-      if (body.toLowerCase().includes(lower)) matches.push(item);
+      if (bodyMatches(body, query)) matches.push({ item, snippet: buildSearchSnippet(body, query) });
     }
     return matches;
   }

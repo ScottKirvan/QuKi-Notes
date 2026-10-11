@@ -1,5 +1,5 @@
 import { ArrowLeft, CircleHelp, Plus, Settings, Trash2 } from "lucide";
-import type { QuKiStore, QuKiSummary } from "quki-core";
+import type { QuKiStore, SearchMatch, SearchSnippet } from "quki-core";
 
 import { guardLatest } from "../asyncGuard";
 import { extractPreview } from "../preview";
@@ -24,6 +24,21 @@ export interface ListView {
   element: HTMLElement;
   /** BEHAVIOR_SPEC.md §5: "The list refreshes from the folder each time it opens." */
   open: () => Promise<void>;
+}
+
+export function showSnippet(preview: HTMLElement, snippet: SearchSnippet): void {
+  preview.classList.add("list-row-snippet");
+  preview.replaceChildren();
+  let at = 0;
+  for (const { start, end } of snippet.highlights) {
+    if (start > at) preview.append(snippet.text.slice(at, start));
+    const hit = document.createElement("mark");
+    hit.className = "search-hit";
+    hit.textContent = snippet.text.slice(start, end);
+    preview.append(hit);
+    at = end;
+  }
+  if (at < snippet.text.length) preview.append(snippet.text.slice(at));
 }
 
 export function createListView(store: QuKiStore, container: HTMLElement, callbacks: ListViewCallbacks): ListView {
@@ -59,7 +74,10 @@ export function createListView(store: QuKiStore, container: HTMLElement, callbac
   let currentQuery = "";
 
   const guardedFetch = guardLatest(
-    async (query: string): Promise<QuKiSummary[]> => (query === "" ? store.list() : store.search(query)),
+    async (query: string): Promise<SearchMatch[]> =>
+      query === ""
+        ? (await store.list()).map((item) => ({ item, snippet: null }))
+        : store.searchWithSnippets(query),
   );
 
   async function refresh(): Promise<void> {
@@ -69,7 +87,7 @@ export function createListView(store: QuKiStore, container: HTMLElement, callbac
     renderRows(results, query);
   }
 
-  function renderRows(items: QuKiSummary[], query: string): void {
+  function renderRows(items: SearchMatch[], query: string): void {
     listBody.innerHTML = "";
     if (items.length === 0) {
       const empty = document.createElement("p");
@@ -82,7 +100,7 @@ export function createListView(store: QuKiStore, container: HTMLElement, callbac
     for (const item of items) listBody.appendChild(renderRow(item));
   }
 
-  function renderRow(item: QuKiSummary): HTMLElement {
+  function renderRow({ item, snippet }: SearchMatch): HTMLElement {
     const row = document.createElement("div");
     row.className = "list-row";
 
@@ -111,17 +129,21 @@ export function createListView(store: QuKiStore, container: HTMLElement, callbac
     content.append(main);
     row.append(swipeBg, content);
 
-    // The preview requires reading the body, per row (BEHAVIOR_SPEC.md §5:
-    // "the preview is read from the file per row"). A read failure means
-    // "unreadable" - extractPreview(null) resolves that to "(empty)".
-    store.read(item.id).then(
-      (detail) => {
-        preview.textContent = extractPreview(detail.body);
-      },
-      () => {
-        preview.textContent = extractPreview(null);
-      },
-    );
+    if (snippet) {
+      showSnippet(preview, snippet);
+    } else {
+      // The preview requires reading the body, per row (BEHAVIOR_SPEC.md §5:
+      // "the preview is read from the file per row"). A read failure means
+      // "unreadable" - extractPreview(null) resolves that to "(empty)".
+      store.read(item.id).then(
+        (detail) => {
+          preview.textContent = extractPreview(detail.body);
+        },
+        () => {
+          preview.textContent = extractPreview(null);
+        },
+      );
+    }
 
     const open = (): void => {
       void callbacks.onOpenQuKi(item.id);

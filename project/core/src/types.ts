@@ -1,3 +1,5 @@
+import type { SearchSnippet } from './searchSnippet.js';
+
 export interface QuKiSummary {
   id: string;
   filename: string;
@@ -14,6 +16,12 @@ export interface TrashedQuKiSummary extends QuKiSummary {
    * because another trashed QuKi already occupied the original name.
    */
   originalId: string;
+}
+
+export interface SearchMatch<T extends QuKiSummary = QuKiSummary> {
+  item: T;
+  /** Null only when the query was empty, which matches every QuKi. */
+  snippet: SearchSnippet | null;
 }
 
 export interface RestoreResult {
