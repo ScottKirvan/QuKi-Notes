@@ -40,7 +40,12 @@ Type in the **Search QuKis** box to filter the list. Search:
 - matches anywhere in a QuKi's full text, not just the preview
 - ignores upper/lower case and leading/trailing spaces
 
-While you're searching, each row shows the line where your search first matches, instead of its usual preview, with the matching words highlighted. That way you can see why each QuKi matched. Formatting marks such as `**`, `#` or `- ` are left out of that line, and a long line is cut down to the part around the match, with `…` where it was cut.
+While you're searching, each row shows why the QuKi matched, with the matching words highlighted:
+
+- If the match is in the QuKi's first line, the row shows that line.
+- If the match is further down, the row still shows the first line as its title, and underneath, in lighter text, the line where your search first matches.
+
+Formatting marks such as `**`, `#` or `- ` are left out of the matching line, and a long line is cut down to the part around the match, with `…` where it was cut.
 
 If nothing matches, the list says `No results for "…"`. Clear the box to see everything again. The search box resets each time you open the list.
 

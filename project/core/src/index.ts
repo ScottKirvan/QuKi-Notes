@@ -1,6 +1,6 @@
 export { QuKiStore } from './quKiStore.js';
 export { findImageReferences, isOrphanCandidate } from './media.js';
-export { buildSearchSnippet } from './searchSnippet.js';
+export { buildSearchSnippet, findMatches } from './searchSnippet.js';
 export type { SearchSnippet, SnippetRange } from './searchSnippet.js';
 export type { StorageBackend, FileStat } from './storageBackend.js';
 export type {
