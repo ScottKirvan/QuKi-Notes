@@ -569,4 +569,43 @@ describe("backslash escapes", () => {
     const [escape] = els.filter((el) => el.type === "Escape");
     expect(escape!.parentId).toBe(bold?.id);
   });
+
+  it.each(["\\# foo", "\\- item", "\\> quote", "\\1. item", "1\\. item"])(
+    "given %j, then it is a plain paragraph with no heading, list or quote marker - escapes are inline-only",
+    (doc) => {
+      expect(elementsFor(doc).filter((el) => el.category === "block-marker")).toEqual([]);
+    },
+  );
+
+  it.each(["\\*foo*", "\\_foo_"])(
+    "given %j - an escaped opening delimiter and an unescaped closing one - then no emphasis is produced",
+    (doc) => {
+      const types = elementsFor(doc).map((el) => el.type);
+      expect(types).not.toContain("Emphasis");
+      expect(types).not.toContain("StrongEmphasis");
+    },
+  );
+
+  it.each(["\\**foo**", "\\__foo__"])(
+    "given %j, then no bold is produced and no emphasis opens at the escaped delimiter",
+    (doc) => {
+      const els = elementsFor(doc);
+      expect(els.map((el) => el.type)).not.toContain("StrongEmphasis");
+      expect(els.filter((el) => el.type === "Emphasis" && el.start < 2)).toEqual([]);
+    },
+  );
+
+  it.each([
+    ["\\_foo\\_", "Emphasis"],
+    ["\\`code\\`", "InlineCode"],
+    ["\\~~strike\\~~", "Strikethrough"],
+    ["\\[link](page.md)", "Link"],
+  ])("given %j, then no %s element is produced", (doc, type) => {
+    expect(elementsFor(doc).map((el) => el.type)).not.toContain(type);
+    expect(escapeElements(doc)[0]).toEqual(expect.objectContaining({ start: 0, end: 2 }));
+  });
+
+  it.each(["—", "¿"])("given a backslash before the non-ASCII punctuation character %j, then it is not an escape", (ch) => {
+    expect(escapeElements(`\\${ch}x`)).toEqual([]);
+  });
 });
