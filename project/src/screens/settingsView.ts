@@ -1,5 +1,6 @@
 import { ArrowLeft } from "lucide";
 
+import { FONT_SIZES, type FontSize } from "../fontSize";
 import { setIconButton } from "./icons";
 import type { ShowToast } from "./toast";
 
@@ -26,6 +27,11 @@ export interface DeleteOrphanedImagesCallbacks {
   set: (value: boolean) => void;
 }
 
+export interface FontSizeCallbacks {
+  get: () => FontSize;
+  set: (value: FontSize) => void;
+}
+
 export interface SettingsViewCallbacks {
   onBack: () => void;
   onOpenTrash: () => void;
@@ -44,6 +50,8 @@ export interface SettingsViewCallbacks {
    * `storage` above.
    */
   deleteOrphanedImages: DeleteOrphanedImagesCallbacks;
+  /** The editor's text size; applied as soon as it changes. */
+  fontSize: FontSizeCallbacks;
   /**
    * Settings -> Export (STORAGE_CONTRACT.md "The core API": "a single call
    * that produces the complete library... the backup story, and... also the
@@ -126,6 +134,12 @@ export function createSettingsView(container: HTMLElement, callbacks: SettingsVi
           <span>Theme</span>
           <span class="settings-value">System</span>
         </div>
+        <label class="settings-row">
+          <span>Text size</span>
+          <select class="settings-select font-size-select">
+            ${FONT_SIZES.map((size) => `<option value="${size.id}">${size.label}</option>`).join("")}
+          </select>
+        </label>
       </section>
       ${storageSectionHtml}
       <section class="settings-section">
@@ -163,6 +177,12 @@ export function createSettingsView(container: HTMLElement, callbacks: SettingsVi
   deleteOrphanedImagesToggle.checked = callbacks.deleteOrphanedImages.get();
   deleteOrphanedImagesToggle.addEventListener("change", () => {
     callbacks.deleteOrphanedImages.set(deleteOrphanedImagesToggle.checked);
+  });
+
+  const fontSizeSelect = container.querySelector<HTMLSelectElement>(".font-size-select")!;
+  fontSizeSelect.value = callbacks.fontSize.get();
+  fontSizeSelect.addEventListener("change", () => {
+    callbacks.fontSize.set(fontSizeSelect.value as FontSize);
   });
 
   if (callbacks.storage) {

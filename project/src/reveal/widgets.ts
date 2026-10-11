@@ -114,7 +114,7 @@ export class LinkWidget extends WidgetType {
   }
 }
 
-// The marker's whole 24px gutter (20px label box plus its 4px gap) matches
+// The marker's whole 1.5em gutter (at 16px text, a 20px label box plus its 4px gap) matches
 // the Flutter editor's list-marker gutter: the marker is right-aligned in it
 // and the item's content starts just past it.
 export class BulletWidget extends WidgetType {

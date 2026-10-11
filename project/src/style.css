@@ -385,6 +385,15 @@ button.settings-row {
   color: var(--text-muted);
 }
 
+.settings-select {
+  font: inherit;
+  padding: 4px 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+}
+
 /* A checkbox <input> doesn't inherit its enclosing .settings-row's font the
    way plain text does - browsers give form controls their own UA default
    font unless told otherwise, same reason button.settings-row above needs
@@ -902,8 +911,9 @@ body.theme-light .about-link-btn.accent {
 }
 
 /*
- * Exactly 24px wide (20px box plus 4px gap): a list line's wrapped rows are
- * indented by that same 24px, so a marker wider or narrower than it would
+ * Exactly 1.5em wide (24px at the 16px text size: a 20px box plus 4px gap): a
+ * list line's wrapped rows are indented by that same 1.5em
+ * (reveal/decorations.ts), so a marker wider or narrower than it would
  * leave the first row's content out of line with them. text-indent is reset
  * because the list line's negative hanging indent is inherited by this
  * inline-block. A label wider than the box (a two-digit number) grows to the
@@ -912,8 +922,8 @@ body.theme-light .about-link-btn.accent {
 .cm-quki-marker {
   display: inline-block;
   box-sizing: border-box;
-  width: 24px;
-  padding-right: 4px;
+  width: 1.5em;
+  padding-right: 0.25em;
   text-align: right;
   text-indent: 0;
   white-space: nowrap;
