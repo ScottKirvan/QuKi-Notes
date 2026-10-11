@@ -9,6 +9,10 @@ const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), 
   version: string;
 };
 
+// The packages @codemirror/language-data loads a code block's language from.
+const CODE_LANGUAGE_MODULE = /[\\/]node_modules[\\/](@codemirror[\\/](lang-|legacy-modes[\\/])|@lezer[\\/](?!common[\\/]|highlight[\\/]|lr[\\/])|@replit[\\/]|codemirror-lang-|@codemirror[\\/]language-data[\\/])/;
+const CODE_LANGUAGE_CHUNK_PREFIX = "lang-";
+
 const buildInfo = collectBuildInfo({ cwd: fileURLToPath(new URL(".", import.meta.url)) });
 
 export default defineConfig({
@@ -20,6 +24,16 @@ export default defineConfig({
   server: {
     host: true,
     allowedHosts: ["thehumanton.tail6388a4.ts.net"],
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        chunkFileNames: (chunk) =>
+          chunk.moduleIds.length > 0 && chunk.moduleIds.every((id) => CODE_LANGUAGE_MODULE.test(id))
+            ? `assets/${CODE_LANGUAGE_CHUNK_PREFIX}[hash].js`
+            : "assets/[name]-[hash].js",
+      },
+    },
   },
   test: {
     environment: "node",
@@ -66,6 +80,16 @@ export default defineConfig({
         // an offline reload would load the app shell but the installed
         // manifest's own icons would 404 offline.
         globPatterns: ["**/*.{js,css,html,ico,png,svg,webmanifest}"],
+        // Code-block languages load only when a block names one, so they are
+        // cached on first use rather than all downloaded at install.
+        globIgnores: [`**/${CODE_LANGUAGE_CHUNK_PREFIX}*.js`],
+        runtimeCaching: [
+          {
+            urlPattern: new RegExp(`/assets/${CODE_LANGUAGE_CHUNK_PREFIX}[^/]*\\.js$`),
+            handler: "CacheFirst",
+            options: { cacheName: "code-languages", expiration: { maxEntries: 300 } },
+          },
+        ],
         navigateFallback: "/index.html",
       },
     }),

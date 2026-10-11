@@ -68,8 +68,11 @@ type Scheme = "light" | "dark";
 // declared value is the literal keyword `inherit`, which for a custom
 // property resolves by walking up to <html> - where GitHubDHC (like the app)
 // never sets it - so, like --caret-color, it computes to nothing there.
+// GitHubDHC leaves --code-operator to Obsidian's default, its red, so the app
+// asserts it equals --code-keyword (GitHubDHC's red) below instead.
 const NOT_A_GITHUBDHC_COLOUR = [
   "--caret-color",
+  "--code-operator",
   "--table-border-width",
   "--table-header-border-width",
   "--table-header-weight",
@@ -293,6 +296,8 @@ async function runScenario(browser: Browser, url: string, scheme: Scheme): Promi
   }
   const caret = (await probeColours(page, ["--caret-color", "--text-accent"]));
   assert(caret["--caret-color"] === caret["--text-accent"], `--caret-color should default to --text-accent, got ${caret["--caret-color"]} vs ${caret["--text-accent"]}`);
+  const operator = await probeColours(page, ["--code-operator", "--code-keyword"]);
+  assert(operator["--code-operator"] === operator["--code-keyword"], `--code-operator should default to GitHubDHC's red, --code-keyword, got ${operator["--code-operator"]} vs ${operator["--code-keyword"]}`);
   console.log(`${tag} PASS: all ${names.length} default variables match GitHubDHC's computed values (${NOT_A_GITHUBDHC_COLOUR.join(", ")} is the app's own choice${Object.keys(deliberate).length > 0 ? `; ${Object.keys(deliberate).join(", ")} deliberately differs` : ""})`);
 
   assert([...calloutNames].sort().join(",") === Object.keys(CALLOUT_VARIABLES).sort().join(","), `body.theme-${scheme} must declare exactly ${Object.keys(CALLOUT_VARIABLES).join(", ")}, got ${calloutNames.join(", ")}`);

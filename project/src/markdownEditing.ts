@@ -5,6 +5,7 @@ import { markdown } from "@codemirror/lang-markdown";
 import { keymap } from "@codemirror/view";
 import { GFM } from "@lezer/markdown";
 import { continueListOnEnter } from "./continueListOnEnter";
+import { fencedCodeKeepsLineIndentation, findCodeLanguage } from "./codeLanguages";
 import { IndentedListItems } from "./indentedListItems";
 
 /**
@@ -20,11 +21,14 @@ import { IndentedListItems } from "./indentedListItems";
  *   keymap also binds Backspace to deleteMarkupBackward, which removes a whole
  *   list or quote marker at once, where Backspace must delete one character
  *   at a time.
+ * - A fenced code block's info string picks a code language, loaded the first
+ *   time a block names it (codeLanguages.ts).
  */
 export function markdownEditing(): Extension {
   return [
     indentUnit.of("\t"),
-    markdown({ extensions: [GFM, IndentedListItems], addKeymap: false }),
+    markdown({ extensions: [GFM, IndentedListItems], addKeymap: false, codeLanguages: findCodeLanguage }),
+    fencedCodeKeepsLineIndentation,
     Prec.high(keymap.of([{ key: "Enter", run: continueListOnEnter }])),
   ];
 }

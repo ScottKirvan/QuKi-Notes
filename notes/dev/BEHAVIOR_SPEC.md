@@ -354,7 +354,17 @@ Block indentation and nested blockquote depth are tracked per line and rendered 
 - A marker line with no body under it still renders as an alert title.
 - With the caret anywhere on the marker line, that whole line shows raw (`> [!NOTE]`), with no bar; the body lines keep the rule-3 behaviour of quote lines. Plain-text mode shows the raw text.
 
-**Not rendered today:** tables and fenced code blocks. Both are **in scope for the rewrite**.
+Tables and fenced code blocks are rendered too.
+
+### Fenced code blocks
+
+A fenced block renders as a monospace block on the code background with its fence lines hidden, and reveals wholly (rule 4) when the caret is anywhere in it. Nothing inside it is parsed as markdown.
+
+**Code is coloured by the language its info string names** — the first word after the opening fence, matched by language name, alias or file extension, ignoring case: `js`, `ts`, `py`, `sh`, `json`, `yml`, `md` and the like all work. A block with no info string, an unknown name, or `text` / `txt` / `plain` / `plaintext` stays plain monospace in `--code-normal`. A language loads the first time a block names it, never up front. Token colours are Obsidian's code variables (`--code-keyword`, `--code-string`, `--code-value`, `--code-comment`, `--code-function`, `--code-property`, `--code-punctuation`, `--code-operator`, `--code-tag`, `--code-important`), so a theme restyles them. *[Proposed — unconfirmed]* — which token kinds take which variable (types and class names take `--code-function`, as GitHub colours them; operators take `--code-operator`, which GitHubDHC leaves at Obsidian's red).
+
+**Colours stay when the block reveals**: the raw block, fences showing, keeps its code colours. **Plain-text mode shows code uncoloured**, like the rest of its raw source. *[Proposed — unconfirmed]*
+
+Colouring changes no editing behaviour: inside a block, Enter keeps the line's own indentation and typing a bracket never re-indents the line, whatever the language would do. Markdown's own tokens, fences and info string included, are never coloured as code, and inline HTML in a paragraph stays literal text.
 
 ### Parsing rules that are pinned by tests
 
