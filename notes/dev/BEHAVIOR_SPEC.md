@@ -202,6 +202,20 @@ Selection resolves against **rendered** text, not source, so hidden delimiters n
 
 A floating toolbar offers cut, copy, paste and select-all. It is dismissed by the next tap and must not leak when the screen is disposed.
 
+### Paste
+
+When the clipboard carries HTML (copied from a web page, a word processor, a rendered markdown view), the paste is **converted to markdown** in the app's own style and inserted at the caret, replacing any selection: `-` bullets and `1.` numbered items nested **one tab per level**, `- [ ]` / `- [x]` task items, `#` headings, `**bold**`, `_italic_`, `~~strike~~`, `` `code` ``, fenced code blocks (with the language where the page names one), `>` quotes, `[text](url)` links, GFM tables and `![alt](url)` images linking to the web URL (not downloaded). The conversion uses Turndown with the app's own rules for lists, tasks, strikethrough, code and tables.
+
+Scripts, styles, comments, forms and other non-content markup are dropped, never converted or run. [Proposed — unconfirmed] Only `http(s):` and `mailto:` links are kept as links (others keep their text); only `http(s):` images are kept (a `data:` image would put its whole encoding in the QuKi); a link whose text is its own URL becomes the bare URL; a table with no header row takes its first row as the header; a `<b style="font-weight:normal">` wrapper (Google Docs) is not bold.
+
+The paste goes in **exactly as plain text**, as before, when:
+
+- the clipboard has no HTML;
+- the HTML adds nothing to the plain text — compared ignoring whitespace and markdown escapes, the conversion equals the plain text (markdown source copied from a code editor that wraps it in coloured spans, or plain paragraphs) [Proposed — unconfirmed: this comparison is the test for "HTML that is just a wrapper"];
+- the clipboard carries an image (image paste wins, see STORAGE_CONTRACT.md rule 12);
+- a URL is pasted over selected text (it becomes `[selection](url)`, see the user guide);
+- the paste is made with **Ctrl+Shift+V** (Cmd+Shift+V on macOS). Where that shortcut fires no paste event of its own, the clipboard's text is read and inserted.
+
 ### Programmatic updates
 
 Setting the editor's value programmatically **resets the caret to the start**, **does not fire the change event** and **clears undo and redo history** — the first is what stops a load from triggering a save; the last stops Undo from putting the previous QuKi's text into this one. In-place edits that must keep the caret, such as a checkbox toggle, use a separate path that preserves the selection and stays undoable.
@@ -435,7 +449,7 @@ Indent and dedent apply to whole lines and are also bound to Tab and Shift+Tab.
 | `package_info_plus` | Version display | Build-time constant |
 | `lucide_flutter`, `flutter_svg` | Icons | Lucide has a web build |
 | `logging` | Diagnostics | Any logger |
-| `html`, `html2md` *(editor package)* | Rich paste → markdown | Turndown — `html2md` is its Dart port |
+| `html`, `html2md` *(editor package)* | Rich paste → markdown | Turndown — `html2md` is its Dart port (see §4 Paste) |
 | `quill_native_bridge` *(editor package)* | Reading HTML off the clipboard | The browser's own clipboard API |
 | `markdown` *(editor package)* | Markdown parsing | CodeMirror's markdown language |
 
