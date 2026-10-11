@@ -106,6 +106,8 @@ Fills the screen above the toolbar. Text renders at the size chosen in Settings 
 
 **A tap below the last line starts a line where the tap landed**, in reading or edit mode: blank lines are added down to that height and the caret goes to the start of the last one, so the user can write mid-page without hunting for the end of the text (the manifesto's velocity). The text above is untouched. Trailing blank lines with nothing typed after them are padding, not content: they are never saved or sent, so tapping a blank QuKi and typing nothing creates no QuKi. Once anything is typed after them they are part of the QuKi.
 
+**The editor is spellchecked like an ordinary text field**, in rendered and plain-text mode alike, by the platform's own spellchecker (the device keyboard's on Android, the OS's or Electron's on desktop, the browser's on the web). On Android the keyboard capitalises the start of a sentence and autocorrects as the user has set it up to. Inline code and fenced code blocks are never spellchecked, whether collapsed or revealed. [Proposed — unconfirmed: the code exclusion, autocorrect on, and sentence capitalisation.] On Windows and Linux, right-clicking a misspelled word offers the spellchecker's suggestions and "Add to dictionary"; right-clicking anywhere else shows no menu, as before. [Proposed — unconfirmed]
+
 The editor reports three events: content changed (which notifies auto-save), a link tapped, and a checkbox tapped.
 
 ### Coming back after being away
