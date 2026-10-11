@@ -44,6 +44,7 @@ While you're editing, headings look like headings, links show their label, image
 - **The cursor right after the closing marker still counts as inside.** Type `**bold**` and stop, and the asterisks stay visible. Type one more character and they disappear.
 - **Headings, list bullets, numbers, checkboxes and quote markers** reveal only the marker itself, when the cursor is right at it. Elsewhere on the line, the marker stays rendered. A new, empty list item shows its bullet, number or checkbox straight away, ready for you to type.
 - **Images, horizontal rules, tables and fenced code blocks** reveal completely whenever the cursor is anywhere inside them.
+- **An alert's title line** (`> [!NOTE]` and the like) shows its markdown whenever the cursor is anywhere on that line.
 - **If you select text**, what reveals follows where the selection *started*, not where you dragged to.
 
 Tapping a rendered link opens it. To edit a link, move into it with the arrow keys. A revealed link is plain text and doesn't open.
@@ -120,6 +121,7 @@ Press **Enter** at the end of a list item, task item or quote line, and the next
 | `https://…`, `www.…`, email addresses | Clickable link                                                                              |
 | `![alt](media/picture.png)`           | Image, shown inline                                                                         |
 | `> text`                              | Blockquote with a bar on the left; `>>` nests deeper                                        |
+| `> [!NOTE]` on a quote's first line   | GitHub-style alert: a coloured bar and an icon with a title. Also `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`, in any case. Put the alert's text on the quote lines below the marker. |
 | `---`                                 | Horizontal rule                                                                             |
 | GFM pipe tables (`\| a \| b \|`)      | A table, with bold, italic, code and links inside cells                                     |
 | ` ``` ` fenced code blocks            | A monospace block with a shaded background and the fence lines hidden. No syntax colouring. |

@@ -32,6 +32,14 @@ body.theme-dark {
   --caret-color: var(--text-accent);
   --link-color: #71b7ff;
   --blockquote-border-color: #7a828e;
+  /* Obsidian's callout colours are RGB triples. GitHubDHC sets these colours
+     per callout type (.callout[data-callout=...]) rather than on these
+     variables. */
+  --callout-default: 113, 183, 255;
+  --callout-tip: 43, 216, 83;
+  --callout-important: 210, 168, 255;
+  --callout-warning: 240, 183, 47;
+  --callout-error: 255, 148, 146;
   --code-background: #161b22;
   --hr-color: #7a828e;
   --table-background: transparent;
@@ -79,6 +87,13 @@ body.theme-light {
   --caret-color: var(--text-accent);
   --link-color: #0969da;
   --blockquote-border-color: #6e7781;
+  /* github.com's light alert colours: GitHubDHC uses its dark colours in both
+     schemes, which are too pale to read on white. */
+  --callout-default: 9, 105, 218;
+  --callout-tip: 26, 127, 55;
+  --callout-important: 130, 80, 223;
+  --callout-warning: 154, 103, 0;
+  --callout-error: 209, 36, 47;
   --code-background: #afb8c1;
   --hr-color: #6e7781;
   --table-background: transparent;
@@ -916,6 +931,18 @@ body.theme-light .about-link-btn.accent {
 
 .cm-quki-quote-text {
   color: var(--text-muted);
+}
+
+.cm-quki-callout-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  line-height: inherit;
+}
+
+.cm-quki-callout-icon {
+  flex: none;
 }
 
 /*

@@ -5,6 +5,7 @@ import type { RevealElement } from "./types";
 import { computeOrderedNumbers, indentDepth } from "./listNumbering";
 import { quotePrefix } from "./quotePrefix";
 import { tableRealEnd } from "./tableModel";
+import { calloutTypeOf, type CalloutType } from "./callout";
 
 const HEADING_TYPES = new Set([
   "ATXHeading1",
@@ -162,6 +163,8 @@ export function extractElements(state: EditorState): ExtractResult {
   // it's genuine (see tableModel.ts's genuineTableRows/tableRealEnd) without
   // recomputing the whole table's row list per row.
   let tableBoundaryEnd: number | null = null;
+  // Set while walking a top-level blockquote that is a GitHub alert.
+  let callout: { type: CalloutType; titleFrom: number; titleTo: number } | null = null;
 
   // Shared by the top-level QuoteMark case below and by FencedCode's own
   // handling of the QuoteMark children @lezer/markdown nests inside a fenced
@@ -173,16 +176,18 @@ export function extractElements(state: EditorState): ExtractResult {
     const prefix = quoteMark.from === line.from ? quotePrefix(line.text) : null;
     if (!prefix) return;
     const id = nextId++;
+    const isTitle = callout !== null && line.from === callout.titleFrom;
     elements.push({
       id,
-      type: "BlockquoteLine",
+      type: isTitle ? "CalloutTitle" : "BlockquoteLine",
       category: "block-marker",
       start: line.from,
       end: line.to,
       checkStart: line.from,
-      checkEnd: line.from + prefix.length,
+      checkEnd: isTitle ? line.to : line.from + prefix.length,
       parentId: null,
       quoteDepth: prefix.depth,
+      ...(callout && { calloutType: callout.type }),
     });
     nodes.set(id, quoteMark);
   }
@@ -211,6 +216,17 @@ export function extractElements(state: EditorState): ExtractResult {
             parentId: null,
           });
           nodes.set(id, node.node);
+        }
+        return true;
+      }
+
+      // GitHub alerts cannot nest inside another element, so only a
+      // blockquote directly in the document can be one.
+      if (type === "Blockquote" && node.node.parent?.name === "Document") {
+        const line = state.doc.lineAt(node.from);
+        const calloutType = line.from === node.from ? calloutTypeOf(line.text) : null;
+        if (calloutType) {
+          callout = { type: calloutType, titleFrom: line.from, titleTo: line.to };
         }
         return true;
       }
@@ -364,6 +380,11 @@ export function extractElements(state: EditorState): ExtractResult {
       }
 
       if (NESTING_INLINE_TYPES.has(type)) {
+        // The parser reads an alert's `[!NOTE]` as a link label; it is the
+        // title's marker instead.
+        if (callout && node.from >= callout.titleFrom && node.to <= callout.titleTo) {
+          return false;
+        }
         const parentId =
           inlineAncestorStack.length > 0
             ? inlineAncestorStack[inlineAncestorStack.length - 1]
@@ -430,6 +451,9 @@ export function extractElements(state: EditorState): ExtractResult {
       }
       if (node.name === "Table") {
         tableBoundaryEnd = null;
+      }
+      if (node.name === "Blockquote" && node.node.parent?.name === "Document") {
+        callout = null;
       }
     },
   });

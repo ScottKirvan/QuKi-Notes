@@ -1116,3 +1116,73 @@ describe("reveal after the background parser catches up", () => {
     expect(after).toEqual([[tableStart, doc.length]]);
   });
 });
+
+describe("GitHub callouts", () => {
+  const doc = "plain\n\n> [!WARNING]\n> Careful *now*";
+
+  it("given a callout and the caret elsewhere, when decorated, then the marker line becomes the title widget", () => {
+    expect(widgets(decorationsFor(doc, 0), "CalloutTitleWidget")).toEqual([
+      expect.objectContaining({ from: 7, to: 19 }),
+    ]);
+  });
+
+  it("given a collapsed callout, when decorated, then every line carries a bar in the callout's colour", () => {
+    const bars = byClass(decorationsFor(doc, 0), "cm-quki-quote cm-quki-callout");
+    expect(bars.map((d) => d.from)).toEqual([7, 20]);
+    for (const bar of bars) {
+      expect(bar.style).toContain("rgb(var(--callout-warning))");
+      expect(bar.style).not.toContain("--blockquote-border-color");
+    }
+  });
+
+  it("given a collapsed callout, when decorated, then the body text is not muted like a quote's", () => {
+    expect(byClass(decorationsFor(doc, 0), "cm-quki-quote-text")).toEqual([]);
+  });
+
+  it("given a callout, when decorated, then emphasis in its body still renders", () => {
+    expect(byClass(decorationsFor(doc, 0), "cm-quki-em")).toHaveLength(1);
+  });
+
+  it.each([7, 12, 19])("given the caret at %i on the marker line, when decorated, then that line shows raw", (caret) => {
+    const decos = decorationsFor(doc, caret);
+    expect(widgets(decos, "CalloutTitleWidget")).toEqual([]);
+    expect(byClass(decos, "cm-quki-quote cm-quki-callout").map((d) => d.from)).toEqual([20]);
+    expect(widgets(decos, "LinkWidget")).toEqual([]);
+  });
+
+  it("given the caret in the body, when decorated, then the title stays rendered", () => {
+    expect(widgets(decorationsFor(doc, 30), "CalloutTitleWidget")).toHaveLength(1);
+  });
+
+  it("given a nested quote inside a callout, when collapsed, then only the outer bar takes the callout's colour", () => {
+    const [, nested] = byClass(decorationsFor("plain\n\n> [!TIP]\n> > deep", 0), "cm-quki-quote cm-quki-callout");
+    expect(nested.style).toContain("rgb(var(--callout-tip))");
+    expect(nested.style).toContain("var(--blockquote-border-color)");
+  });
+
+  it.each([
+    ["NOTE", "--callout-default"],
+    ["tip", "--callout-tip"],
+    ["Important", "--callout-important"],
+    ["WARNING", "--callout-warning"],
+    ["caution", "--callout-error"],
+  ])("given a [!%s] callout, when decorated, then its bar uses %s", (type, variable) => {
+    const [bar] = byClass(decorationsFor(`plain\n\n> [!${type}]\n> x`, 0), "cm-quki-quote cm-quki-callout");
+    expect(bar.style).toContain(`rgb(var(${variable}))`);
+  });
+
+  it("given an unknown type, when decorated, then it stays an ordinary quote", () => {
+    const decos = decorationsFor("plain\n\n> [!FOO]\n> x", 0);
+    expect(widgets(decos, "CalloutTitleWidget")).toEqual([]);
+    expect(byClass(decos, "cm-quki-quote cm-quki-callout")).toEqual([]);
+    expect(byClass(decos, "cm-quki-quote")).toHaveLength(2);
+  });
+
+  it("given a marker line with no body, when decorated, then it still renders as a title", () => {
+    expect(widgets(decorationsFor("plain\n\n> [!NOTE]", 0), "CalloutTitleWidget")).toHaveLength(1);
+  });
+
+  it("given plain-text mode, when decorated, then a callout gets no decorations", () => {
+    expect(decorationsFor(doc, 0, true)).toEqual([]);
+  });
+});
