@@ -40,6 +40,10 @@ function showHighlighted(target: HTMLElement, text: string, highlights: readonly
   if (at < text.length) target.append(text.slice(at));
 }
 
+interface ListEntry extends SearchMatch {
+  preview: string | null;
+}
+
 export function createListView(store: QuKiStore, container: HTMLElement, callbacks: ListViewCallbacks): ListView {
   container.innerHTML = `
     <header class="view-header">
@@ -72,12 +76,29 @@ export function createListView(store: QuKiStore, container: HTMLElement, callbac
 
   let currentQuery = "";
 
-  const guardedFetch = guardLatest(
-    async (query: string): Promise<SearchMatch[]> =>
+  // BEHAVIOR_SPEC.md §5: "the preview is read from the file per row". Every
+  // preview is read before any row is drawn, so the rows on screen are
+  // replaced in one step rather than blanking to placeholders first.
+  async function readPreview(id: string): Promise<string> {
+    try {
+      return extractPreview((await store.read(id)).body);
+    } catch {
+      return extractPreview(null);
+    }
+  }
+
+  const guardedFetch = guardLatest(async (query: string): Promise<ListEntry[]> => {
+    const matches: SearchMatch[] =
       query === ""
         ? (await store.list()).map((item) => ({ item, snippet: null }))
-        : store.searchWithSnippets(query),
-  );
+        : await store.searchWithSnippets(query);
+    return Promise.all(
+      matches.map(async (match) => ({
+        ...match,
+        preview: match.snippet?.onFirstLine ? null : await readPreview(match.item.id),
+      })),
+    );
+  });
 
   async function refresh(): Promise<void> {
     const query = currentQuery;
@@ -86,20 +107,19 @@ export function createListView(store: QuKiStore, container: HTMLElement, callbac
     renderRows(results, query);
   }
 
-  function renderRows(items: SearchMatch[], query: string): void {
-    listBody.innerHTML = "";
-    if (items.length === 0) {
+  function renderRows(entries: ListEntry[], query: string): void {
+    if (entries.length === 0) {
       const empty = document.createElement("p");
       empty.className = "empty-state";
       empty.textContent =
         query === "" ? "No QuKis yet.\nTap + to capture your first thought." : `No results for "${query}".`;
-      listBody.appendChild(empty);
+      listBody.replaceChildren(empty);
       return;
     }
-    for (const item of items) listBody.appendChild(renderRow(item, query));
+    listBody.replaceChildren(...entries.map((entry) => renderRow(entry, query)));
   }
 
-  function renderRow({ item, snippet }: SearchMatch, query: string): HTMLElement {
+  function renderRow({ item, snippet, preview: previewText }: ListEntry, query: string): HTMLElement {
     const row = document.createElement("div");
     row.className = "list-row";
 
@@ -118,7 +138,6 @@ export function createListView(store: QuKiStore, container: HTMLElement, callbac
 
     const preview = document.createElement("div");
     preview.className = "list-row-preview";
-    preview.textContent = "…";
 
     const time = document.createElement("div");
     time.className = "list-row-time";
@@ -138,16 +157,8 @@ export function createListView(store: QuKiStore, container: HTMLElement, callbac
     if (snippet?.onFirstLine) {
       showHighlighted(preview, snippet.text, snippet.highlights);
     } else {
-      // The preview requires reading the body, per row (BEHAVIOR_SPEC.md §5:
-      // "the preview is read from the file per row"). A read failure means
-      // "unreadable" - extractPreview(null) resolves that to "(empty)".
-      const showPreview = (text: string): void => {
-        showHighlighted(preview, text, snippet ? findMatches(text, query) : []);
-      };
-      store.read(item.id).then(
-        (detail) => showPreview(extractPreview(detail.body)),
-        () => showPreview(extractPreview(null)),
-      );
+      const text = previewText ?? extractPreview(null);
+      showHighlighted(preview, text, snippet ? findMatches(text, query) : []);
     }
 
     const open = (): void => {
