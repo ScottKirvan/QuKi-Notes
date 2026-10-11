@@ -162,6 +162,16 @@ Images linked with a relative path (like `media/…`) are read from your QuKi fo
 
 Deleting a QuKi from Trash also deletes images that no other QuKi, active or trashed, still links to.
 
+## Pasting from a web page
+
+Copy part of a web page (or a document, or an email) and paste it into a QuKi, and it arrives as markdown that keeps its structure: bulleted and numbered lists (nested lists are indented one tab per level), task checkboxes, headings, **bold**, _italic_, ~~strikethrough~~, code, quotes, links and tables. Pictures on the page become image links to the picture on the web; they aren't downloaded.
+
+Scripts, styles and other page clutter are left out. Links that aren't web or email addresses keep their text only.
+
+Plain text, and markdown copied from another editor, paste exactly as they are.
+
+To paste without the formatting, press **Ctrl+Shift+V** (**Cmd+Shift+V** on a Mac).
+
 ## Pasting a link over text
 
 Select some text and paste a web address, and QuKi Notes turns the selection into a link: `[your text](https://…)`.
