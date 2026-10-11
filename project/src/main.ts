@@ -33,6 +33,7 @@ import { replaceDocumentAndForgetHistory, resettableHistory } from "./editorHist
 import { bodyWithoutUnusedPadding, forgetTapPadding, tapBelowTextStartsALine } from "./tapBelowText";
 import { keepCaretClearOfToolbar } from "./caretClearance";
 import { createFormattingToolbar, type FormattingToolbarHandle } from "./screens/formattingToolbar";
+import { createWordCountReadout, type WordCountReadout } from "./screens/wordCountReadout";
 import { revealPlugin, blockRevealField } from "./reveal/decorations";
 import { hangingIndent } from "./reveal/hangingIndent";
 import { plainTextMode, setPlainTextMode } from "./reveal/plainTextMode";
@@ -565,6 +566,7 @@ async function init(): Promise<void> {
   // reaches these callbacks - which can only happen after `init()`'s
   // synchronous setup below has finished running.
   let toolbarController: FormattingToolbarHandle | undefined;
+  let wordCount: WordCountReadout | undefined;
   // Same forward-declared pattern, for the scroll-margin fix on the update
   // listener below.
   let editModeTracker: EditModeTracker | undefined;
@@ -651,6 +653,8 @@ async function init(): Promise<void> {
         if (update.docChanged && !suppressAutoSaveNotify) autoSave.notifyChange();
         if (update.docChanged) updateQuKisButtonState();
         toolbarController?.onUpdate(update);
+        if (update.docChanged) wordCount?.refresh();
+        if (update.geometryChanged) wordCount?.reposition();
         // The first selection change after reading mode just switched to
         // edit mode (pendingToolbarScrollCheck, set below) may be the very
         // tap that caused the switch: the toolbar was hidden - scroll
@@ -730,6 +734,13 @@ async function init(): Promise<void> {
   });
 
   toolbarController = createFormattingToolbar(view, host);
+  wordCount = createWordCountReadout(
+    host,
+    view.scrollDOM,
+    () => bodyWithoutUnusedPadding(view.state),
+    () => toolbarController?.scrollMarginBottom() ?? 0,
+    appSettings.getShowWordCount(),
+  );
 
   interface EditorScroll {
     snapshot: ReturnType<EditorView["scrollSnapshot"]>;
@@ -814,6 +825,7 @@ async function init(): Promise<void> {
     view.dispatch({ effects: setEditMode.of(isEditMode) });
     updateModeToggleIcon();
     toolbarController?.setVisible(isEditMode);
+    wordCount?.reposition();
     // See pendingToolbarScrollCheck's declaration and the update listener
     // above. Cleared on leaving edit mode too, so a flag left pending by a
     // focus with no following selection change (rare, but possible) can't
@@ -856,6 +868,7 @@ async function init(): Promise<void> {
   // editModeTracker.isEditMode() - both read the one tracker, so the
   // toolbar and the mode icon can never disagree about edit vs. reading.
   toolbarController.setVisible(editModeTracker.isEditMode());
+  wordCount.reposition();
 
   // --- Navigation: list / settings / trash, and the app bar actions that open them ---
 
@@ -1412,6 +1425,13 @@ async function init(): Promise<void> {
       set: (value) => {
         appSettings.setFontSize(value);
         view.dispatch({ effects: editorFontSize.reconfigure(editorFontSizeTheme(value)) });
+      },
+    },
+    showWordCount: {
+      get: () => appSettings.getShowWordCount(),
+      set: (value) => {
+        appSettings.setShowWordCount(value);
+        wordCount?.setEnabled(value);
       },
     },
     onExport: exportQuKiLibrary,

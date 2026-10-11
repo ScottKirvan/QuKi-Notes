@@ -108,6 +108,15 @@ Fills the screen above the toolbar. Text renders at the size chosen in Settings 
 
 The editor reports three events: content changed (which notifies auto-save), a link tapped, and a checkbox tapped.
 
+### Word and character count
+
+An optional user setting. When on, a small readout in the **lower right of the editor, just above the formatting toolbar**, shows the QuKi's word and character count, small, on a darkened background with light text in dark mode and the matching inverse in light mode, both from theme variables. It updates live as the text changes, and must never cover the caret or the line being typed: it sits inside the two-line caret clearance above the toolbar. Taps pass through it.
+
+- `[Proposed — unconfirmed]` Off by default (the issue describes it as always present; Scott's decision made it optional, and off keeps the blank-canvas launch unchanged).
+- `[Proposed — unconfirmed]` It also shows in reading mode, at the editor's bottom edge where the hidden toolbar was: the count matters most when deciding whether to Send, which is usually done from reading mode.
+- `[Proposed — unconfirmed]` It counts the text Send delivers (trailing tap-padding excluded). **Characters** count everything, markdown markers, spaces and line breaks included, as user-perceived characters (an emoji or a letter with a combining accent is one), which is how character-limited destinations count. **Words** are whitespace-separated runs containing a letter or digit, after removing a line's leading block markers (`#`, `-`/`*`/`+`, `- [ ]`, `1.`/`1)`, `>`), so a lone marker is not a word and `**bold**` or `[label](url)` is one. Text without spaces between words (Chinese, Japanese, Thai) counts each run as one word.
+- `[Proposed — unconfirmed]` Format: `N words · N characters`, singular for one. Background `--background-primary-alt`, text `--text-muted`.
+
 ### Modes
 
 **Reading vs. edit mode is derived from editor focus** — nothing else. When the editor has focus the formatting toolbar is shown; when it doesn't, the toolbar is hidden and the mode icon shows a book.
@@ -257,7 +266,7 @@ Sections with small uppercase, letter-spaced, accent-colored headers:
 
 | Section | Contents |
 |---|---|
-| **Appearance** | Theme — displays `System`, not adjustable. **Text size** — a few fixed steps, not a slider: Small, Normal (default), Large, Extra large (see below). |
+| **Appearance** | Theme — displays `System`, not adjustable. **Text size** — a few fixed steps, not a slider: Small, Normal (default), Large, Extra large (see below). **Word and character count** — an on/off setting (§4 "Word and character count"). |
 | **Storage** | Current location. App storage shows *"Files will be removed on uninstall. Change location."* in the error color; filesystem storage shows the path over up to two lines. Below it, **Change location**. |
 | **Notes** | **Trash** |
 | **Sync** | *"No sync backends installed"*, disabled |
