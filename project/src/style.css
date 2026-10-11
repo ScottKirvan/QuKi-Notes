@@ -32,6 +32,18 @@ body.theme-dark {
   --link-color: #71b7ff;
   --blockquote-border-color: #7a828e;
   --code-background: #161b22;
+  --code-normal: #ffffff;
+  --code-comment: #7a828e;
+  --code-function: #ffa657;
+  --code-important: #ffa657;
+  --code-keyword: #ff9492;
+  /* GitHubDHC leaves --code-operator to Obsidian's default, its red */
+  --code-operator: #ff9492;
+  --code-property: #71b7ff;
+  --code-punctuation: #b7bdc8;
+  --code-string: #a5d6ff;
+  --code-tag: #ff9492;
+  --code-value: #d2a8ff;
   --hr-color: #7a828e;
   --table-background: transparent;
   --table-border-width: 1px;
@@ -78,6 +90,17 @@ body.theme-light {
   --link-color: #0969da;
   --blockquote-border-color: #6e7781;
   --code-background: #afb8c1;
+  --code-normal: #1f2328;
+  --code-comment: #6e7781;
+  --code-function: #bc4c00;
+  --code-important: #bc4c00;
+  --code-keyword: #cf222e;
+  --code-operator: #cf222e;
+  --code-property: #0969da;
+  --code-punctuation: #424a53;
+  --code-string: #0969da;
+  --code-tag: #cf222e;
+  --code-value: #8250df;
   --hr-color: #6e7781;
   --table-background: transparent;
   --table-border-width: 1px;
@@ -868,6 +891,57 @@ body.theme-light .about-link-btn.accent {
 .cm-quki-codeblock-line {
   font-family: var(--font-monospace);
   background: var(--code-background);
+}
+
+/* Code colours, on a fenced code line only (codeHighlighting.ts). Plain-text
+   mode shows code uncoloured: the last rule here also outranks the
+   markdown highlight style's colours on code tokens. */
+.cm-quki-fenced-line {
+  color: var(--code-normal);
+}
+
+.cm-quki-fenced-line .cm-quki-tok-keyword {
+  color: var(--code-keyword);
+}
+
+.cm-quki-fenced-line .cm-quki-tok-operator {
+  color: var(--code-operator);
+}
+
+.cm-quki-fenced-line .cm-quki-tok-string {
+  color: var(--code-string);
+}
+
+.cm-quki-fenced-line .cm-quki-tok-value {
+  color: var(--code-value);
+}
+
+.cm-quki-fenced-line .cm-quki-tok-comment {
+  color: var(--code-comment);
+}
+
+.cm-quki-fenced-line .cm-quki-tok-function {
+  color: var(--code-function);
+}
+
+.cm-quki-fenced-line .cm-quki-tok-property {
+  color: var(--code-property);
+}
+
+.cm-quki-fenced-line .cm-quki-tok-punctuation {
+  color: var(--code-punctuation);
+}
+
+.cm-quki-fenced-line .cm-quki-tok-tag {
+  color: var(--code-tag);
+}
+
+.cm-quki-fenced-line .cm-quki-tok-important {
+  color: var(--code-important);
+}
+
+.cm-quki-plain-text .cm-quki-fenced-line [class*="cm-quki-tok-"] {
+  color: inherit;
 }
 
 .cm-quki-link {

@@ -46,7 +46,7 @@ Tapping a rendered link opens it. To edit a link, move into it with the arrow ke
 
 ### Plain-text mode
 
-While you're editing, the **Mode** button switches the whole QuKi to plain text: every character of markdown shown, in a monospace font, nothing rendered. Use it for bulk edits, or for pasting raw markdown. Tap it again to go back to the rendered view. The keyboard stays up either way.
+While you're editing, the **Mode** button switches the whole QuKi to plain text: every character of markdown shown, in a monospace font, nothing rendered and code not coloured. Use it for bulk edits, or for pasting raw markdown. Tap it again to go back to the rendered view. The keyboard stays up either way.
 
 While you're reading (on Android, with the keyboard down), tapping **Mode** brings editing back, keyboard included, and leaves the view as it is. Tap it again to switch.
 
@@ -118,7 +118,9 @@ Press **Enter** at the end of a list item, task item or quote line, and the next
 | `> text`                              | Blockquote with a bar on the left; `>>` nests deeper                                        |
 | `---`                                 | Horizontal rule                                                                             |
 | GFM pipe tables (`\| a \| b \|`)      | A table, with bold, italic, code and links inside cells                                     |
-| ` ``` ` fenced code blocks            | A monospace block with a shaded background and the fence lines hidden. No syntax colouring. |
+| ` ``` ` fenced code blocks            | A monospace block with a shaded background and the fence lines hidden, coloured by language |
+
+**Code colours.** Name the language after the opening fence, as in ` ```js ` or ` ```python `, and keywords, strings, numbers and comments in the block show in their own colours. Common short names work too: `js`, `ts`, `py`, `sh`, `json`, `yml`, `html`, `css`, `md` and more. A block with no language, or one QuKi Notes doesn't know (`text`, say), stays plain monospace. The colours stay while the cursor is in the block and its fences show. In plain-text mode code is not coloured. In the web app a language is downloaded the first time a block uses it, so that first time needs a connection; until then the block shows plain.
 
 Lists, task lists and quotes nest by indentation, and wrapped lines stay indented under their item. An indented item is a list item wherever it is, including on a QuKi's first line or right under a paragraph. Nested numbered lists count independently of their parent.
 
