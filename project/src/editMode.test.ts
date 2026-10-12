@@ -90,12 +90,12 @@ describe("shouldFocusOnOpen", () => {
 });
 
 describe("toolbarScrollCorrectionTiming", () => {
-  it("is immediate on the keyboard signal (Android) - the selection has already settled by then", () => {
-    expect(toolbarScrollCorrectionTiming(true)).toBe("immediate");
+  it("is immediate when keyboardDidShow switched edit mode on - the tap's caret landed long before", () => {
+    expect(toolbarScrollCorrectionTiming("keyboard")).toBe("immediate");
   });
 
-  it("is deferred on the focus/blur signal (everywhere else) - it must wait for the tap's own selection-set transaction", () => {
-    expect(toolbarScrollCorrectionTiming(false)).toBe("deferred");
+  it("is deferred when focus switched edit mode on, on every platform - the tap's own caret has not landed yet", () => {
+    expect(toolbarScrollCorrectionTiming("focus")).toBe("deferred");
   });
 });
 
@@ -187,6 +187,21 @@ describe("createEditModeTracker", () => {
 
     expect(tracker.isEditMode()).toBe(true);
     expect(changes).toEqual([true]);
+  });
+
+  it("on Android, reports which signal switched edit mode - a tap's focus, or the keyboard", () => {
+    capacitorMock.platform = "android";
+    capacitorMock.isNative = true;
+    const { view, contentDOM } = createFakeView();
+    const signals: string[] = [];
+    createEditModeTracker(view, false, (v, signal) => signals.push(`${v}:${signal}`));
+
+    contentDOM.dispatch("focus");
+    keyboardMock.listeners.get("keyboardDidHide")?.();
+    keyboardMock.listeners.get("keyboardDidShow")?.();
+    contentDOM.dispatch("blur");
+
+    expect(signals).toEqual(["true:focus", "false:keyboard", "true:keyboard", "false:focus"]);
   });
 
   it("destroy() removes both the focus/blur listeners and the Keyboard plugin listeners on Android", () => {
