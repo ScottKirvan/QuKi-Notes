@@ -821,7 +821,7 @@ async function init(): Promise<void> {
   // existing QuKi does not (reading mode)." At launch `initial` is always
   // the blank case (blankInitialQuKi) - shouldFocusOnOpen's null-id check
   // applies here exactly as it does to startNewQuKi/openQuKiInEditor below.
-  editModeTracker = createEditModeTracker(view, shouldFocusOnOpen(initial.id), (isEditMode) => {
+  editModeTracker = createEditModeTracker(view, shouldFocusOnOpen(initial.id), (isEditMode, signal) => {
     // Keeps reveal/decorations.ts's editModeField in sync with the real
     // signal (see its own comment) - reveal must react to this exact
     // tracker, not to focus/blur it might independently observe.
@@ -837,15 +837,7 @@ async function init(): Promise<void> {
       pendingToolbarScrollCheck = false;
       return;
     }
-    // toolbarScrollCorrectionTiming: on the keyboard signal (Android),
-    // keyboardDidShow fires after the tap that caused it already landed
-    // its selection change, so there's no future selection change left to
-    // catch this on - the correction has to run right here, immediately,
-    // rather than being deferred to the update listener above.
-    const timing = toolbarScrollCorrectionTiming(
-      usesKeyboardSignal(Capacitor.getPlatform(), Capacitor.isNativePlatform()),
-    );
-    if (timing === "immediate") {
+    if (toolbarScrollCorrectionTiming(signal) === "immediate") {
       view.dispatch({ effects: EditorView.scrollIntoView(view.state.selection.main.head) });
     } else {
       pendingToolbarScrollCheck = true;

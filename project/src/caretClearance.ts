@@ -8,9 +8,29 @@ export function bottomScrollMargin(toolbarHeight: number, lineHeight: number): n
   return toolbarHeight > 0 ? toolbarHeight + CLEARANCE_LINES * lineHeight : 0;
 }
 
-/** Whether the editor shrinking (the keyboard rising) while the toolbar shows may have covered the caret. */
-export function shouldRevealCaretAfterResize(previousHeight: number, height: number, toolbarHeight: number): boolean {
-  return toolbarHeight > 0 && height < previousHeight;
+/**
+ * Whether the editor shrinking (the keyboard rising) while the toolbar shows
+ * may have covered the caret. A caret that was already off screen was not
+ * covered by it, and scrolling to it would take the view somewhere the user
+ * isn't looking (the stale caret a QuKi opened from the list starts with).
+ */
+export function shouldRevealCaretAfterResize(
+  previousHeight: number,
+  height: number,
+  toolbarHeight: number,
+  caretWasOnScreen: boolean,
+): boolean {
+  return toolbarHeight > 0 && height < previousHeight && caretWasOnScreen;
+}
+
+/** Whether the caret's line overlapped the scroller's visible area when the scroller was `height` tall. */
+function caretWasOnScreen(view: EditorView, height: number): boolean {
+  const scroller = view.scrollDOM;
+  const documentOffset = view.documentTop - scroller.getBoundingClientRect().top + scroller.scrollTop;
+  const line = view.lineBlockAt(view.state.selection.main.head);
+  const top = documentOffset + line.top;
+  const bottom = documentOffset + line.bottom;
+  return bottom > scroller.scrollTop && top < scroller.scrollTop + height;
 }
 
 /**
@@ -23,7 +43,7 @@ export function shouldRevealCaretAfterResize(previousHeight: number, height: num
  *
  * The scroller shrinking while editing (Android's keyboard rising after the
  * tap that focused the editor) scrolls nothing on its own; that case
- * reveals the caret again once the new size has landed.
+ * reveals the caret again once the new size has landed, if it was on screen.
  */
 export function keepCaretClearOfToolbar(toolbarHeight: () => number): Extension {
   const plugin = ViewPlugin.define((view) => {
@@ -43,7 +63,7 @@ export function keepCaretClearOfToolbar(toolbarHeight: () => number): Extension 
     let previousHeight = view.scrollDOM.clientHeight;
     const observer = new ResizeObserver(() => {
       const height = view.scrollDOM.clientHeight;
-      const reveal = shouldRevealCaretAfterResize(previousHeight, height, toolbarHeight());
+      const reveal = shouldRevealCaretAfterResize(previousHeight, height, toolbarHeight(), caretWasOnScreen(view, previousHeight));
       previousHeight = height;
       if (reveal) view.dispatch({ effects: EditorView.scrollIntoView(view.state.selection.main.head) });
     });

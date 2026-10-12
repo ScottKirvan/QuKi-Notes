@@ -18,18 +18,22 @@ describe("bottomScrollMargin", () => {
 
 describe("shouldRevealCaretAfterResize", () => {
   it("reveals the caret when the editor shrinks while the toolbar shows (the keyboard rose)", () => {
-    expect(shouldRevealCaretAfterResize(700, 400, 36)).toBe(true);
+    expect(shouldRevealCaretAfterResize(700, 400, 36, true)).toBe(true);
   });
 
   it("leaves the scroll alone when the editor grows (the keyboard went down)", () => {
-    expect(shouldRevealCaretAfterResize(400, 700, 36)).toBe(false);
+    expect(shouldRevealCaretAfterResize(400, 700, 36, true)).toBe(false);
   });
 
   it("leaves the scroll alone when the size did not change", () => {
-    expect(shouldRevealCaretAfterResize(400, 400, 36)).toBe(false);
+    expect(shouldRevealCaretAfterResize(400, 400, 36, true)).toBe(false);
   });
 
   it("leaves the scroll alone while reading (toolbar hidden)", () => {
-    expect(shouldRevealCaretAfterResize(700, 400, 0)).toBe(false);
+    expect(shouldRevealCaretAfterResize(700, 400, 0, true)).toBe(false);
+  });
+
+  it("leaves the scroll alone when the caret was off screen - the shrink did not cover it", () => {
+    expect(shouldRevealCaretAfterResize(700, 400, 36, false)).toBe(false);
   });
 });

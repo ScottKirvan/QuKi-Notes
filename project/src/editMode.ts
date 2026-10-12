@@ -19,25 +19,27 @@ export function usesKeyboardSignal(platform: string, isNativePlatform: boolean):
 
 export type ToolbarScrollCorrectionTiming = "immediate" | "deferred";
 
+/** What switched edit mode: the editor's focus/blur, or Android's keyboardDidShow/keyboardDidHide. */
+export type EditModeSignal = "focus" | "keyboard";
+
 /**
  * When edit mode turns on and the formatting toolbar appears, should the
  * caret's scroll-clear-of-the-toolbar correction (main.ts's
  * pendingToolbarScrollCheck mechanism) run right away, or wait for the
  * next selection change that actually moves the caret?
  *
- * On the focus/blur signal (everywhere but Android), `focus` can fire
- * before the same click's own selection-set transaction has landed, so the
- * correction has to wait for that transaction and act on its final
- * position - acting immediately would use the stale, pre-click selection.
+ * Decided by the signal, not the platform. `focus` fires inside the tap
+ * itself, before the tap's caret lands (on a touch tap the browser places
+ * it after focus, and CodeMirror reads it later still), so the selection
+ * is stale - on a QuKi opened from the list, the start of the text.
+ * Scrolling to it there drags the view to the top, and the tap's caret is
+ * then placed against the scrolled view. So it waits for the tap's caret.
  *
- * On the keyboard signal (Android), `keyboardDidShow` fires asynchronously,
- * well after the tap that triggered it already landed its selection
- * change - the OS keyboard animates in over real time. There is no future
- * selection change left to catch it on, so the correction has to run
- * immediately, using the selection as it already stands.
+ * `keyboardDidShow` (Android) arrives after the keyboard has animated in,
+ * long after the tap's caret landed; nothing is left to wait for.
  */
-export function toolbarScrollCorrectionTiming(usesKeyboardSignal: boolean): ToolbarScrollCorrectionTiming {
-  return usesKeyboardSignal ? "immediate" : "deferred";
+export function toolbarScrollCorrectionTiming(signal: EditModeSignal): ToolbarScrollCorrectionTiming {
+  return signal === "keyboard" ? "immediate" : "deferred";
 }
 
 /**
@@ -110,24 +112,24 @@ export interface EditModeTracker {
 export function createEditModeTracker(
   view: EditorView,
   initialEditMode: boolean,
-  onChange: (isEditMode: boolean) => void,
+  onChange: (isEditMode: boolean, signal: EditModeSignal) => void,
 ): EditModeTracker {
   let editMode = initialEditMode;
 
-  const setEditMode = (next: boolean): void => {
+  const setEditMode = (next: boolean, signal: EditModeSignal): void => {
     if (next === editMode) return;
     editMode = next;
-    onChange(editMode);
+    onChange(editMode, signal);
   };
 
-  const onFocus = (): void => setEditMode(true);
-  const onBlur = (): void => setEditMode(false);
+  const onFocus = (): void => setEditMode(true, "focus");
+  const onBlur = (): void => setEditMode(false, "focus");
   view.contentDOM.addEventListener("focus", onFocus);
   view.contentDOM.addEventListener("blur", onBlur);
 
   if (usesKeyboardSignal(Capacitor.getPlatform(), Capacitor.isNativePlatform())) {
-    const showHandle = Keyboard.addListener("keyboardDidShow", () => setEditMode(true));
-    const hideHandle = Keyboard.addListener("keyboardDidHide", () => setEditMode(false));
+    const showHandle = Keyboard.addListener("keyboardDidShow", () => setEditMode(true, "keyboard"));
+    const hideHandle = Keyboard.addListener("keyboardDidHide", () => setEditMode(false, "keyboard"));
     return {
       isEditMode: () => editMode,
       destroy: () => {
