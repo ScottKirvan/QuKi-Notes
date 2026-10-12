@@ -29,7 +29,7 @@ vi.mock("@capacitor/keyboard", () => ({
 
 const {
   createEditModeTracker,
-  modeToggleAction,
+  modeToggleLabel,
   resolveModeIconState,
   shouldFocusOnOpen,
   toolbarScrollCorrectionTiming,
@@ -114,13 +114,13 @@ describe("resolveModeIconState", () => {
   });
 });
 
-describe("modeToggleAction", () => {
-  it("switches between rendered and plain text while editing", () => {
-    expect(modeToggleAction(true)).toBe("toggle-plain-text");
+describe("modeToggleLabel", () => {
+  it("names plain text as what a tap switches to from rendered", () => {
+    expect(modeToggleLabel(false)).toBe("Plain text");
   });
 
-  it("only brings editing back (the keyboard, on Android) while reading", () => {
-    expect(modeToggleAction(false)).toBe("start-editing");
+  it("names rendered as what a tap switches to from plain text", () => {
+    expect(modeToggleLabel(true)).toBe("Rendered mode");
   });
 });
 

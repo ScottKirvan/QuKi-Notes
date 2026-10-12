@@ -43,13 +43,14 @@ import { readPlainTextModePreference, writePlainTextModePreference } from "./web
 import { editModeField, setEditMode } from "./reveal/editModeField";
 import {
   createEditModeTracker,
-  modeToggleAction,
+  modeToggleLabel,
   resolveModeIconState,
   shouldFocusOnOpen,
   toolbarScrollCorrectionTiming,
   usesKeyboardSignal,
   type EditModeTracker,
 } from "./editMode";
+import { keepVisibleTextInPlace } from "./scrollAnchor";
 import { imageResolver } from "./reveal/imageResolver";
 import { createHtmlPastePlugin } from "./pasteHtml";
 import { createImagePastePlugin } from "./pasteImage";
@@ -932,7 +933,7 @@ async function init(): Promise<void> {
    * book in reading mode (editModeTracker/resolveModeIconState - see
    * editMode.ts for what actually drives edit vs. reading: Capacitor
    * keyboard events on Android, editor focus everywhere else). The label
-   * describes what a tap will do (modeToggleAction), not the icon shown.
+   * names the mode a tap switches to (modeToggleLabel), not the icon shown.
    */
   function updateModeToggleIcon(): void {
     const isPlainText = view.state.field(plainTextMode);
@@ -945,8 +946,7 @@ async function init(): Promise<void> {
           ? createMarkdownMarkIcon()
           : createElement(BookOpen, { width: 24, height: 24, "aria-hidden": "true", focusable: "false" });
     modeToggleBtn.replaceChildren(icon);
-    const label =
-      modeToggleAction(isEditMode) === "start-editing" ? "Start editing" : isPlainText ? "Rendered mode" : "Plain text";
+    const label = modeToggleLabel(isPlainText);
     modeToggleBtn.title = label;
     modeToggleBtn.setAttribute("aria-label", label);
     modeToggleBtn.setAttribute("aria-pressed", String(isPlainText));
@@ -959,16 +959,16 @@ async function init(): Promise<void> {
   // click.
   modeToggleBtn.addEventListener("mousedown", (event) => event.preventDefault());
   modeToggleBtn.addEventListener("click", () => {
-    if (modeToggleAction(editModeTracker?.isEditMode() ?? false) === "start-editing") {
-      focusEditorAndShowKeyboard();
-      return;
-    }
+    const isEditMode = editModeTracker?.isEditMode() ?? false;
     const next = !view.state.field(plainTextMode);
     view.dispatch({
-      effects: setPlainTextMode.of(next),
+      effects: [
+        setPlainTextMode.of(next),
+        keepVisibleTextInPlace(view, isEditMode ? view.state.selection.main.head : undefined),
+      ],
     });
     updateModeToggleIcon();
-    view.focus();
+    if (isEditMode) view.focus();
     // BEHAVIOR_SPEC.md §4: "persists across launches" - see
     // initialPlainTextMode above for the matching read at startup.
     if (setupApi) {
