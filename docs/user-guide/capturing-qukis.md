@@ -59,9 +59,9 @@ Tapping a rendered link opens it. To edit a link, move into it with the arrow ke
 
 ### Plain-text mode
 
-While you're editing, the **Mode** button switches the whole QuKi to plain text: every character of markdown shown, in a monospace font, nothing rendered and code not coloured. Use it for bulk edits, or for pasting raw markdown. Tap it again to go back to the rendered view. The keyboard stays up either way.
+The **Mode** button switches the whole QuKi to plain text: every character of markdown shown, in a monospace font, nothing rendered and code not coloured. Use it for bulk edits, for pasting raw markdown, or to see the markdown behind what you're reading. Tap it again to go back to the rendered view.
 
-While you're reading (on Android, with the keyboard down), tapping **Mode** brings editing back, keyboard included, and leaves the view as it is. Tap it again to switch.
+It works the same while you're editing or reading. While editing, the keyboard stays up. While reading (on Android, with the keyboard down), you stay reading: the keyboard doesn't come up. Either way, the text you were looking at stays where it was on screen.
 
 The button's icon shows where you are:
 
