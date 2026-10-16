@@ -727,6 +727,9 @@ async function init(): Promise<void> {
     ],
   });
 
+  // On Android CodeMirror otherwise types through the EditContext API, which
+  // bypasses the WebView's spellcheck. See CLAUDE.md "Android text input".
+  (EditorView as unknown as { EDIT_CONTEXT: boolean }).EDIT_CONTEXT = false;
   const view = new EditorView({
     state,
     parent: host,
