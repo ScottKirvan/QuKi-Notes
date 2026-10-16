@@ -13,7 +13,7 @@ import { markdownEditing } from "./markdownEditing";
 import { spellcheck } from "./spellcheck";
 import { codeHighlighting } from "./codeHighlighting";
 import { tags } from "@lezer/highlight";
-import { createElement, FileStack, CodeXml, BookOpen, Plus, CircleHelp, Send, Settings, Trash2 } from "lucide";
+import { createElement, FileStack, CodeXml, Plus, CircleHelp, Send, Settings, Trash2 } from "lucide";
 import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
 import { Keyboard } from "@capacitor/keyboard";
@@ -43,8 +43,8 @@ import { readPlainTextModePreference, writePlainTextModePreference } from "./web
 import { editModeField, setEditMode } from "./reveal/editModeField";
 import {
   createEditModeTracker,
+  modeToggleIcon,
   modeToggleLabel,
-  resolveModeIconState,
   shouldFocusOnOpen,
   toolbarScrollCorrectionTiming,
   usesKeyboardSignal,
@@ -147,9 +147,8 @@ const SVG_NS = "http://www.w3.org/2000/svg";
  * The Markdown Mark logo, replicated from lib/features/editor/editor_screen.dart's
  * _MarkdownMarkPainter (viewBox 208x128: a rounded-rect outline containing an
  * "M" and a down arrow) - not a Lucide icon, so it doesn't go through
- * setButtonIcon's createElement path. This is the mode toggle's rendered/
- * markdown-mode icon (BEHAVIOR_SPEC.md §4); see updateModeToggleIcon for why
- * it's used instead of an open-book icon.
+ * setButtonIcon's createElement path. This is the mode toggle's rendered-mode
+ * icon (BEHAVIOR_SPEC.md §4).
  */
 function createMarkdownMarkIcon(): SVGSVGElement {
   const svg = document.createElementNS(SVG_NS, "svg");
@@ -830,7 +829,6 @@ async function init(): Promise<void> {
     // signal (see its own comment) - reveal must react to this exact
     // tracker, not to focus/blur it might independently observe.
     view.dispatch({ effects: setEditMode.of(isEditMode) });
-    updateModeToggleIcon();
     toolbarController?.setVisible(isEditMode);
     wordCount?.reposition();
     // See pendingToolbarScrollCheck's declaration and the update listener
@@ -862,10 +860,6 @@ async function init(): Promise<void> {
   if (shouldFocusOnOpen(initial.id)) {
     focusEditorAndShowKeyboard();
   }
-  // Seeds the toolbar's initial shown/hidden state the same way
-  // updateModeToggleIcon() below seeds the mode icon from
-  // editModeTracker.isEditMode() - both read the one tracker, so the
-  // toolbar and the mode icon can never disagree about edit vs. reading.
   toolbarController.setVisible(editModeTracker.isEditMode());
   wordCount.reposition();
 
@@ -931,23 +925,15 @@ async function init(): Promise<void> {
   setButtonIcon(deleteBtn, Trash2, "Delete");
 
   /**
-   * BEHAVIOR_SPEC.md §4: the mode toggle's icon has three states - a code
-   * icon in plain-text mode, a markdown-mark icon in edit mode, an open
-   * book in reading mode (editModeTracker/resolveModeIconState - see
-   * editMode.ts for what actually drives edit vs. reading: Capacitor
-   * keyboard events on Android, editor focus everywhere else). The label
-   * names the mode a tap switches to (modeToggleLabel), not the icon shown.
+   * BEHAVIOR_SPEC.md §4: the icon shows the current format, the label names
+   * the mode a tap switches to.
    */
   function updateModeToggleIcon(): void {
     const isPlainText = view.state.field(plainTextMode);
-    const isEditMode = editModeTracker?.isEditMode() ?? false;
-    const iconState = resolveModeIconState(isPlainText, isEditMode);
     const icon =
-      iconState === "plain-text"
+      modeToggleIcon(isPlainText) === "code"
         ? createElement(CodeXml, { width: 24, height: 24, "aria-hidden": "true", focusable: "false" })
-        : iconState === "edit"
-          ? createMarkdownMarkIcon()
-          : createElement(BookOpen, { width: 24, height: 24, "aria-hidden": "true", focusable: "false" });
+        : createMarkdownMarkIcon();
     modeToggleBtn.replaceChildren(icon);
     const label = modeToggleLabel(isPlainText);
     modeToggleBtn.title = label;
@@ -957,9 +943,7 @@ async function init(): Promise<void> {
   updateModeToggleIcon();
 
   // Keeps the tap from taking focus off the editor, same as the toolbar's
-  // buttons: losing focus even briefly drops Android's keyboard, and on
-  // desktop it swapped this button's icon mid-click, which swallowed the
-  // click.
+  // buttons: losing focus even briefly drops Android's keyboard.
   modeToggleBtn.addEventListener("mousedown", (event) => event.preventDefault());
   modeToggleBtn.addEventListener("click", () => {
     const isEditMode = editModeTracker?.isEditMode() ?? false;

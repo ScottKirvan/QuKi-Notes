@@ -11,6 +11,21 @@ async function plainTextOn(page: Page): Promise<boolean> {
   return (await page.getAttribute("#btn-mode-toggle", "aria-pressed")) === "true";
 }
 
+/**
+ * The mode button's icon: the markdown mark (its 208x128 viewBox), Lucide's
+ * code-xml (its slash), or whatever else, by its markup.
+ */
+async function modeIcon(page: Page): Promise<string> {
+  return page.evaluate(() => {
+    const svgs = document.querySelectorAll("#btn-mode-toggle svg");
+    if (svgs.length !== 1) return `${svgs.length} svgs`;
+    const svg = svgs[0];
+    if (svg.getAttribute("viewBox") === "0 0 208 128") return "markdown";
+    if (svg.querySelector('path[d="m14.5 4-5 16"]')) return "code";
+    return svg.outerHTML;
+  });
+}
+
 async function editorHasFocus(page: Page): Promise<boolean> {
   return page.evaluate(() => document.activeElement === (window as WindowWithQukiView).qukiView.contentDOM);
 }
@@ -59,10 +74,12 @@ async function whileEditingItTogglesWithoutLeavingTheEditor(browser: Browser, ur
   await page.keyboard.type("Some text");
   assert(await toolbarVisible(page), `${tag} precondition: editing, so the toolbar is up`);
   assert(!(await plainTextOn(page)), `${tag} precondition: starts in rendered mode`);
+  assert((await modeIcon(page)) === "markdown", `${tag} rendered: the icon must be the markdown mark, got ${await modeIcon(page)}`);
   await startCountingEditorBlurs(page);
 
   await page.click("#btn-mode-toggle");
   assert(await plainTextOn(page), `${tag} a tap while editing must switch to plain text`);
+  assert((await modeIcon(page)) === "code", `${tag} plain text: the icon must be the code icon, got ${await modeIcon(page)}`);
   assert((await editorBlurCount(page)) === 0, `${tag} the tap must never take focus from the editor (that drops the Android keyboard)`);
   assert(await editorHasFocus(page), `${tag} the editor must still have focus`);
   assert(await toolbarVisible(page), `${tag} still editing, so the toolbar stays up`);
@@ -86,14 +103,17 @@ async function whileReadingItSwitchesAndKeepsReading(browser: Browser, url: stri
   await page.keyboard.type("Some text");
   await stopEditing(page);
   assert(!(await plainTextOn(page)), `${tag} precondition: starts in rendered mode`);
+  assert((await modeIcon(page)) === "markdown", `${tag} rendered while reading: the icon must be the markdown mark, got ${await modeIcon(page)}`);
 
   await page.click("#btn-mode-toggle");
   assert(await plainTextOn(page), `${tag} a tap while reading must switch to plain text`);
   assert(!(await editorHasFocus(page)), `${tag} a tap while reading must not start editing`);
   assert(!(await toolbarVisible(page)), `${tag} still reading, so the toolbar stays hidden`);
+  assert((await modeIcon(page)) === "code", `${tag} plain text while reading: the icon must be the code icon, got ${await modeIcon(page)}`);
 
   await page.click("#btn-mode-toggle");
   assert(!(await plainTextOn(page)), `${tag} a second tap while reading must switch back to rendered`);
+  assert((await modeIcon(page)) === "markdown", `${tag} back to rendered while reading: the icon must be the markdown mark, got ${await modeIcon(page)}`);
   assert(!(await editorHasFocus(page)), `${tag} the second tap must not start editing either`);
   assert(!(await toolbarVisible(page)), `${tag} the toolbar stays hidden after the second tap`);
   console.log(`${tag} PASS: while reading, a tap switches modes and stays in reading mode`);

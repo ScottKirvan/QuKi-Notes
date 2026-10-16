@@ -91,7 +91,7 @@ Leading: a **QuKis** button opening the list. **Disabled when no QuKis exist.**
 
 Actions, in this order:
 
-1. **Mode toggle** — switches the whole QuKi between rendered and plain-text, in edit mode and reading mode alike, and never changes which of the two the user is in: in edit mode it never takes focus from the editor (on Android the keyboard stays up); in reading mode (on Android, keyboard down) it doesn't focus the editor or bring the keyboard up, so the user can see what they're reading in the other form. The switch doesn't scroll: the text the user was looking at stays where it was on screen. [Proposed — unconfirmed: the text that stays put is the first line starting at or below the top of the visible area; in edit mode, the caret's line when it's on screen.] Its label names the mode a tap switches to. Its icon reports the current state: a code icon in plain-text mode, a markdown mark when the editor has focus, an open book otherwise. The choice persists across launches.
+1. **Mode toggle** — switches the whole QuKi between rendered and plain-text, in edit mode and reading mode alike, and never changes which of the two the user is in: in edit mode it never takes focus from the editor (on Android the keyboard stays up); in reading mode (on Android, keyboard down) it doesn't focus the editor or bring the keyboard up, so the user can see what they're reading in the other form. The switch doesn't scroll: the text the user was looking at stays where it was on screen. [Proposed — unconfirmed: the text that stays put is the first line starting at or below the top of the visible area; in edit mode, the caret's line when it's on screen.] Its label names the mode a tap switches to. It is a two-state toggle: its icon shows the current format — a markdown mark when rendered, a code icon in plain-text mode — in reading and edit mode alike, and `aria-pressed` is true in plain-text mode. Reading vs. edit mode is not shown on this button. The choice persists across launches.
 2. **New QuKi**
 3. **Help** — opens the help/about dialog
 4. **Send**
@@ -134,7 +134,7 @@ An optional user setting. When on, a small readout in the **lower right of the e
 
 ### Modes
 
-**Reading vs. edit mode is derived from editor focus** — nothing else. When the editor has focus the formatting toolbar is shown; when it doesn't, the toolbar is hidden and the mode icon shows a book.
+**Reading vs. edit mode is derived from editor focus** — nothing else. When the editor has focus the formatting toolbar is shown; when it doesn't, the toolbar is hidden. The mode toggle's icon doesn't show reading vs. edit mode (§4).
 
 Opening a QuKi sets focus accordingly: **a new, blank QuKi takes focus** (edit mode), **an existing QuKi does not** (reading mode).
 

@@ -63,13 +63,12 @@ The **Mode** button switches the whole QuKi to plain text: every character of ma
 
 It works the same while you're editing or reading. While editing, the keyboard stays up. While reading (on Android, with the keyboard down), you stay reading: the keyboard doesn't come up. Either way, the text you were looking at stays where it was on screen.
 
-The button's icon shows where you are:
+The button's icon shows which view you're in, whether you're editing or reading:
 
-| Icon                                          | Meaning                |
-| --------------------------------------------- | ---------------------- |
-| <i-lucide-book-open /> Open book              | Rendered view, reading |
-| <i-custom-markdown-mark /> Markdown logo (M↓) | Rendered view, editing |
-| <i-lucide-code-xml /> Code brackets           | Plain-text mode        |
+| Icon                                          | Meaning         |
+| --------------------------------------------- | --------------- |
+| <i-custom-markdown-mark /> Markdown logo (M↓) | Rendered view   |
+| <i-lucide-code-xml /> Code brackets           | Plain-text mode |
 
 QuKi Notes remembers your choice: if you leave it in plain-text mode, it starts in plain-text mode next time.
 
