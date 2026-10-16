@@ -51,17 +51,14 @@ export function shouldFocusOnOpen(initialId: string | null): boolean {
   return initialId === null;
 }
 
-export type ModeIconState = "plain-text" | "edit" | "reading";
+export type ModeToggleIcon = "code" | "markdown";
 
 /**
- * The mode-toggle icon's three states (BEHAVIOR_SPEC.md §4): a code icon
- * in plain-text mode, a markdown mark in edit mode, an open book in
- * reading mode. Plain-text is orthogonal to and takes priority over
- * edit/reading, matching the reference app's own icon precedence.
+ * BEHAVIOR_SPEC.md §4: the mode toggle's icon shows the current format and
+ * nothing else; reading vs. edit mode is not shown on it.
  */
-export function resolveModeIconState(isPlainText: boolean, isEditMode: boolean): ModeIconState {
-  if (isPlainText) return "plain-text";
-  return isEditMode ? "edit" : "reading";
+export function modeToggleIcon(isPlainText: boolean): ModeToggleIcon {
+  return isPlainText ? "code" : "markdown";
 }
 
 /**
@@ -80,7 +77,7 @@ export interface EditModeTracker {
 }
 
 /**
- * Wires resolveModeIconState's edit/reading half to a real signal.
+ * Wires edit vs. reading mode to a real signal.
  *
  * Everywhere but Android, editor focus/blur is that signal directly.
  *

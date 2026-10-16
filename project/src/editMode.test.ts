@@ -29,8 +29,8 @@ vi.mock("@capacitor/keyboard", () => ({
 
 const {
   createEditModeTracker,
+  modeToggleIcon,
   modeToggleLabel,
-  resolveModeIconState,
   shouldFocusOnOpen,
   toolbarScrollCorrectionTiming,
   usesKeyboardSignal,
@@ -99,18 +99,13 @@ describe("toolbarScrollCorrectionTiming", () => {
   });
 });
 
-describe("resolveModeIconState", () => {
-  it("is plain-text whenever plain-text mode is on, regardless of edit mode", () => {
-    expect(resolveModeIconState(true, true)).toBe("plain-text");
-    expect(resolveModeIconState(true, false)).toBe("plain-text");
+describe("modeToggleIcon", () => {
+  it("is the code icon in plain-text mode", () => {
+    expect(modeToggleIcon(true)).toBe("code");
   });
 
-  it("is edit when rendered and in edit mode", () => {
-    expect(resolveModeIconState(false, true)).toBe("edit");
-  });
-
-  it("is reading when rendered and not in edit mode", () => {
-    expect(resolveModeIconState(false, false)).toBe("reading");
+  it("is the markdown mark when rendered", () => {
+    expect(modeToggleIcon(false)).toBe("markdown");
   });
 });
 
