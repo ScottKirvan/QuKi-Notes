@@ -25,6 +25,28 @@ User docs are the VitePress site in `docs/` (`npm run docs:build`). The specs ar
 **Open work is tracked in GitHub issues** (`gh issue list --state open`), not in a
 notes file.
 
+## Android text input
+
+On Android the editor types through the WebView's own editing (contenteditable), not
+CodeMirror's default EditContext path: `EditorView.EDIT_CONTEXT = false` is set in
+`project/src/main.ts` before the view is created, because EditContext bypasses the
+WebView's spellcheck. Desktop and web never use EditContext either way.
+
+The cost: in this mode the Android keyboard often sends no real key events. Backspace,
+Enter and keyboard suggestions arrive as DOM edits that CodeMirror reads back (tagged
+`input.type`), so keymap bindings may not run. When Android typing misbehaves, look for
+these first:
+- A drawn widget (checkbox, bullet, number, quote bar, image, table) deleted or replaced
+  as one unit by a single Backspace. `project/src/markerBackspaceGuard.ts` covers list,
+  task and quote markers; anything newly drawn as a replaced range needs the same care.
+- Behaviour that works with real key presses on desktop but not on Android: test the DOM
+  path too (`document.execCommand("delete")`, CDP `Input.insertText`), not only key presses.
+- Composition glitches: doubled or lost characters, cursor jumps, or a word's suggestion
+  lost when decorations change under an active composition (live reveal near markers).
+- Swipe typing and voice input.
+Desktop e2e runs exercise this same input path but with real key events; the Android
+keyboard's own behaviour can only be confirmed on Scott's device.
+
 ## Keeping This File Current
 
 This file is the primary context for any agent working in this repo — keep it accurate
