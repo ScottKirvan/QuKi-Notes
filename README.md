@@ -6,7 +6,7 @@
 
 **Open. Type. Done.**
 
-Frictionless scratchpad and pasteboard -- a loose-leaf, digital zibaldone
+Frictionless scratchpad and pasteboard -- a loose-leaf, markdown zibaldone
 
 [![CI](https://github.com/ScottKirvan/QuKi-Notes/actions/workflows/ci.yml/badge.svg)](https://github.com/ScottKirvan/QuKi-Notes/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/ScottKirvan/QuKi-Notes)](https://scottkirvan.com/QuKi-Notes/downloads.html)
@@ -30,7 +30,7 @@ Frictionless scratchpad and pasteboard -- a loose-leaf, digital zibaldone
 
 ## What is QuKi Notes?
 
-QuKi Notes is a frictionless scratchpad and pasteboard -- your loose-leaf, digital [zibaldone](https://en.wikipedia.org/wiki/Zibaldone).  It launches to a blank page ready for input, with a searchable list of existing notes just a click away. Type a thought, draft a post, check something off a list, paste a link, or log that idea for your next invention. Use the content right there, send it somewhere, or let it drift down the list as newer things arrive.
+QuKi Notes is a frictionless scratchpad and pasteboard -- your loose-leaf, markdown [zibaldone](https://en.wikipedia.org/wiki/Zibaldone).  It launches to a blank page ready for input, with a searchable list of existing notes just a click away. Type a thought, draft a post, check something off a list, paste a link, or log that idea for your next invention. Use the content right there, send it somewhere, or let it drift down the list as newer things arrive.
 
 A QuKi doesn't need a destination. Maybe it just needs somewhere to live -- temporarily -- off your mind and available if it ever turns out to be useful. No vaults, no file hierarchies, and no productivity systems to distract.  Sorting is automatic, driven entirely by touch and engagement: touch a QuKi and it pops back to the top.
 
