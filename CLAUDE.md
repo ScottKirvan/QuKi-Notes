@@ -44,6 +44,12 @@ these first:
 - Composition glitches: doubled or lost characters, cursor jumps, or a word's suggestion
   lost when decorations change under an active composition (live reveal near markers).
 - Swipe typing and voice input.
+
+Tapping a misspelled word opens Android's suggestion popup, a separate window that takes
+window focus without blurring the editor, and the WebView may hide the keyboard then.
+The page gets no event for that, so `WindowFocusPlugin.kt` forwards the activity's window
+focus and `decidePopupFocus` in `project/src/editMode.ts` keeps edit mode through a
+keyboard hide caused by it and shows the keyboard again when focus returns.
 Desktop e2e runs exercise this same input path but with real key events; the Android
 keyboard's own behaviour can only be confirmed on Scott's device.
 

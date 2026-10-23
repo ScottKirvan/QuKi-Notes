@@ -61,6 +61,7 @@ import { createWebShareTransport } from "./webShare";
 import { buildExportFileName } from "./exportFileName";
 import { isQuKisButtonEnabled } from "./quKisButton";
 import { onSharedTextReceived } from "./shareIn";
+import { createWindowSignals } from "./windowFocus";
 import { Navigator, type ViewName } from "./navigation";
 import { BackHistory } from "./backHistory";
 import { AwayTracker } from "./awayTimeout";
@@ -844,7 +845,7 @@ async function init(): Promise<void> {
     } else {
       pendingToolbarScrollCheck = true;
     }
-  });
+  }, createWindowSignals());
   function focusEditorAndShowKeyboard(): void {
     view.focus();
     // DOM focus alone doesn't reliably bring up Android's soft keyboard: not
