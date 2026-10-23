@@ -140,6 +140,8 @@ Opening a QuKi sets focus accordingly: **a new, blank QuKi takes focus** (edit m
 
 > **This is the defect that motivated the rewrite.** The app has no keyboard-visibility signal; it uses focus as a proxy for one. On Android the user can dismiss the keyboard without clearing focus, so the toolbar stays on screen with no keyboard under it, and the mode is wrong. The rewrite must drive this from a real keyboard-visibility signal, not from focus.
 
+**A popup that hides the keyboard doesn't end editing.** On Android, tapping a misspelled word opens the spelling suggestions; the keyboard may close while they're open, but the formatting toolbar stays and the text stays as it was. When the suggestions close (one picked or dismissed) and the editor still has focus, the keyboard comes back. Dismissing the keyboard with Back or its own button still ends edit mode; switching apps or locking the screen with the keyboard up ends it too, and coming back doesn't bring the keyboard up. [Proposed — unconfirmed: the same holds for any other window of the app that takes focus while it stays visible, such as the keyboard picker, and a keyboard hide within 1 second of such a window opening or closing counts as the popup's.]
+
 **Plain-text mode** is a separate, persisted toggle, orthogonal to reading/edit: it switches the entire QuKi to a raw text surface for bulk edits and raw pasting.
 
 ### Checkbox tap

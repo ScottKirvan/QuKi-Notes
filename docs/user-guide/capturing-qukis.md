@@ -8,7 +8,7 @@ Tap <i-lucide-plus /> **New QuKi** in the top bar to start another new QuKi.
 
 ### Spell check
 
-Misspelled words are underlined using your device's own spellchecker (your keyboard's on Android, Windows' on Windows, your browser's on the web), so the language and any words you've added to its dictionary carry over. On Linux the app uses its own built-in spellchecker in your system language. On Android, your keyboard's autocorrect and automatic capitals work the same as in any other app. On Windows and Linux, right-click an underlined word to pick a suggestion or add the word to the dictionary. Text inside `inline code` and code blocks is never underlined.
+Misspelled words are underlined using your device's own spellchecker (your keyboard's on Android, Windows' on Windows, your browser's on the web), so the language and any words you've added to its dictionary carry over. On Linux the app uses its own built-in spellchecker in your system language. On Android, your keyboard's autocorrect and automatic capitals work the same as in any other app, and tapping an underlined word shows its suggestions; you stay in editing, and the keyboard comes back when the suggestions close. On Windows and Linux, right-click an underlined word to pick a suggestion or add the word to the dictionary. Text inside `inline code` and code blocks is never underlined.
 
 ### Coming back after being away
 

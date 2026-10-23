@@ -70,6 +70,105 @@ export function modeToggleLabel(isPlainText: boolean): string {
   return isPlainText ? "Rendered mode" : "Plain text";
 }
 
+/**
+ * A popup window of the app's own activity (Android's spelling suggestion
+ * popup, the IME picker) takes window focus without blurring the editor,
+ * and the Android System WebView hides the keyboard when the window loses
+ * focus. keyboardDidHide fires when the keyboard's hide animation ends, so
+ * it normally arrives after the window blur; this is how long after a blur
+ * a hide still counts as the popup's.
+ */
+export const POPUP_KEYBOARD_HIDE_WINDOW_MS = 1000;
+
+export interface PopupFocusState {
+  windowFocused: boolean;
+  lastWindowBlurAt: number | null;
+  lastDismissAt: number | null;
+  keyboardHiddenByPopup: boolean;
+}
+
+export const initialPopupFocusState: PopupFocusState = {
+  windowFocused: true,
+  lastWindowBlurAt: null,
+  lastDismissAt: null,
+  keyboardHiddenByPopup: false,
+};
+
+interface PageAndEditor {
+  at: number;
+  pageVisible: boolean;
+  editorFocused: boolean;
+}
+
+export type PopupFocusEvent =
+  | ({ kind: "windowBlur" } & PageAndEditor)
+  | ({ kind: "windowFocus" } & PageAndEditor)
+  | ({ kind: "keyboardHide" } & PageAndEditor)
+  | { kind: "pageHidden"; at: number };
+
+export type PopupFocusAction = "none" | "enterEditMode" | "leaveEditMode" | "showKeyboard";
+
+const within = (since: number | null, at: number): boolean =>
+  since !== null && at - since <= POPUP_KEYBOARD_HIDE_WINDOW_MS;
+
+/**
+ * Android only: what a keyboard hide, a window focus change or the page
+ * hiding does to edit mode.
+ *
+ * A keyboard hide while the page is visible is the popup's when the window
+ * has lost focus, or lost it within POPUP_KEYBOARD_HIDE_WINDOW_MS: edit mode
+ * stays. Any other keyboard hide is the user dismissing the keyboard: edit
+ * mode ends. A window blur within that time after such a dismiss means the
+ * hide was the popup's after all: edit mode comes back.
+ *
+ * When the window regains focus after a popup hid the keyboard, the
+ * keyboard is shown again if the page is visible and the editor still has
+ * focus. If the page hides first (switching apps, locking the screen), edit
+ * mode ends there as for any keyboard hide, and nothing is shown on return.
+ */
+export function decidePopupFocus(
+  state: PopupFocusState,
+  event: PopupFocusEvent,
+): { state: PopupFocusState; action: PopupFocusAction } {
+  switch (event.kind) {
+    case "windowBlur": {
+      const next = { ...state, windowFocused: false, lastWindowBlurAt: event.at, lastDismissAt: null };
+      if (event.pageVisible && event.editorFocused && within(state.lastDismissAt, event.at)) {
+        return { state: { ...next, keyboardHiddenByPopup: true }, action: "enterEditMode" };
+      }
+      return { state: next, action: "none" };
+    }
+    case "windowFocus": {
+      const show = state.keyboardHiddenByPopup && event.pageVisible && event.editorFocused;
+      return {
+        state: { ...state, windowFocused: true, keyboardHiddenByPopup: false },
+        action: show ? "showKeyboard" : "none",
+      };
+    }
+    case "keyboardHide": {
+      const byPopup = event.pageVisible && (!state.windowFocused || within(state.lastWindowBlurAt, event.at));
+      if (!byPopup) return { state: { ...state, lastDismissAt: event.at }, action: "leaveEditMode" };
+      const consumed = { ...state, lastWindowBlurAt: null };
+      if (!state.windowFocused) return { state: { ...consumed, keyboardHiddenByPopup: true }, action: "none" };
+      return { state: consumed, action: event.editorFocused ? "showKeyboard" : "none" };
+    }
+    case "pageHidden": {
+      const next = { ...state, lastWindowBlurAt: null, lastDismissAt: null, keyboardHiddenByPopup: false };
+      return { state: next, action: state.keyboardHiddenByPopup ? "leaveEditMode" : "none" };
+    }
+  }
+}
+
+/** The window and page signals the Android tracker reads, injected so tests can drive them. */
+export interface WindowSignals {
+  now(): number;
+  isPageVisible(): boolean;
+  /** Returns a function that removes the listener. */
+  onWindowFocusChanged(callback: (hasFocus: boolean) => void): () => void;
+  /** Returns a function that removes the listener. */
+  onPageHidden(callback: () => void): () => void;
+}
+
 export interface EditModeTracker {
   isEditMode(): boolean;
   /** Removes whatever native/DOM listeners this tracker installed. */
@@ -108,6 +207,7 @@ export function createEditModeTracker(
   view: EditorView,
   initialEditMode: boolean,
   onChange: (isEditMode: boolean, signal: EditModeSignal) => void,
+  windowSignals: WindowSignals,
 ): EditModeTracker {
   let editMode = initialEditMode;
 
@@ -123,8 +223,26 @@ export function createEditModeTracker(
   view.contentDOM.addEventListener("blur", onBlur);
 
   if (usesKeyboardSignal(Capacitor.getPlatform(), Capacitor.isNativePlatform())) {
+    let popupState = initialPopupFocusState;
+    const apply = (event: PopupFocusEvent): void => {
+      const result = decidePopupFocus(popupState, event);
+      popupState = result.state;
+      if (result.action === "enterEditMode") setEditMode(true, "keyboard");
+      else if (result.action === "leaveEditMode") setEditMode(false, "keyboard");
+      else if (result.action === "showKeyboard") void Keyboard.show();
+    };
+    const pageAndEditor = () => ({
+      at: windowSignals.now(),
+      pageVisible: windowSignals.isPageVisible(),
+      editorFocused: view.hasFocus,
+    });
+
     const showHandle = Keyboard.addListener("keyboardDidShow", () => setEditMode(true, "keyboard"));
-    const hideHandle = Keyboard.addListener("keyboardDidHide", () => setEditMode(false, "keyboard"));
+    const hideHandle = Keyboard.addListener("keyboardDidHide", () => apply({ kind: "keyboardHide", ...pageAndEditor() }));
+    const removeWindowFocus = windowSignals.onWindowFocusChanged((hasFocus) =>
+      apply({ kind: hasFocus ? "windowFocus" : "windowBlur", ...pageAndEditor() }),
+    );
+    const removePageHidden = windowSignals.onPageHidden(() => apply({ kind: "pageHidden", at: windowSignals.now() }));
     return {
       isEditMode: () => editMode,
       destroy: () => {
@@ -132,6 +250,8 @@ export function createEditModeTracker(
         view.contentDOM.removeEventListener("blur", onBlur);
         void showHandle.then((handle) => handle.remove());
         void hideHandle.then((handle) => handle.remove());
+        removeWindowFocus();
+        removePageHidden();
       },
     };
   }
