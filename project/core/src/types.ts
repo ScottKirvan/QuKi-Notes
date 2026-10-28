@@ -84,7 +84,15 @@ export interface SaveParams {
   force?: boolean;
 }
 
-export interface DeleteOptions {
+export interface ImageCleanupOptions {
+  /**
+   * Markdown texts not on disk (e.g. an editor's unsaved text) whose image
+   * links count as references, so cleanup never deletes those images.
+   */
+  keepImagesReferencedBy?: readonly string[];
+}
+
+export interface DeleteOptions extends ImageCleanupOptions {
   deleteOrphanedImages?: boolean;
 }
 

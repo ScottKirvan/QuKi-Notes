@@ -234,6 +234,65 @@ describe('images', () => {
     });
   });
 
+  describe('given an image linked only by text that is not saved (keepImagesReferencedBy)', () => {
+    const unsavedText = (relPath: string) => `still typing\n\n![pasted](${relPath})`;
+
+    it('the sweep keeps it', async () => {
+      const image = await store.writeImage(new Uint8Array([1]), 'png');
+
+      const result = await store.sweepOrphanedImages({ keepImagesReferencedBy: [unsavedText(image.relativePath)] });
+
+      expect(result.removedCount).toBe(0);
+      await expect(fsp.access(image.absolutePath)).resolves.toBeUndefined();
+    });
+
+    it('permanently deleting the last saved QuKi that links it keeps it', async () => {
+      const image = await store.writeImage(new Uint8Array([2]), 'png');
+      const quki = await store.save({ id: null, body: `![alt](${image.relativePath})` });
+      if (quki.status !== 'saved') throw new Error('unreachable');
+      await store.moveToTrash(quki.id);
+
+      await store.permanentlyDelete(quki.id, { keepImagesReferencedBy: [unsavedText(image.relativePath)] });
+
+      await expect(fsp.access(image.absolutePath)).resolves.toBeUndefined();
+    });
+
+    it('emptying Trash keeps it', async () => {
+      const image = await store.writeImage(new Uint8Array([3]), 'png');
+      const quki = await store.save({ id: null, body: `![alt](${image.relativePath})` });
+      if (quki.status !== 'saved') throw new Error('unreachable');
+      await store.moveToTrash(quki.id);
+
+      await store.emptyTrash({ keepImagesReferencedBy: [unsavedText(image.relativePath)] });
+
+      await expect(fsp.access(image.absolutePath)).resolves.toBeUndefined();
+    });
+
+    it('purging expired Trash keeps it', async () => {
+      const image = await store.writeImage(new Uint8Array([4]), 'png');
+      const quki = await store.save({ id: null, body: `![alt](${image.relativePath})` });
+      if (quki.status !== 'saved') throw new Error('unreachable');
+      await store.moveToTrash(quki.id);
+      const farFuture = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+
+      const result = await store.purgeExpiredTrash({ now: farFuture, keepImagesReferencedBy: [unsavedText(image.relativePath)] });
+
+      expect(result.purgedIds).toEqual([quki.id]);
+      await expect(fsp.access(image.absolutePath)).resolves.toBeUndefined();
+    });
+
+    it('the sweep still removes an image that text does not link', async () => {
+      const kept = await store.writeImage(new Uint8Array([5]), 'png');
+      const unused = await store.writeImage(new Uint8Array([6]), 'png');
+
+      const result = await store.sweepOrphanedImages({ keepImagesReferencedBy: [unsavedText(kept.relativePath)] });
+
+      expect(result.removedCount).toBe(1);
+      await expect(fsp.access(kept.absolutePath)).resolves.toBeUndefined();
+      await expect(fsp.access(unused.absolutePath)).rejects.toThrow();
+    });
+  });
+
   it('permanently deleting a QuKi that links a subfolder by name leaves the subfolder alone', async () => {
     await fsp.mkdir(path.join(dir, 'media', 'photos'), { recursive: true });
     const quki = await store.save({ id: null, body: '![odd](media/photos)' });

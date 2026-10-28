@@ -10,6 +10,7 @@ export type {
   SaveResult,
   SaveParams,
   DeleteOptions,
+  ImageCleanupOptions,
   WriteImageResult,
   ExportResult,
   RestoreResult,

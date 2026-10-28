@@ -8,6 +8,7 @@ import {
   NotFoundError,
   type DeleteOptions,
   type ExportResult,
+  type ImageCleanupOptions,
   type QuKiDetail,
   type QuKiSummary,
   type RestoreResult,
@@ -355,7 +356,7 @@ export class QuKiStore {
 
       if (deleteOrphanedImages) {
         const refs = findImageReferences(body);
-        if (refs.length > 0) await this.removeOrphanedImages(refs);
+        if (refs.length > 0) await this.removeOrphanedImages(refs, options);
       }
     });
   }
@@ -384,7 +385,7 @@ export class QuKiStore {
     }
 
     if (deleteOrphanedImages && candidateRefs.size > 0) {
-      await this.removeOrphanedImages([...candidateRefs]);
+      await this.removeOrphanedImages([...candidateRefs], options);
     }
 
     return { deletedCount: ids.length };
@@ -413,7 +414,10 @@ export class QuKiStore {
       const deletedAtMs = Date.parse(deletedAt);
       if (Number.isNaN(deletedAtMs)) continue;
       if (now.getTime() - deletedAtMs >= THIRTY_DAYS_MS) {
-        await this.permanentlyDelete(id, { deleteOrphanedImages: options.deleteOrphanedImages });
+        await this.permanentlyDelete(id, {
+          deleteOrphanedImages: options.deleteOrphanedImages,
+          keepImagesReferencedBy: options.keepImagesReferencedBy,
+        });
         purged.push(id);
       }
     }
@@ -421,8 +425,8 @@ export class QuKiStore {
     return { purgedIds: purged };
   }
 
-  private async removeOrphanedImages(candidates: string[]): Promise<void> {
-    const stillReferenced = await this.collectAllImageReferences();
+  private async removeOrphanedImages(candidates: string[], options: ImageCleanupOptions): Promise<void> {
+    const stillReferenced = await this.collectAllImageReferences(options);
     const mediaDirEntries = await this.backend.listDir('media');
     for (const ref of candidates) {
       if (stillReferenced.has(ref)) continue;
@@ -457,10 +461,10 @@ export class QuKiStore {
    * run this at points other than deletion - e.g. app startup - so those
    * images still get cleaned up eventually.
    */
-  async sweepOrphanedImages(): Promise<{ removedCount: number }> {
+  async sweepOrphanedImages(options: ImageCleanupOptions = {}): Promise<{ removedCount: number }> {
     const files = await this.backend.listDir('media');
     if (files.length === 0) return { removedCount: 0 };
-    const referenced = await this.collectAllImageReferences();
+    const referenced = await this.collectAllImageReferences(options);
     let removedCount = 0;
     for (const name of files) {
       const ref = `media/${name}`;
@@ -471,8 +475,11 @@ export class QuKiStore {
     return { removedCount };
   }
 
-  private async collectAllImageReferences(): Promise<Set<string>> {
+  private async collectAllImageReferences(options: ImageCleanupOptions): Promise<Set<string>> {
     const refs = new Set<string>();
+    for (const text of options.keepImagesReferencedBy ?? []) {
+      for (const ref of findImageReferences(text)) refs.add(ref);
+    }
     for (const id of await this.listActiveIds()) {
       try {
         const body = await this.backend.readText(`${id}.md`);

@@ -1464,6 +1464,7 @@ async function init(): Promise<void> {
     showToast,
     confirm,
     getDeleteOrphanedImages: () => appSettings.getDeleteOrphanedImages(),
+    getOpenEditorText: () => view.state.doc.toString(),
   });
 
   quKiListBtn.addEventListener("click", () => {
