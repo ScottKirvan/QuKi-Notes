@@ -1,5 +1,5 @@
 import { ArrowLeft, Trash2 } from "lucide";
-import type { QuKiStore, TrashedQuKiSummary } from "quki-core";
+import type { DeleteOptions, QuKiStore, TrashedQuKiSummary } from "quki-core";
 
 import { extractPreview } from "../preview";
 import { formatRelativeTime } from "../relativeTime";
@@ -14,6 +14,11 @@ export interface TrashViewCallbacks {
   confirm: Confirm;
   /** STORAGE_CONTRACT.md rule 13's user-facing "delete orphaned images" setting. */
   getDeleteOrphanedImages: () => boolean;
+  /**
+   * The open editor's current text, saved or not. STORAGE_CONTRACT.md rule
+   * 13: an image it links is referenced, so orphan cleanup must keep it.
+   */
+  getOpenEditorText: () => string;
 }
 
 export interface TrashView {
@@ -72,6 +77,13 @@ export function createTrashView(store: QuKiStore, container: HTMLElement, callba
 
   setIconButton(backBtn, ArrowLeft, "Back to Settings");
 
+  function imageCleanupOptions(): DeleteOptions {
+    return {
+      deleteOrphanedImages: callbacks.getDeleteOrphanedImages(),
+      keepImagesReferencedBy: [callbacks.getOpenEditorText()],
+    };
+  }
+
   async function refresh(): Promise<void> {
     // Trash is where a user goes to reason about deleted/cleaned-up state,
     // and every entry point here (opening Trash, restoring, permanently
@@ -81,8 +93,9 @@ export function createTrashView(store: QuKiStore, container: HTMLElement, callba
     // before its first save), which the candidate-based cleanup below
     // can never catch on its own. Gated on the same setting as the rest of
     // orphan cleanup (rule 13).
-    if (callbacks.getDeleteOrphanedImages()) {
-      await store.sweepOrphanedImages().catch((error: unknown) => {
+    const cleanup = imageCleanupOptions();
+    if (cleanup.deleteOrphanedImages) {
+      await store.sweepOrphanedImages(cleanup).catch((error: unknown) => {
         console.error("QuKi orphaned-image sweep (Trash refresh) failed unexpectedly:", error);
       });
     }
@@ -187,7 +200,7 @@ export function createTrashView(store: QuKiStore, container: HTMLElement, callba
             return;
           }
           await performTrashAction(
-            () => store.permanentlyDelete(item.id, { deleteOrphanedImages: callbacks.getDeleteOrphanedImages() }),
+            () => store.permanentlyDelete(item.id, imageCleanupOptions()),
             callbacks.showToast,
             "Could not delete — an unexpected error occurred.",
           );
@@ -211,7 +224,7 @@ export function createTrashView(store: QuKiStore, container: HTMLElement, callba
       });
       if (!confirmed) return;
       await performTrashAction(
-        () => store.emptyTrash({ deleteOrphanedImages: callbacks.getDeleteOrphanedImages() }),
+        () => store.emptyTrash(imageCleanupOptions()),
         callbacks.showToast,
         "Could not empty Trash — an unexpected error occurred.",
       );

@@ -52,7 +52,7 @@
 
 12. **Paste is the primary way images arrive.** A pasted image is written into `media/` under a generated name and the link is inserted at the cursor.
 
-13. **Orphaned images are deleted when the QuKi that referenced them is permanently deleted** — but only if no other QuKi references them, **and the reference check includes QuKis in the trash.** A trashed QuKi that is later restored must come back with its images intact. This behavior is a user-facing setting, defaulting to delete.
+13. **Orphaned images are deleted when the QuKi that referenced them is permanently deleted** — but only if no other QuKi references them, **and the reference check includes QuKis in the trash.** A trashed QuKi that is later restored must come back with its images intact. **A link in the open editor's current text is a reference too, saved or not** (e.g. an image pasted while a save conflict blocks saving) — no cleanup, including the full `media/` sweep, deletes the image it links. [Proposed — unconfirmed: wording added with #523's fix.] This behavior is a user-facing setting, defaulting to delete.
 
 ---
 
