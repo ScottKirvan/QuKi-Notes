@@ -27,6 +27,9 @@ updates:
     cooldown:
       default-days: 7
     groups:
+      npm-security:
+        applies-to: security-updates
+        patterns: ["*"]
       npm-minor-and-patch:
         update-types: ["minor", "patch"]
     commit-message:
