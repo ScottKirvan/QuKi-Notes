@@ -1,0 +1,5 @@
+QuKi Notes v0.26.2 fixes an editor Backspace issue on line-end markers alongside core framework updates.
+- Fix for Backspace getting stuck after line-end markers
+- Upgraded CodeMirror editor components and Markdown parser
+- Updated Capacitor Android runtime and keyboard libraries
+Full notes + downloads →

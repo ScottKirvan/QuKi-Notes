@@ -1,0 +1,8 @@
+What's New:
+- Updated the Lucide icon set across the application.
+- Updated Android platform runtime and on-screen keyboard support libraries.
+- Upgraded the core Markdown parser and text editor components.
+- Upgraded web application packaging and offline Progressive Web App components.
+
+What's Fixed:
+- Fixed an issue where pressing Backspace directly after a marker at the end of a line failed to delete into the marker and left text unchanged.
