@@ -15,13 +15,13 @@
     "bundle": "node scripts/bundle.mjs"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@modelcontextprotocol/sdk": "^1.32.2",
     "quki-core": "file:../core",
     "zod": "^3.24.1"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
-    "esbuild": "^0.21.5",
+    "esbuild": "^0.28.2",
     "typescript": "^5.6.3",
     "vitest": "^2.1.8"
   }
