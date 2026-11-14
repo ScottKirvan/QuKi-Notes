@@ -59,13 +59,15 @@ async function backWalksQuKisAndTheListAndRestoresScroll(browser: Browser, url: 
   await page.click("#btn-new-quki");
   await waitForBody(page, "");
   await typeQuKi(page, bodyA);
-  const savedScroll = await page.evaluate(() => {
-    const scroller = (window as QukiWindow).qukiView.scrollDOM;
-    scroller.scrollTop = 900;
-    return scroller.scrollTop;
+  await page.evaluate(() => {
+    (window as QukiWindow).qukiView.scrollDOM.scrollTop = 900;
   });
-  assert(savedScroll > 500, `${tag} QuKi A must be long enough to scroll, got scrollTop ${savedScroll}`);
+  // A jump into lines not yet drawn is settled by the editor's scroll
+  // anchoring before it paints (@codemirror/view 6.43.15 lands 900 at 907),
+  // so the position to come back to is the settled one.
   await page.waitForTimeout(100);
+  const savedScroll = await page.evaluate(() => (window as QukiWindow).qukiView.scrollDOM.scrollTop);
+  assert(savedScroll > 500, `${tag} QuKi A must be long enough to scroll, got scrollTop ${savedScroll}`);
 
   await page.click("#btn-quki-list");
   const list = page.locator("#view-list");
