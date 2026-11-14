@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { Features } from "lightningcss";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
@@ -25,8 +26,16 @@ export default defineConfig({
     host: true,
     allowedHosts: ["thehumanton.tail6388a4.ts.net"],
   },
+  css: {
+    lightningcss: {
+      // Lightning CSS's color-scheme polyfill injects --lightningcss-* variables
+      // and a prefers-color-scheme rule; the theme must use only Obsidian's
+      // variables and follow the body class.
+      exclude: Features.LightDark,
+    },
+  },
   build: {
-    rollupOptions: {
+    rolldownOptions: {
       output: {
         chunkFileNames: (chunk) =>
           chunk.moduleIds.length > 0 && chunk.moduleIds.every((id) => CODE_LANGUAGE_MODULE.test(id))
