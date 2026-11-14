@@ -3,6 +3,9 @@
 #   each major bump gets its own PR, since those are the ones that break things.
 # - Commits use `chore(deps):`, so release-please doesn't cut a release for them;
 #   they ship with the next real release.
+# - Cooldown: a new release waits 7 days before Dependabot offers it, so a
+#   compromised or broken release is usually caught and pulled first.
+#   Security fix PRs are not delayed.
 # - Gradle is left out: Capacitor sets the Android dependency versions.
 #
 # Security updates are a separate repo setting (Settings > Code security) and
@@ -21,6 +24,8 @@ updates:
       - "/docs"
     schedule:
       interval: "monthly"
+    cooldown:
+      default-days: 7
     groups:
       npm-minor-and-patch:
         update-types: ["minor", "patch"]
@@ -33,6 +38,8 @@ updates:
     directory: "/"
     schedule:
       interval: "monthly"
+    cooldown:
+      default-days: 7
     groups:
       actions:
         patterns: ["*"]
