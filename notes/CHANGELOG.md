@@ -5,7 +5,7 @@
 
 ### Bug Fixes
 
-* image cleanup keeps images linked by the open editor's unsaved text ([17a7f03](https://github.com/ScottKirvan/QuKi-Notes/commit/17a7f0370be64a72ab06e681857301a8feca4f85)), closes [#523](https://github.com/ScottKirvan/QuKi-Notes/issues/523)
+* image cleanup keeps images linked by the open editor's unsaved text ([#524](https://github.com/ScottKirvan/QuKi-Notes/pull/524)), closes [#523](https://github.com/ScottKirvan/QuKi-Notes/issues/523)
 
 ## [0.26.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.25.1...v0.26.0) (2026-10-23)
 
