@@ -111,7 +111,7 @@ jobs:
 
       - name: Download blurb artifact
         if: steps.find.outputs.run_id != ''
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: discord-blurb-${{ needs.check.outputs.tag_name }}
           run-id: ${{ steps.find.outputs.run_id }}
@@ -156,7 +156,7 @@ jobs:
     if: needs.check.outputs.all_done == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: main
           token: ${{ github.token }}
@@ -207,7 +207,7 @@ jobs:
         run: echo "sent" > /tmp/sent.txt
 
       - name: Upload sent marker artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: discord-sent-${{ needs.check.outputs.tag_name }}
           path: /tmp/sent.txt
