@@ -17,7 +17,7 @@ jobs:
       release_created: ${{ steps.release.outputs.release_created }}
       tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
-      - uses: googleapis/release-please-action@v4
+      - uses: googleapis/release-please-action@v5
         id: release
         with:
           token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
@@ -109,7 +109,7 @@ jobs:
           DISCORD_BLURB: ${{ needs.apply-staged-notes.outputs.discord_blurb || needs.improve-release-notes.outputs.discord_blurb }}
         run: printf '%s' "$DISCORD_BLURB" > discord_blurb.txt
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: discord-blurb-${{ needs.release-please.outputs.tag_name }}
           path: discord_blurb.txt
@@ -129,7 +129,7 @@ jobs:
           PLAY_STORE_NOTES: ${{ needs.apply-staged-notes.outputs.play_store_notes }}
         run: printf '%s' "$PLAY_STORE_NOTES" > play-store-notes.txt
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: play-store-notes-${{ needs.release-please.outputs.tag_name }}
           path: play-store-notes.txt
