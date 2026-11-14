@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { EditorSelection, EditorState, type TransactionSpec } from "@codemirror/state";
 import { markdownEditing } from "./markdownEditing";
+import { caretInMarkerPrefix } from "./markerBackspaceGuard";
 
 // Shapes the transactions @codemirror/view 6.43 dispatches when it reads a
 // deletion back from the DOM (applyDefaultInsert: "input.type", or
@@ -104,5 +105,31 @@ describe("deletions that are left alone", () => {
       const spec: TransactionSpec = userEvent ? { changes: { from: 0, to: 6 }, userEvent } : { changes: { from: 0, to: 6 } };
       expect(state.update(spec).state.doc.toString()).toBe("buy");
     }
+  });
+});
+
+// @codemirror/view 6.43.14+ places the DOM caret after a line-end marker's
+// widget buffer, so a native backward delete there changes nothing in the
+// document; caretInMarkerPrefix decides whether that swallowed deletion must
+// still delete a character.
+describe("where a swallowed DOM backward delete still deletes", () => {
+  it("right after a drawn empty item's marker", () => {
+    for (const doc of ["- [ ] ", "- [x] ", "- ", "1. ", "> ", "> > ", "\t- [ ] "]) {
+      expect(caretInMarkerPrefix(stateAt(doc, doc.length)), JSON.stringify(doc)).toBe(true);
+    }
+  });
+
+  it("inside a marker being stepped back through", () => {
+    expect(caretInMarkerPrefix(stateAt("- [ ]", 5))).toBe(true);
+    expect(caretInMarkerPrefix(stateAt("- [ ] buy", "buy"))).toBe(true);
+  });
+
+  it("not in ordinary text, at a line start, after only indentation, or with a selection", () => {
+    expect(caretInMarkerPrefix(stateAt("- [ ] buy milk", " milk"))).toBe(false);
+    expect(caretInMarkerPrefix(stateAt("plain text", 5))).toBe(false);
+    expect(caretInMarkerPrefix(stateAt("one\n- two", 4))).toBe(false);
+    expect(caretInMarkerPrefix(stateAt("    - item", 4))).toBe(false);
+    const selected = EditorState.create({ doc: "- [ ] ", selection: EditorSelection.range(0, 6) });
+    expect(caretInMarkerPrefix(selected)).toBe(false);
   });
 });
