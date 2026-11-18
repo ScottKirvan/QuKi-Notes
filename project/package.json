@@ -33,13 +33,13 @@
     "@lezer/highlight": "^1.2.5",
     "@lezer/markdown": "^1.8.1",
     "codemirror": "^6.0.1",
-    "lucide": "^1.71.0",
+    "lucide": "^1.72.0",
     "quki-core": "file:./core",
     "turndown": "^7.2.5"
   },
   "devDependencies": {
     "@capacitor/cli": "^8.6.0",
-    "@types/node": "^22.20.3",
+    "@types/node": "^22.20.5",
     "@types/turndown": "^5.0.6",
     "lightningcss": "^1.33.0",
     "playwright": "^1.65.0",
