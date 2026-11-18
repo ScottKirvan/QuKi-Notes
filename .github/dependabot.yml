@@ -7,6 +7,8 @@
 #   compromised or broken release is usually caught and pulled first.
 #   Security fix PRs are not delayed.
 # - Gradle is left out: Capacitor sets the Android dependency versions.
+# - @types/node majors are ignored: its major version must match the Node major
+#   the code runs on (22, CI's Node), so it moves only when that does.
 #
 # Security updates are a separate repo setting (Settings > Code security) and
 # open PRs for vulnerable packages as soon as an alert appears, using the
@@ -32,6 +34,9 @@ updates:
         patterns: ["*"]
       npm-minor-and-patch:
         update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "chore"
       include: "scope"
