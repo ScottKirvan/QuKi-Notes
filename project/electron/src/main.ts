@@ -10,6 +10,13 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, screen, shell } from 'electr
 // read the .d.ts from.
 import type { StorageBackend } from 'quki-core' with { 'resolution-mode': 'import' };
 
+import {
+  folderFromOpenResult,
+  folderFromSaveResult,
+  isExistingDirectory,
+  openDialogDefaultPath,
+  saveDialogDefaultPath,
+} from './dialogFolder.js';
 import { resolveMigratedStorageRoot } from './flutterMigration.js';
 import { PreferencesStore } from './preferences.js';
 import { spellingMenuTemplate } from './spellingMenu.js';
@@ -194,10 +201,13 @@ function registerSetupIpc(prefsStore: PreferencesStore): void {
       selected = forcedPath === '' ? null : forcedPath;
     } else {
       const win = BrowserWindow.getFocusedWindow();
-      const result = win
-        ? await dialog.showOpenDialog(win, { properties: ['openDirectory'] })
-        : await dialog.showOpenDialog({ properties: ['openDirectory'] });
-      selected = result.canceled || result.filePaths.length === 0 ? null : result.filePaths[0]!;
+      const dialogOptions: Electron.OpenDialogOptions = {
+        properties: ['openDirectory'],
+        defaultPath: openDialogDefaultPath(prefsStore.read().lastDialogFolder, isExistingDirectory),
+      };
+      const result = win ? await dialog.showOpenDialog(win, dialogOptions) : await dialog.showOpenDialog(dialogOptions);
+      selected = folderFromOpenResult(result);
+      if (selected !== null) prefsStore.setLastDialogFolder(selected);
     }
     if (selected === null) return null;
     await setBackendRoot(selected);
@@ -218,7 +228,7 @@ function registerSetupIpc(prefsStore: PreferencesStore): void {
  * the renderer already built the gzipped tar via core's exportLibrary() and
  * just needs a native "Save As" destination and a real write.
  */
-function registerExportIpc(): void {
+function registerExportIpc(prefsStore: PreferencesStore): void {
   ipcMain.handle(EXPORT_CHANNELS.saveExport, async (_event, bytes: Uint8Array, defaultFileName: string) => {
     // Test-only seam, matching SETUP_CHANNELS.chooseFilesystem's
     // QUKI_TEST_FORCE_DIALOG_PATH above: Playwright cannot drive an
@@ -229,9 +239,13 @@ function registerExportIpc(): void {
       destPath = forcedPath === '' ? null : forcedPath;
     } else {
       const win = BrowserWindow.getFocusedWindow();
-      const dialogOptions = { defaultPath: defaultFileName };
+      const dialogOptions = {
+        defaultPath: saveDialogDefaultPath(prefsStore.read().lastDialogFolder, defaultFileName, isExistingDirectory),
+      };
       const result = win ? await dialog.showSaveDialog(win, dialogOptions) : await dialog.showSaveDialog(dialogOptions);
       destPath = result.canceled || !result.filePath ? null : result.filePath;
+      const savedFolder = folderFromSaveResult(result);
+      if (savedFolder !== null) prefsStore.setLastDialogFolder(savedFolder);
     }
     if (destPath === null) return null;
     await fs.promises.writeFile(destPath, bytes);
@@ -592,7 +606,7 @@ app.whenReady().then(async () => {
 
   registerStorageIpc();
   registerSetupIpc(prefsStore);
-  registerExportIpc();
+  registerExportIpc(prefsStore);
   await createWindow(prefsStore);
 
   app.on('activate', () => {

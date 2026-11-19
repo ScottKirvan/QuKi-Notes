@@ -31,6 +31,7 @@ describe('PreferencesStore', () => {
     windowWidth: null,
     windowHeight: null,
     plainTextMode: false,
+    lastDialogFolder: null,
   };
 
   it('reads defaults (storageChosen false, storagePath null, no window bounds) when no file exists yet - this is what defines first launch', () => {
@@ -63,6 +64,7 @@ describe('PreferencesStore', () => {
     store.setStorageLocation('/chosen/folder');
 
     expect(store.read()).toEqual({
+      ...DEFAULTS,
       storagePath: '/chosen/folder',
       storageChosen: true,
       windowX: 10,
@@ -107,6 +109,7 @@ describe('PreferencesStore', () => {
     store.setWindowBounds({ x: 0, y: 0, width: 640, height: 480 });
 
     expect(store.read()).toEqual({
+      ...DEFAULTS,
       storagePath: '/chosen/folder',
       storageChosen: true,
       windowX: 0,
@@ -158,6 +161,7 @@ describe('PreferencesStore', () => {
     store.setPlainTextMode(true);
 
     expect(store.read()).toEqual({
+      ...DEFAULTS,
       storagePath: '/chosen/folder',
       storageChosen: true,
       windowX: 1,
@@ -175,6 +179,7 @@ describe('PreferencesStore', () => {
     store.setWindowBounds({ x: 1, y: 2, width: 3, height: 4 });
 
     expect(store.read()).toEqual({
+      ...DEFAULTS,
       storagePath: '/chosen/folder',
       storageChosen: true,
       windowX: 1,
@@ -189,5 +194,36 @@ describe('PreferencesStore', () => {
     fs.writeFileSync(path.join(dir, 'preferences.json'), JSON.stringify({ plainTextMode: 'yes' }), 'utf8');
 
     expect(store.read()).toEqual({ ...DEFAULTS, plainTextMode: false });
+  });
+
+  it('setLastDialogFolder persists the folder across a fresh store (an app restart)', () => {
+    store.setLastDialogFolder('/last/used');
+
+    expect(new PreferencesStore(dir).read()).toEqual({ ...DEFAULTS, lastDialogFolder: '/last/used' });
+  });
+
+  it('setLastDialogFolder preserves the other preferences, and they preserve it', () => {
+    store.setStorageLocation('/chosen/folder');
+    store.setLastDialogFolder('/last/used');
+    store.setWindowBounds({ x: 1, y: 2, width: 3, height: 4 });
+    store.setPlainTextMode(true);
+
+    expect(store.read()).toEqual({
+      ...DEFAULTS,
+      storagePath: '/chosen/folder',
+      storageChosen: true,
+      windowX: 1,
+      windowY: 2,
+      windowWidth: 3,
+      windowHeight: 4,
+      plainTextMode: true,
+      lastDialogFolder: '/last/used',
+    });
+  });
+
+  it('rejects a wrongly-typed lastDialogFolder value as absent', () => {
+    fs.writeFileSync(path.join(dir, 'preferences.json'), JSON.stringify({ lastDialogFolder: 42 }), 'utf8');
+
+    expect(store.read()).toEqual(DEFAULTS);
   });
 });
