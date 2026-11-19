@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.26.2](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.26.1...v0.26.2) (2026-11-19)
+
+
+### Bug Fixes
+
+* add a 7-day cooldown to Dependabot version updates ([734a381](https://github.com/ScottKirvan/QuKi-Notes/commit/734a3813910dce4e5da97109d86d81bd32f12285))
+* compare Back's restored scroll with where the editor settled ([4622aca](https://github.com/ScottKirvan/QuKi-Notes/commit/4622aca5761888ce953e81f512414bab98ccbf9c))
+* don't register the service worker in the desktop app ([978fe0f](https://github.com/ScottKirvan/QuKi-Notes/commit/978fe0f0a4cf04a687e4378649f4e02fc2bf7a7f))
+* group Dependabot security fixes into one PR per folder ([5d337d3](https://github.com/ScottKirvan/QuKi-Notes/commit/5d337d3d1ed8111a607b4b3ec234070ef57633a6))
+* keep DOM Backspace stepping through a line-end marker with @codemirror/view 6.43.14 ([fba2d0e](https://github.com/ScottKirvan/QuKi-Notes/commit/fba2d0e350e58d3b4d4b6891105bb47a26e40fb2))
+* remember the last folder used in file dialogs ([4bcfbd8](https://github.com/ScottKirvan/QuKi-Notes/commit/4bcfbd850c8f5859abbded9f967a12f112d50daa))
+* replace the Flutter-era Dependabot config with npm and Actions updates ([03796f4](https://github.com/ScottKirvan/QuKi-Notes/commit/03796f449250b720ecf806438a4003d68a3436ef))
+
 ## [0.26.1](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.26.0...v0.26.1) (2026-10-28)
 
 
