@@ -235,15 +235,32 @@ async function main(): Promise<void> {
   console.log("[e2e] PASS: quit-time flush handshake saved a still-pending edit before the app closed");
 
   // --- Scenario 8: restart the app (a real process restart, not a page
-  // reload) and confirm the edited content survives - proving the file on
-  // disk is the real source of truth, not in-memory state. ---
+  // reload). The editor starts blank (BEHAVIOR_SPEC.md §3, a blank canvas
+  // on launch), and the saved QuKi is still on disk and opens from the QuKi
+  // list with its content - the file on disk is the source of truth, not
+  // in-memory state. Opening it also puts it in the editor for scenario 9. ---
   ({ app, page } = await launch(storageDir));
   const bodyAfterRestart = await readEditorBody(page);
+  assert(bodyAfterRestart === "", `the editor should be blank right after a real process restart, got: ${bodyAfterRestart}`);
+  mdFiles = fs.readdirSync(storageDir).filter((f) => f.endsWith(".md"));
   assert(
-    bodyAfterRestart === edited,
-    `editor should reload the most-recently-modified QuKi from disk after a real process restart, got: ${bodyAfterRestart}`,
+    mdFiles.length === 1 && path.join(storageDir, mdFiles[0]!) === mdPath,
+    `the restart should leave exactly the one saved .md file, found: ${mdFiles.join(", ")}`,
   );
-  console.log("[e2e] PASS: content survived a real Electron process restart (loaded from disk, not memory)");
+  assert(fs.readFileSync(mdPath, "utf8") === unflushedMarker, "the saved QuKi's file should still hold its content after the restart");
+  console.log("[e2e] PASS: after a real Electron process restart the editor is blank and the saved file is unchanged on disk");
+
+  await page.click("#btn-quki-list");
+  await page.waitForSelector("#view-list:not([hidden])");
+  await page.waitForFunction(() => document.querySelectorAll("#view-list .list-row").length === 1);
+  await page.click("#view-list .list-row-content");
+  await page.waitForSelector("#view-editor:not([hidden])");
+  const bodyOpenedFromList = await readEditorBody(page);
+  assert(
+    bodyOpenedFromList === unflushedMarker,
+    `opening the QuKi from the list after the restart should show its saved text, got: ${bodyOpenedFromList}`,
+  );
+  console.log("[e2e] PASS: the saved QuKi opened from the QuKi list after the restart with its text (loaded from disk, not memory)");
 
   // --- Scenario 9: delete via the editor's Delete button moves the real
   // file into .trash/ on disk; the trash screen then shows it and restoring
@@ -256,7 +273,7 @@ async function main(): Promise<void> {
   const trashDir = path.join(storageDir, ".trash");
   const trashedFiles = fs.readdirSync(trashDir).filter((f) => f.endsWith(".md"));
   assert(trashedFiles.length === 1, `expected exactly one .md file in ${trashDir}, found: ${trashedFiles.join(", ")}`);
-  assert(fs.readFileSync(path.join(trashDir, trashedFiles[0]!), "utf8") === edited, "trashed file should retain its content");
+  assert(fs.readFileSync(path.join(trashDir, trashedFiles[0]!), "utf8") === unflushedMarker, "trashed file should retain its content");
   console.log("[e2e] PASS: Delete moved the real file into .trash/ on disk");
 
   await page.click("#btn-settings");
