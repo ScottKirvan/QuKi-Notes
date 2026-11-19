@@ -26,6 +26,7 @@ export interface Preferences {
   windowWidth: number | null;
   windowHeight: number | null;
   plainTextMode: boolean;
+  lastDialogFolder: string | null;
 }
 
 const DEFAULT_PREFERENCES: Preferences = {
@@ -36,6 +37,7 @@ const DEFAULT_PREFERENCES: Preferences = {
   windowWidth: null,
   windowHeight: null,
   plainTextMode: false,
+  lastDialogFolder: null,
 };
 
 const PREFERENCES_FILE_NAME = 'preferences.json';
@@ -88,6 +90,7 @@ export class PreferencesStore {
       windowWidth: readFiniteNumber(candidate?.windowWidth),
       windowHeight: readFiniteNumber(candidate?.windowHeight),
       plainTextMode: candidate?.plainTextMode === true,
+      lastDialogFolder: typeof candidate?.lastDialogFolder === 'string' ? candidate.lastDialogFolder : null,
     };
   }
 
@@ -122,6 +125,12 @@ export class PreferencesStore {
 
   setPlainTextMode(plainTextMode: boolean): Preferences {
     const prefs: Preferences = { ...this.read(), plainTextMode };
+    this.write(prefs);
+    return prefs;
+  }
+
+  setLastDialogFolder(lastDialogFolder: string): Preferences {
+    const prefs: Preferences = { ...this.read(), lastDialogFolder };
     this.write(prefs);
     return prefs;
   }
