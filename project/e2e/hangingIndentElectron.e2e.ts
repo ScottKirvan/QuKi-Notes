@@ -53,10 +53,19 @@ async function main(): Promise<void> {
       // under Playwright's Electron launch, so the scheme is emulated instead.
       await page.emulateMedia({ colorScheme: scheme });
       const resize = async (w: number, h: number): Promise<void> => {
+        // On Windows with display scaling, setContentSize(w, h) can land a pixel
+        // off (401x901 for 400x900 at scale 2), so ask again with the error removed.
         await app.evaluate(({ BrowserWindow }, [cw, ch]) => {
           const win = BrowserWindow.getAllWindows()[0]!;
           win.setMinimumSize(1, 1);
-          win.setContentSize(cw!, ch!);
+          let [askW, askH] = [cw!, ch!];
+          for (let attempt = 0; attempt < 3; attempt++) {
+            win.setContentSize(askW, askH);
+            const [gotW, gotH] = win.getContentSize() as [number, number];
+            if (gotW === cw && gotH === ch) return;
+            askW += cw! - gotW;
+            askH += ch! - gotH;
+          }
         }, [w, h]);
         await page.waitForFunction(([cw, ch]) => window.innerWidth === cw && window.innerHeight === ch, [w, h]);
       };
