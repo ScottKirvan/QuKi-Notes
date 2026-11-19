@@ -90,6 +90,15 @@ async function readEditorBody(page: Page): Promise<string> {
   );
 }
 
+async function openOnlyQuKiFromList(page: Page): Promise<string> {
+  await page.click("#btn-quki-list");
+  await page.waitForSelector("#view-list:not([hidden])");
+  await page.waitForFunction(() => document.querySelectorAll("#view-list .list-row").length === 1);
+  await page.click("#view-list .list-row-content");
+  await page.waitForSelector("#view-editor:not([hidden])");
+  return readEditorBody(page);
+}
+
 function mdFilesIn(dir: string): string[] {
   if (!fs.existsSync(dir)) return [];
   return fs.readdirSync(dir).filter((f) => f.endsWith(".md"));
@@ -193,14 +202,22 @@ async function main(): Promise<void> {
   await app.close();
 
   // --- Scenario 3: relaunching against the same (now non-fresh) userData
-  // dir skips the setup screen entirely and goes straight to the editor,
-  // reloading the previously-saved content from disk. ---
+  // dir skips the setup screen entirely and goes straight to a blank editor
+  // (BEHAVIOR_SPEC.md §3, a blank canvas on launch), still using the same
+  // storage folder: the previously-saved QuKi is unchanged on disk there. ---
   ({ app, page } = await launch({ userDataDir: userDataA, documentsDir: documentsA }));
   await page.waitForSelector(".cm-content");
   assert((await page.locator(".setup-overlay:not([hidden])").count()) === 0, "a relaunch with existing preferences must not show the setup screen");
   const reloadedBody = await readEditorBody(page);
-  assert(reloadedBody === markerA, `expected the previously-saved QuKi to reload directly, got: ${reloadedBody}`);
-  console.log("[e2e-setup] PASS: relaunch with an existing preferences file skips straight to the editor");
+  assert(reloadedBody === "", `expected a blank editor on relaunch, got: ${reloadedBody}`);
+  mdFiles = mdFilesIn(appStorageDir);
+  assert(mdFiles.length === 1, `expected the one saved .md file still in ${appStorageDir}, found: ${mdFiles.join(", ")}`);
+  assert(fs.readFileSync(path.join(appStorageDir, mdFiles[0]!), "utf8") === markerA, "the saved QuKi should be unchanged on disk after relaunch");
+  await page.click("#btn-settings");
+  await page.waitForSelector("#view-settings:not([hidden])");
+  const relaunchStoragePath = await page.textContent(".storage-location-value");
+  assert(relaunchStoragePath === appStorageDir, `expected the relaunch to keep using ${appStorageDir}, Settings shows: ${relaunchStoragePath}`);
+  console.log("[e2e-setup] PASS: relaunch with an existing preferences file skips straight to a blank editor, same folder, saved QuKi intact");
 
   await app.close();
 
@@ -326,7 +343,8 @@ async function main(): Promise<void> {
   // --- Scenario 6: Flutter-migration, route 1 - a genuinely fresh app (no
   // preferences.json of its own) finds a Flutter shared_preferences.json
   // recording an explicitly-chosen location, and silently adopts it: no
-  // setup screen, straight to the editor, showing that folder's content. ---
+  // setup screen, straight to a blank editor (BEHAVIOR_SPEC.md §3), and
+  // that folder's QuKi opens from the QuKi list. ---
   const userDataE = mkTempDir("quki-electron-setup-migrate-choice-");
   const documentsE = mkTempDir("quki-electron-setup-migrate-choice-documents-");
   const flutterChosenFolder = mkTempDir("quki-electron-setup-migrate-choice-folder-");
@@ -347,9 +365,11 @@ async function main(): Promise<void> {
     "a Flutter-recorded explicit choice must skip the setup screen",
   );
   const bodyE = await readEditorBody(page);
-  assert(bodyE === flutterMarker, `expected the editor to load the migrated Flutter QuKi content, got: ${bodyE}`);
+  assert(bodyE === "", `expected a blank editor on launch, got: ${bodyE}`);
+  const openedE = await openOnlyQuKiFromList(page);
+  assert(openedE === flutterMarker, `expected the migrated Flutter QuKi to open from the list with its content, got: ${openedE}`);
   console.log(
-    `[e2e-setup] PASS: Flutter-recorded chosen location (${flutterChosenFolder}) was adopted silently - no setup screen, content loaded`,
+    `[e2e-setup] PASS: Flutter-recorded chosen location (${flutterChosenFolder}) was adopted silently - no setup screen, blank editor, its QuKi opens from the list`,
   );
 
   await app.close();
@@ -358,7 +378,8 @@ async function main(): Promise<void> {
   // at all (simulating no Flutter install found), but the Flutter
   // app-storage default folder (<Documents>/qukis) already has a QuKi in
   // it. Silently adopted the same way, mirroring the Flutter app's own
-  // adoptAppStorageIfUpgrading() fallback. ---
+  // adoptAppStorageIfUpgrading() fallback: blank editor, the folder's QuKi
+  // opens from the QuKi list. ---
   const userDataF = mkTempDir("quki-electron-setup-migrate-fallback-");
   const documentsF = mkTempDir("quki-electron-setup-migrate-fallback-documents-");
   const appStorageDirF = path.join(documentsF, "qukis");
@@ -373,9 +394,11 @@ async function main(): Promise<void> {
     "an existing Flutter app-storage folder with QuKis must skip the setup screen",
   );
   const bodyF = await readEditorBody(page);
-  assert(bodyF === fallbackMarker, `expected the editor to load the migrated app-storage QuKi content, got: ${bodyF}`);
+  assert(bodyF === "", `expected a blank editor on launch, got: ${bodyF}`);
+  const openedF = await openOnlyQuKiFromList(page);
+  assert(openedF === fallbackMarker, `expected the migrated app-storage QuKi to open from the list with its content, got: ${openedF}`);
   console.log(
-    `[e2e-setup] PASS: Flutter app-storage default folder (${appStorageDirF}) was adopted silently by fallback - no setup screen, content loaded`,
+    `[e2e-setup] PASS: Flutter app-storage default folder (${appStorageDirF}) was adopted silently by fallback - no setup screen, blank editor, its QuKi opens from the list`,
   );
 
   await app.close();
