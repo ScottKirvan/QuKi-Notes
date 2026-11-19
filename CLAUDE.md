@@ -16,7 +16,8 @@ Layout under `project/`:
 - `src/`: the app (CodeMirror editor, reveal/rendering in `src/reveal/`, screens in
   `src/screens/`). `cli/`, `mcp/`, `electron/`, `android/`: the other targets.
 - `e2e/`: Playwright tests against the built web app (`npm run build`, then
-  `npm run test:e2e`; Electron ones via `npm run test:e2e:electron`). Unit tests:
+  `npm run test:e2e`; Electron ones via `npm run test:e2e:electron` and
+  `npm run test:e2e:electron:setup`; CI runs both under xvfb in the `e2e-electron` job). Unit tests:
   `npm test` (vitest) in `project/` and in each package.
 
 User docs are the VitePress site in `docs/` (`npm run docs:build`). The specs are in
