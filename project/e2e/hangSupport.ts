@@ -34,8 +34,10 @@ type WindowWithQukiView = typeof window & {
   };
 };
 
+// CodeMirror lays the hang out in its measure phase, in the next animation frame after a change. A freshly opened
+// Electron window under Xvfb can take hundreds of milliseconds to produce that frame, so wait for the frame itself.
 export async function settle(page: Page): Promise<void> {
-  await page.waitForTimeout(200);
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
 }
 
 export async function setDocAndSelection(page: Page, text: string, anchor: number, head = anchor): Promise<void> {
@@ -374,7 +376,8 @@ export async function runHangScenarios(env: HangEnvironment): Promise<void> {
   let wrappedWidths = 0;
   for (const [width, height] of [[320, 700], [700, 400], [400, 900], [900, 500]] as const) {
     await session.resize(width, height);
-    await settle(page);
+    // In headless Chromium the hang lands a frame after the one following a resize to 320x700, so one frame is not enough here.
+    await page.waitForTimeout(200);
     const g = await hangGeometry(page, "jdjd djdid", 11);
     if (g.rows.length < 2) continue;
     wrappedWidths += 1;
