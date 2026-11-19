@@ -226,8 +226,23 @@ async function main(): Promise<void> {
   // Deliberately no wait for the 2s auto-save debounce: close immediately
   // while the save is still only pending, so it's the quit handshake - not
   // the debounce - that has to get it onto disk.
+  //
+  // Waits for the Electron process's own exit, not Playwright's "close"
+  // event: that one fires only once every copy of the process's stdout and
+  // stderr pipes is closed, and on Linux the browser xdg-open started for
+  // scenarios 5 and 6 inherits those pipes and outlives the app.
+  const appProcess = app.process();
+  const appExited = new Promise<number | null>((resolve, reject) => {
+    if (appProcess.exitCode !== null) return resolve(appProcess.exitCode);
+    const timer = setTimeout(() => reject(new Error("the app process did not exit within 30s of closing its window")), 30_000);
+    appProcess.once("exit", (code) => {
+      clearTimeout(timer);
+      resolve(code);
+    });
+  });
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.close());
-  await app.waitForEvent("close");
+  const exitCode = await appExited;
+  assert(exitCode === 0, `closing the last window should quit the app cleanly, exit code: ${exitCode}`);
   assert(
     fs.readFileSync(mdPath, "utf8") === unflushedMarker,
     "quitting immediately after an edit should still flush it to disk before the app actually closes",
