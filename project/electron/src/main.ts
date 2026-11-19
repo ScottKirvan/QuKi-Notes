@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as http from 'node:http';
 import * as path from 'node:path';
 
-import { app, BrowserWindow, dialog, ipcMain, Menu, screen, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, screen, session, shell } from 'electron';
 // quki-core is ESM-only; under Node16 module resolution a CommonJS file
 // importing *types* from an ESM package must say which condition
 // ("import") to resolve them under (TS1542) - this has no runtime effect,
@@ -19,6 +19,7 @@ import {
 } from './dialogFolder.js';
 import { resolveMigratedStorageRoot } from './flutterMigration.js';
 import { PreferencesStore } from './preferences.js';
+import { clearServiceWorkerStorage } from './serviceWorkerStorage.js';
 import { spellingMenuTemplate } from './spellingMenu.js';
 import { isValidWritableDirectory } from './storageValidation.js';
 import {
@@ -607,6 +608,13 @@ app.whenReady().then(async () => {
   registerStorageIpc();
   registerSetupIpc(prefsStore);
   registerExportIpc(prefsStore);
+  // Every launch, before the first page load, so a stale service worker
+  // never serves it; with nothing registered this is a cheap no-op.
+  try {
+    await clearServiceWorkerStorage(session.defaultSession);
+  } catch (error: unknown) {
+    console.warn('QuKi could not clear stale service workers:', error);
+  }
   await createWindow(prefsStore);
 
   app.on('activate', () => {

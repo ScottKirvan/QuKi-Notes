@@ -21,6 +21,7 @@ import { NotFoundError, QuKiStore, type StorageBackend } from "quki-core";
 import { OpfsBackend } from "quki-core/opfs";
 import { ElectronIpcBackend } from "./electronIpcBackend";
 import { cleanupStaleServiceWorker } from "./staleServiceWorkerCleanup";
+import { serviceWorkerAction } from "./serviceWorkerPolicy";
 import { CapacitorFsBackend, CapacitorStorage } from "./capacitorBackend";
 import { createStorageAccessGate } from "./androidStorageAccess";
 import { resolveMigratedStorageRoot, type AndroidFlutterMigrationDeps } from "./androidFlutterMigration";
@@ -76,15 +77,18 @@ import { createSaveStatusBanner } from "./screens/saveStatusBanner";
 import { createConfirmDialog } from "./screens/confirmDialog";
 import { createAboutDialog } from "./screens/aboutDialog";
 
-// Service worker is only registered in browser/PWA context, not when running
-// as a Capacitor native app. In native context the APK bundle serves assets
-// directly; a pre-caching SW would survive APK updates and serve stale content
-// until its lifecycle completes (typically 2-3 app opens).
-if (!Capacitor.isNativePlatform()) {
+// Service worker is only registered in browser/PWA context, not in the
+// Capacitor or Electron apps, which serve their own bundled files; a
+// pre-caching SW would survive app updates and serve stale content.
+const serviceWorker = serviceWorkerAction({
+  isCapacitorNative: Capacitor.isNativePlatform(),
+  isElectron: window.electronPlatform !== undefined,
+});
+if (serviceWorker === "register") {
   import("virtual:pwa-register").then(({ registerSW }) => {
     registerSW({ immediate: true });
   });
-} else if ("serviceWorker" in navigator && "caches" in window) {
+} else if (serviceWorker === "unregisterStale" && "serviceWorker" in navigator && "caches" in window) {
   // A build from before the branch above existed may already have
   // registered a service worker on this exact device - not registering a
   // new one on native doesn't unregister an old one, and once registered a

@@ -19,6 +19,13 @@ Layout under `project/`:
   `npm run test:e2e`; Electron ones via `npm run test:e2e:electron`). Unit tests:
   `npm test` (vitest) in `project/` and in each package.
 
+Only the web build registers the PWA service worker (`project/src/serviceWorkerPolicy.ts`
+decides; Android and Electron never register one). The Electron main process clears
+service workers and CacheStorage, and nothing else, before loading the page
+(`project/electron/src/serviceWorkerStorage.ts`), because each launch's renderer origin
+is a new random localhost port. [Proposed — unconfirmed: this runs on every launch, not
+once.]
+
 User docs are the VitePress site in `docs/` (`npm run docs:build`). The specs are in
 `notes/dev/` (see Sources of truth below).
 
