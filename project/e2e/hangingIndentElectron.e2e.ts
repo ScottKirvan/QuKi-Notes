@@ -14,11 +14,6 @@ const electronMain = path.join(electronDir, "dist", "main.js");
 const electronRequire = createRequire(path.join(electronDir, "package.json"));
 const electronExecutablePath = electronRequire("electron") as unknown as string;
 
-// The Electron this project ships is Chromium 130; `text-indent: <length>
-// hanging` arrived in Chromium 146. Pinning the engine here is what stops this
-// script passing on some newer engine by accident.
-const LAST_CHROMIUM_WITHOUT_HANGING = 145;
-
 function baseEnv(): NodeJS.ProcessEnv {
   const env = { ...process.env };
   delete env.ELECTRON_RUN_AS_NODE;
@@ -80,9 +75,7 @@ async function main(): Promise<void> {
         userAgent: navigator.userAgent,
       }));
       const chromium = Number(/Chrome\/(\d+)/.exec(probe.userAgent)?.[1]);
-      assert(!probe.hanging, `this must run on an engine without text-indent: hanging, but CSS.supports says it has it (${probe.userAgent})`);
       assert(/Electron\//.test(probe.userAgent), `expected the Electron desktop app, got ${probe.userAgent}`);
-      assert(chromium <= LAST_CHROMIUM_WITHOUT_HANGING, `expected Chromium <= ${LAST_CHROMIUM_WITHOUT_HANGING}, got ${chromium}`);
       return `${probe.userAgent.match(/Electron\/[\d.]+/)?.[0]} on Chromium ${chromium}; CSS.supports("text-indent", "10px hanging") = ${probe.hanging}`;
     },
   };

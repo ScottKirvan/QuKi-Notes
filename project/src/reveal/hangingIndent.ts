@@ -142,8 +142,8 @@ function measureStart(view: EditorView, line: HTMLElement): Start | null {
  * first row is laid out exactly as it is without the float — unlike padding
  * with a negative text-indent, which moves the content edge that every tab
  * stop in the first row is measured from. (`text-indent: <length> hanging`
- * would also leave the first row alone, but it needs Chromium 146; the desktop
- * app's Electron is Chromium 130.)
+ * would also leave the first row alone, but Chromium only has it from 146, and
+ * the app also runs on older engines.)
  *
  * The float has to end inside the last row: any shorter and the last rows are
  * not pushed over, any longer and it makes the line taller, and a tall enough
