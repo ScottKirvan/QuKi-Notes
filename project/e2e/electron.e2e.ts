@@ -35,11 +35,11 @@ function mkTempStorageDir(): string {
 const childEnv = { ...process.env, QUKI_ELECTRON_DIR: "" };
 delete childEnv.ELECTRON_RUN_AS_NODE;
 
-async function launch(storageDir: string): Promise<{ app: ElectronApplication; page: Page }> {
+async function launch(storageDir: string, userDataDir: string): Promise<{ app: ElectronApplication; page: Page }> {
   const app = await electron.launch({
     executablePath: electronExecutablePath,
     args: [electronMain],
-    env: { ...childEnv, QUKI_ELECTRON_DIR: storageDir },
+    env: { ...childEnv, QUKI_ELECTRON_DIR: storageDir, QUKI_ELECTRON_USERDATA_DIR: userDataDir },
   });
   const page = await app.firstWindow();
   await page.waitForSelector(".cm-content");
@@ -59,10 +59,13 @@ async function main(): Promise<void> {
 
   const storageDir = mkTempStorageDir();
   console.log(`[e2e] Electron QUKI_ELECTRON_DIR: ${storageDir}`);
+  // One userData folder for the whole file: scenario 8 restarts the app and
+  // must find the preferences the first launch wrote.
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "quki-electron-e2e-userdata-"));
 
   // --- Scenario 1: create a QuKi in the real Electron app; confirm a real
   // .md file appears on disk at the expected path with the expected content. ---
-  let { app, page } = await launch(storageDir);
+  let { app, page } = await launch(storageDir, userDataDir);
 
   // main.ts suppresses the default Electron menu only when app.isPackaged -
   // this e2e run always launches the unpackaged dist/main.js directly, so
@@ -239,7 +242,7 @@ async function main(): Promise<void> {
   // on launch), and the saved QuKi is still on disk and opens from the QuKi
   // list with its content - the file on disk is the source of truth, not
   // in-memory state. Opening it also puts it in the editor for scenario 9. ---
-  ({ app, page } = await launch(storageDir));
+  ({ app, page } = await launch(storageDir, userDataDir));
   const bodyAfterRestart = await readEditorBody(page);
   assert(bodyAfterRestart === "", `the editor should be blank right after a real process restart, got: ${bodyAfterRestart}`);
   mdFiles = fs.readdirSync(storageDir).filter((f) => f.endsWith(".md"));
@@ -299,6 +302,7 @@ async function main(): Promise<void> {
 
   await app.close();
   fs.rmSync(storageDir, { recursive: true, force: true });
+  fs.rmSync(userDataDir, { recursive: true, force: true });
 }
 
 main()

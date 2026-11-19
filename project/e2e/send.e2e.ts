@@ -20,6 +20,15 @@ function mkTempStorageDir(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "quki-send-e2e-"));
 }
 
+// Each launch gets a fresh userData folder so no run reads or writes the
+// developer's real preferences.json (or its service worker cache).
+const userDataDirs: string[] = [];
+function mkTempUserDataDir(): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "quki-send-e2e-userdata-"));
+  userDataDirs.push(dir);
+  return dir;
+}
+
 // See e2e/electron.e2e.ts for why ELECTRON_RUN_AS_NODE must not be inherited.
 const baseChildEnv = { ...process.env, QUKI_ELECTRON_DIR: "" };
 delete baseChildEnv.ELECTRON_RUN_AS_NODE;
@@ -32,7 +41,7 @@ delete baseChildEnv.ELECTRON_RUN_AS_NODE;
  * temp storage dir elsewhere in this suite.
  */
 async function launch(storageDir: string, forcePlatform?: string): Promise<{ app: ElectronApplication; page: Page }> {
-  const env: NodeJS.ProcessEnv = { ...baseChildEnv, QUKI_ELECTRON_DIR: storageDir };
+  const env: NodeJS.ProcessEnv = { ...baseChildEnv, QUKI_ELECTRON_DIR: storageDir, QUKI_ELECTRON_USERDATA_DIR: mkTempUserDataDir() };
   if (forcePlatform) env.QUKI_TEST_FORCE_PLATFORM = forcePlatform;
   else delete env.QUKI_TEST_FORCE_PLATFORM;
   const app = await electron.launch({
@@ -164,6 +173,9 @@ async function main(): Promise<void> {
 }
 
 main()
+  .finally(() => {
+    for (const dir of userDataDirs) fs.rmSync(dir, { recursive: true, force: true });
+  })
   .then(() => {
     console.log("[e2e-send] ALL SEND SCENARIOS PASSED");
     process.exit(0);
