@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { type Extension, EditorState } from "@codemirror/state";
+import { type Extension, EditorState, RangeSet } from "@codemirror/state";
 import { markdown } from "@codemirror/lang-markdown";
 import { GFM } from "@lezer/markdown";
 import { ensureSyntaxTree, syntaxTree } from "@codemirror/language";
@@ -1185,5 +1185,44 @@ describe("GitHub callouts", () => {
 
   it("given plain-text mode, when decorated, then a callout gets no decorations", () => {
     expect(decorationsFor(doc, 0, true)).toEqual([]);
+  });
+});
+
+// RangeSet.spans is the walk CodeMirror's view builds the line DOM from: the
+// `active` marks it hands a point are the mark elements its widget is drawn in.
+function marksAroundWidgets(doc: string, caret: number, widgetName: string): string[][] {
+  const state = EditorState.create({ doc, selection: { anchor: caret }, extensions: [markdown({ extensions: GFM }), plainTextMode] });
+  const found: string[][] = [];
+  RangeSet.spans([buildDecorations(state)], 0, doc.length, {
+    span() {},
+    point(_from, _to, value, active) {
+      const widget = (value.spec as { widget?: object }).widget;
+      if (widget?.constructor.name !== widgetName) return;
+      found.push(active.map((mark) => (mark.spec as { class?: string }).class ?? ""));
+    },
+  });
+  return found;
+}
+
+describe("a link drawn inside a heading (issue #567)", () => {
+  it.each([
+    ["a link ending the heading", "# Start [end](https://example.com)\n\nlast"],
+    ["a link that is the whole heading", "# [only](https://example.com)\n\nlast"],
+    ["a bare URL heading", "## https://example.com\n\nlast"],
+    ["a link mid-heading", "### Start [mid](https://example.com) end\n\nlast"],
+    ["a link starting the heading", "###### [start](https://example.com) end\n\nlast"],
+  ])("given %s and the caret elsewhere, when the line is drawn, then the link widget sits inside the heading mark", (_name, doc) => {
+    const level = doc.indexOf(" ");
+    expect(marksAroundWidgets(doc, doc.length, "LinkWidget")).toEqual([[`cm-quki-heading cm-quki-heading-${level}`]]);
+  });
+
+  it("given an image ending the heading and the caret elsewhere, when the line is drawn, then the image widget sits inside the heading mark", () => {
+    const doc = "# Pic ![alt](https://example.com/p.png)\n\nlast";
+    expect(marksAroundWidgets(doc, doc.length, "ImageWidget")).toEqual([["cm-quki-heading cm-quki-heading-1"]]);
+  });
+
+  it("given a link outside a heading, when the line is drawn, then the link widget sits in no mark", () => {
+    const doc = "see [x](https://example.com)\n\nlast";
+    expect(marksAroundWidgets(doc, doc.length, "LinkWidget")).toEqual([[]]);
   });
 });

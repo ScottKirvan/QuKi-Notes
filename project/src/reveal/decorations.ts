@@ -276,8 +276,12 @@ export function buildDecorations(state: EditorState): DecorationSet {
       case "ATXHeading6": {
         const level = headingLevel(element.type);
         ranges.push(
+          // A replace widget (a link, a bare URL, an image) that ends exactly
+          // where a non-inclusive mark ends is drawn outside that mark, so a
+          // heading ending in a link would draw the link at body size.
           Decoration.mark({
             class: `cm-quki-heading cm-quki-heading-${level}`,
+            inclusiveEnd: true,
           }).range(element.start, element.end),
         );
         if (!revealed) {
