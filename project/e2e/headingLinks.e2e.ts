@@ -79,7 +79,7 @@ async function lineRuns(page: Page, needle: string): Promise<TextRun[]> {
 async function assertHeadingSizes(page: Page, tag: string, level: number): Promise<void> {
   const plain = await lineRuns(page, `Plain h${level}`);
   assert(plain.length === 1 && plain[0]!.inHeading, `${tag} the plain h${level} should be one run inside the heading mark: ${JSON.stringify(plain)}`);
-  const { fontSize } = plain[0]!;
+  const { fontSize, fontWeight } = plain[0]!;
   const outside = (await lineRuns(page, "outside link")).find((r) => r.inLink);
   assert(outside !== undefined, `${tag} the link outside a heading should render as a link`);
 
@@ -89,8 +89,8 @@ async function assertHeadingSizes(page: Page, tag: string, level: number): Promi
     assert(linkRuns.length === 1, `${tag} h${level} ${variant.name}: expected one drawn link, got ${JSON.stringify(runs)}`);
     for (const run of runs) {
       assert(
-        run.fontSize === fontSize && Number(run.fontWeight) >= 600 && run.inHeading,
-        `${tag} h${level} ${variant.name}: "${run.text}" should render at the plain h${level}'s size ${fontSize}, bold, inside the heading, got ${run.fontSize}, weight ${run.fontWeight}, inHeading=${run.inHeading}`,
+        run.fontSize === fontSize && run.fontWeight === fontWeight && run.inHeading,
+        `${tag} h${level} ${variant.name}: "${run.text}" should render like the plain h${level} (${fontSize}, weight ${fontWeight}, inside the heading), got ${run.fontSize}, weight ${run.fontWeight}, inHeading=${run.inHeading}`,
       );
     }
     const link = linkRuns[0]!;
@@ -121,7 +121,10 @@ async function runScenario(browser: Browser, url: string): Promise<void> {
 
   const outside = (await lineRuns(page, "outside link")).find((r) => r.inLink)!;
   const paragraph = (await lineRuns(page, "in a paragraph")).find((r) => !r.inLink)!;
-  assert(!outside.inHeading && outside.fontSize === paragraph.fontSize, `${tag} a link outside a heading stays at the paragraph's size ${paragraph.fontSize}, got ${outside.fontSize}`);
+  assert(
+    !outside.inHeading && outside.fontSize === paragraph.fontSize && outside.fontWeight === paragraph.fontWeight,
+    `${tag} a link outside a heading stays at the paragraph's size ${paragraph.fontSize} and weight ${paragraph.fontWeight}, got ${outside.fontSize}, weight ${outside.fontWeight}`,
+  );
   console.log(`${tag} PASS: a link outside a heading is unchanged`);
 
   await context.route("https://example.com/**", (route) => route.fulfill({ status: 200, contentType: "text/html", body: "<title>target</title>" }));
