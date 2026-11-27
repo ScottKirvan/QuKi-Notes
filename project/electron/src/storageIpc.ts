@@ -119,3 +119,13 @@ export const FAILURE_LOG_CHANNELS = {
   read: 'quki:failureLog:read',
   clear: 'quki:failureLog:clear',
 } as const;
+
+/**
+ * The report-a-problem bridge: the window hands the main process a report's
+ * JSON text and the main process posts it to the report relay (reportRelay.ts),
+ * so the relay's CORS rules never apply. Sent only when the user taps Send.
+ * Duplicated as a string literal in preload.ts, like the groups above.
+ */
+export const REPORT_CHANNELS = {
+  send: 'quki:report:send',
+} as const;

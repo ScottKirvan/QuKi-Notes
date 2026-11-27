@@ -153,3 +153,8 @@ contextBridge.exposeInMainWorld('electronFailureLogAPI', {
   read: () => ipcRenderer.invoke('quki:failureLog:read'),
   clear: () => ipcRenderer.invoke('quki:failureLog:clear'),
 });
+
+/** The report-a-problem bridge (see storageIpc.ts's REPORT_CHANNELS). */
+contextBridge.exposeInMainWorld('electronReportAPI', {
+  send: (body: string) => ipcRenderer.invoke('quki:report:send', body),
+});
