@@ -106,4 +106,9 @@ describe("display strings", () => {
     expect(formatBuildString("0.1.0", clean)).toBe("QuKi Notes 0.1.0 (branch feat/about-box, built 2026-09-21 08:32 UTC)");
     expect(formatBuildString("0.1.0", dirty)).toBe("QuKi Notes 0.1.0 (branch feat/about-box, built 2026-09-21 08:32 UTC)");
   });
+
+  it("formatBuildString appends the operating system after the build when one is given", () => {
+    expect(formatBuildString("0.1.0", clean, "Android 14")).toBe("QuKi Notes 0.1.0 (branch feat/about-box, built 2026-09-21 08:32 UTC) · Android 14");
+    expect(formatBuildString("0.1.0", clean, "")).toBe(formatBuildString("0.1.0", clean));
+  });
 });

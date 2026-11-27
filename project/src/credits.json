@@ -1,0 +1,33 @@
+{
+  "sections": [
+    {
+      "title": "Created by",
+      "entries": [
+        { "name": "Scott Kirvan", "url": "https://www.scottkirvan.com" }
+      ]
+    },
+    {
+      "title": "Inspired by",
+      "entries": [
+        { "name": "Zibaldone", "detail": "The loose-leaf notebook of Italian tradition", "url": "https://en.wikipedia.org/wiki/Zibaldone" },
+        { "name": "Obsidian", "detail": "Its CSS variable names let an Obsidian theme restyle QuKi Notes", "url": "https://obsidian.md" },
+        { "name": "GitHubDHC", "detail": "The theme QuKi Notes' default colours come from", "url": "https://github.com/ScottKirvan/GitHubDHC" }
+      ]
+    },
+    {
+      "title": "Built with",
+      "entries": [
+        { "name": "CodeMirror", "detail": "MIT License — the editor", "url": "https://codemirror.net" },
+        { "name": "Lezer", "detail": "MIT License — the Markdown and code parsers", "url": "https://lezer.codemirror.net" },
+        { "name": "Lucide", "detail": "ISC License — the icons", "url": "https://lucide.dev" },
+        { "name": "Capacitor", "detail": "MIT License — the Android app", "url": "https://capacitorjs.com" },
+        { "name": "Electron", "detail": "MIT License — the Windows and Linux apps", "url": "https://www.electronjs.org" },
+        { "name": "Turndown", "detail": "MIT License — turns pasted web pages into Markdown", "url": "https://github.com/mixmark-io/turndown" },
+        { "name": "Workbox", "detail": "MIT License — offline support on the web", "url": "https://developer.chrome.com/docs/workbox" },
+        { "name": "Model Context Protocol SDK", "detail": "MIT License — the quki-mcp server", "url": "https://github.com/modelcontextprotocol/typescript-sdk" },
+        { "name": "Zod", "detail": "MIT License — checks the quki-mcp server's input", "url": "https://zod.dev" }
+      ]
+    }
+  ],
+  "notice": "Obsidian, Electron, Capacitor and GitHub are trademarks of their respective owners. QuKi Notes is not affiliated with or endorsed by them."
+}
