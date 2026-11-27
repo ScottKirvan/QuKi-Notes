@@ -1,8 +1,10 @@
-import { BookOpen } from "lucide";
+import { BookOpen, Bug, ScrollText, ShieldCheck, Sparkles } from "lucide";
 
 import type { BackDismissStack } from "../backDismissStack";
 import { buildLineParts, formatBuildString, type BuildInfo } from "../buildInfo";
-import { createIcon } from "./icons";
+import { osLabelFromUserAgent } from "../platformLabel";
+import { createCreditsDialog } from "./creditsDialog";
+import { createIcon, type IconNode } from "./icons";
 import type { ShowToast } from "./toast";
 
 export interface AboutDialogOptions {
@@ -10,6 +12,8 @@ export interface AboutDialogOptions {
   buildInfo: BuildInfo;
   showToast: ShowToast;
   backDismiss?: BackDismissStack;
+  /** When given, a "Report a problem" row replaces the GitHub row, and its button closes About and calls this. */
+  openReportForm?: () => void;
 }
 
 export interface AboutDialog {
@@ -27,6 +31,8 @@ const ICON_URL = "/icons/icon-192.png";
 const DOCS_URL = "https://www.scottkirvan.com/QuKi-Notes/";
 const DISCORD_URL = "https://discord.gg/TN6XJSNK5Y";
 const GITHUB_URL = "https://github.com/ScottKirvan/QuKi-Notes";
+const RELEASES_URL = `${GITHUB_URL}/releases`;
+const PRIVACY_URL = `${DOCS_URL}privacy`;
 const KOFI_URL = "https://ko-fi.com/ScottKirvan";
 
 // Discord and GitHub icon SVGs, copied verbatim (path data included) from
@@ -41,17 +47,18 @@ const GITHUB_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" 
 // on the web, where nothing else applies it; the path data itself is untouched.
 const KOFI_SVG = `<svg fill="currentColor" role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><title>Ko-fi</title><path d="M11.351 2.715c-2.7 0-4.986.025-6.83.26C2.078 3.285 0 5.154 0 8.61c0 3.506.182 6.13 1.585 8.493 1.584 2.701 4.233 4.182 7.662 4.182h.83c4.209 0 6.494-2.234 7.637-4a9.5 9.5 0 0 0 1.091-2.338C21.792 14.688 24 12.22 24 9.208v-.415c0-3.247-2.13-5.507-5.792-5.87-1.558-.156-2.65-.208-6.857-.208m0 1.947c4.208 0 5.09.052 6.571.182 2.624.311 4.13 1.584 4.13 4v.39c0 2.156-1.792 3.844-3.87 3.844h-.935l-.156.649c-.208 1.013-.597 1.818-1.039 2.546-.909 1.428-2.545 3.064-5.922 3.064h-.805c-2.571 0-4.831-.883-6.078-3.195-1.09-2-1.298-4.155-1.298-7.506 0-2.181.857-3.402 3.012-3.714 1.533-.233 3.559-.26 6.39-.26m6.547 2.287c-.416 0-.65.234-.65.546v2.935c0 .311.234.545.65.545 1.324 0 2.051-.754 2.051-2s-.727-2.026-2.052-2.026m-10.39.182c-1.818 0-3.013 1.48-3.013 3.142 0 1.533.858 2.857 1.949 3.897.727.701 1.87 1.429 2.649 1.896a1.47 1.47 0 0 0 1.507 0c.78-.467 1.922-1.195 2.623-1.896 1.117-1.039 1.974-2.364 1.974-3.897 0-1.662-1.247-3.142-3.039-3.142-1.065 0-1.792.545-2.338 1.298-.493-.753-1.246-1.298-2.312-1.298"/></svg>`;
 
-interface LinkRowSpec {
+export interface LinkRowSpec {
   key: string;
   title: string;
   description: string;
   label: string;
-  url: string;
+  /** Absent on a row whose button runs code instead of following a link. */
+  url?: string;
   /** Documentation alone renders as the filled/accent primary action in Flutter (FilledButton vs OutlinedButton). */
   accent?: boolean;
 }
 
-const LINK_ROWS: LinkRowSpec[] = [
+const BASE_LINK_ROWS: LinkRowSpec[] = [
   {
     key: "docs",
     title: "Documentation",
@@ -83,19 +90,47 @@ const LINK_ROWS: LinkRowSpec[] = [
   },
 ];
 
+const REPORT_ROW: LinkRowSpec = {
+  key: "report",
+  title: "Report a problem",
+  description: "Bugs, ideas or feedback.",
+  label: "Report",
+};
+
+/** The link rows in order. With a report form, "Report a problem" takes the GitHub row's place (GitHub stays in the footer). */
+export function buildLinkRows(hasReportForm: boolean): LinkRowSpec[] {
+  return BASE_LINK_ROWS.map((row) => (hasReportForm && row.key === "github" ? REPORT_ROW : row));
+}
+
+interface FooterLinkSpec {
+  key: string;
+  label: string;
+  /** Absent on the button that opens the credits dialog instead of a page. */
+  url?: string;
+}
+
+const FOOTER_LINKS: FooterLinkSpec[] = [
+  { key: "whats-new", label: "What's new", url: RELEASES_URL },
+  { key: "credits", label: "Credits" },
+  { key: "privacy", label: "Privacy", url: PRIVACY_URL },
+  { key: "github", label: "GitHub", url: GITHUB_URL },
+];
+
+const FOOTER_ICONS: Record<string, IconNode> = { "whats-new": Sparkles, credits: ScrollText, privacy: ShieldCheck };
+
 function iconMarkup(key: string): string {
   // BookOpen goes through the app's own Lucide-icon path (icons.ts) instead
   // of a hand-copied SVG string, so it stays in sync with every other
   // Lucide icon in the app; the other three have no Lucide equivalent and
   // are Flutter's own custom assets, so they're embedded as-is.
-  if (key === "docs") return "";
+  if (key === "docs" || key === "report") return "";
   if (key === "discord") return DISCORD_SVG;
   if (key === "github") return GITHUB_SVG;
   return KOFI_SVG;
 }
 
 export function createAboutDialog(container: HTMLElement, options: AboutDialogOptions): AboutDialog {
-  const buildString = formatBuildString(options.version, options.buildInfo);
+  const linkRows = buildLinkRows(options.openReportForm !== undefined);
 
   const overlay = document.createElement("div");
   overlay.className = "confirm-overlay about-overlay";
@@ -113,7 +148,7 @@ export function createAboutDialog(container: HTMLElement, options: AboutDialogOp
         </div>
       </div>
       <div class="about-links">
-        ${LINK_ROWS.map(
+        ${linkRows.map(
           (row) => `
           <div class="about-link-row">
             <span class="about-link-icon" data-row="${row.key}">${iconMarkup(row.key)}</span>
@@ -121,14 +156,25 @@ export function createAboutDialog(container: HTMLElement, options: AboutDialogOp
               <span class="about-link-title">${row.title}</span>
               <span class="about-link-desc">${row.description}</span>
             </div>
-            <a
+            ${
+              row.url === undefined
+                ? `<button type="button" class="about-link-btn" data-row="${row.key}">${row.label}</button>`
+                : `<a
               class="about-link-btn${row.accent ? " accent" : ""}"
               data-row="${row.key}"
               href="${row.url}"
               target="_blank"
               rel="noopener noreferrer"
-            >${row.label}</a>
+            >${row.label}</a>`
+            }
           </div>`,
+        ).join("")}
+      </div>
+      <div class="about-footer">
+        ${FOOTER_LINKS.map((link) =>
+          link.url === undefined
+            ? `<button type="button" class="about-footer-icon" data-footer="${link.key}" aria-label="${link.label}" title="${link.label}"></button>`
+            : `<a class="about-footer-icon" data-footer="${link.key}" href="${link.url}" target="_blank" rel="noopener noreferrer" aria-label="${link.label}" title="${link.label}"></a>`,
         ).join("")}
       </div>
       <div class="confirm-actions">
@@ -140,6 +186,15 @@ export function createAboutDialog(container: HTMLElement, options: AboutDialogOp
 
   const docsIconHost = overlay.querySelector<HTMLElement>('.about-link-icon[data-row="docs"]');
   if (docsIconHost) docsIconHost.appendChild(createIcon(BookOpen, 20));
+  const reportIconHost = overlay.querySelector<HTMLElement>('.about-link-icon[data-row="report"]');
+  if (reportIconHost) reportIconHost.appendChild(createIcon(Bug, 20));
+  for (const link of FOOTER_LINKS) {
+    const host = overlay.querySelector<HTMLElement>(`.about-footer-icon[data-footer="${link.key}"]`)!;
+    const iconNode = FOOTER_ICONS[link.key];
+    if (iconNode === undefined) host.innerHTML = GITHUB_SVG;
+    else host.appendChild(createIcon(iconNode, 20));
+    host.querySelector("svg")!.setAttribute("aria-hidden", "true");
+  }
 
   overlay.querySelector<HTMLElement>(".about-version")!.textContent = `Version ${options.version}`;
   const buildEl = overlay.querySelector<HTMLElement>(".about-build")!;
@@ -152,7 +207,10 @@ export function createAboutDialog(container: HTMLElement, options: AboutDialogOp
     buildEl.append(span, isLast ? "" : " ");
   });
   const copyBtn = overlay.querySelector<HTMLButtonElement>(".about-copy")!;
-  const linkBtns = Array.from(overlay.querySelectorAll<HTMLAnchorElement>(".about-link-btn"));
+  const linkBtns = Array.from(overlay.querySelectorAll<HTMLElement>(".about-link-btn"));
+  const footerIcons = Array.from(overlay.querySelectorAll<HTMLElement>(".about-footer-icon"));
+  const creditsBtn = overlay.querySelector<HTMLElement>('.about-footer-icon[data-footer="credits"]')!;
+  const credits = createCreditsDialog(container, { backDismiss: options.backDismiss });
   const closeBtn = overlay.querySelector<HTMLButtonElement>(".about-close")!;
 
   let opener: HTMLElement | null = null;
@@ -167,9 +225,10 @@ export function createAboutDialog(container: HTMLElement, options: AboutDialogOp
     opener = null;
   };
 
-  const focusOrder: HTMLElement[] = [copyBtn, ...linkBtns, closeBtn];
+  const focusOrder: HTMLElement[] = [copyBtn, ...linkBtns, ...footerIcons, closeBtn];
 
   const onKeyDown = (e: KeyboardEvent): void => {
+    if (credits.isOpen()) return;
     if (e.key === "Escape") {
       e.preventDefault();
       close();
@@ -192,10 +251,15 @@ export function createAboutDialog(container: HTMLElement, options: AboutDialogOp
     if (e.target === overlay) close();
   });
   closeBtn.addEventListener("click", close);
+  creditsBtn.addEventListener("click", () => credits.open(creditsBtn));
+  overlay.querySelector<HTMLElement>('.about-link-btn[data-row="report"]')?.addEventListener("click", () => {
+    close();
+    options.openReportForm?.();
+  });
   copyBtn.addEventListener("click", () => {
     void (async () => {
       try {
-        await navigator.clipboard.writeText(buildString);
+        await navigator.clipboard.writeText(formatBuildString(options.version, options.buildInfo, osLabelFromUserAgent(navigator.userAgent)));
         options.showToast("Copied to clipboard.", 2000);
       } catch (error) {
         console.error("QuKi build info copy-to-clipboard failed:", error);
@@ -212,6 +276,9 @@ export function createAboutDialog(container: HTMLElement, options: AboutDialogOp
       unregisterBack = options.backDismiss?.push(close) ?? ((): void => {});
       closeBtn.focus();
     },
-    close,
+    close: () => {
+      credits.close();
+      close();
+    },
   };
 }

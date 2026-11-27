@@ -55,6 +55,8 @@ export function buildLineParts(info: BuildInfo): string[] {
   return [info.branch, info.builtAt];
 }
 
-export function formatBuildString(version: string, info: BuildInfo): string {
-  return `QuKi Notes ${version} (branch ${info.branch}, built ${info.builtAt})`;
+/** `os` is the operating system's label (see platformLabel.ts); left out when empty. */
+export function formatBuildString(version: string, info: BuildInfo, os = ""): string {
+  const build = `QuKi Notes ${version} (branch ${info.branch}, built ${info.builtAt})`;
+  return os === "" ? build : `${build} · ${os}`;
 }

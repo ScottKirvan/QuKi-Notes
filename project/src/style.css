@@ -1584,3 +1584,133 @@ textarea.report-input {
   color: var(--text-accent);
   font-weight: 600;
 }
+
+.about-dialog {
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+}
+
+.about-footer {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  margin: -8px 0 12px;
+}
+
+.about-footer-icon {
+  font: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.about-footer-icon:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.about-footer-icon:active {
+  background: var(--background-modifier-active-hover);
+}
+
+.about-footer-icon:focus-visible {
+  outline: 2px solid var(--background-modifier-border-focus);
+  outline-offset: -2px;
+}
+
+.about-footer-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.credits-dialog {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  max-width: 340px;
+  max-height: calc(100dvh - 48px);
+  border: 1px solid var(--modal-border-color);
+}
+
+.credits-heading {
+  flex: none;
+  margin: 0 0 8px;
+  font-size: 16px;
+  text-align: center;
+}
+
+.credits-viewport {
+  position: relative;
+  flex: 0 1 auto;
+  height: min(340px, 50dvh);
+  min-height: 0;
+  margin-bottom: 12px;
+  overflow: hidden;
+  text-align: center;
+  mask-image: linear-gradient(to bottom, transparent 0, black 12%, black 88%, transparent 100%);
+}
+
+/* Hidden until the roll's animation starts (it takes over opacity), so the list never flashes in place first. */
+.credits-viewport.is-rolling .credits-track {
+  opacity: 0;
+}
+
+.credits-viewport.is-static {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  mask-image: none;
+}
+
+.credits-section {
+  margin-bottom: 22px;
+}
+
+.credits-title {
+  margin-bottom: 6px;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.credits-entry {
+  margin-bottom: 8px;
+}
+
+.credits-name {
+  font-size: 15px;
+  color: var(--text-normal);
+}
+
+a.credits-name {
+  color: var(--text-accent);
+}
+
+.credits-detail {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.credits-notice {
+  margin: 26px 12px 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.credits-dialog .credits-close {
+  min-height: 44px;
+  padding: 8px 14px;
+  border: none;
+  background: transparent;
+  color: var(--text-accent);
+}
