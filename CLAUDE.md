@@ -20,6 +20,13 @@ Layout under `project/`:
   `npm run test:e2e:electron:setup`; CI runs both under xvfb in the `e2e-electron` job). Unit tests:
   `npm test` (vitest) in `project/` and in each package.
 
+A new, blank, unsaved QuKi (launch, New, Back to a blank one, after Delete) shows a
+welcome over the top of the editor (`project/src/welcome/`): app icon, a time-of-day
+greeting, one tip, and the three most recent QuKis. It is DOM outside the document, never
+saved or exported, and `pointer-events: none` except its recent rows, so a tap on it
+reaches the editor. The first pointer or key event, any edit, or loading a saved QuKi
+removes it. Every tip's text must stay true of the app (`welcomeContent.ts`).
+
 Only the web build registers the PWA service worker (`project/src/serviceWorkerPolicy.ts`
 decides; Android and Electron never register one). The Electron main process clears
 service workers and CacheStorage, and nothing else, before loading the page

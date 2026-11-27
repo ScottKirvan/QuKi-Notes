@@ -56,6 +56,7 @@ import { imageResolver } from "./reveal/imageResolver";
 import { createHtmlPastePlugin } from "./pasteHtml";
 import { createImagePastePlugin } from "./pasteImage";
 import { AutoSaveController, blankInitialQuKi, type InitialQuKi } from "./persistence";
+import { createWelcome, type Welcome } from "./welcome/welcomeView";
 import { sendQuKi, selectShareTransport, createClipboardTransport } from "./send";
 import { shareTextViaAndroid } from "./androidShare";
 import { createWebShareTransport } from "./webShare";
@@ -569,6 +570,7 @@ async function init(): Promise<void> {
   // synchronous setup below has finished running.
   let toolbarController: FormattingToolbarHandle | undefined;
   let wordCount: WordCountReadout | undefined;
+  let welcome: Welcome | undefined;
   // Same forward-declared pattern, for the scroll-margin fix on the update
   // listener below.
   let editModeTracker: EditModeTracker | undefined;
@@ -656,6 +658,7 @@ async function init(): Promise<void> {
       EditorView.updateListener.of((update) => {
         if (update.docChanged && !suppressAutoSaveNotify) autoSave.notifyChange();
         if (update.docChanged) updateQuKisButtonState();
+        if (update.docChanged && !suppressAutoSaveNotify) welcome?.dismiss();
         toolbarController?.onUpdate(update);
         if (update.docChanged) wordCount?.refresh();
         if (update.geometryChanged) wordCount?.reposition();
@@ -865,6 +868,8 @@ async function init(): Promise<void> {
   if (shouldFocusOnOpen(initial.id)) {
     focusEditorAndShowKeyboard();
   }
+  welcome = createWelcome(document.querySelector<HTMLElement>("#editor-host")!, store, (id) => void openQuKiInEditor(id));
+  welcome.showForBlankQuKi();
   toolbarController.setVisible(editModeTracker.isEditMode());
   wordCount.reposition();
 
@@ -1057,6 +1062,7 @@ async function init(): Promise<void> {
       loadDocumentIntoEditor("");
       autoSave.resetBaseline({ id: null, body: "", modifiedAt: null });
       updateDeleteButtonState();
+      welcome?.showForBlankQuKi();
       if (navigator_.current === "editor") backHistory.visitQuKi(null);
       else backHistory.holdInEditor(null);
     } else {
@@ -1170,6 +1176,7 @@ async function init(): Promise<void> {
     loadDocumentIntoEditor(detail.body);
     autoSave.resetBaseline({ id: detail.id, body: detail.body, modifiedAt: detail.modifiedAt });
     updateDeleteButtonState();
+    welcome?.hideForLoadedQuKi();
     return true;
   }
 
@@ -1238,6 +1245,7 @@ async function init(): Promise<void> {
       loadDocumentIntoEditor("");
       autoSave.resetBaseline(blankInitialQuKi());
       updateDeleteButtonState();
+      welcome?.showForBlankQuKi();
       navigator_.popToRoot();
       focusEditorAndShowKeyboard();
       void refreshQuKisButton();
@@ -1265,6 +1273,7 @@ async function init(): Promise<void> {
     loadDocumentIntoEditor("");
     autoSave.resetBaseline(blank);
     updateDeleteButtonState();
+    welcome?.showForBlankQuKi();
     backHistory.visitQuKi(null);
     navigator_.popToRoot();
   }
@@ -1331,6 +1340,7 @@ async function init(): Promise<void> {
     rememberEditorScroll();
     loadDocumentIntoEditor(text);
     autoSave.resetBaseline({ id: result.id, body: text, modifiedAt: result.modifiedAt });
+    welcome?.hideForLoadedQuKi();
     updateDeleteButtonState();
     void refreshQuKisButton();
     backHistory.visitQuKi(result.id);
@@ -1408,6 +1418,7 @@ async function init(): Promise<void> {
     loadDocumentIntoEditor(blank.body);
     autoSave.resetBaseline(blank);
     updateDeleteButtonState();
+    welcome?.showForBlankQuKi();
     void refreshQuKisButton();
     // Like a launch: the earlier stops belong to the old folder.
     backHistory.reset();
