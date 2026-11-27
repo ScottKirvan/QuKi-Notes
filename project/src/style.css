@@ -927,6 +927,20 @@ body.theme-light .about-link-btn.accent {
   font-size: 1.15em;
 }
 
+/* h4-h6 take GitHubDHC and Obsidian sizes (1em, .875em, .85em); the bold
+   weight keeps them apart from body text. */
+.cm-quki-heading-4 {
+  font-size: 1em;
+}
+
+.cm-quki-heading-5 {
+  font-size: 0.875em;
+}
+
+.cm-quki-heading-6 {
+  font-size: 0.85em;
+}
+
 .cm-quki-strong {
   font-weight: 700;
 }
