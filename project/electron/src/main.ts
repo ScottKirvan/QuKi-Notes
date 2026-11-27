@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as http from 'node:http';
 import * as path from 'node:path';
 
-import { app, BrowserWindow, dialog, ipcMain, Menu, screen, session, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, net, screen, session, shell } from 'electron';
 // quki-core is ESM-only; under Node16 module resolution a CommonJS file
 // importing *types* from an ESM package must say which condition
 // ("import") to resolve them under (TS1542) - this has no runtime effect,
@@ -17,6 +17,7 @@ import {
   openDialogDefaultPath,
   saveDialogDefaultPath,
 } from './dialogFolder.js';
+import { postReport, reportRelayUrl } from './reportRelay.js';
 import { createFileFailureLogStore, FAILURE_LOG_FILE_NAME } from './failureLogFile.js';
 import { resolveMigratedStorageRoot } from './flutterMigration.js';
 import { PreferencesStore } from './preferences.js';
@@ -27,6 +28,7 @@ import {
   APP_LIFECYCLE_CHANNELS,
   EXPORT_CHANNELS,
   FAILURE_LOG_CHANNELS,
+  REPORT_CHANNELS,
   RESOLVE_PATH_SYNC_CHANNEL,
   SETUP_CHANNELS,
   STORAGE_CHANNELS,
@@ -154,6 +156,13 @@ function registerFailureLogIpc(): void {
     await failureLogReady;
     await failureLogStore?.clear();
   });
+}
+
+/** Posts a problem report to the relay from this process, when the user taps Send (never anywhere else, never automatically). */
+function registerReportIpc(): void {
+  ipcMain.handle(REPORT_CHANNELS.send, (_event, body: unknown) =>
+    postReport(body, (url, init) => net.fetch(url, init), reportRelayUrl(process.env)),
+  );
 }
 
 async function setBackendRoot(root: string): Promise<void> {
@@ -661,6 +670,8 @@ app.whenReady().then(async () => {
   }
 
   registerFailureLogIpc();
+
+  registerReportIpc();
   registerStorageIpc();
   registerSetupIpc(prefsStore);
   registerExportIpc(prefsStore);
