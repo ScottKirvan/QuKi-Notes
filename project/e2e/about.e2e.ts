@@ -204,10 +204,10 @@ async function runScenario(browser: Browser, url: string, scheme: "light" | "dar
   if (screenshotDir !== undefined) await page.screenshot({ path: path.join(screenshotDir, `about-${scheme}-copied.png`) });
   console.log(`${tag} PASS: tapping the version/build copied "${clipboard}" and toasted above the backdrop`);
 
-  const expectedLinkRows: Array<{ row: string; title: string; description: string; label: string; url: string; accent: boolean }> = [
+  const expectedLinkRows: Array<{ row: string; title: string; description: string; label: string; url: string | null; accent: boolean }> = [
     { row: "docs", title: "Documentation", description: "Official guide and setup instructions.", label: "Visit", url: "https://www.scottkirvan.com/QuKi-Notes/", accent: true },
     { row: "discord", title: "Discord", description: "Chat with other QuKi-Notes users and get support.", label: "Join", url: "https://discord.gg/TN6XJSNK5Y", accent: false },
-    { row: "github", title: "GitHub", description: "Source code, issues, and release notes.", label: "View", url: "https://github.com/ScottKirvan/QuKi-Notes", accent: false },
+    { row: "report", title: "Report a problem", description: "Bugs, ideas or feedback.", label: "Report", url: null, accent: false },
     { row: "kofi", title: "Buy me a coffee", description: "Show your love. Support QuKi-Notes and the author.", label: "Give", url: "https://ko-fi.com/ScottKirvan", accent: false },
   ];
   for (const expected of expectedLinkRows) {
@@ -219,10 +219,14 @@ async function runScenario(browser: Browser, url: string, scheme: "light" | "dar
     const link = row.locator(".about-link-btn");
     const label = await link.textContent();
     assert(label === expected.label, `${expected.row} link button label should be "${expected.label}", got "${label}"`);
-    const href = await link.getAttribute("href");
-    assert(href === expected.url, `${expected.row} link href should be "${expected.url}", got "${href}"`);
-    assert((await link.getAttribute("target")) === "_blank", `${expected.row} link must open externally (target=_blank)`);
-    assert((await link.getAttribute("rel")) === "noopener noreferrer", `${expected.row} link must have rel="noopener noreferrer"`);
+    if (expected.url === null) {
+      assert((await link.evaluate((el) => el.tagName)) === "BUTTON", `${expected.row} must be a button, it opens the report form inside the app`);
+    } else {
+      const href = await link.getAttribute("href");
+      assert(href === expected.url, `${expected.row} link href should be "${expected.url}", got "${href}"`);
+      assert((await link.getAttribute("target")) === "_blank", `${expected.row} link must open externally (target=_blank)`);
+      assert((await link.getAttribute("rel")) === "noopener noreferrer", `${expected.row} link must have rel="noopener noreferrer"`);
+    }
     const hasAccent = (await link.getAttribute("class"))?.includes("accent") ?? false;
     assert(hasAccent === expected.accent, `${expected.row} link's accent styling should be ${expected.accent}, got ${hasAccent}`);
     const iconChildCount = await row.locator(".about-link-icon").evaluate((el) => el.children.length + (el.textContent?.trim() ? 1 : 0));
@@ -241,7 +245,7 @@ async function runScenario(browser: Browser, url: string, scheme: "light" | "dar
     "button.about-copy",
     "a.about-link-btn.accent",
     "a.about-link-btn",
-    "a.about-link-btn",
+    "button.about-link-btn",
     "a.about-link-btn",
     "a.about-footer-icon",
     "button.about-footer-icon",

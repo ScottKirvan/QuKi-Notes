@@ -110,11 +110,11 @@ async function runScenario(browser: Browser, url: string, scheme: "light" | "dar
       assert((await item.getAttribute("target")) === "_blank" && (await item.getAttribute("rel")) === "noopener noreferrer", `${expected.key} must open externally`);
     }
   }
-  assert((await about.locator('[data-row="report"]').count()) === 0, "no Report a problem row without an openReportForm callback");
-  assert((await about.locator('.about-link-btn[data-row="github"]').count()) === 1, "the GitHub row stays without an openReportForm callback");
+  assert((await about.locator('.about-link-btn[data-row="report"]').count()) === 1, "the Report a problem row replaces the GitHub row");
+  assert((await about.locator('.about-link-btn[data-row="github"]').count()) === 0, "GitHub is in the footer only, not also a link row");
   const aboutBox = (await about.boundingBox())!;
   assert(aboutBox.x >= 0 && aboutBox.x + aboutBox.width <= 360 && aboutBox.y >= 0 && aboutBox.y + aboutBox.height <= 640, `About must fit a 360x640 phone, got ${JSON.stringify(aboutBox)}`);
-  console.log(`${tag} PASS: footer icons present with the right labels, hrefs and 44px targets; GitHub row unchanged; About fits a phone`);
+  console.log(`${tag} PASS: footer icons present with the right labels, hrefs and 44px targets; Report row in place of the GitHub row; About fits a phone`);
   if (screenshotDir !== undefined) {
     fs.mkdirSync(screenshotDir, { recursive: true });
     await page.screenshot({ path: path.join(screenshotDir, `about-footer-${scheme}-360.png`) });

@@ -1577,6 +1577,7 @@ a.credits-name {
   border: none;
   background: transparent;
   color: var(--text-accent);
+}
 
 .report-overlay {
   position: fixed;
