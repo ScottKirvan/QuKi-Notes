@@ -449,7 +449,7 @@ async function init(): Promise<void> {
   const overlayHost = document.querySelector<HTMLElement>("#overlay-host")!;
   const showToast = createToast(overlayHost);
   const confirm = createConfirmDialog(overlayHost, backDismiss);
-  const aboutDialog = createAboutDialog(overlayHost, { version: __APP_VERSION__, buildInfo: __BUILD_INFO__, showToast, backDismiss });
+  const aboutDialog = createAboutDialog(overlayHost, { version: __APP_VERSION__, buildInfo: __BUILD_INFO__, showToast, backDismiss, openReportForm });
   createReportForm(overlayHost, {
     version: __APP_VERSION__,
     buildInfo: __BUILD_INFO__,
