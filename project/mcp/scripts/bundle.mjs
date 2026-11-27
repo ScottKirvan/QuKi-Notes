@@ -6,7 +6,15 @@
 // and runs directly through the app's own bundled Electron binary via
 // ELECTRON_RUN_AS_NODE=1.
 import { build } from 'esbuild';
-import { chmodSync, mkdirSync } from 'node:fs';
+import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
+
+import {
+  assertNoMissing,
+  collectNotices,
+  NOTICES_FILE_NAME,
+  packageDirsFromMetafile,
+  renderNotices,
+} from '../../scripts/notices/lib.mjs';
 
 mkdirSync('dist-bundle', { recursive: true });
 
@@ -19,13 +27,23 @@ mkdirSync('dist-bundle', { recursive: true });
 // syntax. .mjs is unambiguous regardless of where it ends up (confirmed by
 // running the plain-.js version copied to an empty directory and watching it
 // fail exactly this way).
-await build({
+const result = await build({
   entryPoints: ['src/server.ts'],
   outfile: 'dist-bundle/server.mjs',
   bundle: true,
   platform: 'node',
   format: 'esm',
   target: 'node18',
+  metafile: true,
 });
+
+// esbuild keeps no licence files, so the notices for what it inlined are
+// written beside the bundle, which ships as a whole directory.
+const notices = collectNotices(packageDirsFromMetafile(result.metafile, process.cwd()));
+assertNoMissing(notices.missing);
+writeFileSync(
+  `dist-bundle/${NOTICES_FILE_NAME}`,
+  renderNotices(notices, 'QuKi Notes - third-party notices (quki-mcp server)'),
+);
 
 chmodSync('dist-bundle/server.mjs', 0o755);
