@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.27.0](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.26.1...v0.27.0) (2026-11-27)
+
+
+### Features
+
+* add credits and a footer of links to the About dialog ([41150be](https://github.com/ScottKirvan/QuKi-Notes/commit/41150beb04db27bd4e0e6e04ef84f155c6b60f08))
+* keep a local log of failures and crashes ([ae45dfa](https://github.com/ScottKirvan/QuKi-Notes/commit/ae45dfad08bce5905ddfe8232932b2a6e75bacfa))
+* open the report form from the About dialog ([812e9a9](https://github.com/ScottKirvan/QuKi-Notes/commit/812e9a9abf2294ba81bd782ed298b786b4a13fc2))
+* report a problem from inside the app ([108bb46](https://github.com/ScottKirvan/QuKi-Notes/commit/108bb46e3fe5487f7fbd9625ce844817d33b86a9)), closes [#513](https://github.com/ScottKirvan/QuKi-Notes/issues/513)
+* show a welcome in a new blank QuKi ([ca0763b](https://github.com/ScottKirvan/QuKi-Notes/commit/ca0763be46926a26ff89b5d5b6c4411e3caad7b9)), closes [#182](https://github.com/ScottKirvan/QuKi-Notes/issues/182)
+* show which formats are active at the caret in the toolbar ([1125116](https://github.com/ScottKirvan/QuKi-Notes/commit/1125116fa9d2fe90a467d908e5dfdf890fd4a727)), closes [#248](https://github.com/ScottKirvan/QuKi-Notes/issues/248)
+
+
+### Bug Fixes
+
+* add a 7-day cooldown to Dependabot version updates ([734a381](https://github.com/ScottKirvan/QuKi-Notes/commit/734a3813910dce4e5da97109d86d81bd32f12285))
+* compare Back's restored scroll with where the editor settled ([4622aca](https://github.com/ScottKirvan/QuKi-Notes/commit/4622aca5761888ce953e81f512414bab98ccbf9c))
+* don't register the service worker in the desktop app ([978fe0f](https://github.com/ScottKirvan/QuKi-Notes/commit/978fe0f0a4cf04a687e4378649f4e02fc2bf7a7f))
+* draw a link in a heading at the heading's weight ([b140691](https://github.com/ScottKirvan/QuKi-Notes/commit/b140691f0ab0a763d7af62e7258be7f5871b9f5f))
+* group Dependabot security fixes into one PR per folder ([5d337d3](https://github.com/ScottKirvan/QuKi-Notes/commit/5d337d3d1ed8111a607b4b3ec234070ef57633a6))
+* include the Android libraries' licence notices in the APK ([8587f73](https://github.com/ScottKirvan/QuKi-Notes/commit/8587f736b567fb1eabd3f103cfa955a6313ca3ad))
+* keep DOM Backspace stepping through a line-end marker with @codemirror/view 6.43.14 ([fba2d0e](https://github.com/ScottKirvan/QuKi-Notes/commit/fba2d0e350e58d3b4d4b6891105bb47a26e40fb2))
+* link the licence notices from the Credits dialog ([6bbee38](https://github.com/ScottKirvan/QuKi-Notes/commit/6bbee382e713f803e1f435b723e61279ed78704a))
+* remember the last folder used in file dialogs ([4bcfbd8](https://github.com/ScottKirvan/QuKi-Notes/commit/4bcfbd850c8f5859abbded9f967a12f112d50daa))
+* render a heading that ends with a link at heading size ([10bfb2b](https://github.com/ScottKirvan/QuKi-Notes/commit/10bfb2b824b8a57917af066b16043e0f3b3d3afe)), closes [#567](https://github.com/ScottKirvan/QuKi-Notes/issues/567)
+* replace the Flutter-era Dependabot config with npm and Actions updates ([03796f4](https://github.com/ScottKirvan/QuKi-Notes/commit/03796f449250b720ecf806438a4003d68a3436ef))
+* ship third-party licence notices with every build ([e154376](https://github.com/ScottKirvan/QuKi-Notes/commit/e1543767c1a0c37634aaa1e9320eec3ffc955de9))
+* style h4, h5 and h6 headings ([f3fd4e3](https://github.com/ScottKirvan/QuKi-Notes/commit/f3fd4e3dc031e3dc7937b28c7cd44758deeb2185))
+
 ## [0.26.1](https://github.com/ScottKirvan/QuKi-Notes/compare/v0.26.0...v0.26.1) (2026-10-28)
 
 
