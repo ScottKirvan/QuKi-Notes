@@ -16,6 +16,7 @@ const CONTENT_TYPES: Record<string, string> = {
   ".png": "image/png",
   ".svg": "image/svg+xml",
   ".webmanifest": "application/manifest+json",
+  ".txt": "text/plain; charset=utf-8",
 };
 
 function serveDist(): Promise<{ server: http.Server; url: string }> {
@@ -131,6 +132,19 @@ async function main(): Promise<void> {
 
     await page.waitForSelector(".cm-content", { timeout: 10_000 });
     console.log("[e2e-pwa] PASS: app shell loaded from cache with the network fully offline");
+
+    // The third-party notices file is precached and opening it is not
+    // answered with the app shell (the navigateFallback denylist).
+    const noticesPage = await context.newPage();
+    const noticesResponse = await noticesPage.goto(`${url}/THIRD_PARTY_NOTICES.txt`);
+    assert(noticesResponse !== null && noticesResponse.ok(), "the notices file should load while offline");
+    const noticesBody = await noticesPage.evaluate(() => document.body.innerText);
+    assert(
+      noticesBody.startsWith("QuKi Notes - third-party notices") && noticesBody.includes("Permission is hereby granted"),
+      `the notices file should open as text, not the app shell, got: ${noticesBody.slice(0, 80)}`,
+    );
+    await noticesPage.close();
+    console.log("[e2e-pwa] PASS: the third-party notices file opens from the precache with the network offline");
 
     const offlineHiddenAttr = await page.getAttribute("#save-status", "hidden");
     assert(offlineHiddenAttr !== null, `no error banner should appear on a clean offline reload, but #save-status is visible: "${await page.textContent("#save-status")}"`);

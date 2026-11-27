@@ -4,6 +4,7 @@ import { Features } from "lightningcss";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
+import { thirdPartyNotices } from "./scripts/notices/vitePlugin.mjs";
 import { collectBuildInfo } from "./src/buildInfoGit";
 
 const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf-8")) as {
@@ -49,6 +50,7 @@ export default defineConfig({
     include: ["src/**/*.test.ts"],
   },
   plugins: [
+    thirdPartyNotices(fileURLToPath(new URL(".", import.meta.url))),
     VitePWA({
       // generateSW (the default strategy) builds a Workbox service worker
       // that precaches the full build output and answers matching requests
@@ -88,7 +90,7 @@ export default defineConfig({
         // icon assets vite copies from public/ need to be precached too, or
         // an offline reload would load the app shell but the installed
         // manifest's own icons would 404 offline.
-        globPatterns: ["**/*.{js,css,html,ico,png,svg,webmanifest}"],
+        globPatterns: ["**/*.{js,css,html,ico,png,svg,webmanifest}", "THIRD_PARTY_NOTICES.txt"],
         // Code-block languages load only when a block names one, so they are
         // cached on first use rather than all downloaded at install.
         globIgnores: [`**/${CODE_LANGUAGE_CHUNK_PREFIX}*.js`],

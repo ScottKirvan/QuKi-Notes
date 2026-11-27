@@ -62,6 +62,16 @@ main process's `net.fetch` over IPC (`project/electron/src/reportRelay.ts`, test
 `QUKI_TEST_REPORT_RELAY_URL`, loopback only). Tests never reach the real relay. Email
 (quki-notes@skvfx.com) is the private route. The privacy page (`docs/privacy.md`) describes this.
 
+Third-party licence notices are generated at build time, never committed:
+`project/scripts/notices/lib.mjs` reads each shipped package's own LICENSE/COPYING/NOTICE
+file and fails the build if one has none. The web build writes `THIRD_PARTY_NOTICES.txt`
+into `dist` (from the modules Vite actually bundled, plus the Workbox packages the service
+worker inlines; it is precached), so the APK and the Electron `resources/webdist` carry it.
+`cli/scripts/bundle.mjs` and `mcp/scripts/bundle.mjs` write one beside each bundle (from
+esbuild's metafile). A new dependency needs no list edit, but a bundled package without a
+licence file fails the build and the `thirdPartyNotices` tests. Gradle (AndroidX, Kotlin)
+dependencies of the APK are not covered.
+
 User docs are the VitePress site in `docs/` (`npm run docs:build`). The specs are in
 `notes/dev/` (see Sources of truth below).
 
