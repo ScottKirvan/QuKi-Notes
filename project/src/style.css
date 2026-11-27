@@ -909,8 +909,10 @@ body.theme-light .about-link-btn.accent {
   height: 18px;
 }
 
+/* Matches the syntax highlighting's bold heading text (main.ts): a widget drawn
+   in a heading, such as a link, gets only this mark's weight. */
 .cm-quki-heading {
-  font-weight: 600;
+  font-weight: bold;
 }
 
 .cm-quki-heading-1 {
