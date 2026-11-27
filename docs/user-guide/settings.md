@@ -39,6 +39,19 @@ QuKis in the web version stay in that one browser on that one device. To keep a 
 
 **New QuKi after being away** starts a fresh, blank QuKi when you come back to QuKi Notes after it has been out of sight for a while, so it's ready for your next thought. Choose **After 2 minutes** (the default), **5**, **15** or **30 minutes**, or **Off**. See [Capturing QuKis → Coming back after being away](/user-guide/capturing-qukis#coming-back-after-being-away).
 
+## Diagnostics
+
+**Failure log** shows the errors and failed saves QuKi Notes has recorded on this device: when, what kind, which operation, and the app version and platform. It never holds the text of your QuKis or their file names, and it is never sent anywhere on its own. Tap it to open the log, then **Copy** or **Clear** it.
+
+**Report a problem** opens a form for a bug, a feature request or feedback. You write a title and a description. A **Details** box is filled in with the app version, build and platform, and you can edit it. Tick **Include recent log** to add the failure log; it appears in a box you can edit, so you see exactly what goes. QuKi Notes never adds the text of your QuKis.
+
+- **Send** files your report as a **public** issue on the QuKi Notes GitHub page. You don't need a GitHub account. When it's done, the form shows a link to the issue; tap it to open it in your browser.
+- **Open on GitHub** opens a pre-filled new issue in your browser instead.
+- **Copy report** copies the title and text, to paste wherever you like.
+- **Email instead (private)** opens your email app with a message to quki-notes@skvfx.com. Use it for anything you don't want public.
+
+Only **Send** sends anything from the app, and only when you tap it. If it fails (you're offline, or too many reports were sent recently), the other three are still there. See the [privacy policy](/privacy#reporting-bugs-and-requests).
+
 ## About
 
 Shows the app's name and version. Tap **Version** to copy the version number to the clipboard.

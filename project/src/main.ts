@@ -77,6 +77,8 @@ import { createToast, type ToastAction } from "./screens/toast";
 import { createSaveStatusBanner } from "./screens/saveStatusBanner";
 import { createConfirmDialog } from "./screens/confirmDialog";
 import { createAboutDialog } from "./screens/aboutDialog";
+import { createReportForm, openReportForm } from "./screens/reportDialog";
+import { platformRelaySender } from "./reportSender";
 import {
   electronFailureLogStore,
   initFailureLog,
@@ -448,6 +450,15 @@ async function init(): Promise<void> {
   const showToast = createToast(overlayHost);
   const confirm = createConfirmDialog(overlayHost, backDismiss);
   const aboutDialog = createAboutDialog(overlayHost, { version: __APP_VERSION__, buildInfo: __BUILD_INFO__, showToast, backDismiss });
+  createReportForm(overlayHost, {
+    version: __APP_VERSION__,
+    buildInfo: __BUILD_INFO__,
+    platform: window.electronPlatform ?? Capacitor.getPlatform(),
+    failureLog: getFailureLogView,
+    send: platformRelaySender(),
+    showToast,
+    backDismiss,
+  });
 
   // Capacitor.getPlatform() reports "android" only inside the native
   // Android wrapper (Capacitor.isNativePlatform() implied) - used both to
@@ -1511,6 +1522,7 @@ async function init(): Promise<void> {
     },
     onExport: exportQuKiLibrary,
     failureLog: getFailureLogView(),
+    onReportProblem: openReportForm,
   });
 
   const trashView = createTrashView(store, viewElements.trash, {
