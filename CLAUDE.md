@@ -38,6 +38,19 @@ service workers and CacheStorage, and nothing else, before loading the page
 is a new random localhost port. [Proposed — unconfirmed: this runs on every launch, not
 once.]
 
+Failures are kept in a local failure log, on the device only and never sent anywhere.
+Pure logic (entry shape, which message text is allowed, capping at 200 entries / 64 KB)
+is `project/core/src/failureLog.ts`; the app side is `project/src/failureLog.ts`. It lives
+outside the QuKi folder: web and Android in the origin's `localStorage` (`quki.failureLog`),
+Electron in `failure-log.json` in userData, written by the main process (which records its
+own storage failures, uncaught errors and renderer crashes; the renderer sends its entries
+over IPC). An entry holds time, kind, operation, error name and code, app version, platform,
+backend and, for a save, the conflict flag; never QuKi text or a filename, so an error
+message is kept only if it is an OS error phrase, a browser storage error or an engine
+stock message. Settings -> Diagnostics -> Failure log shows, copies and clears it. Nothing
+is logged on a successful save or on typing. Code that catches an unexpected error calls
+`recordFailure(op, error)` next to its `console.error`.
+
 User docs are the VitePress site in `docs/` (`npm run docs:build`). The specs are in
 `notes/dev/` (see Sources of truth below).
 

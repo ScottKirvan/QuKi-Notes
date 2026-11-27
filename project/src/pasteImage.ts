@@ -1,5 +1,6 @@
 import type { ChangeSet } from "@codemirror/state";
 import { EditorView } from "@codemirror/view";
+import { recordFailure } from "./failureLog";
 
 /**
  * Paste-to-import, image half: STORAGE_CONTRACT.md rule 12 ("Paste is the
@@ -156,6 +157,7 @@ export function createImagePastePlugin(host: ImagePasteHost) {
             bytes = new Uint8Array(await file.arrayBuffer());
           } catch (error) {
             console.error("QuKi image paste (reading clipboard file) failed unexpectedly:", error);
+            recordFailure("image-paste-reading-clipboard-file", error);
             host.onError(error);
             return;
           }
@@ -165,6 +167,7 @@ export function createImagePastePlugin(host: ImagePasteHost) {
             result = await host.writeImage(bytes, extension);
           } catch (error) {
             console.error("QuKi image paste (writeImage) failed unexpectedly:", error);
+            recordFailure("image-paste-writeimage", error);
             host.onError(error);
             return;
           }

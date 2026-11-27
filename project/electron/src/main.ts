@@ -8,7 +8,7 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, screen, session, shell } fro
 // ("import") to resolve them under (TS1542) - this has no runtime effect,
 // it only tells tsc which of quki-core's package.json export conditions to
 // read the .d.ts from.
-import type { StorageBackend } from 'quki-core' with { 'resolution-mode': 'import' };
+import type { FailureInput, FailureLogStore, FailureRecorder, StorageBackend } from 'quki-core' with { 'resolution-mode': 'import' };
 
 import {
   folderFromOpenResult,
@@ -17,6 +17,7 @@ import {
   openDialogDefaultPath,
   saveDialogDefaultPath,
 } from './dialogFolder.js';
+import { createFileFailureLogStore, FAILURE_LOG_FILE_NAME } from './failureLogFile.js';
 import { resolveMigratedStorageRoot } from './flutterMigration.js';
 import { PreferencesStore } from './preferences.js';
 import { clearServiceWorkerStorage } from './serviceWorkerStorage.js';
@@ -25,6 +26,7 @@ import { isValidWritableDirectory } from './storageValidation.js';
 import {
   APP_LIFECYCLE_CHANNELS,
   EXPORT_CHANNELS,
+  FAILURE_LOG_CHANNELS,
   RESOLVE_PATH_SYNC_CHANNEL,
   SETUP_CHANNELS,
   STORAGE_CHANNELS,
@@ -102,11 +104,64 @@ let currentRoot: string | null = null;
  */
 let unreachableStoragePath: string | null = null;
 
+/**
+ * The local failure log (see failureLogFile.ts): this process's own failures
+ * and the renderer's, in one file in userData, on this device only. Starts
+ * as soon as quki-core has loaded; a failure before that waits for it.
+ */
+let failureLogStore: FailureLogStore | null = null;
+let failureRecorder: FailureRecorder | null = null;
+const failureLogReady: Promise<void> = (async () => {
+  const core = await import('quki-core');
+  failureLogStore = createFileFailureLogStore(path.join(app.getPath('userData'), FAILURE_LOG_FILE_NAME), core);
+  failureRecorder = core.createFailureRecorder(() => failureLogStore, {
+    version: app.getVersion(),
+    platform: process.platform,
+    backend: 'electron-fs',
+    process: 'main',
+  });
+})().catch(() => {});
+
+function recordMainFailure(input: FailureInput): void {
+  // Written straight away once ready, so a crash right after cannot lose it.
+  if (failureRecorder !== null) failureRecorder.record(input);
+  else void failureLogReady.then(() => failureRecorder?.record(input));
+}
+
+process.on('uncaughtExceptionMonitor', (error) => {
+  recordMainFailure({ kind: 'uncaught', op: 'main-process', error });
+});
+process.on('unhandledRejection', (reason) => {
+  recordMainFailure({ kind: 'unhandled-rejection', op: 'main-process', error: reason });
+  console.error('QuKi unhandled rejection in the main process:', reason);
+});
+
+function registerFailureLogIpc(): void {
+  ipcMain.on(FAILURE_LOG_CHANNELS.append, (_event, entry: unknown) => {
+    void failureLogReady.then(() => {
+      try {
+        void failureLogStore?.append(entry as never);
+      } catch {
+        // the log must never break the app
+      }
+    });
+  });
+  ipcMain.handle(FAILURE_LOG_CHANNELS.read, async () => {
+    await failureLogReady;
+    return failureLogStore ? failureLogStore.read() : [];
+  });
+  ipcMain.handle(FAILURE_LOG_CHANNELS.clear, async () => {
+    await failureLogReady;
+    await failureLogStore?.clear();
+  });
+}
+
 async function setBackendRoot(root: string): Promise<void> {
   const { NodeFsBackend } = await import('quki-core/node');
+  const { withFailureLogging } = await import('quki-core');
   const next = new NodeFsBackend(root);
   await next.mkdirp('');
-  backend = next;
+  backend = withFailureLogging(next, (op, error) => recordMainFailure({ kind: 'storage', op, error }));
   currentRoot = root;
   unreachableStoragePath = null;
 }
@@ -605,6 +660,7 @@ app.whenReady().then(async () => {
     }
   }
 
+  registerFailureLogIpc();
   registerStorageIpc();
   registerSetupIpc(prefsStore);
   registerExportIpc(prefsStore);
@@ -620,6 +676,13 @@ app.whenReady().then(async () => {
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) void createWindow(prefsStore);
   });
+});
+
+app.on('render-process-gone', (_event, _webContents, details) => {
+  recordMainFailure({ kind: 'crash', op: 'render-process-gone', error: new Error(details.reason) });
+});
+app.on('child-process-gone', (_event, details) => {
+  recordMainFailure({ kind: 'crash', op: 'child-process-gone', error: new Error(`${details.type} ${details.reason}`) });
 });
 
 app.on('window-all-closed', () => {

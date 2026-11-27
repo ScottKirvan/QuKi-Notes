@@ -142,3 +142,14 @@ const lifecycleApi: ElectronLifecycleApi = {
 };
 
 contextBridge.exposeInMainWorld('electronLifecycleAPI', lifecycleApi);
+
+/**
+ * The local failure log bridge (see storageIpc.ts's FAILURE_LOG_CHANNELS).
+ * append is fire-and-forget: recording a failure must never wait on, or
+ * break, the renderer.
+ */
+contextBridge.exposeInMainWorld('electronFailureLogAPI', {
+  append: (entry: unknown) => ipcRenderer.send('quki:failureLog:append', entry),
+  read: () => ipcRenderer.invoke('quki:failureLog:read'),
+  clear: () => ipcRenderer.invoke('quki:failureLog:clear'),
+});
