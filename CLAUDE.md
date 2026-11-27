@@ -51,6 +51,17 @@ stock message. Settings -> Diagnostics -> Failure log shows, copies and clears i
 is logged on a successful save or on typing. Code that catches an unexpected error calls
 `recordFailure(op, error)` next to its `console.error`.
 
+Settings -> Diagnostics -> Report a problem (`openReportForm()` in
+`project/src/screens/reportDialog.ts`) is the only network use besides web images and
+links: the user taps Send and the report goes to the report relay
+(`report.scottkirvan.com/report`, a Cloudflare Worker in ScottKirvan/report-relay), which files a
+PUBLIC GitHub issue. The pure logic (request, title prefixes, limits, error mapping, the
+Open-on-GitHub and mailto links) is `project/src/reportProblem.ts`, ported from BojuBot. The
+sender is per platform: web `fetch`, Android `CapacitorHttp` (native, so no CORS), Electron the
+main process's `net.fetch` over IPC (`project/electron/src/reportRelay.ts`, test seam
+`QUKI_TEST_REPORT_RELAY_URL`, loopback only). Tests never reach the real relay. Email
+(quki-notes@skvfx.com) is the private route. The privacy page (`docs/privacy.md`) describes this.
+
 User docs are the VitePress site in `docs/` (`npm run docs:build`). The specs are in
 `notes/dev/` (see Sources of truth below).
 

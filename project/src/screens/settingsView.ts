@@ -75,6 +75,8 @@ export interface SettingsViewCallbacks {
    * and nothing in this view sends it anywhere.
    */
   failureLog: FailureLogView | null;
+  /** Opens the "Report a problem" form (screens/reportDialog.ts). */
+  onReportProblem: () => void;
 }
 
 export interface SettingsView {
@@ -175,22 +177,25 @@ export function createSettingsView(container: HTMLElement, callbacks: SettingsVi
           </select>
         </label>
       </section>
-      ${
-        callbacks.failureLog
-          ? `<section class="settings-section">
+      <section class="settings-section">
         <h2>Diagnostics</h2>
-        <button type="button" class="settings-row settings-link failure-log-btn" aria-expanded="false">
+        ${
+          callbacks.failureLog
+            ? `<button type="button" class="settings-row settings-link failure-log-btn" aria-expanded="false">
           <span>Failure log</span>
         </button>
         <div class="failure-log-panel" hidden>
-          <p class="settings-note">Errors and failed saves are recorded here, on this device only. Nothing is sent anywhere. It holds no QuKi text or file names.</p>
+          <p class="settings-note">Errors and failed saves are recorded here, on this device only. Nothing is sent unless you tick it in a problem report and see it there. It holds no QuKi text or file names.</p>
           <pre class="failure-log-text" tabindex="0"></pre>
           <button type="button" class="settings-row settings-link failure-log-copy-btn"><span>Copy</span></button>
           <button type="button" class="settings-row settings-link failure-log-clear-btn"><span>Clear</span></button>
-        </div>
-      </section>`
-          : ""
-      }
+        </div>`
+            : ""
+        }
+        <button type="button" class="settings-row settings-link report-problem-btn">
+          <span>Report a problem</span>
+        </button>
+      </section>
       <section class="settings-section">
         <h2>About</h2>
         <div class="settings-row">
@@ -316,6 +321,8 @@ export function createSettingsView(container: HTMLElement, callbacks: SettingsVi
       })();
     });
   }
+
+  container.querySelector(".report-problem-btn")!.addEventListener("click", () => callbacks.onReportProblem());
 
   const exportBtn = container.querySelector<HTMLButtonElement>(".export-btn")!;
   exportBtn.addEventListener("click", () => {
