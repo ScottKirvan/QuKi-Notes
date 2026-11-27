@@ -6,8 +6,8 @@ QuKi Notes is a TypeScript app in `project/` on `main`; the old Flutter code is 
 One codebase ships to four platforms: web (a PWA at qukinotes.scottkirvan.com, deployed
 to Cloudflare by `.github/workflows/deploy-web.yml`), Android (Capacitor, `project/android/`),
 and Windows and Linux (Electron, `project/electron/`, which also bundles the `quki` CLI and
-the `quki-mcp` MCP server). The latest release is v0.25.1; release-please opens the next
-release PR from the conventional commits on `main`.
+the `quki-mcp` MCP server). release-please opens the release PRs from the
+conventional commits on `main`.
 
 Layout under `project/`:
 - `core/`: storage and the QuKi rules (`QuKiStore`, the Node/OPFS backends, export),
@@ -15,62 +15,17 @@ Layout under `project/`:
   `npm run build` in `core/` first, or the app shows bogus type errors.
 - `src/`: the app (CodeMirror editor, reveal/rendering in `src/reveal/`, screens in
   `src/screens/`). `cli/`, `mcp/`, `electron/`, `android/`: the other targets.
-- The formatting toolbar's pressed buttons (`aria-pressed`) come from
-  `project/src/toolbar/activeFormats.ts`, a pure function of the editor state's syntax
-  tree at the selection; `src/screens/formattingToolbar.ts` applies it, only while the
-  toolbar is visible.
 - `e2e/`: Playwright tests against the built web app (`npm run build`, then
   `npm run test:e2e`; Electron ones via `npm run test:e2e:electron` and
   `npm run test:e2e:electron:setup`; CI runs both under xvfb in the `e2e-electron` job). Unit tests:
   `npm test` (vitest) in `project/` and in each package.
 
-A new, blank, unsaved QuKi (launch, New, Back to a blank one, after Delete) shows a
-welcome over the top of the editor (`project/src/welcome/`): app icon, a time-of-day
-greeting, one tip, and the three most recent QuKis. It is DOM outside the document, never
-saved or exported, and `pointer-events: none` except its recent rows, so a tap on it
-reaches the editor. The first pointer or key event, any edit, or loading a saved QuKi
-removes it. Every tip's text must stay true of the app (`welcomeContent.ts`).
-
-Only the web build registers the PWA service worker (`project/src/serviceWorkerPolicy.ts`
-decides; Android and Electron never register one). The Electron main process clears
-service workers and CacheStorage, and nothing else, before loading the page
-(`project/electron/src/serviceWorkerStorage.ts`), because each launch's renderer origin
-is a new random localhost port. [Proposed — unconfirmed: this runs on every launch, not
-once.]
-
-Failures are kept in a local failure log, on the device only and never sent anywhere.
-Pure logic (entry shape, which message text is allowed, capping at 200 entries / 64 KB)
-is `project/core/src/failureLog.ts`; the app side is `project/src/failureLog.ts`. It lives
-outside the QuKi folder: web and Android in the origin's `localStorage` (`quki.failureLog`),
-Electron in `failure-log.json` in userData, written by the main process (which records its
-own storage failures, uncaught errors and renderer crashes; the renderer sends its entries
-over IPC). An entry holds time, kind, operation, error name and code, app version, platform,
-backend and, for a save, the conflict flag; never QuKi text or a filename, so an error
-message is kept only if it is an OS error phrase, a browser storage error or an engine
-stock message. Settings -> Diagnostics -> Failure log shows, copies and clears it. Nothing
-is logged on a successful save or on typing. Code that catches an unexpected error calls
-`recordFailure(op, error)` next to its `console.error`.
-
-Settings -> Diagnostics -> Report a problem (`openReportForm()` in
-`project/src/screens/reportDialog.ts`) is the only network use besides web images and
-links: the user taps Send and the report goes to the report relay
-(`report.scottkirvan.com/report`, a Cloudflare Worker in ScottKirvan/report-relay), which files a
-PUBLIC GitHub issue. The pure logic (request, title prefixes, limits, error mapping, the
-Open-on-GitHub and mailto links) is `project/src/reportProblem.ts`, ported from BojuBot. The
-sender is per platform: web `fetch`, Android `CapacitorHttp` (native, so no CORS), Electron the
-main process's `net.fetch` over IPC (`project/electron/src/reportRelay.ts`, test seam
-`QUKI_TEST_REPORT_RELAY_URL`, loopback only). Tests never reach the real relay. Email
-(quki-notes@skvfx.com) is the private route. The privacy page (`docs/privacy.md`) describes this.
-
-Third-party licence notices are generated at build time, never committed:
-`project/scripts/notices/lib.mjs` reads each shipped package's own LICENSE/COPYING/NOTICE
-file and fails the build if one has none. The web build writes `THIRD_PARTY_NOTICES.txt`
-into `dist` (from the modules Vite actually bundled, plus the Workbox packages the service
-worker inlines; it is precached), so the APK and the Electron `resources/webdist` carry it.
-`cli/scripts/bundle.mjs` and `mcp/scripts/bundle.mjs` write one beside each bundle (from
-esbuild's metafile). A new dependency needs no list edit, but a bundled package without a
-licence file fails the build and the `thirdPartyNotices` tests. Gradle (AndroidX, Kotlin)
-dependencies of the APK are not covered.
+Two rules that cross features and that the code doesn't show:
+- The app sends nothing on its own. What can leave the device is user-initiated: Send, links,
+  web images, and a problem report sent from Settings -> Diagnostics. A change to what leaves
+  the device must update `docs/privacy.md`, and tests never contact the real report relay.
+- The failure log never holds QuKi text or filenames. Code that catches an unexpected error
+  calls `recordFailure(op, error)` next to its `console.error`.
 
 User docs are the VitePress site in `docs/` (`npm run docs:build`). The specs are in
 `notes/dev/` (see Sources of truth below).
@@ -108,16 +63,14 @@ keyboard's own behaviour can only be confirmed on Scott's device.
 
 ## Keeping This File Current
 
-This file is the primary context for any agent working in this repo — keep it accurate
-as the project evolves. When you learn what the project is, add a brief description at
-the top. As key files, build commands, and architectural decisions emerge, record them
-here so future sessions start with full context rather than re-deriving it.
+Only Scott, or the main session at his direction, edits this file. Sub-agents never do:
+concurrent edits to it conflict on every PR. If you learn something every agent needs, say
+so in your report.
 
-Update this file in the same commit as the work it documents.
-
-What this file claims as current must be true now. Don't record history here (what
-merged when, which PR fixed what): git and the PRs hold that, and it only clouds the
-context. When something stops being true, change or delete it.
+It holds only what every agent must know to avoid a mistake and cannot see from the code,
+the tests or an error message. Not how a feature works (the code shows that), not what merged
+when (git and the PRs hold that), not known gaps (those are issues). What it claims must be
+true now: change or delete a line when it stops being true.
 
 ## Working Conventions
 
@@ -355,7 +308,8 @@ When using sub-agents for implementation:
   delegate freely. Cascading or hard to reverse → state it explicitly in the brief.
   (Architecture — how two components relate, e.g. whether one delegates to the other —
   is the case that's easiest to misclassify as "how" when it's actually load-bearing.)
-- Sub-agents follow all conventions in this file except they do not create PRs.
+- Sub-agents follow all conventions in this file except they do not create PRs and do not
+  edit this file.
 - After a sub-agent completes, review its diff and tests before creating the PR.
   This review is a genuine code review, not a compliance check — evaluate correctness,
   requirement alignment, and test quality independently.

@@ -7,6 +7,7 @@ export const GREETINGS: Record<TimeBucket, readonly string[]> = {
   night: ["Still up?", "Night thoughts welcome.", "Get it out of your head and onto the page.", "Write it down, then sleep on it."],
 };
 
+// Each tip must stay true of the app: when the behaviour a tip names changes, change or drop the tip.
 export const TIPS: readonly string[] = [
   "Swipe a QuKi left in the list to move it to Trash.",
   "Press Enter at the end of a list item to continue the list.",
