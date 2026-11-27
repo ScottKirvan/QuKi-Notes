@@ -15,6 +15,10 @@ Layout under `project/`:
   `npm run build` in `core/` first, or the app shows bogus type errors.
 - `src/`: the app (CodeMirror editor, reveal/rendering in `src/reveal/`, screens in
   `src/screens/`). `cli/`, `mcp/`, `electron/`, `android/`: the other targets.
+- The formatting toolbar's pressed buttons (`aria-pressed`) come from
+  `project/src/toolbar/activeFormats.ts`, a pure function of the editor state's syntax
+  tree at the selection; `src/screens/formattingToolbar.ts` applies it, only while the
+  toolbar is visible.
 - `e2e/`: Playwright tests against the built web app (`npm run build`, then
   `npm run test:e2e`; Electron ones via `npm run test:e2e:electron` and
   `npm run test:e2e:electron:setup`; CI runs both under xvfb in the `e2e-electron` job). Unit tests:

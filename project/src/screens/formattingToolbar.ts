@@ -1,4 +1,5 @@
 import { redo, redoDepth, undo, undoDepth } from "@codemirror/commands";
+import { syntaxTree } from "@codemirror/language";
 import type { EditorView, ViewUpdate } from "@codemirror/view";
 import {
   Bold,
@@ -19,6 +20,7 @@ import {
   createElement,
 } from "lucide";
 
+import { activeFormats, type ActiveFormat } from "../toolbar/activeFormats";
 import { applyDedent, applyIndent } from "../toolbar/indentDedent";
 import { cycleHeading, nextHeadingLevel } from "../toolbar/heading";
 import { toggleCheckboxList, toggleOrderedList, toggleUnorderedList } from "../toolbar/listToggle";
@@ -151,17 +153,29 @@ export function createFormattingToolbar(view: EditorView, container: HTMLElement
     button.setAttribute("aria-disabled", String(unavailable));
   }
 
+  // A button for a format the caret can be inside is a toggle: aria-pressed
+  // tells assistive tech which, and style.css draws it.
+  const formatButtons = new Map<ActiveFormat, HTMLButtonElement>();
+  function makeFormatButton(format: ActiveFormat, iconNode: IconNode, label: string, onClick: () => void): HTMLButtonElement {
+    const button = makeButton(iconNode, label, onClick);
+    button.setAttribute("aria-pressed", "false");
+    formatButtons.set(format, button);
+    return button;
+  }
+  formatButtons.set("heading", headingButton);
+  headingButton.setAttribute("aria-pressed", "false");
+
   element.append(
     undoButton,
     redoButton,
-    makeButton(Bold, "Bold", () => run((v) => wrapSelection(v, "**", "**"))),
-    makeButton(Italic, "Italic", () => run((v) => wrapSelection(v, "_", "_"))),
-    makeButton(Strikethrough, "Strikethrough", () => run((v) => wrapSelection(v, "~~", "~~"))),
-    makeButton(Code, "Inline code", () => run((v) => wrapSelection(v, "`", "`"))),
+    makeFormatButton("bold", Bold, "Bold", () => run((v) => wrapSelection(v, "**", "**"))),
+    makeFormatButton("italic", Italic, "Italic", () => run((v) => wrapSelection(v, "_", "_"))),
+    makeFormatButton("strikethrough", Strikethrough, "Strikethrough", () => run((v) => wrapSelection(v, "~~", "~~"))),
+    makeFormatButton("code", Code, "Inline code", () => run((v) => wrapSelection(v, "`", "`"))),
     headingButton,
-    makeButton(List, "Unordered list", () => run(toggleUnorderedList)),
-    makeButton(ListOrdered, "Ordered list", () => run(toggleOrderedList)),
-    makeButton(ListChecks, "Task list", () => run(toggleCheckboxList)),
+    makeFormatButton("unordered", List, "Unordered list", () => run(toggleUnorderedList)),
+    makeFormatButton("ordered", ListOrdered, "Ordered list", () => run(toggleOrderedList)),
+    makeFormatButton("task", ListChecks, "Task list", () => run(toggleCheckboxList)),
     makeButton(IndentIncrease, "Indent", () => run(applyIndent)),
     makeButton(IndentDecrease, "Dedent", () => run(applyDedent)),
   );
@@ -180,12 +194,27 @@ export function createFormattingToolbar(view: EditorView, container: HTMLElement
   }
   updateHistoryButtons();
 
+  function updatePressedButtons(): void {
+    const active = activeFormats(view.state);
+    for (const [format, button] of formatButtons) {
+      const pressed = String(active.has(format));
+      if (button.getAttribute("aria-pressed") !== pressed) button.setAttribute("aria-pressed", pressed);
+    }
+  }
+
   return {
     setVisible(visible: boolean): void {
       element.hidden = !visible;
+      if (visible) updatePressedButtons();
     },
     onUpdate(update: ViewUpdate): void {
       if (update.docChanged || update.selectionSet) updateHeadingIcon();
+      // Nothing is read from the syntax tree while the toolbar is hidden;
+      // setVisible catches up when it appears. The tree is parsed in slices,
+      // so it can change in an update that has no edit or caret move.
+      if (!element.hidden && (update.docChanged || update.selectionSet || syntaxTree(update.state) !== syntaxTree(update.startState))) {
+        updatePressedButtons();
+      }
       // Not gated on docChanged: loading a QuKi clears the history in a
       // transaction that changes nothing else.
       updateHistoryButtons();

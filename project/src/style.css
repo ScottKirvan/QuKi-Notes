@@ -909,6 +909,15 @@ body.theme-light .about-link-btn.accent {
   height: 18px;
 }
 
+/* A format active at the caret: tinted, accent-coloured, and underlined so it
+   reads without relying on colour alone. Same specificity as the hover and
+   :active rules above so it wins over them. */
+.toolbar-btn[aria-pressed="true"]:not(:disabled):not([aria-disabled="true"]) {
+  background: var(--background-modifier-active-hover);
+  color: var(--text-accent);
+  box-shadow: inset 0 -2px 0 var(--text-accent);
+}
+
 /* Matches the syntax highlighting's bold heading text (main.ts): a widget drawn
    in a heading, such as a link, gets only this mark's weight. */
 .cm-quki-heading {
