@@ -105,7 +105,7 @@ const RULE = "=".repeat(78);
 /** Renders the notices; identical licence texts are printed once with the packages that carry them. */
 export function renderNotices({ packages, notes }, heading) {
   const groups = new Map();
-  for (const p of packages) {
+  for (const p of [...packages].sort((a, b) => a.name.localeCompare(b.name) || a.version.localeCompare(b.version))) {
     const key = p.text.replace(/\s+/g, " ");
     if (!groups.has(key)) groups.set(key, { text: p.text, packages: [] });
     groups.get(key).packages.push(p);

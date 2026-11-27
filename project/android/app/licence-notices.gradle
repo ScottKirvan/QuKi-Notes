@@ -1,0 +1,158 @@
+// Keeps scripts/notices/androidLibraries.json (merged into THIRD_PARTY_NOTICES.txt
+// by the web build) in step with the libraries Gradle really puts in the APK.
+//   ./gradlew checkAndroidLibraryNotices   fails if the file differs (runs before every build)
+//   ./gradlew updateAndroidLibraryNotices  rewrites the file
+// The licence of each library comes from its resolved POM (or a parent POM); a
+// library with no licence, or one not listed in KNOWN_LICENCES, fails the task.
+import groovy.json.JsonOutput
+import groovy.xml.XmlSlurper
+import java.util.zip.ZipFile
+import java.util.zip.ZipInputStream
+
+// SPDX id -> markers found in a POM's licence name or url. The licence text
+// itself lives in scripts/notices/licences/<id>.txt.
+def KNOWN_LICENCES = [
+    'Apache-2.0': [~/apache license,? (version )?2(\.0)?/, ~/apache software license,? (version )?2(\.0)?/, ~/apache-2\.0/, ~/apache\.org\/licenses\/license-2\.0/],
+]
+
+def dataFile = rootProject.file('../scripts/notices/androidLibraries.json')
+
+def classify = { String coordinate, List licences ->
+    def ids = licences.collect { l ->
+        def hay = "${l.name} ${l.url}".toLowerCase()
+        KNOWN_LICENCES.find { id, markers -> markers.any { hay =~ it } }?.key
+    }
+    if (licences.isEmpty() || ids.any { it == null }) {
+        throw new GradleException("${coordinate}: cannot determine a known licence from its POM (${licences}). " +
+            "Add the licence text to scripts/notices/licences/ and its markers to KNOWN_LICENCES in licence-notices.gradle.")
+    }
+    ids.unique().sort().join(' AND ')
+}
+
+def pomCache = [:]
+def readPom = { String g, String a, String v ->
+    def key = "${g}:${a}:${v}".toString()
+    if (pomCache.containsKey(key)) return pomCache[key]
+    def parsed = {
+        def dep = dependencies.create("${g}:${a}:${v}@pom")
+        def cfgPom = configurations.detachedConfiguration(dep)
+        cfgPom.transitive = false
+        def f = cfgPom.singleFile
+        def slurper = new XmlSlurper(false, false)
+        slurper.setFeature('http://apache.org/xml/features/disallow-doctype-decl', true)
+        def pom = slurper.parse(f)
+        [
+            licences: pom.licenses.license.collect { [name: it.name.text().trim(), url: it.url.text().trim()] },
+            parent: pom.parent.size() == 0 ? null : [pom.parent.groupId.text().trim(), pom.parent.artifactId.text().trim(), pom.parent.version.text().trim()],
+        ]
+    }
+    pomCache[key] = parsed()
+    return pomCache[key]
+}
+
+def embeddedNotices = { File artifact ->
+    def found = []
+    def scan = { String name, InputStream s ->
+        def base = name.tokenize('/').last().toLowerCase()
+        if (!name.endsWith('/') && (name.startsWith('META-INF/') || !name.contains('/')) && base =~ /^(notice|licen[cs]e)([-._].*)?$/) {
+            found << [notice: base.startsWith('notice'), text: s.getText('UTF-8').replace('\r\n', '\n').trim()]
+        }
+    }
+    new ZipFile(artifact).withCloseable { zip ->
+        zip.entries().each { e ->
+            if (e.name == 'classes.jar') {
+                new ZipInputStream(zip.getInputStream(e)).withCloseable { z ->
+                    for (def ne = z.nextEntry; ne != null; ne = z.nextEntry) scan(ne.name, z)
+                }
+            } else {
+                scan(e.name, zip.getInputStream(e))
+            }
+        }
+    }
+    found
+}
+
+abstract class LibraryNoticesTask extends DefaultTask {
+    @Internal Closure<String> generate
+    @Internal File dataFile
+    @Input boolean update = false
+
+    @TaskAction
+    void run() {
+        def json = generate.call()
+        if (update) {
+            dataFile.setText(json, 'UTF-8')
+            logger.lifecycle("Wrote ${dataFile}")
+            return
+        }
+        def current = dataFile.exists() ? dataFile.getText('UTF-8').replace('\r\n', '\n') : ''
+        if (current != json) {
+            throw new GradleException("${dataFile.name} does not match the libraries in the release runtime classpath. " +
+                "Run './gradlew updateAndroidLibraryNotices' in project/android and commit the result.")
+        }
+    }
+}
+
+def generateJson = {
+    def cfg = configurations.getByName('releaseRuntimeClasspath')
+    def ids = cfg.incoming.resolutionResult.allComponents.collect { it.id }
+    def modules = ids.findAll { it instanceof ModuleComponentIdentifier }
+    def others = ids.findAll { !(it instanceof ModuleComponentIdentifier) && !(it instanceof ProjectComponentIdentifier) }
+    if (others) throw new GradleException("Release runtime classpath has components that are neither modules nor projects: ${others}")
+    cfg.incoming.artifactView { lenient(true) }.artifacts.artifacts.each {
+        def cid = it.id.componentIdentifier
+        if (!(cid instanceof ModuleComponentIdentifier) && !(cid instanceof ProjectComponentIdentifier)) {
+            throw new GradleException("Release runtime classpath has a loose file dependency: ${it.file}")
+        }
+    }
+    if (modules.isEmpty()) throw new GradleException('No Maven libraries found in the release runtime classpath')
+
+    def files = [:]
+    ['aar', 'jar'].each { type ->
+        cfg.incoming.artifactView {
+            lenient(true)
+            attributes { it.attribute(Attribute.of('artifactType', String), type) }
+        }.artifacts.artifacts.each { a ->
+            def cid = a.id.componentIdentifier
+            if (cid instanceof ModuleComponentIdentifier) files.get(cid.toString(), []) << a.file
+        }
+    }
+
+    def libs = modules.collect { m ->
+        def licences = []
+        def pom = readPom(m.group, m.module, m.version)
+        while (pom != null) {
+            if (pom.licences) { licences = pom.licences; break }
+            pom = pom.parent ? readPom(pom.parent[0], pom.parent[1], pom.parent[2]) : null
+        }
+        def lib = [name: "${m.group}:${m.module}".toString(), version: m.version, licence: classify("${m.group}:${m.module}:${m.version}", licences)]
+        def embedded = (files[m.toString()] ?: []).collectMany { embeddedNotices(it) }.findAll { it.text }
+        // A licence file inside the artifact is fine only if it is the canonical text we already ship.
+        embedded.findAll { !it.notice }.each { e ->
+            def canonical = rootProject.file("../scripts/notices/licences/${lib.licence}.txt")
+            if (!canonical.exists() || !canonical.text.replaceAll(/\s+/, ' ').trim().startsWith(e.text.replaceAll(/\s+/, ' ').trim())) {
+                throw new GradleException("${lib.name}:${lib.version} ships its own licence text, which is not part of scripts/notices/licences/${lib.licence}.txt; handle it before shipping.")
+            }
+        }
+        def own = embedded.findAll { it.notice }.collect { it.text }.unique().sort()
+        if (own) lib.notices = own
+        lib
+    }
+    libs.sort { a, b -> a.name <=> b.name ?: a.version <=> b.version }
+    JsonOutput.prettyPrint(JsonOutput.toJson([libraries: libs])) + '\n'
+}
+
+tasks.register('checkAndroidLibraryNotices', LibraryNoticesTask) {
+    group = 'verification'
+    description = 'Fails if scripts/notices/androidLibraries.json does not match the release runtime classpath.'
+    generate = generateJson
+    it.dataFile = dataFile
+}
+tasks.register('updateAndroidLibraryNotices', LibraryNoticesTask) {
+    group = 'verification'
+    description = 'Rewrites scripts/notices/androidLibraries.json from the release runtime classpath.'
+    generate = generateJson
+    it.dataFile = dataFile
+    update = true
+}
+tasks.matching { it.name == 'preBuild' }.configureEach { dependsOn 'checkAndroidLibraryNotices' }

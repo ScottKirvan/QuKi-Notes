@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { readAndroidLibraries, renderLibraryNotices } from "../scripts/notices/androidLibraries.mjs";
 import {
   collectNotices,
   packageDirOfModule,
@@ -94,5 +95,57 @@ describe("notices library", () => {
     expect(packageDirOfModule(`/p/node_modules/a/node_modules/c/x.js`)?.replaceAll("\\", sep)).toBe("/p/node_modules/a/node_modules/c");
     expect(packageDirOfModule("/p/src/main.ts")).toBeNull();
     expect(packageDirOfModule("\0virtual:thing")).toBeNull();
+  });
+});
+
+describe("Android library notices", () => {
+  let tmp = "";
+  afterEach(() => rmSync(tmp || join(tmpdir(), "quki-notices-none"), { recursive: true, force: true }));
+
+  function fixture(list: object, licences: Record<string, string>): [string, string] {
+    tmp = mkdtempSync(join(tmpdir(), "quki-android-notices-"));
+    const dir = join(tmp, "licences");
+    mkdirSync(dir);
+    for (const [id, text] of Object.entries(licences)) writeFileSync(join(dir, `${id}.txt`), text);
+    const file = join(tmp, "libs.json");
+    writeFileSync(file, JSON.stringify(list));
+    return [file, dir];
+  }
+
+  it("gives every committed library its licence text", () => {
+    const { packages } = readAndroidLibraries();
+    expect(packages.length).toBeGreaterThan(30);
+    for (const p of packages) expect(p.text, p.name).toContain("Apache License");
+  });
+
+  it("lists the libraries in the combined notices once per licence text", () => {
+    const [file, dir] = fixture(
+      { libraries: [{ name: "g:b", version: "2", licence: "Apache-2.0" }, { name: "g:a", version: "1", licence: "Apache-2.0" }] },
+      { "Apache-2.0": "Apache text" },
+    );
+    const android = readAndroidLibraries(file, dir);
+    const out = renderNotices({ packages: android.packages, missing: [], notes: android.notes }, "h");
+    expect(out).toContain("2 packages, 1 distinct licence texts.");
+    expect(out.indexOf("g:a@1")).toBeLessThan(out.indexOf("g:b@2"));
+    expect(out.match(/Apache text/g)).toHaveLength(1);
+  });
+
+  it("throws when a library's licence has no canonical text", () => {
+    const [file, dir] = fixture({ libraries: [{ name: "g:a", version: "1", licence: "MIT" }] }, {});
+    expect(() => readAndroidLibraries(file, dir)).toThrow(/g:a@1: no licence text for MIT/);
+  });
+
+  it("throws on an empty list and on a path-like licence identifier", () => {
+    const [empty, dir] = fixture({ libraries: [] }, {});
+    expect(() => readAndroidLibraries(empty, dir)).toThrow(/lists no libraries/);
+    const [bad, dir2] = fixture({ libraries: [{ name: "g:a", version: "1", licence: "../x" }] }, {});
+    expect(() => readAndroidLibraries(bad, dir2)).toThrow(/bad licence identifier/);
+  });
+
+  it("prints NOTICE texts a library ships, and nothing when there are none", () => {
+    const [file, dir] = fixture({ libraries: [{ name: "g:a", version: "1", licence: "Apache-2.0", notices: ["  Notice A  "] }] }, { "Apache-2.0": "T" });
+    const { notices } = readAndroidLibraries(file, dir);
+    expect(renderLibraryNotices(notices)).toContain("g:a@1\n\nNotice A\n");
+    expect(renderLibraryNotices([])).toBe("");
   });
 });

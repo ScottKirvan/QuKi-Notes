@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { readAndroidLibraries, renderLibraryNotices } from "./androidLibraries.mjs";
 import {
   assertNoMissing,
   collectNotices,
@@ -57,11 +58,15 @@ export function thirdPartyNotices(projectDir) {
       }
       const notices = collectNotices([...dirs], notes);
       assertNoMissing(notices.missing);
+      const android = readAndroidLibraries();
+      notices.packages.push(...android.packages);
+      Object.assign(notices.notes, android.notes);
       included = new Set(notices.packages.map((p) => p.name));
       this.emitFile({
         type: "asset",
         fileName: NOTICES_FILE_NAME,
-        source: renderNotices(notices, "QuKi Notes - third-party notices (web app, Android app, desktop app)"),
+        source: `${renderNotices(notices, "QuKi Notes - third-party notices (web app, Android app, desktop app)")}
+${renderLibraryNotices(android.notices)}`,
       });
     },
     closeBundle: {
