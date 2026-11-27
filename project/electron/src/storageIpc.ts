@@ -107,3 +107,15 @@ export interface ElectronExportApi {
   /** Resolves to the chosen absolute path, or null if the save dialog was cancelled. */
   saveExport(bytes: Uint8Array, defaultFileName: string): Promise<string | null>;
 }
+
+/**
+ * The local failure log (quki-core's failureLog.ts). The renderer sends its
+ * entries here and the main process keeps them in one file in userData;
+ * nothing is ever sent off the device. Channel names are duplicated as
+ * string literals in preload.ts, like every other channel group above.
+ */
+export const FAILURE_LOG_CHANNELS = {
+  append: 'quki:failureLog:append',
+  read: 'quki:failureLog:read',
+  clear: 'quki:failureLog:clear',
+} as const;

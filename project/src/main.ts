@@ -17,7 +17,7 @@ import { createElement, FileStack, CodeXml, Plus, CircleHelp, Send, Settings, Tr
 import { Capacitor } from "@capacitor/core";
 import { App as CapacitorApp } from "@capacitor/app";
 import { Keyboard } from "@capacitor/keyboard";
-import { NotFoundError, QuKiStore, type StorageBackend } from "quki-core";
+import { NotFoundError, QuKiStore, withFailureLogging, type StorageBackend } from "quki-core";
 import { OpfsBackend } from "quki-core/opfs";
 import { ElectronIpcBackend } from "./electronIpcBackend";
 import { cleanupStaleServiceWorker } from "./staleServiceWorkerCleanup";
@@ -77,6 +77,29 @@ import { createToast, type ToastAction } from "./screens/toast";
 import { createSaveStatusBanner } from "./screens/saveStatusBanner";
 import { createConfirmDialog } from "./screens/confirmDialog";
 import { createAboutDialog } from "./screens/aboutDialog";
+import {
+  electronFailureLogStore,
+  initFailureLog,
+  installGlobalFailureHandlers,
+  getFailureLogView,
+  localStorageFailureLog,
+  recordFailure,
+  recordStorageFailure,
+} from "./failureLog";
+
+// The local failure log (see failureLog.ts): started before anything else so
+// an early failure is recorded too. Nothing is written until something fails.
+try {
+  initFailureLog({
+    version: __APP_VERSION__,
+    platform: window.electronPlatform ?? Capacitor.getPlatform(),
+    backend: window.electronAPI ? "electron-ipc" : Capacitor.isNativePlatform() ? "capacitor-fs" : "opfs",
+    store: window.electronFailureLogAPI ? electronFailureLogStore(window.electronFailureLogAPI) : localStorageFailureLog(window.localStorage),
+  });
+} catch {
+  // storage disabled: the app runs without a log
+}
+installGlobalFailureHandlers(window);
 
 // Service worker is only registered in browser/PWA context, not in the
 // Capacitor or Electron apps, which serve their own bundled files; a
@@ -317,6 +340,7 @@ async function createCapacitorBackend(
     await backend.mkdirp("");
   } catch (error) {
     console.error("QuKi Capacitor storage root could not be created:", error);
+    recordFailure("capacitor-storage-root", error);
     onMkdirpError("Could not create the QuKi Notes folder — an unexpected error occurred. Your QuKis will not load or save until it is.");
   }
   return backend;
@@ -407,6 +431,7 @@ async function init(): Promise<void> {
     void CapacitorApp.addListener("backButton", () => {
       void handleSystemBack().catch((error: unknown) => {
         console.error("QuKi Back failed unexpectedly:", error);
+        recordFailure("back", error);
       });
     });
   }
@@ -447,6 +472,7 @@ async function init(): Promise<void> {
       await androidBackend.mkdirp("");
     } catch (error) {
       console.error("QuKi Android storage root change: mkdirp failed unexpectedly:", error);
+      recordFailure("android-storage-root-change-mkdirp", error);
       showSaveStatus("Could not create the QuKi Notes folder — an unexpected error occurred. Your QuKis will not load or save until it is.");
     }
   };
@@ -507,13 +533,18 @@ async function init(): Promise<void> {
     }
   }
 
+  // The Electron main process records its own storage failures (it holds the
+  // real backend), so only the other two get the logging wrapper here.
   const backend: StorageBackend = window.electronAPI
     ? new ElectronIpcBackend(window.electronAPI)
     : Capacitor.isNativePlatform()
-      ? await createCapacitorBackend(showSaveStatus, setupApi, (b) => {
-          androidBackend = b;
-        })
-      : new OpfsBackend("quki");
+      ? withFailureLogging(
+          await createCapacitorBackend(showSaveStatus, setupApi, (b) => {
+            androidBackend = b;
+          }),
+          recordStorageFailure,
+        )
+      : withFailureLogging(new OpfsBackend("quki"), recordStorageFailure);
   const store = new QuKiStore(backend);
   const appSettings = new AppSettingsStore(window.localStorage);
 
@@ -524,6 +555,7 @@ async function init(): Promise<void> {
   // call site.
   await store.purgeExpiredTrash({ deleteOrphanedImages: appSettings.getDeleteOrphanedImages() }).catch((error: unknown) => {
     console.error("QuKi trash purge failed unexpectedly:", error);
+    recordFailure("trash-purge", error);
   });
 
   // STORAGE_CONTRACT.md rule 13: an image pasted into a new QuKi that is
@@ -537,6 +569,7 @@ async function init(): Promise<void> {
   if (appSettings.getDeleteOrphanedImages()) {
     await store.sweepOrphanedImages().catch((error: unknown) => {
       console.error("QuKi orphaned-image sweep (startup) failed unexpectedly:", error);
+      recordFailure("orphaned-image-sweep-startup", error);
     });
   }
 
@@ -990,6 +1023,7 @@ async function init(): Promise<void> {
       updateQuKisButtonState();
     } catch (error) {
       console.error("QuKi list refresh (for the QuKis button state) failed unexpectedly:", error);
+      recordFailure("list-refresh-for-the-qukis-button-state", error);
     }
   }
   void refreshQuKisButton();
@@ -1072,6 +1106,7 @@ async function init(): Promise<void> {
       await store.moveToTrash(id);
     } catch (error) {
       console.error("QuKi delete (moveToTrash) failed unexpectedly:", error);
+      recordFailure("delete-movetotrash", error);
       showSaveStatus("Could not move QuKi to Trash — an unexpected error occurred.");
       return;
     }
@@ -1170,6 +1205,7 @@ async function init(): Promise<void> {
       detail = await store.read(id);
     } catch (error) {
       console.error("QuKi open (read) failed unexpectedly:", error);
+      recordFailure("open-read", error);
       showSaveStatus("Could not open that QuKi — an unexpected error occurred.");
       return false;
     }
@@ -1219,6 +1255,7 @@ async function init(): Promise<void> {
       if (error instanceof NotFoundError) return false;
       // Not proof it's gone: let the switch's own read report the failure.
       console.error("QuKi Back (existence check) failed unexpectedly:", error);
+      recordFailure("back-existence-check", error);
       return true;
     }
   }
@@ -1325,6 +1362,7 @@ async function init(): Promise<void> {
       result = await store.save({ id: null, body: text });
     } catch (error) {
       console.error("QuKi share-in (save) failed unexpectedly:", error);
+      recordFailure("share-in-save", error);
       showToast("Failed to save shared content.", 4000);
       return;
     }
@@ -1472,6 +1510,7 @@ async function init(): Promise<void> {
       set: (value) => appSettings.setNewQuKiAfterAway(value),
     },
     onExport: exportQuKiLibrary,
+    failureLog: getFailureLogView(),
   });
 
   const trashView = createTrashView(store, viewElements.trash, {
@@ -1563,5 +1602,6 @@ async function init(): Promise<void> {
 // mechanism every other unexpected-error path in this file already shows.
 void init().catch((error: unknown) => {
   console.error("QuKi startup failed unexpectedly:", error);
+  recordFailure("startup", error);
   showSaveStatus("QuKi Notes could not start — an unexpected error occurred. Try reloading.");
 });

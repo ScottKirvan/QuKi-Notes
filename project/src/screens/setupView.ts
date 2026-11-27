@@ -3,6 +3,7 @@ import { ArrowLeft } from "lucide";
 import type { BackDismissStack } from "../backDismissStack";
 import type { ElectronSetupApi } from "../electronSetupApi";
 import { setIconButton } from "./icons";
+import { recordFailure } from "../failureLog";
 
 export interface SetupViewShowOptions {
   /**
@@ -179,6 +180,7 @@ export function createSetupView(container: HTMLElement, api: ElectronSetupApi, o
             (error: unknown) => {
               setBusy(false);
               console.error("QuKi setup: chooseFilesystem failed unexpectedly:", error);
+              recordFailure("setup-choosefilesystem", error);
               options.onError?.("Could not open the folder picker — an unexpected error occurred.");
             },
           );
@@ -194,6 +196,7 @@ export function createSetupView(container: HTMLElement, api: ElectronSetupApi, o
             (error: unknown) => {
               setBusy(false);
               console.error("QuKi setup: chooseAppStorage failed unexpectedly:", error);
+              recordFailure("setup-chooseappstorage", error);
               options.onError?.("Could not set up app storage — an unexpected error occurred.");
             },
           );

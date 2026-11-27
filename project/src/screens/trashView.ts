@@ -7,6 +7,7 @@ import type { Confirm } from "./confirmDialog";
 import { createIcon, setIconButton } from "./icons";
 import { attachSwipeToDelete } from "./swipeToDelete";
 import type { ShowToast } from "./toast";
+import { recordFailure } from "../failureLog";
 
 export interface TrashViewCallbacks {
   onBack: () => void;
@@ -44,6 +45,7 @@ export async function performTrashAction<T>(action: () => Promise<T>, showToast:
     return await action();
   } catch (error) {
     console.error(`QuKi trash action failed: ${failureMessage}`, error);
+    recordFailure("trash-action", error);
     showToast(failureMessage, 4000);
     return null;
   }
@@ -97,6 +99,7 @@ export function createTrashView(store: QuKiStore, container: HTMLElement, callba
     if (cleanup.deleteOrphanedImages) {
       await store.sweepOrphanedImages(cleanup).catch((error: unknown) => {
         console.error("QuKi orphaned-image sweep (Trash refresh) failed unexpectedly:", error);
+        recordFailure("orphaned-image-sweep-trash-refresh", error);
       });
     }
     const items = await store.listTrash();

@@ -1,5 +1,7 @@
 import type { QuKiStore } from "quki-core";
 
+import { recordSaveConflict, recordSaveFailure } from "./failureLog";
+
 export interface InitialQuKi {
   id: string | null;
   body: string;
@@ -263,6 +265,7 @@ export class AutoSaveController {
       });
     } catch (error) {
       console.error("QuKi overwrite save failed unexpectedly:", error);
+      recordSaveFailure("overwrite", error);
       if (generation === this.generation) this.onSaveError(error);
       return { status: "error", error };
     }
@@ -329,6 +332,7 @@ export class AutoSaveController {
       });
     } catch (error) {
       console.error("QuKi auto-save failed unexpectedly:", error);
+      recordSaveFailure("save", error);
       if (generation === this.generation) this.onSaveError(error);
       return { status: "error", error };
     }
@@ -353,6 +357,7 @@ export class AutoSaveController {
       // recognised as a change.
       return { status: "skipped-empty" };
     } else {
+      recordSaveConflict(result.reason);
       this.onConflict({ reason: result.reason, currentBody: result.currentBody });
       return { status: "conflict", reason: result.reason, currentBody: result.currentBody };
     }

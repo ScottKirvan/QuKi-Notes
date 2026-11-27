@@ -489,6 +489,23 @@ button.settings-row {
   color: var(--text-error);
 }
 
+.failure-log-text {
+  font-family: var(--font-monospace);
+  font-size: 12px;
+  line-height: 1.4;
+  margin: 8px 0;
+  padding: 8px;
+  max-height: 40vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+  background: var(--background-primary-alt);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+}
+
 .settings-note {
   color: var(--text-muted);
   font-size: 13px;
