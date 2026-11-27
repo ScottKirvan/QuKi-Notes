@@ -190,7 +190,8 @@ async function runScenario(browser: Browser, url: string, scheme: "light" | "dar
   const clipboard = await page.evaluate(() => navigator.clipboard.readText());
   const expectedCopy = `QuKi Notes ${expectedVersion} (branch ${expectedBranch === "" ? "unknown" : expectedBranch}`;
   assert(clipboard.startsWith(expectedCopy), `clipboard must hold the full build string starting "${expectedCopy}", got "${clipboard}"`);
-  assert(clipboard.endsWith(")"), `clipboard build string must be closed, got "${clipboard}"`);
+  const copiedOs = clipboard.slice(clipboard.indexOf(") · ") + 4);
+  assert(clipboard.includes(") · ") && /^(Windows|macOS|Linux|Android[ \d.]*|iOS|ChromeOS)$/.test(copiedOs), `clipboard build string must end with the operating system after the closing ")", got "${clipboard}"`);
   assert(!clipboard.includes("commit "), `clipboard must not include the commit hash, got "${clipboard}"`);
   assert(!clipboard.includes("uncommitted changes"), `clipboard must not include the uncommitted-changes flag, got "${clipboard}"`);
   const toastOnTop = await page.evaluate(() => {
@@ -230,26 +231,31 @@ async function runScenario(browser: Browser, url: string, scheme: "light" | "dar
   console.log(`${tag} PASS: all four Help-dialog link rows render with the expected title, description, label, url and styling`);
 
   await dialog.locator(".about-copy").focus();
+  const tabKeys = [...Array(9).fill("Tab"), ...Array(9).fill("Shift+Tab")] as string[];
   const focusOrder: string[] = [await activeElementDescription(page)];
-  for (const key of ["Tab", "Tab", "Tab", "Tab", "Tab", "Shift+Tab", "Shift+Tab", "Shift+Tab", "Shift+Tab", "Shift+Tab"]) {
+  for (const key of tabKeys) {
     await page.keyboard.press(key);
     focusOrder.push(await activeElementDescription(page));
   }
-  const expectedOrder = [
+  const forward = [
     "button.about-copy",
     "a.about-link-btn.accent",
     "a.about-link-btn",
     "a.about-link-btn",
     "a.about-link-btn",
+    "a.about-footer-icon",
+    "button.about-footer-icon",
+    "a.about-footer-icon",
+    "a.about-footer-icon",
     "button.about-close",
-    "a.about-link-btn",
-    "a.about-link-btn",
-    "a.about-link-btn",
-    "a.about-link-btn.accent",
-    "button.about-copy",
   ];
-  assert(JSON.stringify(focusOrder) === JSON.stringify(expectedOrder), `Tab must cycle copy -> the 4 link buttons -> close -> back, Shift+Tab reverses it, inside the dialog; got ${focusOrder.join(" -> ")}`);
-  console.log(`${tag} PASS: keyboard focus stays trapped in the dialog, cycling through all 4 link buttons (${focusOrder.join(" -> ")})`);
+  const expectedOrder = [...forward, ...forward.slice(0, -1).reverse()];
+  assert(JSON.stringify(focusOrder) === JSON.stringify(expectedOrder), `Tab must cycle copy -> the 4 link buttons -> the 4 footer icons -> close, Shift+Tab reverses it, inside the dialog; got ${focusOrder.join(" -> ")}`);
+  await page.keyboard.press("Shift+Tab");
+  assert((await activeElementDescription(page)) === "button.about-close", "Shift+Tab from the first control wraps to Close");
+  await page.keyboard.press("Tab");
+  assert((await activeElementDescription(page)) === "button.about-copy", "Tab from Close wraps to the version button");
+  console.log(`${tag} PASS: keyboard focus stays trapped in the dialog, cycling through all 4 link buttons and the 4 footer icons (${focusOrder.join(" -> ")})`);
 
   await dialog.locator(".about-close").click();
   await assertDialogHidden(page, "after Close");

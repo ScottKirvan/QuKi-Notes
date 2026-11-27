@@ -327,7 +327,26 @@ Sets the editor's text size only; app chrome, the QuKi list and Settings keep th
 
 ### Help dialog
 
-Reachable from both pages. Shows the app icon, name and version — **tapping the version copies it** — then four rows, each with an icon, a title, a one-line description and a button: **Documentation** (emphasised), **Discord**, **GitHub**, and **Buy me a coffee**. Each opens in the external browser. A **Close** button sits bottom-right.
+Reachable from both pages. Shows the app icon, name and version — **tapping the version copies it** — then four rows, each with an icon, a title, a one-line description and a button: **Documentation** (emphasised), **Discord**, **GitHub**, and **Buy me a coffee**. Each opens in the external browser. Under the rows is a footer of four small icon links, each with an accessible label and a tooltip: **What's new** (the GitHub releases page), **Credits** (opens the credits dialog), **Privacy** (the docs site's privacy page) and **GitHub**. A **Close** button sits bottom-right. The dialog is modelled on BojuBot's About dialog.
+
+The copied text is the version string for bug reports: `QuKi Notes <version> (branch <branch>, built <UTC time>) · <operating system>`. The operating system comes from the browser's user-agent string: Android with its version (`Android 14`), otherwise just `Windows`, `macOS`, `Linux`, `iOS` or `ChromeOS` (Windows and macOS freeze their versions in the user-agent string, so none is given). It is left out when the user agent is not recognised.
+
+**Report a problem** (a seam for a later report form): when the host gives the dialog an `openReportForm` callback, a **Report a problem** row ("Bugs, ideas or feedback.", button **Report**) takes the GitHub row's place and its button closes the dialog, then calls the callback. GitHub is then only in the footer. Without the callback — the case today — the GitHub row is unchanged.
+
+Close, Escape, a tap outside the dialog and Android's system Back close it; focus returns to the button that opened it.
+
+### Credits dialog
+
+Opened from the footer's Credits icon. Shows sections of entries (a name, an optional one-line detail, an optional link), then a notice line at the end. The content is `project/src/credits.json`: a list of sections, each a title and its entries, plus the notice. The sections are **Created by**, **Inspired by** and **Built with** (the dependencies that ship in the web, Android and desktop builds, each with its licence in the detail line).
+
+The list rolls slowly upward at a constant speed (30 px per second, at least 5 s per pass) from just below the visible area until the last line reaches the middle, fades out over 2 s, and starts again. A mouse resting on the list does not stop it. Scrolling the wheel, touching or clicking the list, putting focus on a link, or pressing ArrowDown stops the roll and leaves a plain scrollable list from the top, to be read at the reader's own pace. With the system's reduced-motion setting on, it never rolls and is a plain scrollable list. Reopening starts again from the top and rolls again.
+
+Links open in the external browser. Escape, the **Close** button, a tap outside and Android's system Back close it and leave About open; a second Back or Escape then closes About.
+
+- `[Proposed — unconfirmed]` The About dialog's footer icons and the Credits dialog's Close button are 44px touch targets (BojuBot's are 28px, which is small for a phone).
+- `[Proposed — unconfirmed]` The Credits list's height is the smaller of 340px and half the screen height, and the About dialog scrolls when the screen is too short to show it whole.
+- `[Proposed — unconfirmed]` The roll also stops on a touch of the list and on focus reaching a link (BojuBot's stops on a mouse press, the wheel and ArrowDown only), since a phone has no wheel and a list cannot scroll by touch while it is moving.
+- `[Proposed — unconfirmed]` The credits' content: the three section names, the entries, and the notice wording are a first draft for Scott to edit.
 
 ---
 
