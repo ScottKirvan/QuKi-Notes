@@ -3,7 +3,9 @@ import { ArrowLeft } from "lucide";
 import { AWAY_CHOICES, parseAwayMinutes, serializeAwayMinutes, type AwayMinutes } from "../awayTimeout";
 import { FONT_SIZES, type FontSize } from "../fontSize";
 import { setIconButton } from "./icons";
+import type { FailureLogView } from "../failureLog";
 import type { ShowToast } from "./toast";
+import { recordFailure } from "../failureLog";
 
 export interface StorageLocationInfo {
   path: string;
@@ -67,6 +69,12 @@ export interface SettingsViewCallbacks {
    * a generic failure toast if the returned promise rejects unexpectedly.
    */
   onExport: () => Promise<void>;
+  /**
+   * The local failure log (failureLog.ts), or null when the device gave the
+   * app nowhere to keep one. It is read only when the user opens it here,
+   * and nothing in this view sends it anywhere.
+   */
+  failureLog: FailureLogView | null;
 }
 
 export interface SettingsView {
@@ -167,6 +175,22 @@ export function createSettingsView(container: HTMLElement, callbacks: SettingsVi
           </select>
         </label>
       </section>
+      ${
+        callbacks.failureLog
+          ? `<section class="settings-section">
+        <h2>Diagnostics</h2>
+        <button type="button" class="settings-row settings-link failure-log-btn" aria-expanded="false">
+          <span>Failure log</span>
+        </button>
+        <div class="failure-log-panel" hidden>
+          <p class="settings-note">Errors and failed saves are recorded here, on this device only. Nothing is sent anywhere. It holds no QuKi text or file names.</p>
+          <pre class="failure-log-text" tabindex="0"></pre>
+          <button type="button" class="settings-row settings-link failure-log-copy-btn"><span>Copy</span></button>
+          <button type="button" class="settings-row settings-link failure-log-clear-btn"><span>Clear</span></button>
+        </div>
+      </section>`
+          : ""
+      }
       <section class="settings-section">
         <h2>About</h2>
         <div class="settings-row">
@@ -247,6 +271,52 @@ export function createSettingsView(container: HTMLElement, callbacks: SettingsVi
     });
   }
 
+  const failureLog = callbacks.failureLog;
+  if (failureLog) {
+    const toggleBtn = container.querySelector<HTMLButtonElement>(".failure-log-btn")!;
+    const panel = container.querySelector<HTMLElement>(".failure-log-panel")!;
+    const textEl = container.querySelector<HTMLElement>(".failure-log-text")!;
+    const loadLog = async (): Promise<void> => {
+      try {
+        textEl.textContent = await failureLog.readText();
+      } catch {
+        textEl.textContent = "The failure log could not be read.";
+      }
+    };
+    const setOpen = (open: boolean): void => {
+      panel.hidden = !open;
+      toggleBtn.setAttribute("aria-expanded", String(open));
+      if (open) void loadLog();
+    };
+    toggleBtn.addEventListener("click", () => setOpen(panel.hidden));
+    // The log is read when the user opens it, never in the background: leaving
+    // Settings closes it, so coming back shows nothing stale.
+    new MutationObserver(() => {
+      if (container.hidden && !panel.hidden) setOpen(false);
+    }).observe(container, { attributes: true, attributeFilter: ["hidden"] });
+    container.querySelector(".failure-log-copy-btn")!.addEventListener("click", () => {
+      void (async () => {
+        try {
+          await navigator.clipboard.writeText(textEl.textContent ?? "");
+          callbacks.showToast("Copied to clipboard.", 2000);
+        } catch {
+          callbacks.showToast("Could not copy the failure log.", 3000);
+        }
+      })();
+    });
+    container.querySelector(".failure-log-clear-btn")!.addEventListener("click", () => {
+      void (async () => {
+        try {
+          await failureLog.clear();
+          callbacks.showToast("Failure log cleared.", 2000);
+        } catch {
+          callbacks.showToast("Could not clear the failure log.", 3000);
+        }
+        await loadLog();
+      })();
+    });
+  }
+
   const exportBtn = container.querySelector<HTMLButtonElement>(".export-btn")!;
   exportBtn.addEventListener("click", () => {
     void (async () => {
@@ -255,6 +325,7 @@ export function createSettingsView(container: HTMLElement, callbacks: SettingsVi
         await callbacks.onExport();
       } catch (error) {
         console.error("QuKi export failed unexpectedly:", error);
+        recordFailure("export", error);
         callbacks.showToast("Export failed — unexpected error.", 4000);
       } finally {
         exportBtn.disabled = false;

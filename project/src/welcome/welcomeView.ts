@@ -1,5 +1,6 @@
 import type { QuKiStore } from "quki-core";
 
+import { recordFailure } from "../failureLog";
 import { extractPreview } from "../preview";
 import { formatRelativeTime } from "../relativeTime";
 import {
@@ -85,6 +86,7 @@ export function createWelcome(host: HTMLElement, store: QuKiStore, openQuKi: (id
       );
     } catch (error) {
       console.error("QuKi welcome (recent list) failed unexpectedly:", error);
+      recordFailure("welcome-recent-list", error);
       return [];
     }
   }

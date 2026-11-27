@@ -1,3 +1,5 @@
+import { recordFailure } from "./failureLog";
+
 export interface SendResult {
   ok: boolean;
   /**
@@ -77,6 +79,7 @@ export async function sendQuKi(body: string, transport: ShareTransport): Promise
     return { ok: true, message, durationMs: 2000, retryable: false };
   } catch (error) {
     console.error("QuKi send failed unexpectedly:", error);
+    recordFailure("send", error);
     return { ok: false, message: "Send failed — unexpected error.", durationMs: 4000, retryable: true };
   }
 }

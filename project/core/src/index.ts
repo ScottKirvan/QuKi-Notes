@@ -17,3 +17,4 @@ export type {
   SearchMatch,
 } from './types.js';
 export { NotFoundError, InvalidIdError } from './types.js';
+export * from './failureLog.js';
