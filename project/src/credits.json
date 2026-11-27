@@ -25,7 +25,8 @@
         { "name": "Turndown", "detail": "MIT License — turns pasted web pages into Markdown", "url": "https://github.com/mixmark-io/turndown" },
         { "name": "Workbox", "detail": "MIT License — offline support on the web", "url": "https://developer.chrome.com/docs/workbox" },
         { "name": "Model Context Protocol SDK", "detail": "MIT License — the quki-mcp server", "url": "https://github.com/modelcontextprotocol/typescript-sdk" },
-        { "name": "Zod", "detail": "MIT License — checks the quki-mcp server's input", "url": "https://zod.dev" }
+        { "name": "Zod", "detail": "MIT License — checks the quki-mcp server's input", "url": "https://zod.dev" },
+        { "name": "Licence texts", "detail": "Every package above, with its full licence", "url": "https://qukinotes.scottkirvan.com/THIRD_PARTY_NOTICES.txt" }
       ]
     }
   ],
